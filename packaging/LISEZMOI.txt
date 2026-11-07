@@ -1,0 +1,62 @@
+CPC BASIC IDE - version 0.1.0 (version de test)
+================================================
+
+Un editeur colore et un compilateur pour un BASIC evolue, derive du
+Locomotive BASIC, qui cree des programmes pour Amstrad CPC.
+
+ATTENTION : c'est une toute premiere version, publiee pour recueillir des
+retours. Elle n'est pas encore utilisable pour creer un jeu.
+
+
+1. LANCER L'EDITEUR
+-------------------
+Decompressez tout le dossier, puis double-cliquez sur CpcIde.exe.
+Aucune installation n'est necessaire, et il n'est pas utile d'installer .NET.
+
+
+2. COMPILER UN PROGRAMME
+------------------------
+- Ouvrez un programme avec le bouton "Ouvrir" (exemple : examples\hello.bas),
+  ou ecrivez le votre dans l'editeur.
+- Appuyez sur F5 (ou sur le bouton "Compiler").
+  Le programme est enregistre, puis un fichier .dsk est cree a cote.
+- Dans un emulateur (WinAPE par exemple), inserez le .dsk dans le lecteur A,
+  puis tapez : RUN"NOM"   (NOM = le nom du fichier .bas)
+
+Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus.
+
+
+3. CE QUI FONCTIONNE DANS CETTE VERSION
+---------------------------------------
+- PRINT "texte" (et ? comme raccourci), PRINT seul, END
+- PRINT "texte"; avec point-virgule : pas de saut de ligne
+- REM et ' pour les commentaires, : pour separer les instructions
+- Numeros de ligne facultatifs
+- Messages d'erreur explicites, avec la ligne ; un clic sur l'erreur amene
+  le curseur sur la ligne concernee
+
+Pas encore disponible : variables, boucles, conditions, graphismes, sons,
+sprites, sortie cassette, cartouche GX4000, choix de la machine cible.
+Les lettres accentuees ne sont pas gerees : elles s'affichent sous la forme "?".
+
+
+4. ANTIVIRUS ET WINDOWS
+-----------------------
+Le programme n'est pas signe numeriquement. Windows (SmartScreen) ou votre
+antivirus peut le signaler, ou bloquer son demarrage : c'est une fausse
+alerte frequente pour les programmes libres non signes.
+- La somme de controle (SHA256) de l'archive est indiquee dans la description
+  de la version sur GitHub : vous pouvez verifier que le fichier est intact.
+- Le code source complet est public : https://github.com/CPC-LOCO/cpc-basic-ide
+- Si votre antivirus bloque le programme, ajoutez le dossier aux exclusions.
+
+
+5. VOS RETOURS
+--------------
+Tests, problemes, idees, conseils sur le Z80 et le firmware du CPC :
+ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
+
+
+6. LICENCE
+----------
+Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
