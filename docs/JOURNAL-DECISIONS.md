@@ -68,6 +68,14 @@ Les messages d'erreur indiquent la **ligne de l'éditeur** (à partir de 1), pas
 ## D020 : Premier langage reconnu (Décidé, 7 nov. 2026)
 Pour J1, le compilateur reconnaît `PRINT "texte"` (avec `;` final pour supprimer le saut de ligne), `PRINT` seul et `END`, avec `:` pour séparer les instructions. Les mots sont insensibles à la casse. Le compilateur signale toutes les erreurs d'un coup (reprise à l'instruction suivante). Les textes des messages sont provisoirement en français dans le code ; ils iront dans les fichiers de langue.
 
+## D021 : Génération du code Z80 en J1 (Décidé, 7 nov. 2026)
+- **Assembleur interne :** J1 utilise un petit assembleur écrit dans le projet (`Z80Emitter`), avec étiquettes et sauts relatifs. Il n'a que les instructions nécessaires ; on en ajoute au fil des besoins. La décision D015 (assembleur interne ou externe) reste ouverte pour les modules plus complexes.
+- **Fin de programme :** conformément à D011, le programme compilé attend une touche (KM WAIT KEY, &BB18) puis redémarre la machine (`JP 0`). `END` saute à cette fin.
+- **Organisation du binaire :** instructions du programme, fin de programme, modules de la bibliothèque utilisés, puis textes terminés par 0. Adresse de chargement et d'exécution : &4000.
+- **Liaison sélective en action :** un programme sans `PRINT` ne contient aucun module de la bibliothèque.
+- **Limite connue :** les caractères hors ASCII (accents) sont remplacés par « ? » dans les textes affichés. La table des caractères du CPC reste à gérer.
+- **Fichiers produits :** un chargeur BASIC (`NOM.BAS`) et le binaire (`NOM.BIN`), noms de 8 caractères au plus. Lancement : `RUN"NOM"`.
+
 ## D015 : Assembleur Z80 interne ou externe (Ouvert)
 Écrire un assembleur dans le projet, ou s'appuyer sur un outil libre existant. À trancher en J1.
 
