@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CpcBasic.Cli/CpcBasic.Cli.csproj" />
+    <Project Path="src/CpcBasic.Core/CpcBasic.Core.csproj" />
+    <Project Path="src/CpcIde/CpcIde.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CpcBasic.Tests/CpcBasic.Tests.csproj" />
+  </Folder>
+</Solution>
