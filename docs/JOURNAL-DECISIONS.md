@@ -76,6 +76,13 @@ Pour J1, le compilateur reconnaît `PRINT "texte"` (avec `;` final pour supprime
 - **Limite connue :** les caractères hors ASCII (accents) sont remplacés par « ? » dans les textes affichés. La table des caractères du CPC reste à gérer.
 - **Fichiers produits :** un chargeur BASIC (`NOM.BAS`) et le binaire (`NOM.BIN`), noms de 8 caractères au plus. Lancement : `RUN"NOM"`.
 
+## D022 : Éditeur : ouvrir, enregistrer, compiler (Décidé, 7 nov. 2026)
+- Trois boutons (Ouvrir Ctrl+O, Enregistrer Ctrl+S, Compiler F5) et un panneau de messages sous l'éditeur.
+- **Compiler enregistre toujours le programme d'abord**, puis crée le `.dsk` à côté du fichier `.bas`, avec le même nom.
+- Un clic sur une erreur du panneau place le curseur sur la ligne concernée.
+- Le nom du fichier `.bas` donne le nom des fichiers de la disquette : 8 caractères au plus.
+- **Limite connue :** l'éditeur ne demande pas encore de confirmation quand on ouvre un fichier alors que le programme en cours contient des modifications non enregistrées.
+
 ## D015 : Assembleur Z80 interne ou externe (Ouvert)
 Écrire un assembleur dans le projet, ou s'appuyer sur un outil libre existant. À trancher en J1.
 

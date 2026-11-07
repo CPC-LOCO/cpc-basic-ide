@@ -2,14 +2,29 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:AvaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
         x:Class="CpcIde.MainWindow"
-        Title="CPC BASIC IDE - essai J0"
-        Width="900" Height="600">
+        Title="CPC BASIC IDE"
+        Width="1000" Height="700">
 
     <DockPanel>
-        <!-- Barre d'état en bas -->
+        <!-- Barre de boutons en haut -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="8">
+            <Button Content="Ouvrir (Ctrl+O)" Click="OnOpenClick" />
+            <Button Content="Enregistrer (Ctrl+S)" Click="OnSaveClick" />
+            <Button Content="Compiler (F5)" Click="OnCompileClick" />
+        </StackPanel>
+
+        <!-- Barre d'état tout en bas -->
         <Border DockPanel.Dock="Bottom" Background="#202020" Padding="8,4">
             <TextBlock x:Name="StatusText" Foreground="#C0C0C0" />
         </Border>
+
+        <!-- Panneau des messages : erreurs, ou résultat de la compilation -->
+        <ListBox x:Name="MessageList"
+                 DockPanel.Dock="Bottom"
+                 Height="140"
+                 Background="#101010"
+                 Foreground="#E0E0E0"
+                 SelectionChanged="OnMessageSelected" />
 
         <!-- Éditeur : papier bleu et stylo jaune, comme le MODE 1 du CPC -->
         <AvaloniaEdit:TextEditor x:Name="Editor"
