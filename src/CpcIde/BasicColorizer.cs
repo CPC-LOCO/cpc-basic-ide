@@ -127,6 +127,15 @@ public class BasicColorizer : DocumentColorizingTransformer
                 continue;
             }
 
+            // « ? » est un raccourci de PRINT : coloré comme un mot-clé
+            if (c == '?')
+            {
+                Paint(offset + i, offset + i + 1, KeywordBrush);
+                firstToken = false;
+                i++;
+                continue;
+            }
+
             // Tout autre caractère (opérateurs, virgules...) : couleur par défaut
             firstToken = false;
             i++;

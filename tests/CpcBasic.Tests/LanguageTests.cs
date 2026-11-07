@@ -41,6 +41,17 @@ public class LexerTests
     }
 
     [Fact]
+    public void Question_mark_is_a_shortcut_for_print()
+    {
+        List<Token> tokens = Lex("10 ?\"HELLO\"", out var diagnostics);
+
+        Assert.Empty(diagnostics);
+        Assert.Equal(TokenKind.Word, tokens[1].Kind);
+        Assert.Equal("PRINT", tokens[1].Text);
+        Assert.Equal(TokenKind.String, tokens[2].Kind);
+    }
+
+    [Fact]
     public void Text_between_quotes_keeps_its_case_and_spaces()
     {
         List<Token> tokens = Lex("10 PRINT \"Hello  World\"", out _);
@@ -124,6 +135,19 @@ public class ParserTests
         PrintStatement print = Assert.IsType<PrintStatement>(Assert.Single(result.Program.Statements));
         Assert.Equal("", print.Text);
         Assert.True(print.NewLine);
+    }
+
+    [Fact]
+    public void Question_mark_works_like_print()
+    {
+        AnalysisResult result = BasicAnalyzer.Analyze("10 ?\"HELLO\"\n20 ?\n30 ? \"A\";");
+
+        Assert.False(result.HasErrors);
+        Assert.Equal(3, result.Program.Statements.Count);
+        PrintStatement first = Assert.IsType<PrintStatement>(result.Program.Statements[0]);
+        Assert.Equal("HELLO", first.Text);
+        PrintStatement third = Assert.IsType<PrintStatement>(result.Program.Statements[2]);
+        Assert.False(third.NewLine);
     }
 
     [Fact]

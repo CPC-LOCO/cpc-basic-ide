@@ -106,6 +106,15 @@ public static class Lexer
                 continue;
             }
 
+            // « ? » est un raccourci de PRINT, comme dans le Locomotive BASIC
+            if (c == '?')
+            {
+                tokens.Add(new Token(TokenKind.Word, "PRINT", line, column));
+                i++;
+                first = false;
+                continue;
+            }
+
             if (c == ':')
                 tokens.Add(new Token(TokenKind.Colon, ":", line, column));
             else if (c == ';')
