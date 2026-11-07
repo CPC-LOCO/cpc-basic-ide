@@ -62,7 +62,7 @@ Le choix de la cible filtre les formats de sortie proposés, active ou désactiv
 - **Utilisateurs finaux** : débutants désirant créer des jeux, et passionnés de la communauté CPC.
 - **Utilisateur technique** : le futur projet de commandes Z80, qui s'appuiera sur l'architecture d'extension.
 - **Communauté** : testeurs et conseillers bénévoles, relecteurs de la bible, retours via le suivi des problèmes (Issues) du dépôt et les forums.
-- **Modèle de diffusion** : gratuit, ouvert, partagé à qui le veut. Code sous **GPL v3**. Licence de la bible : Creative Commons BY-SA 4.0 proposée, à confirmer. Licence des modules Z80 de la bibliothèque : question ouverte (voir l'entrée D017 du journal des décisions).
+- **Modèle de diffusion** : gratuit, ouvert, partagé à qui le veut. Code sous **GPL v3**. Licence de la bible : Creative Commons BY-SA 4.0 proposée, à confirmer. Licence des modules Z80 de la bibliothèque : GPL v3 avec exception de liaison, pour que les jeux créés gardent la licence choisie par leur auteur (entrée D017 du journal ; texte dans [`RUNTIME-EXCEPTION.md`](RUNTIME-EXCEPTION.md), à faire relire avant publication).
 
 **Conséquences.**
 
@@ -171,7 +171,7 @@ Priorités : Indispensable, Important, Souhaitable.
 
 | Jalon | Contenu | Critère de fin | Estimation | État |
 |---|---|---|---|---|
-| J0 | Cahier des charges, choix technologiques, licence, dépôt public | Document validé, prototype « texte → binaire → .dsk → émulateur » | 2 à 4 semaines | **Terminé** (reste : licence des modules Z80, D017) |
+| J0 | Cahier des charges, choix technologiques, licence, dépôt public | Document validé, prototype « texte → binaire → .dsk → émulateur » | 2 à 4 semaines | **Terminé** |
 | J1 | Éditeur de base (coloration, copier/coller) et compilateur minimal | Un programme de quelques lignes (PRINT, boucles) compile en .dsk et se lance sur émulateur | 6 à 10 semaines | À venir |
 | J2 | Langage de base complet, liaison sélective, cassette, messages d'erreur clairs | Un programme Locomotive BASIC de taille moyenne compile et tourne | 8 à 12 semaines | À venir |
 | J3 | Commandes graphiques et sonores, début de la bible | CIRCLE, STAR, PAINT, effets sonores fonctionnels, exemples documentés | 6 à 10 semaines | À venir |
@@ -209,7 +209,7 @@ Les exemples de la bible sont du vrai code : le compilateur les compile à chaqu
 | Compatibilité Locomotive BASIC (flottants, chaînes, mémoire) | Moyenne | Définir ce qui est compatible et documenter les écarts |
 | Format cartouche GX4000 et particularités du matériel Plus | Moyenne | Étudier tôt la documentation, tester sur émulateur |
 | Les 3 modes dans un écran (interruptions) | Moyenne | Classé en J5, abandonnable sans bloquer la V1 |
-| Licence des modules Z80 intégrés aux jeux compilés (GPL pure : jeux dérivés) | Moyenne | Décision D017 : exception de liaison ou LGPL, à valider avant publication |
+| Licence des modules Z80 intégrés aux jeux compilés (GPL pure : jeux dérivés) | Moyenne | Décision D017 prise : GPL v3 avec exception de liaison ; texte à faire relire avant la première publication d'un module |
 | Fausses alertes antivirus sur les exécutables | Moyenne | Distribution via GitHub Releases, sommes de contrôle, signature de code si possible |
 | Traductions imparfaites | Faible | Relecture par la communauté |
 
@@ -237,6 +237,6 @@ Les exemples de la bible sont du vrai code : le compilateur les compile à chaqu
 
 ## Prochaines étapes
 
-1. Terminer J0 : trancher la licence des modules Z80 (D017).
+1. Faire relire le texte de l'exception de liaison (`RUNTIME-EXCEPTION.md`) avant la première publication d'un module.
 2. Démarrer J1 : première version du cœur du compilateur (analyse d'un petit programme BASIC et génération du code Z80 pour `PRINT`), intégrée à l'éditeur.
 3. Publier une première version de test dès que J1 le permet.

@@ -27,8 +27,13 @@ Interface (menus et messages) en français, anglais et espagnol, via des fichier
 ## D007 : Diffusion et contributions (Décidé, 7 nov. 2026)
 Projet gratuit et libre, porté par une seule personne. Pas de contributions de code directes au début : des testeurs et conseillers donnent des retours, qui sont intégrés par le porteur avec l'aide de l'IA. Ouverture possible plus tard, avec des règles écrites.
 
-## D008 : Langage de développement (Provisoire, 7 nov. 2026)
-C# avec .NET et Avalonia, en trois couches (Core, Cli, Ide). Versions installées : .NET 10.0.403, Git 2.56.0. À confirmer par un essai : fenêtre avec éditeur coloré. Alternative de repli : Python avec Qt.
+## D008 : Langage de développement (Décidé, 7 nov. 2026)
+C# avec .NET et Avalonia, en trois couches (Core, Cli, Ide). Versions installées : .NET 10.0.403, Git 2.56.0.
+**Essai réussi :** fenêtre Avalonia avec éditeur AvaloniaEdit (paquet Avalonia.AvaloniaEdit), numéros de ligne, coloration des mots-clés classiques, des nouvelles commandes, des nombres (décimaux, &hexa, &X binaires), des chaînes et des commentaires, barre d'état, copier/coller. Remplace l'état « Provisoire » d'origine. Alternative de repli, non retenue : Python avec Qt.
+**Point à améliorer :** la colonne des numéros de ligne de l'éditeur colle aux numéros de ligne du BASIC (« 1 » puis « 10 » se lisent « 110 »). Ajouter un espace ou une couleur de fond distincte.
+
+## D018 : Antivirus (Ouvert, 7 nov. 2026)
+L'antivirus du porteur a bloqué l'accès aux fichiers du projet pendant l'essai. Les exécutables non signés produits par .NET déclenchent souvent de fausses alertes. À prévoir : documenter une exclusion du dossier du projet pour le développement, et étudier pour la distribution le dépôt des exécutables sur une plateforme connue (GitHub Releases), la publication des sommes de contrôle et, si possible, une signature de code.
 
 ## D009 : Prototype J0, adresse de chargement (Décidé, 7 nov. 2026)
 Le programme Z80 du prototype est chargé et exécuté à &4000.
@@ -47,8 +52,15 @@ Format standard, 40 pistes, une face, 9 secteurs de 512 octets, secteurs C1 à C
 ## D013 : Dépôt Git (Décidé, 7 nov. 2026)
 Dépôt local créé dans `CpcProto`, branche `master`. Premier commit : « J0 : chargeur BASIC tokenisé, RUN HELLO fonctionne ». Le `.gitignore` standard .NET exclut `bin` et `obj`. L'adresse e-mail apparaît dans les commits : acceptée.
 
-## D014 : Licence (Ouvert)
-À choisir avant la première publication : licence permissive (MIT) ou protégeant la liberté des dérivés (GPL v3) pour le code ; licence Creative Commons pour la bible.
+## D014 : Licence du code (Décidé, 7 nov. 2026)
+Le code de l'éditeur et du compilateur est publié sous **GPL v3** : tout projet dérivé reste libre et ouvert, ce qui correspond à la philosophie de partage du projet. Le texte officiel de la licence se trouve dans un fichier `LICENSE` à la racine du dépôt, et chaque fichier source porte une courte mention de licence.
+Licence de la bible : Creative Commons BY-SA 4.0 proposée (même esprit que la GPL pour la documentation), à confirmer.
+
+## D017 : Licence de la bibliothèque Z80 (Décidé, 7 nov. 2026)
+Les modules de `/runtime` sont copiés dans les programmes compilés par les utilisateurs. Sous GPL v3 pure, les jeux créés pourraient être considérés comme des œuvres dérivées et devraient eux-mêmes être publiés en GPL.
+**Décision :** les modules de la bibliothèque sont publiés sous **GPL v3 avec une exception de liaison** : les jeux produits par le compilateur gardent la licence choisie par leur auteur (y compris commerciale). Tout le projet reste ainsi sous une seule famille de licences. La LGPL v3 a été écartée.
+**Texte :** un projet de texte est dans `docs/RUNTIME-EXCEPTION.md`. Il s'inspire de l'exception de la bibliothèque d'exécution de GCC, que la Free Software Foundation fournit comme modèle. **À faire relire par une source compétente (FSF, forum de logiciel libre ou juriste) avant la première publication d'un module.**
+**Règle d'application :** chaque fichier du dossier `/runtime` portera une mention de licence qui renvoie à cette exception.
 
 ## D015 : Assembleur Z80 interne ou externe (Ouvert)
 Écrire un assembleur dans le projet, ou s'appuyer sur un outil libre existant. À trancher en J1.
