@@ -1,0 +1,21 @@
+10 REM Essai de IF / ELSE / comparaisons
+20 FOR i = 1 TO 6
+30 IF i = 3 THEN CONTINUE FOR
+40 IF i = 5 THEN EXIT FOR
+50 IF i < 3 THEN PRINT "petit"; ELSE PRINT "grand";
+60 PRINT i
+70 NEXT
+80 BYTE b
+90 b = 200
+100 IF b >= 200 AND b < 255 THEN
+110 PRINT "ok BYTE"
+120 ELSE
+130 PRINT "erreur"
+140 END IF
+150 IF i > 10 OR i <> 5 THEN
+160 PRINT "ou: erreur"
+170 ELSE
+180 PRINT "ou ok"
+190 END IF
+200 IF -5 < 3 THEN PRINT "negatif ok"
+210 PRINT "fin"

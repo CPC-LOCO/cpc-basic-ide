@@ -29,7 +29,14 @@ public enum DiagnosticCode
     NextWithoutFor,
     NextNameMismatch,
     ForWithoutNext,
-    LoopControlWithoutLoop
+    LoopControlWithoutLoop,
+    ExpectedThen,
+    ExpectedComparison,
+    ElseWithoutIf,
+    DuplicateElse,
+    EndIfWithoutIf,
+    IfWithoutEndIf,
+    BlocksNotNested
 }
 
 /// <summary>
@@ -85,6 +92,20 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"Ligne {Line} : la boucle FOR {Argument} n'est jamais refermée. Ajoutez un NEXT.",
         DiagnosticCode.LoopControlWithoutLoop =>
             $"Ligne {Line} : {Argument} est utilisé en dehors d'une boucle qu'il pourrait quitter ou poursuivre.",
+        DiagnosticCode.ExpectedThen =>
+            $"Ligne {Line} : « THEN » est attendu après la condition de IF, mais « {Argument} » a été trouvé.",
+        DiagnosticCode.ExpectedComparison =>
+            $"Ligne {Line} : une comparaison est attendue (=, <>, <, >, <=, >=), mais « {Argument} » a été trouvé. Une condition compare deux valeurs, par exemple A > 5.",
+        DiagnosticCode.ElseWithoutIf =>
+            $"Ligne {Line} : ELSE sans IF correspondant.",
+        DiagnosticCode.DuplicateElse =>
+            $"Ligne {Line} : ce IF a déjà un ELSE.",
+        DiagnosticCode.EndIfWithoutIf =>
+            $"Ligne {Line} : END IF sans IF correspondant.",
+        DiagnosticCode.IfWithoutEndIf =>
+            $"Ligne {Line} : ce IF sur plusieurs lignes n'est jamais refermé. Ajoutez END IF.",
+        DiagnosticCode.BlocksNotNested =>
+            $"Ligne {Line} : « {Argument} » arrive alors qu'un autre bloc (IF ou FOR) est encore ouvert. Refermez d'abord le bloc le plus récent.",
         _ => $"Ligne {Line} : problème inconnu ({Code})."
     };
 

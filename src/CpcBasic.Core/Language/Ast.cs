@@ -57,6 +57,30 @@ public sealed record ExitStatement(int SourceLine, LoopKind? Kind) : Statement(S
 /// <summary>CONTINUE [FOR] : passe à l'itération suivante. Kind est null pour « CONTINUE » seul.</summary>
 public sealed record ContinueStatement(int SourceLine, LoopKind? Kind) : Statement(SourceLine);
 
+/// <summary>Comparaisons possibles dans une condition.</summary>
+public enum CompareOperator { Equal, NotEqual, Less, LessOrEqual, Greater, GreaterOrEqual }
+
+/// <summary>Une condition : une comparaison, ou plusieurs reliées par AND / OR (AND passe avant OR).</summary>
+public abstract record Condition;
+
+public sealed record ComparisonCondition(CompareOperator Operator, Expression Left, Expression Right) : Condition;
+
+public sealed record AndCondition(Condition Left, Condition Right) : Condition;
+
+public sealed record OrCondition(Condition Left, Condition Right) : Condition;
+
+/// <summary>
+/// IF condition THEN ... : début d'un test. Sur une ligne (IF c THEN a ELSE b), le parser
+/// ajoute lui-même le EndIfStatement à la fin de la ligne ; en forme bloc, il vient de END IF.
+/// </summary>
+public sealed record IfStatement(int SourceLine, Condition Condition) : Statement(SourceLine);
+
+/// <summary>ELSE : début de la partie « sinon » du IF ouvert.</summary>
+public sealed record ElseStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>Fin du IF ouvert (END IF, ENDIF, ou fin de ligne pour un IF sur une ligne).</summary>
+public sealed record EndIfStatement(int SourceLine) : Statement(SourceLine);
+
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 

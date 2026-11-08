@@ -18,7 +18,7 @@ namespace CpcBasic.Core.Language;
 /// </summary>
 public static class Parser
 {
-    static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE"];
+    static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR"];
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
     {
@@ -29,13 +29,15 @@ public static class Parser
             pos = ParseLine(tokens, pos, statements, diagnostics);
 
         CheckDeclarations(statements, diagnostics);
-        CheckLoops(statements, diagnostics);
+        CheckBlocks(statements, diagnostics);
         return new BasicProgram(statements);
     }
 
     static bool IsLineEnd(Token t) => t.Kind == TokenKind.EndOfLine || t.Kind == TokenKind.EndOfFile;
 
     static bool IsStatementEnd(Token t) => t.Kind == TokenKind.Colon || IsLineEnd(t);
+
+    static bool IsElse(Token t) => t.Kind == TokenKind.Word && t.Text == "ELSE";
 
     static int ParseLine(IReadOnlyList<Token> tokens, int pos,
                          List<Statement> statements, List<Diagnostic> diagnostics)
@@ -87,8 +89,24 @@ public static class Parser
                 return ParsePrint(tokens, pos, statements, diagnostics);
 
             case "END":
+                if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "IF")
+                {
+                    statements.Add(new EndIfStatement(t.Line));   // END IF
+                    return pos + 2;
+                }
                 statements.Add(new EndStatement(t.Line));
                 return pos + 1;
+
+            case "ENDIF":
+                statements.Add(new EndIfStatement(t.Line));
+                return pos + 1;
+
+            case "ELSE":
+                statements.Add(new ElseStatement(t.Line));
+                return pos + 1;
+
+            case "IF":
+                return ParseIf(tokens, pos, statements, diagnostics);
 
             case "FOR":
                 return ParseFor(tokens, pos, statements, diagnostics);
@@ -161,7 +179,7 @@ public static class Parser
         var items = new List<object>();   // string (texte) ou Expression
         bool trailingSemicolon = false;
 
-        while (!IsStatementEnd(tokens[pos]))
+        while (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
         {
             if (tokens[pos].Kind == TokenKind.String)
             {
@@ -340,17 +358,167 @@ public static class Parser
         return pos;
     }
 
-    // Vérifie que les boucles sont bien refermées, dans l'ordre du programme
-    static void CheckLoops(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
+    // IF sur une ligne ou en bloc (fermé par END IF) :
+    //   IF condition THEN instructions [ELSE instructions]
+    //   IF condition THEN  (fin de ligne) ... [ELSE ...] END IF
+    // Si la condition est incorrecte, un IF neutre est quand même conservé pour éviter
+    // des erreurs en cascade, et le reste de la ligne est ignoré.
+    static int ParseIf(IReadOnlyList<Token> tokens, int pos,
+                       List<Statement> statements, List<Diagnostic> diagnostics)
     {
-        var open = new Stack<ForStatement>();
+        int line = tokens[pos].Line;
+        pos++;
+
+        Condition? condition = ParseCondition(tokens, ref pos, diagnostics);
+        bool ok = condition is not null;
+
+        if (ok)
+        {
+            if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "THEN")
+            {
+                pos++;
+            }
+            else
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedThen, tokens[pos].Line, tokens[pos].Text));
+                ok = false;
+            }
+        }
+
+        condition ??= new ComparisonCondition(CompareOperator.Equal, new NumberExpression(0), new NumberExpression(0));
+        statements.Add(new IfStatement(line, condition));
+
+        if (!ok)
+        {
+            // On devine la forme : un THEN suivi d'instructions sur la même ligne = IF sur une ligne
+            bool oneLine = false;
+            for (int k = pos; !IsLineEnd(tokens[k]); k++)
+            {
+                if (tokens[k].Kind == TokenKind.Word && tokens[k].Text == "THEN" && !IsLineEnd(tokens[k + 1]))
+                    oneLine = true;
+            }
+
+            while (!IsLineEnd(tokens[pos]))
+                pos++;
+            if (oneLine)
+                statements.Add(new EndIfStatement(line));
+            return pos;
+        }
+
+        if (IsLineEnd(tokens[pos]))
+            return pos;   // forme bloc : refermée par END IF
+
+        // Forme sur une ligne : tout le reste de la ligne appartient au IF
+        while (!IsLineEnd(tokens[pos]))
+        {
+            if (IsElse(tokens[pos]))
+            {
+                statements.Add(new ElseStatement(tokens[pos].Line));
+                pos++;
+                continue;
+            }
+
+            pos = ParseStatement(tokens, pos, statements, diagnostics);
+
+            if (tokens[pos].Kind == TokenKind.Colon)
+            {
+                pos++;
+                continue;
+            }
+
+            if (!IsLineEnd(tokens[pos]) && !IsElse(tokens[pos]))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, tokens[pos].Line, tokens[pos].Text));
+                pos = SkipToStatementEnd(tokens, pos);
+                if (tokens[pos].Kind == TokenKind.Colon)
+                    pos++;
+            }
+        }
+
+        statements.Add(new EndIfStatement(line));
+        return pos;
+    }
+
+    // condition := et { OR et }      et := comparaison { AND comparaison }
+    static Condition? ParseCondition(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Condition? left = ParseAndCondition(tokens, ref pos, diagnostics);
+
+        while (left is not null && tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "OR")
+        {
+            pos++;
+            Condition? right = ParseAndCondition(tokens, ref pos, diagnostics);
+            if (right is null)
+                return null;
+            left = new OrCondition(left, right);
+        }
+
+        return left;
+    }
+
+    static Condition? ParseAndCondition(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Condition? left = ParseComparison(tokens, ref pos, diagnostics);
+
+        while (left is not null && tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "AND")
+        {
+            pos++;
+            Condition? right = ParseComparison(tokens, ref pos, diagnostics);
+            if (right is null)
+                return null;
+            left = new AndCondition(left, right);
+        }
+
+        return left;
+    }
+
+    static Condition? ParseComparison(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParseExpression(tokens, ref pos, diagnostics);
+        if (left is null)
+            return null;
+
+        CompareOperator? op = tokens[pos].Kind switch
+        {
+            TokenKind.Equals => CompareOperator.Equal,
+            TokenKind.NotEqual => CompareOperator.NotEqual,
+            TokenKind.Less => CompareOperator.Less,
+            TokenKind.LessEqual => CompareOperator.LessOrEqual,
+            TokenKind.Greater => CompareOperator.Greater,
+            TokenKind.GreaterEqual => CompareOperator.GreaterOrEqual,
+            _ => null
+        };
+
+        if (op is null)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedComparison, tokens[pos].Line, tokens[pos].Text));
+            return null;
+        }
+        pos++;
+
+        Expression? right = ParseExpression(tokens, ref pos, diagnostics);
+        return right is null ? null : new ComparisonCondition(op.Value, left, right);
+    }
+
+    sealed class OpenBlock(Statement node)
+    {
+        public Statement Node { get; } = node;
+        public bool ElseSeen { get; set; }
+    }
+
+    static bool HasLoop(Stack<OpenBlock> open) => open.Any(b => b.Node is ForStatement);
+
+    // Vérifie que les blocs (FOR...NEXT, IF...END IF) sont refermés et bien imbriqués
+    static void CheckBlocks(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        var open = new Stack<OpenBlock>();
 
         foreach (Statement statement in statements)
         {
             switch (statement)
             {
-                case ForStatement loop:
-                    open.Push(loop);
+                case ForStatement or IfStatement:
+                    open.Push(new OpenBlock(statement));
                     break;
 
                 case NextStatement next:
@@ -359,25 +527,64 @@ public static class Parser
                         diagnostics.Add(new Diagnostic(DiagnosticCode.NextWithoutFor, next.SourceLine));
                         break;
                     }
-                    if (next.Variable is not null && next.Variable != open.Peek().Variable)
-                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextNameMismatch, next.SourceLine, open.Peek().Variable));
+                    if (open.Peek().Node is not ForStatement openFor)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, next.SourceLine, "NEXT"));
+                        break;
+                    }
+                    if (next.Variable is not null && next.Variable != openFor.Variable)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextNameMismatch, next.SourceLine, openFor.Variable));
                     open.Pop();   // la boucle est refermée même si le nom est faux
                     break;
 
-                case ExitStatement exit when open.Count == 0:
+                case ElseStatement:
+                    if (open.Count == 0)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.ElseWithoutIf, statement.SourceLine));
+                        break;
+                    }
+                    OpenBlock top = open.Peek();
+                    if (top.Node is not IfStatement)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, statement.SourceLine, "ELSE"));
+                    else if (top.ElseSeen)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.DuplicateElse, statement.SourceLine));
+                    else
+                        top.ElseSeen = true;
+                    break;
+
+                case EndIfStatement:
+                    if (open.Count == 0)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.EndIfWithoutIf, statement.SourceLine));
+                        break;
+                    }
+                    if (open.Peek().Node is not IfStatement)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, statement.SourceLine, "END IF"));
+                        break;
+                    }
+                    open.Pop();
+                    break;
+
+                case ExitStatement exit when !HasLoop(open):
                     diagnostics.Add(new Diagnostic(DiagnosticCode.LoopControlWithoutLoop, exit.SourceLine,
                         exit.Kind is null ? "EXIT" : "EXIT FOR"));
                     break;
 
-                case ContinueStatement skip when open.Count == 0:
+                case ContinueStatement skip when !HasLoop(open):
                     diagnostics.Add(new Diagnostic(DiagnosticCode.LoopControlWithoutLoop, skip.SourceLine,
                         skip.Kind is null ? "CONTINUE" : "CONTINUE FOR"));
                     break;
             }
         }
 
-        foreach (ForStatement loop in open)
-            diagnostics.Add(new Diagnostic(DiagnosticCode.ForWithoutNext, loop.SourceLine, loop.Variable));
+        foreach (OpenBlock block in open)
+        {
+            if (block.Node is ForStatement loop)
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ForWithoutNext, loop.SourceLine, loop.Variable));
+            else
+                diagnostics.Add(new Diagnostic(DiagnosticCode.IfWithoutEndIf, block.Node.SourceLine));
+        }
     }
 
     // BYTE a, b, c : les noms s'écrivent sans suffixe
@@ -437,6 +644,25 @@ public static class Parser
             }
         }
 
+        void UsesCondition(Condition condition)
+        {
+            switch (condition)
+            {
+                case ComparisonCondition comparison:
+                    Uses(comparison.Left);
+                    Uses(comparison.Right);
+                    break;
+                case AndCondition both:
+                    UsesCondition(both.Left);
+                    UsesCondition(both.Right);
+                    break;
+                case OrCondition either:
+                    UsesCondition(either.Left);
+                    UsesCondition(either.Right);
+                    break;
+            }
+        }
+
         foreach (Statement statement in statements)
         {
             switch (statement)
@@ -458,6 +684,10 @@ public static class Parser
                     used.Add(assign.Variable);
                     if (bytes.Contains(assign.Variable) && assign.Value is NumberExpression n && (n.Value < 0 || n.Value > 255))
                         diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, assign.SourceLine, n.Value.ToString()));
+                    break;
+
+                case IfStatement ifStatement:
+                    UsesCondition(ifStatement.Condition);
                     break;
 
                 case ForStatement loop:

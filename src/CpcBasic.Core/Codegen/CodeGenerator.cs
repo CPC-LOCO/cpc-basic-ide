@@ -27,6 +27,25 @@ public static class CodeGenerator
     sealed record LoopInfo(LoopKind Kind, string Variable, int Step, int Limit,
                            string BodyLabel, string NextLabel, string ExitLabel);
 
+    /// <summary>Un IF ouvert : ses étiquettes servent à ELSE et END IF.</summary>
+    sealed class IfInfo(string elseLabel, string endLabel)
+    {
+        public string ElseLabel { get; } = elseLabel;
+        public string EndLabel { get; } = endLabel;
+        public bool HasElse { get; set; }
+    }
+
+    /// <summary>Indicateur du Z80 qui vaut « comparaison vraie » après SBC HL,DE.</summary>
+    enum Flag { Z, NZ, C, NC }
+
+    static Flag Invert(Flag flag) => flag switch
+    {
+        Flag.Z => Flag.NZ,
+        Flag.NZ => Flag.Z,
+        Flag.C => Flag.NC,
+        _ => Flag.C
+    };
+
     public static GeneratedProgram Generate(BasicProgram program, int origin)
     {
         var emitter = new Z80Emitter(origin);
@@ -37,6 +56,9 @@ public static class CodeGenerator
         var declared = new Dictionary<string, VarType>();   // variables déclarées BYTE
         var loops = new Stack<LoopInfo>();      // boucles ouvertes, la plus récente en premier
         int loopCount = 0;
+        var ifs = new Stack<IfInfo>();         // IF ouverts, le plus récent en premier
+        int ifCount = 0;
+        int labelCount = 0;
 
         // Affiche un texte (rien si le texte est vide)
         void EmitText(string text)
@@ -175,6 +197,114 @@ public static class CodeGenerator
             emitter.Label(loop.ExitLabel);
         }
 
+        // Compare deux expressions et renvoie l'indicateur qui vaut « vrai ».
+        // Égalité : SBC suffit. Autres comparaisons : on retourne le bit 15 des deux valeurs (la
+        // comparaison signée devient une comparaison non signée par la retenue), et > et <= se font
+        // en échangeant les deux valeurs.
+        Flag EmitCompare(ComparisonCondition comparison)
+        {
+            bool equality = comparison.Operator is CompareOperator.Equal or CompareOperator.NotEqual;
+            bool swap = comparison.Operator is CompareOperator.Greater or CompareOperator.LessOrEqual;
+
+            EmitExpression(comparison.Left);
+            if (comparison.Right is NumberExpression right)
+            {
+                if (!equality)
+                {
+                    emitter.LdAH();
+                    emitter.XorImm(0x80);
+                    emitter.LdHA();
+                }
+                int value = right.Value & 0xFFFF;
+                emitter.LdDeImm(equality ? value : value ^ 0x8000);
+            }
+            else
+            {
+                emitter.PushHl();
+                EmitExpression(comparison.Right);
+                emitter.PopDe();                            // DE = gauche, HL = droite
+                emitter.ExDeHl();                           // HL = gauche, DE = droite
+                if (!equality)
+                {
+                    emitter.LdAH();
+                    emitter.XorImm(0x80);
+                    emitter.LdHA();
+                    emitter.LdAD();
+                    emitter.XorImm(0x80);
+                    emitter.LdDA();
+                }
+            }
+
+            if (swap)
+                emitter.ExDeHl();
+            emitter.OrA();
+            emitter.SbcHlDe();
+
+            return comparison.Operator switch
+            {
+                CompareOperator.Equal => Flag.Z,
+                CompareOperator.NotEqual => Flag.NZ,
+                CompareOperator.Less => Flag.C,
+                CompareOperator.GreaterOrEqual => Flag.NC,
+                CompareOperator.Greater => Flag.C,          // droite < gauche
+                _ => Flag.NC                                // gauche <= droite : non (droite < gauche)
+            };
+        }
+
+        // Saute vers target si la condition vaut whenTrue, sinon continue en séquence.
+        // AND et OR sont évalués de gauche à droite, en s'arrêtant dès que le résultat est connu.
+        void Jump(Condition condition, bool whenTrue, string target)
+        {
+            switch (condition)
+            {
+                case ComparisonCondition comparison:
+                {
+                    Flag flag = EmitCompare(comparison);
+                    if (!whenTrue)
+                        flag = Invert(flag);
+                    switch (flag)
+                    {
+                        case Flag.Z: emitter.JpZLabel(target); break;
+                        case Flag.NZ: emitter.JpNzLabel(target); break;
+                        case Flag.C: emitter.JpCLabel(target); break;
+                        default: emitter.JpNcLabel(target); break;
+                    }
+                    break;
+                }
+
+                case AndCondition both when whenTrue:
+                {
+                    string skip = $"cond_{labelCount++}";
+                    Jump(both.Left, false, skip);
+                    Jump(both.Right, true, target);
+                    emitter.Label(skip);
+                    break;
+                }
+
+                case AndCondition both:
+                    Jump(both.Left, false, target);
+                    Jump(both.Right, false, target);
+                    break;
+
+                case OrCondition either when whenTrue:
+                    Jump(either.Left, true, target);
+                    Jump(either.Right, true, target);
+                    break;
+
+                case OrCondition either:
+                {
+                    string skip = $"cond_{labelCount++}";
+                    Jump(either.Left, true, skip);
+                    Jump(either.Right, false, target);
+                    emitter.Label(skip);
+                    break;
+                }
+
+                default:
+                    throw new NotSupportedException($"Condition non gérée : {condition.GetType().Name}");
+            }
+        }
+
         foreach (Statement statement in program.Statements)
         {
             switch (statement)
@@ -225,6 +355,33 @@ public static class CodeGenerator
                 case ContinueStatement skip:
                     emitter.JpLabel(loops.First(l => skip.Kind is null || l.Kind == skip.Kind).NextLabel);
                     break;
+
+                case IfStatement ifStatement:
+                {
+                    int id = ifCount++;
+                    var info = new IfInfo($"if_{id}_else", $"if_{id}_end");
+                    Jump(ifStatement.Condition, false, info.ElseLabel);   // condition fausse : on saute au ELSE
+                    ifs.Push(info);
+                    break;
+                }
+
+                case ElseStatement:
+                {
+                    IfInfo info = ifs.Peek();
+                    emitter.JpLabel(info.EndLabel);                        // fin de la partie « alors »
+                    emitter.Label(info.ElseLabel);
+                    info.HasElse = true;
+                    break;
+                }
+
+                case EndIfStatement:
+                {
+                    IfInfo info = ifs.Pop();
+                    if (!info.HasElse)
+                        emitter.Label(info.ElseLabel);
+                    emitter.Label(info.EndLabel);
+                    break;
+                }
 
                 case EndStatement:
                     emitter.JpLabel(EndLabel);

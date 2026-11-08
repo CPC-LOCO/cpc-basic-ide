@@ -17,6 +17,11 @@ public enum TokenKind
     Plus,
     Minus,
     Equals,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
     LeftParen,
     RightParen,
     EndOfLine,
@@ -116,6 +121,27 @@ public static class Lexer
             {
                 tokens.Add(new Token(TokenKind.Word, "PRINT", line, column));
                 i++;
+                first = false;
+                continue;
+            }
+
+            // Comparaisons : <  <=  <>  >  >=
+            if (c == '<' || c == '>')
+            {
+                string op = c.ToString();
+                if (i + 1 < text.Length && (text[i + 1] == '=' || (c == '<' && text[i + 1] == '>')))
+                    op += text[i + 1];
+
+                TokenKind opKind = op switch
+                {
+                    "<" => TokenKind.Less,
+                    "<=" => TokenKind.LessEqual,
+                    "<>" => TokenKind.NotEqual,
+                    ">" => TokenKind.Greater,
+                    _ => TokenKind.GreaterEqual
+                };
+                tokens.Add(new Token(opKind, op, line, column));
+                i += op.Length;
                 first = false;
                 continue;
             }
