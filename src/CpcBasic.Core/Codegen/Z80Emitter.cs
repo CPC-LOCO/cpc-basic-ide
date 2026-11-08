@@ -39,12 +39,52 @@ public sealed class Z80Emitter
     /// <summary>Écrit un bloc de données.</summary>
     public void Data(byte[] data) => code.AddRange(data);
 
+    /// <summary>Réserve des octets initialisés à 0 (variables).</summary>
+    public void Reserve(int count) => code.AddRange(new byte[count]);
+
     // ----- Instructions -----
 
     public void LdHlLabel(string label) { code.Add(0x21); AddAbsolute(label); }   // LD HL,étiquette
+    public void LdHlImm(int value) { code.Add(0x21); AddWord(value); }             // LD HL,nombre
+    public void LdDeImm(int value) { code.Add(0x11); AddWord(value); }             // LD DE,nombre
+    public void LdAImm(int value) { code.Add(0x3E); code.Add((byte)value); }       // LD A,n
+    public void LdBImm(int value) { code.Add(0x06); code.Add((byte)value); }       // LD B,n
+    public void CpImm(int value) { code.Add(0xFE); code.Add((byte)value); }        // CP n
+
+    public void LdHlMem(string label) { code.Add(0x2A); AddAbsolute(label); }      // LD HL,(étiquette)
+    public void LdMemHl(string label) { code.Add(0x22); AddAbsolute(label); }      // LD (étiquette),HL
+    public void LdAMem(string label) { code.Add(0x3A); AddAbsolute(label); }       // LD A,(étiquette)
+    public void LdMemA(string label) { code.Add(0x32); AddAbsolute(label); }       // LD (étiquette),A
+
     public void LdAHl() => code.Add(0x7E);                                         // LD A,(HL)
+    public void LdLA() => code.Add(0x6F);                                          // LD L,A
+    public void LdHA() => code.Add(0x67);                                          // LD H,A
+    public void LdHZero() { code.Add(0x26); code.Add(0x00); }                      // LD H,0
+    public void LdAL() => code.Add(0x7D);                                          // LD A,L
+    public void LdCA() => code.Add(0x4F);                                          // LD C,A
+    public void LdAB() => code.Add(0x78);                                          // LD A,B
+    public void LdAC() => code.Add(0x79);                                          // LD A,C
+
+    public void PushHl() => code.Add(0xE5);                                        // PUSH HL
+    public void PopHl() => code.Add(0xE1);                                         // POP HL
+    public void PushDe() => code.Add(0xD5);                                        // PUSH DE
+    public void PopDe() => code.Add(0xD1);                                         // POP DE
+    public void PushBc() => code.Add(0xC5);                                        // PUSH BC
+    public void PopBc() => code.Add(0xC1);                                         // POP BC
+
+    public void AddHlDe() => code.Add(0x19);                                       // ADD HL,DE
+    public void SbcHlDe() { code.Add(0xED); code.Add(0x52); }                      // SBC HL,DE
+    public void ExDeHl() => code.Add(0xEB);                                        // EX DE,HL
+    public void Bit7H() { code.Add(0xCB); code.Add(0x7C); }                        // BIT 7,H
+
+    public void XorA() => code.Add(0xAF);                                          // XOR A
+    public void SubL() => code.Add(0x95);                                          // SUB L
+    public void SubH() => code.Add(0x94);                                          // SUB H
+    public void SbcAA() => code.Add(0x9F);                                         // SBC A,A
+    public void IncA() => code.Add(0x3C);                                          // INC A
     public void OrA() => code.Add(0xB7);                                           // OR A
     public void IncHl() => code.Add(0x23);                                         // INC HL
+
     public void Ret() => code.Add(0xC9);                                           // RET
     public void RetZ() => code.Add(0xC8);                                          // RET Z
     public void CallAddress(int address) { code.Add(0xCD); AddWord(address); }     // CALL adresse
@@ -53,9 +93,15 @@ public sealed class Z80Emitter
     public void JpLabel(string label) { code.Add(0xC3); AddAbsolute(label); }      // JP étiquette
 
     /// <summary>JR étiquette : saut relatif, de -128 à +127 octets.</summary>
-    public void JrLabel(string label)
+    public void JrLabel(string label) => Relative(0x18, label);
+
+    public void JrZLabel(string label) => Relative(0x28, label);                   // JR Z,étiquette
+    public void JrNzLabel(string label) => Relative(0x20, label);                  // JR NZ,étiquette
+    public void JrNcLabel(string label) => Relative(0x30, label);                  // JR NC,étiquette
+
+    void Relative(byte opcode, string label)
     {
-        code.Add(0x18);
+        code.Add(opcode);
         fixups.Add(new Fixup(code.Count, label, true));
         code.Add(0);
     }

@@ -50,7 +50,7 @@ public class BasicColorizer : DocumentColorizingTransformer
     {
         "CIRCLE", "ELLIPSE", "STAR", "PAINT", "BOX", "POLYGON",
         "SPRITE", "COLLIDE", "SCROLL",
-        "SELECT", "CASE",
+        "SELECT", "CASE", "BYTE",
         "VROOM", "BOOM", "SHOT", "FALL", "WAVE"
     };
 

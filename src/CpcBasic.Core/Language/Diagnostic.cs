@@ -11,8 +11,18 @@ public enum DiagnosticCode
     UnexpectedCharacter,
     UnterminatedString,
     UnknownCommand,
-    ExpectedString,
-    UnexpectedToken
+    ExpectedString,          // plus produit depuis J2 (PRINT accepte les expressions)
+    UnexpectedToken,
+    ExpectedExpression,
+    ExpectedEquals,
+    ExpectedClosingParenthesis,
+    NumberOutOfRange,
+    ByteOutOfRange,
+    UnsupportedVariableType,
+    ExpectedVariableName,
+    SuffixNotAllowedInDeclaration,
+    AlreadyDeclared,
+    DeclaredAfterUse
 }
 
 /// <summary>
@@ -34,6 +44,26 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"Ligne {Line} : PRINT attend un texte entre guillemets, mais a trouvé « {Argument} ».",
         DiagnosticCode.UnexpectedToken =>
             $"Ligne {Line} : « {Argument} » n'est pas attendu ici. Séparez les instructions par « : ».",
+        DiagnosticCode.ExpectedExpression =>
+            $"Ligne {Line} : une valeur est attendue (un nombre, une variable ou un calcul), mais « {Argument} » a été trouvé.",
+        DiagnosticCode.ExpectedEquals =>
+            $"Ligne {Line} : le signe « = » est attendu après le nom de la variable, mais « {Argument} » a été trouvé.",
+        DiagnosticCode.ExpectedClosingParenthesis =>
+            $"Ligne {Line} : il manque une parenthèse fermante « ) ».",
+        DiagnosticCode.NumberOutOfRange =>
+            $"Ligne {Line} : le nombre {Argument} est hors limites. Un entier va de -32768 à 32767.",
+        DiagnosticCode.ByteOutOfRange =>
+            $"Ligne {Line} : {Argument} ne tient pas dans une variable BYTE, qui va de 0 à 255.",
+        DiagnosticCode.UnsupportedVariableType =>
+            $"Ligne {Line} : le type de « {Argument} » n'existe pas encore. Seuls les entiers (A ou A%) et les variables BYTE sont gérés.",
+        DiagnosticCode.ExpectedVariableName =>
+            $"Ligne {Line} : un nom de variable est attendu après BYTE (ou après une virgule), mais « {Argument} » a été trouvé.",
+        DiagnosticCode.SuffixNotAllowedInDeclaration =>
+            $"Ligne {Line} : « {Argument} » : une variable BYTE se déclare sans suffixe. Écrivez simplement le nom.",
+        DiagnosticCode.AlreadyDeclared =>
+            $"Ligne {Line} : la variable « {Argument} » est déjà déclarée BYTE.",
+        DiagnosticCode.DeclaredAfterUse =>
+            $"Ligne {Line} : « {Argument} » est déjà utilisée plus haut comme entier. Placez BYTE {Argument} avant sa première utilisation.",
         _ => $"Ligne {Line} : problème inconnu ({Code})."
     };
 

@@ -14,6 +14,11 @@ public enum TokenKind
     Colon,
     Semicolon,
     Comma,
+    Plus,
+    Minus,
+    Equals,
+    LeftParen,
+    RightParen,
     EndOfLine,
     EndOfFile
 }
@@ -88,7 +93,7 @@ public static class Lexer
                 continue;
             }
 
-            // Mot : commande ou variable
+            // Mot : commande ou variable. Suffixes : $ chaîne, % entier, ! réel.
             if (char.IsLetter(c))
             {
                 int start = i;
@@ -115,12 +120,21 @@ public static class Lexer
                 continue;
             }
 
-            if (c == ':')
-                tokens.Add(new Token(TokenKind.Colon, ":", line, column));
-            else if (c == ';')
-                tokens.Add(new Token(TokenKind.Semicolon, ";", line, column));
-            else if (c == ',')
-                tokens.Add(new Token(TokenKind.Comma, ",", line, column));
+            TokenKind? kind = c switch
+            {
+                ':' => TokenKind.Colon,
+                ';' => TokenKind.Semicolon,
+                ',' => TokenKind.Comma,
+                '+' => TokenKind.Plus,
+                '-' => TokenKind.Minus,
+                '=' => TokenKind.Equals,
+                '(' => TokenKind.LeftParen,
+                ')' => TokenKind.RightParen,
+                _ => null
+            };
+
+            if (kind is TokenKind k)
+                tokens.Add(new Token(k, c.ToString(), line, column));
             else
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedCharacter, line, c.ToString()));
 

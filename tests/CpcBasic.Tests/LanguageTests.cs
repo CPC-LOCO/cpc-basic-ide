@@ -199,13 +199,22 @@ public class ParserTests
     }
 
     [Fact]
-    public void Print_with_a_number_is_reported()
+    public void Print_with_a_number_is_accepted()
     {
         AnalysisResult result = BasicAnalyzer.Analyze("10 PRINT 5");
 
+        Assert.False(result.HasErrors);
+        Assert.IsType<PrintValueStatement>(Assert.Single(result.Program.Statements));
+    }
+
+    [Fact]
+    public void Print_with_something_that_is_not_a_value_is_reported()
+    {
+        AnalysisResult result = BasicAnalyzer.Analyze("10 PRINT )");
+
         Diagnostic d = Assert.Single(result.Diagnostics);
-        Assert.Equal(DiagnosticCode.ExpectedString, d.Code);
-        Assert.Equal("5", d.Argument);
+        Assert.Equal(DiagnosticCode.ExpectedExpression, d.Code);
+        Assert.Equal(")", d.Argument);
     }
 
     [Fact]
@@ -222,7 +231,7 @@ public class ParserTests
     [Fact]
     public void Several_errors_are_all_reported()
     {
-        AnalysisResult result = BasicAnalyzer.Analyze("10 PRNT \"A\"\n20 PRINT 5\n30 PRINT \"C\"");
+        AnalysisResult result = BasicAnalyzer.Analyze("10 PRNT \"A\"\n20 PRINT )\n30 PRINT \"C\"");
 
         Assert.Equal(2, result.Diagnostics.Count);
         Assert.Single(result.Program.Statements);   // seule la ligne 30 est correcte
