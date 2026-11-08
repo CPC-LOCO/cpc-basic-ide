@@ -15,12 +15,17 @@ public sealed record GeneratedProgram(byte[] Code, IReadOnlyList<string> Modules
 /// instructions du programme, fin de programme, modules utilisés, textes, puis variables.
 /// Le programme ne revient jamais au BASIC : à la fin, il attend une touche puis redémarre.
 /// Les expressions sont calculées sur 16 bits, résultat dans HL (décision D027).
+/// Le programme a déjà été vérifié par l'analyseur : les boucles sont bien refermées.
 /// </summary>
 public static class CodeGenerator
 {
     const string EndLabel = "program_end";
 
     sealed record VariableSlot(string Label, VarType Type);
+
+    /// <summary>Une boucle ouverte : ses étiquettes servent à NEXT, EXIT et CONTINUE.</summary>
+    sealed record LoopInfo(LoopKind Kind, string Variable, int Step, int Limit,
+                           string BodyLabel, string NextLabel, string ExitLabel);
 
     public static GeneratedProgram Generate(BasicProgram program, int origin)
     {
@@ -30,6 +35,8 @@ public static class CodeGenerator
         var variables = new Dictionary<string, VariableSlot>();
         var slots = new List<VariableSlot>();   // dans l'ordre de première utilisation
         var declared = new Dictionary<string, VarType>();   // variables déclarées BYTE
+        var loops = new Stack<LoopInfo>();      // boucles ouvertes, la plus récente en premier
+        int loopCount = 0;
 
         // Affiche un texte (rien si le texte est vide)
         void EmitText(string text)
@@ -56,6 +63,35 @@ public static class CodeGenerator
             return slot;
         }
 
+        // Variable -> HL (un octet est étendu à 16 bits)
+        void EmitLoad(VariableSlot slot)
+        {
+            if (slot.Type == VarType.Integer)
+            {
+                emitter.LdHlMem(slot.Label);
+            }
+            else
+            {
+                emitter.LdAMem(slot.Label);
+                emitter.LdLA();
+                emitter.LdHZero();
+            }
+        }
+
+        // HL -> variable (pour un octet, on garde l'octet de poids faible : modulo 256)
+        void EmitStore(VariableSlot slot)
+        {
+            if (slot.Type == VarType.Integer)
+            {
+                emitter.LdMemHl(slot.Label);
+            }
+            else
+            {
+                emitter.LdAL();
+                emitter.LdMemA(slot.Label);
+            }
+        }
+
         // Calcule l'expression : le résultat est dans HL
         void EmitExpression(Expression expression)
         {
@@ -66,17 +102,7 @@ public static class CodeGenerator
                     break;
 
                 case VariableExpression variable:
-                    VariableSlot slot = Slot(variable.Name);
-                    if (slot.Type == VarType.Integer)
-                    {
-                        emitter.LdHlMem(slot.Label);
-                    }
-                    else
-                    {
-                        emitter.LdAMem(slot.Label);     // octet étendu à 16 bits
-                        emitter.LdLA();
-                        emitter.LdHZero();
-                    }
+                    EmitLoad(Slot(variable.Name));
                     break;
 
                 case BinaryExpression binary:
@@ -110,6 +136,45 @@ public static class CodeGenerator
             }
         }
 
+        // Fin d'une boucle FOR : ajoute le pas, puis revient au début du corps tant que la
+        // limite n'est pas dépassée. Le test se fait ici, donc le corps s'exécute au moins une fois.
+        // Les comparaisons sont signées : on retourne le bit de poids fort des deux valeurs, ce qui
+        // permet une comparaison non signée (retenue). Un débordement de l'entier (limite 32767)
+        // termine la boucle au lieu de la faire recommencer.
+        void EmitNext(LoopInfo loop)
+        {
+            VariableSlot slot = Slot(loop.Variable);
+
+            emitter.Label(loop.NextLabel);
+            EmitLoad(slot);
+            emitter.LdDeImm(loop.Step & 0xFFFF);
+            emitter.OrA();                                  // retenue à 0
+            emitter.AdcHlDe();                              // HL + pas, indicateur de débordement mis à jour
+            EmitStore(slot);                                // (LD ne modifie pas les indicateurs)
+            if (slot.Type == VarType.Integer)
+                emitter.JpPeLabel(loop.ExitLabel);          // débordement : fin de la boucle
+
+            emitter.LdAH();                                 // retourne le bit 15 de HL
+            emitter.XorImm(0x80);
+            emitter.LdHA();
+            emitter.LdDeImm((loop.Limit & 0xFFFF) ^ 0x8000);   // limite, même transformation
+
+            if (loop.Step > 0)
+            {
+                emitter.ExDeHl();                           // HL = limite, DE = valeur
+                emitter.OrA();
+                emitter.SbcHlDe();                          // limite - valeur : retenue si valeur > limite
+            }
+            else
+            {
+                emitter.OrA();
+                emitter.SbcHlDe();                          // valeur - limite : retenue si valeur < limite
+            }
+
+            emitter.JpNcLabel(loop.BodyLabel);              // pas de retenue : on continue
+            emitter.Label(loop.ExitLabel);
+        }
+
         foreach (Statement statement in program.Statements)
         {
             switch (statement)
@@ -128,21 +193,37 @@ public static class CodeGenerator
 
                 case AssignStatement assign:
                     EmitExpression(assign.Value);
-                    VariableSlot target = Slot(assign.Variable);
-                    if (target.Type == VarType.Integer)
-                    {
-                        emitter.LdMemHl(target.Label);
-                    }
-                    else
-                    {
-                        emitter.LdAL();                 // on garde l'octet de poids faible (modulo 256)
-                        emitter.LdMemA(target.Label);
-                    }
+                    EmitStore(Slot(assign.Variable));
                     break;
 
                 case DeclareStatement declare:
                     foreach (string declaredName in declare.Names)
                         declared[declaredName] = VarType.Byte;   // aucun code : seul le type est retenu
+                    break;
+
+                case ForStatement forStatement:
+                {
+                    EmitExpression(forStatement.Start);
+                    EmitStore(Slot(forStatement.Variable));
+
+                    int id = loopCount++;
+                    var loop = new LoopInfo(LoopKind.For, forStatement.Variable, forStatement.Step, forStatement.Limit,
+                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit");
+                    emitter.Label(loop.BodyLabel);
+                    loops.Push(loop);
+                    break;
+                }
+
+                case NextStatement:
+                    EmitNext(loops.Pop());
+                    break;
+
+                case ExitStatement exit:
+                    emitter.JpLabel(loops.First(l => exit.Kind is null || l.Kind == exit.Kind).ExitLabel);
+                    break;
+
+                case ContinueStatement skip:
+                    emitter.JpLabel(loops.First(l => skip.Kind is null || l.Kind == skip.Kind).NextLabel);
                     break;
 
                 case EndStatement:

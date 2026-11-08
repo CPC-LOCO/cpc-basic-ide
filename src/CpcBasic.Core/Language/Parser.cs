@@ -18,7 +18,7 @@ namespace CpcBasic.Core.Language;
 /// </summary>
 public static class Parser
 {
-    static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE"];
+    static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE"];
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
     {
@@ -29,6 +29,7 @@ public static class Parser
             pos = ParseLine(tokens, pos, statements, diagnostics);
 
         CheckDeclarations(statements, diagnostics);
+        CheckLoops(statements, diagnostics);
         return new BasicProgram(statements);
     }
 
@@ -88,6 +89,18 @@ public static class Parser
             case "END":
                 statements.Add(new EndStatement(t.Line));
                 return pos + 1;
+
+            case "FOR":
+                return ParseFor(tokens, pos, statements, diagnostics);
+
+            case "NEXT":
+                return ParseNext(tokens, pos, statements);
+
+            case "EXIT":
+                return ParseLoopControl(tokens, pos, statements, isExit: true);
+
+            case "CONTINUE":
+                return ParseLoopControl(tokens, pos, statements, isExit: false);
 
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
@@ -191,6 +204,182 @@ public static class Parser
         return pos;
     }
 
+    // FOR variable = départ TO limite [STEP pas]
+    // Si l'en-tête est incorrect, un FOR neutre est quand même conservé : le NEXT qui suit
+    // n'est alors pas signalé en plus, ce qui évite des erreurs en cascade.
+    static int ParseFor(IReadOnlyList<Token> tokens, int pos,
+                        List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        Token name = tokens[pos];
+        if (name.Kind != TokenKind.Word || Commands.Contains(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedVariableName, name.Line, name.Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (!VariableNames.IsSupported(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+
+        Expression start = new NumberExpression(0);
+        int limit = 0;
+        int step = 1;
+        bool ok = ParseForHeader(tokens, ref pos, diagnostics, ref start, ref limit, ref step);
+
+        statements.Add(new ForStatement(line, name.Text, start, limit, step));
+        return ok ? pos : SkipToStatementEnd(tokens, pos);
+    }
+
+    static bool ParseForHeader(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
+                               ref Expression start, ref int limit, ref int step)
+    {
+        if (tokens[pos].Kind != TokenKind.Equals)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedEquals, tokens[pos].Line, tokens[pos].Text));
+            return false;
+        }
+        pos++;
+
+        Expression? first = ParseExpression(tokens, ref pos, diagnostics);
+        if (first is null)
+            return false;
+        start = first;
+
+        if (tokens[pos].Kind != TokenKind.Word || tokens[pos].Text != "TO")
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedTo, tokens[pos].Line, tokens[pos].Text));
+            return false;
+        }
+        pos++;
+
+        int? lastValue = ParseSignedNumber(tokens, ref pos, diagnostics);
+        if (lastValue is null)
+            return false;
+        limit = lastValue.Value;
+
+        if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "STEP")
+        {
+            pos++;
+            int? stepValue = ParseSignedNumber(tokens, ref pos, diagnostics);
+            if (stepValue is null)
+                return false;
+            if (stepValue.Value == 0)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.StepIsZero, tokens[pos - 1].Line));
+                return false;
+            }
+            step = stepValue.Value;
+        }
+
+        return true;
+    }
+
+    // Un nombre écrit dans le programme, avec un signe facultatif (-32768 à 32767)
+    static int? ParseSignedNumber(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        bool negative = false;
+        if (tokens[pos].Kind == TokenKind.Minus)
+        {
+            negative = true;
+            pos++;
+        }
+        else if (tokens[pos].Kind == TokenKind.Plus)
+        {
+            pos++;
+        }
+
+        Token t = tokens[pos];
+        if (t.Kind != TokenKind.Number)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedNumber, t.Line, t.Text));
+            return null;
+        }
+
+        return ParseNumber(tokens, ref pos, diagnostics, negative) is NumberExpression number ? number.Value : null;
+    }
+
+    // NEXT [variable]
+    static int ParseNext(IReadOnlyList<Token> tokens, int pos, List<Statement> statements)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        string? name = null;
+        if (tokens[pos].Kind == TokenKind.Word && !Commands.Contains(tokens[pos].Text))
+        {
+            name = tokens[pos].Text;
+            pos++;
+        }
+
+        statements.Add(new NextStatement(line, name));
+        return pos;
+    }
+
+    // EXIT [FOR] et CONTINUE [FOR]
+    static int ParseLoopControl(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, bool isExit)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        LoopKind? kind = null;
+        if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "FOR")
+        {
+            kind = LoopKind.For;
+            pos++;
+        }
+
+        if (isExit)
+            statements.Add(new ExitStatement(line, kind));
+        else
+            statements.Add(new ContinueStatement(line, kind));
+        return pos;
+    }
+
+    // Vérifie que les boucles sont bien refermées, dans l'ordre du programme
+    static void CheckLoops(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        var open = new Stack<ForStatement>();
+
+        foreach (Statement statement in statements)
+        {
+            switch (statement)
+            {
+                case ForStatement loop:
+                    open.Push(loop);
+                    break;
+
+                case NextStatement next:
+                    if (open.Count == 0)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextWithoutFor, next.SourceLine));
+                        break;
+                    }
+                    if (next.Variable is not null && next.Variable != open.Peek().Variable)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextNameMismatch, next.SourceLine, open.Peek().Variable));
+                    open.Pop();   // la boucle est refermée même si le nom est faux
+                    break;
+
+                case ExitStatement exit when open.Count == 0:
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.LoopControlWithoutLoop, exit.SourceLine,
+                        exit.Kind is null ? "EXIT" : "EXIT FOR"));
+                    break;
+
+                case ContinueStatement skip when open.Count == 0:
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.LoopControlWithoutLoop, skip.SourceLine,
+                        skip.Kind is null ? "CONTINUE" : "CONTINUE FOR"));
+                    break;
+            }
+        }
+
+        foreach (ForStatement loop in open)
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ForWithoutNext, loop.SourceLine, loop.Variable));
+    }
+
     // BYTE a, b, c : les noms s'écrivent sans suffixe
     static int ParseDeclaration(IReadOnlyList<Token> tokens, int pos,
                                 List<Statement> statements, List<Diagnostic> diagnostics)
@@ -269,6 +458,20 @@ public static class Parser
                     used.Add(assign.Variable);
                     if (bytes.Contains(assign.Variable) && assign.Value is NumberExpression n && (n.Value < 0 || n.Value > 255))
                         diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, assign.SourceLine, n.Value.ToString()));
+                    break;
+
+                case ForStatement loop:
+                    Uses(loop.Start);
+                    used.Add(loop.Variable);
+                    if (bytes.Contains(loop.Variable))
+                    {
+                        if (loop.Start is NumberExpression first && (first.Value < 0 || first.Value > 255))
+                            diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, loop.SourceLine, first.Value.ToString()));
+                        if (loop.Limit < 0 || loop.Limit > 255)
+                            diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, loop.SourceLine, loop.Limit.ToString()));
+                        if (loop.Step < -255 || loop.Step > 255)
+                            diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, loop.SourceLine, loop.Step.ToString()));
+                    }
                     break;
 
                 case PrintValueStatement print:

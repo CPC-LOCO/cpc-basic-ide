@@ -22,7 +22,14 @@ public enum DiagnosticCode
     ExpectedVariableName,
     SuffixNotAllowedInDeclaration,
     AlreadyDeclared,
-    DeclaredAfterUse
+    DeclaredAfterUse,
+    ExpectedTo,
+    ExpectedNumber,
+    StepIsZero,
+    NextWithoutFor,
+    NextNameMismatch,
+    ForWithoutNext,
+    LoopControlWithoutLoop
 }
 
 /// <summary>
@@ -64,6 +71,20 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"Ligne {Line} : la variable « {Argument} » est déjà déclarée BYTE.",
         DiagnosticCode.DeclaredAfterUse =>
             $"Ligne {Line} : « {Argument} » est déjà utilisée plus haut comme entier. Placez BYTE {Argument} avant sa première utilisation.",
+        DiagnosticCode.ExpectedTo =>
+            $"Ligne {Line} : « TO » est attendu après la valeur de départ de FOR, mais « {Argument} » a été trouvé.",
+        DiagnosticCode.ExpectedNumber =>
+            $"Ligne {Line} : la limite et le pas de FOR doivent être des nombres écrits dans le programme (pas des variables), mais « {Argument} » a été trouvé.",
+        DiagnosticCode.StepIsZero =>
+            $"Ligne {Line} : le pas de FOR ne peut pas être 0, la boucle ne finirait jamais.",
+        DiagnosticCode.NextWithoutFor =>
+            $"Ligne {Line} : NEXT sans FOR correspondant. Ajoutez un FOR avant, ou retirez ce NEXT.",
+        DiagnosticCode.NextNameMismatch =>
+            $"Ligne {Line} : ce NEXT ne correspond pas à la boucle ouverte, dont la variable est « {Argument} ».",
+        DiagnosticCode.ForWithoutNext =>
+            $"Ligne {Line} : la boucle FOR {Argument} n'est jamais refermée. Ajoutez un NEXT.",
+        DiagnosticCode.LoopControlWithoutLoop =>
+            $"Ligne {Line} : {Argument} est utilisé en dehors d'une boucle qu'il pourrait quitter ou poursuivre.",
         _ => $"Ligne {Line} : problème inconnu ({Code})."
     };
 

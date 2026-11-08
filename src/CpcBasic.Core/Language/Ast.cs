@@ -38,6 +38,25 @@ public sealed record AssignStatement(int SourceLine, string Variable, Expression
 /// <summary>BYTE a, b : déclare des variables octet (0 à 255). Ne produit aucun code.</summary>
 public sealed record DeclareStatement(int SourceLine, IReadOnlyList<string> Names) : Statement(SourceLine);
 
+/// <summary>
+/// FOR variable = départ TO limite [STEP pas]. La limite et le pas sont des nombres écrits dans
+/// le programme (décision D033). Le corps de la boucle se termine au NEXT correspondant.
+/// </summary>
+public sealed record ForStatement(int SourceLine, string Variable, Expression Start, int Limit, int Step)
+    : Statement(SourceLine);
+
+/// <summary>NEXT [variable] : referme la boucle FOR ouverte la plus récente.</summary>
+public sealed record NextStatement(int SourceLine, string? Variable) : Statement(SourceLine);
+
+/// <summary>Types de boucles. DO, REPEAT et WHILE s'ajouteront à l'étape 2d.</summary>
+public enum LoopKind { For }
+
+/// <summary>EXIT [FOR] : sort de la boucle. Kind est null pour « EXIT » seul (boucle la plus proche).</summary>
+public sealed record ExitStatement(int SourceLine, LoopKind? Kind) : Statement(SourceLine);
+
+/// <summary>CONTINUE [FOR] : passe à l'itération suivante. Kind est null pour « CONTINUE » seul.</summary>
+public sealed record ContinueStatement(int SourceLine, LoopKind? Kind) : Statement(SourceLine);
+
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 

@@ -82,6 +82,9 @@ public sealed class Z80Emitter
     public void SubH() => code.Add(0x94);                                          // SUB H
     public void SbcAA() => code.Add(0x9F);                                         // SBC A,A
     public void IncA() => code.Add(0x3C);                                          // INC A
+    public void LdAH() => code.Add(0x7C);                                          // LD A,H
+    public void XorImm(int value) { code.Add(0xEE); code.Add((byte)value); }       // XOR n
+    public void AdcHlDe() { code.Add(0xED); code.Add(0x5A); }                      // ADC HL,DE
     public void OrA() => code.Add(0xB7);                                           // OR A
     public void IncHl() => code.Add(0x23);                                         // INC HL
 
@@ -91,6 +94,8 @@ public sealed class Z80Emitter
     public void CallLabel(string label) { code.Add(0xCD); AddAbsolute(label); }    // CALL étiquette
     public void JpAddress(int address) { code.Add(0xC3); AddWord(address); }       // JP adresse
     public void JpLabel(string label) { code.Add(0xC3); AddAbsolute(label); }      // JP étiquette
+    public void JpNcLabel(string label) { code.Add(0xD2); AddAbsolute(label); }    // JP NC,étiquette
+    public void JpPeLabel(string label) { code.Add(0xEA); AddAbsolute(label); }    // JP PE,étiquette
 
     /// <summary>JR étiquette : saut relatif, de -128 à +127 octets.</summary>
     public void JrLabel(string label) => Relative(0x18, label);
