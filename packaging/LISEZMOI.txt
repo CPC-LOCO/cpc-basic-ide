@@ -1,11 +1,13 @@
-CPC BASIC IDE - version 0.1.0 (version de test)
+CPC BASIC IDE - version 0.2.0 (version de test)
 ================================================
 
 Un editeur colore et un compilateur pour un BASIC evolue, derive du
 Locomotive BASIC, qui cree des programmes pour Amstrad CPC.
 
-ATTENTION : c'est une toute premiere version, publiee pour recueillir des
-retours. Elle n'est pas encore utilisable pour creer un jeu.
+ATTENTION : c'est une version de test, publiee pour recueillir des retours.
+Elle sait compiler des programmes simples (variables, calculs, boucles,
+conditions), mais elle n'est pas encore utilisable pour creer un jeu :
+pas de graphismes, de sons, de sprites ni de clavier.
 
 
 1. LANCER L'EDITEUR
@@ -16,28 +18,68 @@ Aucune installation n'est necessaire, et il n'est pas utile d'installer .NET.
 
 2. COMPILER UN PROGRAMME
 ------------------------
-- Ouvrez un programme avec le bouton "Ouvrir" (exemple : examples\hello.bas),
+- Ouvrez un programme avec le bouton "Ouvrir" (exemples : dossier examples),
   ou ecrivez le votre dans l'editeur.
 - Appuyez sur F5 (ou sur le bouton "Compiler").
   Le programme est enregistre, puis un fichier .dsk est cree a cote.
 - Dans un emulateur (WinAPE par exemple), inserez le .dsk dans le lecteur A,
   puis tapez : RUN"NOM"   (NOM = le nom du fichier .bas)
 
-Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus.
+Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus,
+sinon la compilation est refusee. Exemple : "boucles.bas" convient,
+"mon_programme.bas" est trop long.
+
+Quand le programme est termine, il attend une touche, puis la machine
+redemarre. C'est normal : un programme compile ne revient pas au BASIC.
 
 
 3. CE QUI FONCTIONNE DANS CETTE VERSION
 ---------------------------------------
-- PRINT "texte" (et ? comme raccourci), PRINT seul, END
-- PRINT "texte"; avec point-virgule : pas de saut de ligne
-- REM et ' pour les commentaires, : pour separer les instructions
-- Numeros de ligne facultatifs
-- Messages d'erreur explicites, avec la ligne ; un clic sur l'erreur amene
-  le curseur sur la ligne concernee
+Affichage
+  PRINT "texte", PRINT nombre, PRINT "A="; A  (le ; relie les elements ;
+  un ; final supprime le saut de ligne), ? comme raccourci de PRINT
 
-Pas encore disponible : variables, boucles, conditions, graphismes, sons,
-sprites, sortie cassette, cartouche GX4000, choix de la machine cible.
-Les lettres accentuees ne sont pas gerees : elles s'affichent sous la forme "?".
+Variables et calculs
+  A = 5 ou LET A = 5 : entier de -32768 a 32767 (A et A% sont distincts)
+  BYTE c, d          : declare des variables de 0 a 255 (1 octet chacune)
+  Calculs avec + et -, parentheses, moins unaire
+  Un calcul qui depasse la limite "boucle" (255 + 1 donne 0 pour un BYTE)
+
+Boucles
+  FOR i = 1 TO 10 STEP 2 ... NEXT       (limite et pas : nombres ecrits
+                                          dans le programme)
+  WHILE condition ... WEND
+  REPEAT ... UNTIL condition
+  DO ... LOOP, avec WHILE ou UNTIL en haut ou en bas (une seule condition)
+  EXIT et CONTINUE, avec ou sans le type de boucle : EXIT FOR, EXIT DO...
+
+Conditions
+  IF a = 1 THEN PRINT "oui" ELSE PRINT "non"       (sur une ligne)
+  IF a > 1 THEN ... ELSE ... END IF                (sur plusieurs lignes)
+  Comparaisons : =  <>  <  <=  >  >=   reliees par AND et OR
+
+Autres
+  END, REM et ' pour les commentaires, : pour separer les instructions,
+  numeros de ligne facultatifs.
+  Messages d'erreur explicites, avec la ligne ; un clic sur l'erreur amene
+  le curseur sur la ligne concernee.
+
+Differences avec le Locomotive BASIC a connaitre
+  - A est un entier (et non un reel). Pas de reels ni de chaines pour
+    l'instant.
+  - Apres une boucle FOR, la variable garde sa derniere valeur.
+  - Les mots BYTE, DO, LOOP, REPEAT, UNTIL, EXIT, CONTINUE, ENDIF sont
+    reserves : ils ne peuvent plus servir de noms de variables.
+  - Une condition doit etre une comparaison (IF a THEN n'est pas accepte).
+
+Pas encore disponible : multiplication, division, GOTO, GOSUB, tableaux,
+chaines, reels, INPUT, graphismes, sons, sprites, sortie cassette,
+cartouche GX4000, choix de la machine cible.
+Les lettres accentuees ne sont pas gerees : elles s'affichent sous la
+forme "?".
+
+Les programmes d'exemple du dossier examples montrent chaque fonction :
+hello.bas, variable.bas, boucles.bas, cond.bas, loops.bas.
 
 
 4. ANTIVIRUS ET WINDOWS
@@ -60,3 +102,7 @@ ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
 6. LICENCE
 ----------
 Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
+Les routines Z80 copiees dans vos programmes sont sous GPL v3 avec une
+exception de liaison : vos programmes gardent la licence de votre choix.
+Le texte de cette exception est un projet, en attente de relecture
+(voir docs\RUNTIME-EXCEPTION.md).

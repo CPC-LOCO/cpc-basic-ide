@@ -1,0 +1,6 @@
+<Project>
+  <!-- Numéro de version de tous les projets. À garder identique à VERSION dans packaging\build-release.cmd -->
+  <PropertyGroup>
+    <Version>0.2.0</Version>
+  </PropertyGroup>
+</Project>
