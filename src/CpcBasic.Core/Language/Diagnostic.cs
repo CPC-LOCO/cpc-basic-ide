@@ -36,7 +36,10 @@ public enum DiagnosticCode
     DuplicateElse,
     EndIfWithoutIf,
     IfWithoutEndIf,
-    BlocksNotNested
+    BlocksNotNested,
+    ClosingWithoutOpening,
+    UnclosedLoop,
+    DoConditionTwice
 }
 
 /// <summary>
@@ -106,6 +109,12 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"Ligne {Line} : ce IF sur plusieurs lignes n'est jamais refermé. Ajoutez END IF.",
         DiagnosticCode.BlocksNotNested =>
             $"Ligne {Line} : « {Argument} » arrive alors qu'un autre bloc (IF ou FOR) est encore ouvert. Refermez d'abord le bloc le plus récent.",
+        DiagnosticCode.ClosingWithoutOpening =>
+            $"Ligne {Line} : {Argument} sans début de boucle correspondant (WHILE pour WEND, REPEAT pour UNTIL, DO pour LOOP).",
+        DiagnosticCode.UnclosedLoop =>
+            $"Ligne {Line} : la boucle {Argument} n'est jamais refermée. Ajoutez {(Argument switch { "WHILE" => "WEND", "REPEAT" => "UNTIL", _ => "LOOP" })}.",
+        DiagnosticCode.DoConditionTwice =>
+            $"Ligne {Line} : ce DO a déjà une condition (WHILE ou UNTIL) au début : LOOP ne peut pas en avoir une aussi.",
         _ => $"Ligne {Line} : problème inconnu ({Code})."
     };
 

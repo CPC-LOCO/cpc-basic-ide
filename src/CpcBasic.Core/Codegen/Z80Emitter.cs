@@ -33,6 +33,15 @@ public sealed class Z80Emitter
             throw new InvalidOperationException($"Étiquette en double : {name}");
     }
 
+    /// <summary>Donne un second nom à l'adresse d'une étiquette déjà placée.</summary>
+    public void AliasLabel(string alias, string existing)
+    {
+        if (!labels.TryGetValue(existing, out int position))
+            throw new InvalidOperationException($"Étiquette inconnue : {existing}");
+        if (!labels.TryAdd(alias, position))
+            throw new InvalidOperationException($"Étiquette en double : {alias}");
+    }
+
     /// <summary>Écrit des octets tels quels.</summary>
     public void Bytes(params byte[] values) => code.AddRange(values);
 

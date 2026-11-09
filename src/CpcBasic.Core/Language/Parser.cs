@@ -18,7 +18,8 @@ namespace CpcBasic.Core.Language;
 /// </summary>
 public static class Parser
 {
-    static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR"];
+    static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR",
+        "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP"];
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
     {
@@ -107,6 +108,26 @@ public static class Parser
 
             case "IF":
                 return ParseIf(tokens, pos, statements, diagnostics);
+
+            case "WHILE":
+                return ParseConditionStatement(tokens, pos, statements, diagnostics, isWhile: true);
+
+            case "UNTIL":
+                return ParseConditionStatement(tokens, pos, statements, diagnostics, isWhile: false);
+
+            case "WEND":
+                statements.Add(new WendStatement(t.Line));
+                return pos + 1;
+
+            case "REPEAT":
+                statements.Add(new RepeatStatement(t.Line));
+                return pos + 1;
+
+            case "DO":
+                return ParseDoLoop(tokens, pos, statements, diagnostics, isLoop: false);
+
+            case "LOOP":
+                return ParseDoLoop(tokens, pos, statements, diagnostics, isLoop: true);
 
             case "FOR":
                 return ParseFor(tokens, pos, statements, diagnostics);
@@ -338,18 +359,77 @@ public static class Parser
         return pos;
     }
 
-    // EXIT [FOR] et CONTINUE [FOR]
+    static LoopKind? LoopKindFromWord(string word) => word switch
+    {
+        "FOR" => LoopKind.For,
+        "WHILE" => LoopKind.While,
+        "REPEAT" => LoopKind.Repeat,
+        "DO" => LoopKind.Do,
+        _ => null
+    };
+
+    static Condition NeutralCondition() =>
+        new ComparisonCondition(CompareOperator.Equal, new NumberExpression(0), new NumberExpression(0));
+
+    // WHILE condition  /  UNTIL condition
+    // Si la condition est incorrecte, une instruction neutre est conservée (pas d'erreur en cascade).
+    static int ParseConditionStatement(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
+                                       List<Diagnostic> diagnostics, bool isWhile)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        Condition? condition = ParseCondition(tokens, ref pos, diagnostics);
+        Condition used = condition ?? NeutralCondition();
+
+        if (isWhile)
+            statements.Add(new WhileStatement(line, used));
+        else
+            statements.Add(new UntilStatement(line, used));
+
+        return condition is null ? SkipToStatementEnd(tokens, pos) : pos;
+    }
+
+    // DO [WHILE condition | UNTIL condition]  /  LOOP [WHILE condition | UNTIL condition]
+    static int ParseDoLoop(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
+                           List<Diagnostic> diagnostics, bool isLoop)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        Condition? condition = null;
+        bool untilForm = false;
+        bool failed = false;
+
+        if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text is "WHILE" or "UNTIL")
+        {
+            untilForm = tokens[pos].Text == "UNTIL";
+            pos++;
+            condition = ParseCondition(tokens, ref pos, diagnostics);
+            if (condition is null)
+            {
+                condition = NeutralCondition();
+                failed = true;
+            }
+        }
+
+        if (isLoop)
+            statements.Add(new LoopStatement(line, condition, untilForm));
+        else
+            statements.Add(new DoStatement(line, condition, untilForm));
+
+        return failed ? SkipToStatementEnd(tokens, pos) : pos;
+    }
+
+    // EXIT [FOR | WHILE | REPEAT | DO] et CONTINUE [FOR | WHILE | REPEAT | DO]
     static int ParseLoopControl(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, bool isExit)
     {
         int line = tokens[pos].Line;
         pos++;
 
-        LoopKind? kind = null;
-        if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "FOR")
-        {
-            kind = LoopKind.For;
+        LoopKind? kind = tokens[pos].Kind == TokenKind.Word ? LoopKindFromWord(tokens[pos].Text) : null;
+        if (kind is not null)
             pos++;
-        }
 
         if (isExit)
             statements.Add(new ExitStatement(line, kind));
@@ -506,35 +586,88 @@ public static class Parser
         public bool ElseSeen { get; set; }
     }
 
-    static bool HasLoop(Stack<OpenBlock> open) => open.Any(b => b.Node is ForStatement);
+    static LoopKind? KindOf(Statement statement) => statement switch
+    {
+        ForStatement => LoopKind.For,
+        WhileStatement => LoopKind.While,
+        RepeatStatement => LoopKind.Repeat,
+        DoStatement => LoopKind.Do,
+        _ => null
+    };
 
-    // Vérifie que les blocs (FOR...NEXT, IF...END IF) sont refermés et bien imbriqués
+    static string KeywordOf(Statement statement) => statement switch
+    {
+        ForStatement => "FOR",
+        WhileStatement => "WHILE",
+        RepeatStatement => "REPEAT",
+        DoStatement => "DO",
+        _ => "IF"
+    };
+
+    // Une boucle (du type demandé, ou de n'importe quel type si kind est null) est-elle ouverte ?
+    static bool HasLoop(Stack<OpenBlock> open, LoopKind? kind) =>
+        open.Any(b => KindOf(b.Node) is LoopKind k && (kind is null || k == kind));
+
+    static string ControlName(string word, LoopKind? kind) =>
+        kind is null ? word : word + " " + kind.Value.ToString().ToUpperInvariant();
+
+    // Vérifie que les blocs (FOR, WHILE, REPEAT, DO, IF) sont refermés et bien imbriqués
     static void CheckBlocks(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
     {
         var open = new Stack<OpenBlock>();
+
+        // Referme le bloc le plus récent s'il est du bon type ; renvoie le bloc refermé, ou null
+        Statement? Close(int line, string keyword, DiagnosticCode whenNothingOpen, Func<Statement, bool> matches)
+        {
+            if (open.Count == 0)
+            {
+                diagnostics.Add(new Diagnostic(whenNothingOpen, line, keyword));
+                return null;
+            }
+            if (!matches(open.Peek().Node))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, line, keyword));
+                return null;
+            }
+            return open.Pop().Node;
+        }
 
         foreach (Statement statement in statements)
         {
             switch (statement)
             {
-                case ForStatement or IfStatement:
+                case ForStatement or IfStatement or WhileStatement or RepeatStatement or DoStatement:
                     open.Push(new OpenBlock(statement));
                     break;
 
                 case NextStatement next:
-                    if (open.Count == 0)
+                    if (Close(next.SourceLine, "NEXT", DiagnosticCode.NextWithoutFor, n => n is ForStatement)
+                            is ForStatement closedFor
+                        && next.Variable is not null && next.Variable != closedFor.Variable)
                     {
-                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextWithoutFor, next.SourceLine));
-                        break;
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextNameMismatch, next.SourceLine, closedFor.Variable));
                     }
-                    if (open.Peek().Node is not ForStatement openFor)
+                    break;
+
+                case WendStatement:
+                    Close(statement.SourceLine, "WEND", DiagnosticCode.ClosingWithoutOpening, n => n is WhileStatement);
+                    break;
+
+                case UntilStatement:
+                    Close(statement.SourceLine, "UNTIL", DiagnosticCode.ClosingWithoutOpening, n => n is RepeatStatement);
+                    break;
+
+                case LoopStatement loopEnd:
+                    if (Close(loopEnd.SourceLine, "LOOP", DiagnosticCode.ClosingWithoutOpening, n => n is DoStatement)
+                            is DoStatement opener
+                        && opener.Condition is not null && loopEnd.Condition is not null)
                     {
-                        diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, next.SourceLine, "NEXT"));
-                        break;
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.DoConditionTwice, loopEnd.SourceLine));
                     }
-                    if (next.Variable is not null && next.Variable != openFor.Variable)
-                        diagnostics.Add(new Diagnostic(DiagnosticCode.NextNameMismatch, next.SourceLine, openFor.Variable));
-                    open.Pop();   // la boucle est refermée même si le nom est faux
+                    break;
+
+                case EndIfStatement:
+                    Close(statement.SourceLine, "END IF", DiagnosticCode.EndIfWithoutIf, n => n is IfStatement);
                     break;
 
                 case ElseStatement:
@@ -552,38 +685,32 @@ public static class Parser
                         top.ElseSeen = true;
                     break;
 
-                case EndIfStatement:
-                    if (open.Count == 0)
-                    {
-                        diagnostics.Add(new Diagnostic(DiagnosticCode.EndIfWithoutIf, statement.SourceLine));
-                        break;
-                    }
-                    if (open.Peek().Node is not IfStatement)
-                    {
-                        diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, statement.SourceLine, "END IF"));
-                        break;
-                    }
-                    open.Pop();
-                    break;
-
-                case ExitStatement exit when !HasLoop(open):
+                case ExitStatement exit when !HasLoop(open, exit.Kind):
                     diagnostics.Add(new Diagnostic(DiagnosticCode.LoopControlWithoutLoop, exit.SourceLine,
-                        exit.Kind is null ? "EXIT" : "EXIT FOR"));
+                        ControlName("EXIT", exit.Kind)));
                     break;
 
-                case ContinueStatement skip when !HasLoop(open):
+                case ContinueStatement skip when !HasLoop(open, skip.Kind):
                     diagnostics.Add(new Diagnostic(DiagnosticCode.LoopControlWithoutLoop, skip.SourceLine,
-                        skip.Kind is null ? "CONTINUE" : "CONTINUE FOR"));
+                        ControlName("CONTINUE", skip.Kind)));
                     break;
             }
         }
 
         foreach (OpenBlock block in open)
         {
-            if (block.Node is ForStatement loop)
-                diagnostics.Add(new Diagnostic(DiagnosticCode.ForWithoutNext, loop.SourceLine, loop.Variable));
-            else
-                diagnostics.Add(new Diagnostic(DiagnosticCode.IfWithoutEndIf, block.Node.SourceLine));
+            switch (block.Node)
+            {
+                case ForStatement loop:
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ForWithoutNext, loop.SourceLine, loop.Variable));
+                    break;
+                case IfStatement:
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.IfWithoutEndIf, block.Node.SourceLine));
+                    break;
+                default:
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.UnclosedLoop, block.Node.SourceLine, KeywordOf(block.Node)));
+                    break;
+            }
         }
     }
 
@@ -688,6 +815,22 @@ public static class Parser
 
                 case IfStatement ifStatement:
                     UsesCondition(ifStatement.Condition);
+                    break;
+
+                case WhileStatement whileStatement:
+                    UsesCondition(whileStatement.Condition);
+                    break;
+
+                case UntilStatement untilStatement:
+                    UsesCondition(untilStatement.Condition);
+                    break;
+
+                case DoStatement doStatement when doStatement.Condition is not null:
+                    UsesCondition(doStatement.Condition);
+                    break;
+
+                case LoopStatement loopStatement when loopStatement.Condition is not null:
+                    UsesCondition(loopStatement.Condition);
                     break;
 
                 case ForStatement loop:

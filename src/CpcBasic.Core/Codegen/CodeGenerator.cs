@@ -25,7 +25,8 @@ public static class CodeGenerator
 
     /// <summary>Une boucle ouverte : ses étiquettes servent à NEXT, EXIT et CONTINUE.</summary>
     sealed record LoopInfo(LoopKind Kind, string Variable, int Step, int Limit,
-                           string BodyLabel, string NextLabel, string ExitLabel);
+                           string BodyLabel, string NextLabel, string ExitLabel,
+                           bool HasTopCondition = false);
 
     /// <summary>Un IF ouvert : ses étiquettes servent à ELSE et END IF.</summary>
     sealed class IfInfo(string elseLabel, string endLabel)
@@ -341,6 +342,80 @@ public static class CodeGenerator
                                             $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit");
                     emitter.Label(loop.BodyLabel);
                     loops.Push(loop);
+                    break;
+                }
+
+                case WhileStatement whileStatement:
+                {
+                    int id = loopCount++;
+                    var loop = new LoopInfo(LoopKind.While, "", 0, 0,
+                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit");
+                    emitter.Label(loop.NextLabel);                                // le test est en haut
+                    Jump(whileStatement.Condition, false, loop.ExitLabel);       // faux : on sort
+                    loops.Push(loop);
+                    break;
+                }
+
+                case WendStatement:
+                {
+                    LoopInfo loop = loops.Pop();
+                    emitter.JpLabel(loop.NextLabel);
+                    emitter.Label(loop.ExitLabel);
+                    break;
+                }
+
+                case RepeatStatement:
+                {
+                    int id = loopCount++;
+                    var loop = new LoopInfo(LoopKind.Repeat, "", 0, 0,
+                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit");
+                    emitter.Label(loop.BodyLabel);
+                    loops.Push(loop);
+                    break;
+                }
+
+                case UntilStatement untilStatement:
+                {
+                    LoopInfo loop = loops.Pop();
+                    emitter.Label(loop.NextLabel);                                // CONTINUE arrive ici
+                    Jump(untilStatement.Condition, false, loop.BodyLabel);       // faux : on recommence
+                    emitter.Label(loop.ExitLabel);
+                    break;
+                }
+
+                case DoStatement doStatement:
+                {
+                    int id = loopCount++;
+                    bool hasTop = doStatement.Condition is not null;
+                    var loop = new LoopInfo(LoopKind.Do, "", 0, 0,
+                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit", hasTop);
+                    emitter.Label(loop.BodyLabel);
+                    if (doStatement.Condition is not null)
+                    {
+                        emitter.AliasLabel(loop.NextLabel, loop.BodyLabel);      // CONTINUE revient au test du haut
+                        // DO WHILE : on sort si faux ; DO UNTIL : on sort si vrai
+                        Jump(doStatement.Condition, doStatement.UntilForm, loop.ExitLabel);
+                    }
+                    loops.Push(loop);
+                    break;
+                }
+
+                case LoopStatement loopStatement:
+                {
+                    LoopInfo loop = loops.Pop();
+                    if (loopStatement.Condition is null)
+                    {
+                        if (!loop.HasTopCondition)
+                            emitter.AliasLabel(loop.NextLabel, loop.BodyLabel);
+                        emitter.JpLabel(loop.BodyLabel);
+                    }
+                    else
+                    {
+                        emitter.Label(loop.NextLabel);                            // CONTINUE arrive ici
+                        // LOOP WHILE : on recommence si vrai ; LOOP UNTIL : on recommence si faux
+                        Jump(loopStatement.Condition, !loopStatement.UntilForm, loop.BodyLabel);
+                    }
+                    emitter.Label(loop.ExitLabel);
                     break;
                 }
 

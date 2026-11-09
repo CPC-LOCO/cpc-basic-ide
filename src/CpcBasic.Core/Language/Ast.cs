@@ -48,8 +48,27 @@ public sealed record ForStatement(int SourceLine, string Variable, Expression St
 /// <summary>NEXT [variable] : referme la boucle FOR ouverte la plus récente.</summary>
 public sealed record NextStatement(int SourceLine, string? Variable) : Statement(SourceLine);
 
-/// <summary>Types de boucles. DO, REPEAT et WHILE s'ajouteront à l'étape 2d.</summary>
-public enum LoopKind { For }
+/// <summary>Types de boucles.</summary>
+public enum LoopKind { For, While, Repeat, Do }
+
+/// <summary>WHILE condition ... WEND : test en haut, la boucle continue tant que la condition est vraie.</summary>
+public sealed record WhileStatement(int SourceLine, Condition Condition) : Statement(SourceLine);
+
+/// <summary>WEND : referme le WHILE ouvert.</summary>
+public sealed record WendStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>REPEAT ... UNTIL condition : test en bas, la boucle s'arrête quand la condition devient vraie.</summary>
+public sealed record RepeatStatement(int SourceLine) : Statement(SourceLine);
+
+public sealed record UntilStatement(int SourceLine, Condition Condition) : Statement(SourceLine);
+
+/// <summary>
+/// DO [WHILE c | UNTIL c] ... LOOP [WHILE c | UNTIL c]. Une seule des deux condition est permise.
+/// UntilForm est vrai pour UNTIL, faux pour WHILE. Condition est null s'il n'y en a pas.
+/// </summary>
+public sealed record DoStatement(int SourceLine, Condition? Condition, bool UntilForm) : Statement(SourceLine);
+
+public sealed record LoopStatement(int SourceLine, Condition? Condition, bool UntilForm) : Statement(SourceLine);
 
 /// <summary>EXIT [FOR] : sort de la boucle. Kind est null pour « EXIT » seul (boucle la plus proche).</summary>
 public sealed record ExitStatement(int SourceLine, LoopKind? Kind) : Statement(SourceLine);

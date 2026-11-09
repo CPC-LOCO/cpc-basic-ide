@@ -108,6 +108,67 @@ Pour J1, le compilateur reconnaît `PRINT "texte"` (avec `;` final pour supprime
 ## D016 : ROM (Ouvert)
 Ne pas redistribuer les ROM Amstrad. Comment les fournir : demander à l'utilisateur, ou ROM libres de remplacement. À trancher avant la publication.
 
+## D026 : Types de J2 (DÃ©cidÃ©, 8 nov. 2026)
+Deux types de variables : entier signÃ© 16 bits (`A` ou `A%`, sans dÃ©claration) et octet non signÃ© 8 bits (voir D032). Le suffixe fait partie du nom : `A` et `A%` sont des variables distinctes, comme dans le Locomotive BASIC. DiffÃ©rence assumÃ©e : dans le Locomotive, `A` est un rÃ©el. RÃ©els et chaÃ®nes : Ã©tapes ultÃ©rieures (voir D016 pour les ROM).
+DÃ©passement : un littÃ©ral hors intervalle est une erreur de compilation ; Ã  l'exÃ©cution, le calcul boucle (modulo 256 pour l'octet, modulo 65536 pour l'entier), comportement natif du Z80, sans test coÃ»teux.
+
+## D027 : Variables et expressions (DÃ©cidÃ©, 8 nov. 2026)
+Variables allouÃ©es statiquement aprÃ¨s les textes : 1 octet pour un octet, 2 octets (petit-boutiste) pour un entier. Seules les variables utilisÃ©es sont rÃ©servÃ©es ; valeur initiale 0. Expressions Ã©valuÃ©es dans HL, opÃ©rande de gauche empilÃ©. Lecture d'un octet : LD A,(var) / LD L,A / LD H,0. Ã‰criture : LD A,L / LD (var),A. Les modules PrintInt, Mul16 et Div16 ne connaissent donc que HL. Les futurs tableaux hÃ©riteront du type de leur Ã©lÃ©ment.
+
+## D028 : Format de dÃ©claration des modules (Ouvert, 8 nov. 2026)
+PrÃ©cise la question laissÃ©e ouverte par D024 : format de dÃ©claration des modules de la bibliothÃ¨que sous forme de fichiers (source Z80 et mÃ©tadonnÃ©es). Ã€ trancher avant l'ouverture du projet de commandes Z80.
+
+## D029 : Suffixe du type octet (RemplacÃ©e par D032, 8 nov. 2026)
+Le suffixe Â« ~ Â» avait Ã©tÃ© retenu provisoirement (Â« @ Â» Ã©cartÃ© : adresse de variable du Locomotive BASIC). AbandonnÃ© : Â« ~ Â» demande AltGr sur clavier AZERTY. Voir D032.
+
+## D030 : NumÃ©ro non utilisÃ©
+RÃ©servÃ© pendant la discussion sur le suffixe, finalement sans objet.
+
+## D031 : Bilan de l'Ã©tape 2a (DÃ©cidÃ©, 8 nov. 2026)
+- Variables entiÃ¨res (A, A%) implicites ; variables octet dÃ©clarÃ©es avec BYTE (voir D032). Affectation avec ou sans LET, expressions avec + et - (parenthÃ¨ses, moins unaire), PRINT d'expressions, PRINT avec plusieurs Ã©lÃ©ments sÃ©parÃ©s par Â« ; Â». La virgule dans PRINT n'est pas gÃ©rÃ©e.
+- Les types $ et ! sont refusÃ©s avec un message (UnsupportedVariableType).
+- Nouveau module PrintInt, liÃ© seulement si un nombre est affichÃ©. Format vÃ©rifiÃ© sur WinAPE : espace devant (ou Â« - Â»), chiffres, espace final, identique au BASIC rÃ©el (`PRINT 5;"X"` donne Â« 5 X Â»).
+- ExpectedString n'est plus produit (PRINT accepte les expressions).
+- ValidÃ© sur WinAPE avec `examples/variable.bas`.
+- Limite : le nom du fichier .bas est limitÃ© Ã  8 caractÃ¨res (D022).
+
+## D032 : Type octet par dÃ©claration BYTE (DÃ©cidÃ©, 8 nov. 2026)
+Remplace D029. Une variable octet (0 Ã  255) se dÃ©clare avec `BYTE nom [, nom ...]`, sans suffixe, avant sa premiÃ¨re utilisation. Les entiers (A, A%) restent implicites.
+Choix de BYTE plutÃ´t que CHAR : CHAR Ã©voque un caractÃ¨re de texte. BYTE n'est pas un mot rÃ©servÃ© du Locomotive BASIC (vÃ©rifiÃ© dans WinAPE : `BYTE=5` fonctionne), mais un programme du Locomotive qui nomme une variable BYTE n'est plus compilable.
+Erreurs : double dÃ©claration, dÃ©claration aprÃ¨s usage, suffixe dans la dÃ©claration, littÃ©ral hors de 0 Ã  255. Un calcul qui dÃ©passe 255 boucle (modulo 256). Option OPTION EXPLICIT (dÃ©claration obligatoire pour tous les types) possible plus tard. ComplÃ¨te D026 et D027.
+
+## D033 : Boucles FOR/NEXT, EXIT, CONTINUE (DÃ©cidÃ©, 8 nov. 2026)
+- Syntaxe : `FOR v = dÃ©part TO limite [STEP pas] ... NEXT [v]`. Limite et pas : nombres Ã©crits dans le programme (pas de variables pour l'instant). Pas non nul.
+- Test au NEXT (corps exÃ©cutÃ© au moins une fois), comme sur le CPC. Comparaison signÃ©e (bit 15 retournÃ© puis comparaison non signÃ©e). DÃ©bordement de l'entier : fin de boucle.
+- Variable de boucle : entier ou BYTE dÃ©clarÃ©. BYTE : limite dans 0..255, pas dans -255..255.
+- EXIT et CONTINUE : sauts rÃ©solus Ã  la compilation (pile de boucles dans le gÃ©nÃ©rateur, aucun nettoyage sur la pile du Z80).
+- Ã‰cart avec le Locomotive : aprÃ¨s la boucle, la variable garde sa derniÃ¨re valeur (le CPC lui laisse la valeur suivante).
+- Mots rÃ©servÃ©s ajoutÃ©s : FOR, NEXT, TO, STEP, EXIT, CONTINUE (EXIT n'est pas utilisÃ© par le Locomotive, vÃ©rifiÃ© dans WinAPE).
+- ValidÃ© sur WinAPE avec `examples/boucles.bas`.
+
+## D034 : Comparaisons et IF...THEN...ELSE (DÃ©cidÃ©, 8 nov. 2026)
+- Comparaisons = <> < <= > >= entre deux expressions, signÃ©es sur 16 bits (bit 15 retournÃ© puis comparaison non signÃ©e par la retenue ; > et <= en Ã©changeant les opÃ©randes ; = et <> par SBC seul). AND/OR entre comparaisons, Ã©valuation de gauche Ã  droite avec arrÃªt anticipÃ© ; AND passe avant OR.
+- IF sur une ligne (compatible Locomotive) : tout le reste de la ligne appartient au IF, ELSE se rattache au IF le plus proche. IF en bloc (THEN en fin de ligne, ELSE, END IF ou ENDIF) : extension du projet, absente du Locomotive.
+- Le parser Ã©met IfStatement / ElseStatement / EndIfStatement ; la fin d'un IF sur une ligne est ajoutÃ©e automatiquement. VÃ©rification des blocs avec une pile commune.
+- Limites : condition = comparaison (pas de nombre seul), pas de NOT, pas de parenthÃ¨ses autour d'une condition, pas de IF ... THEN numÃ©ro (GOTO viendra plus tard).
+- Mots rÃ©servÃ©s ajoutÃ©s : IF, THEN, ELSE, ENDIF, AND, OR (ENDIF seul n'existe pas dans le Locomotive).
+- ValidÃ© sur WinAPE avec `examples/cond.bas`.
+
+## D035 : WHILE, REPEAT, DO...LOOP, EXIT/CONTINUE par type (DÃ©cidÃ©, 8 nov. 2026)
+- WHILE c ... WEND (test en haut), REPEAT ... UNTIL c (test en bas, sortie quand c est vrai), DO [WHILE c | UNTIL c] ... LOOP [WHILE c | UNTIL c] (une seule condition par DO).
+- EXIT / CONTINUE [FOR | WHILE | REPEAT | DO] : saut rÃ©solu Ã  la compilation vers la boucle la plus proche du type demandÃ© (ou la plus proche tout court). CONTINUE revient au test.
+- Le gÃ©nÃ©rateur garde une pile de boucles commune Ã  tous les types ; l'Ã©metteur Z80 reÃ§oit AliasLabel pour donner deux noms Ã  une mÃªme adresse.
+- Pile de vÃ©rification commune Ã  FOR, WHILE, REPEAT, DO et IF : ClosingWithoutOpening, UnclosedLoop, DoConditionTwice, BlocksNotNested.
+- Mots rÃ©servÃ©s ajoutÃ©s : WHILE, WEND (Locomotive), REPEAT, UNTIL, DO, LOOP (Ã  vÃ©rifier dans WinAPE comme EXIT).
+- ValidÃ© sur WinAPE avec `examples/loops.bas`.
+
+## D036 : Bilan de J2 (DÃ©cidÃ©, 8 nov. 2026)
+- **J2 est terminÃ© cÃ´tÃ© langage.** Un programme avec variables, calculs simples, boucles et conditions se compile et se lance dans WinAPE. 175 tests automatiques, trois programmes d'exemple vÃ©rifiÃ©s Ã  l'Ã©cran (`boucles.bas`, `cond.bas`, `loops.bas`).
+- **Ã‰carts avec le Locomotive BASIC** : consignÃ©s dans le tableau de la section 8 de `ARCHITECTURE.md` (version 0.3).
+- **Pas encore faits, par ordre de prioritÃ© proposÃ© pour J3** : multiplication, division et MOD (modules Mul16 et Div16) ; NOT ; GOTO et GOSUB avec Ã©tiquettes ; tableaux ; chaÃ®nes ; rÃ©els ; INPUT et clavier ; graphiques et sons ; DATA/READ.
+- **Dettes connues** : accents (table des caractÃ¨res du CPC), confirmation Ã  l'ouverture d'un fichier modifiÃ© dans l'Ã©diteur, colonne des numÃ©ros de ligne collÃ©e aux numÃ©ros BASIC, entrelacement du .dsk, fichiers de plus de 16 Ko, messages d'erreur Ã  passer dans des fichiers de langue.
+- **Ã€ traiter avant la prochaine publication** : D016 (ROM : vÃ©rifier que rien n'est redistribuÃ©) et relecture juridique de l'exception de liaison (D017).
+
 ---
 
 ## Notes de fin de session (modèle)
