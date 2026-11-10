@@ -110,7 +110,13 @@ public sealed record NumberExpression(int Value) : Expression;
 
 public sealed record VariableExpression(string Name) : Expression;
 
-public enum BinaryOperator { Add, Subtract }
+/// <summary>
+/// Appel d'une fonction : ABS, SGN, MIN, MAX, HIBYTE, LOBYTE, CLAMP. Function est en majuscules.
+/// MIN et MAX avec plus de deux valeurs sont découpés par le parser en appels à deux valeurs.
+/// </summary>
+public sealed record CallExpression(string Function, IReadOnlyList<Expression> Arguments) : Expression;
+
+public enum BinaryOperator { Add, Subtract, Multiply, Divide, Modulo }
 
 public sealed record BinaryExpression(BinaryOperator Operator, Expression Left, Expression Right) : Expression;
 

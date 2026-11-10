@@ -168,7 +168,26 @@ Erreurs : double dÃƒÂ©claration, dÃƒÂ©claration aprÃƒÂ¨s usage, suffixe dans la 
 - **Pas encore faits, par ordre de prioritÃƒÂ© proposÃƒÂ© pour J3** : multiplication, division et MOD (modules Mul16 et Div16) ; NOT ; GOTO et GOSUB avec ÃƒÂ©tiquettes ; tableaux ; chaÃƒÂ®nes ; rÃƒÂ©els ; INPUT et clavier ; graphiques et sons ; DATA/READ.
 - **Dettes connues** : accents (table des caractÃƒÂ¨res du CPC), confirmation ÃƒÂ  l'ouverture d'un fichier modifiÃƒÂ© dans l'ÃƒÂ©diteur, colonne des numÃƒÂ©ros de ligne collÃƒÂ©e aux numÃƒÂ©ros BASIC, entrelacement du .dsk, fichiers de plus de 16 Ko, messages d'erreur ÃƒÂ  passer dans des fichiers de langue.
 - **Ãƒâ‚¬ traiter avant la prochaine publication** : D016 (ROM : vÃƒÂ©rifier que rien n'est redistribuÃƒÂ©) et relecture juridique de l'exception de liaison (D017).
+## D037 : Multiplication, division et MOD (Décidé, 9 nov. 2026)
+- Opérateurs `*`, `/` et `MOD` ; le signe `\` du Locomotive BASIC est accepté comme synonyme de `/`. `*`, `/` et `MOD` passent avant `+` et `-`. Le moins unaire se lie à son opérande.
+- `/` est une division entière (7 / 2 = 3), tronquée vers 0. Écart avec le Locomotive, où `/` donne un réel. `MOD` : le reste a le signe du dividende (-7 MOD 3 = -1), comme `\` et MOD du Locomotive.
+- Diviseur égal à un 0 écrit dans le programme : erreur de compilation (DivisionByZero). Diviseur calculé égal à 0 : pas d'erreur à l'exécution pour l'instant, le quotient vaut 0 et le reste vaut le dividende (à améliorer, voir IDEES.md).
+- Modules Mul16 (les 16 bits de poids faible du produit : même résultat signé ou non) et Div16 (quotient dans HL, reste dans DE ; valeurs absolues puis signes corrigés), liés seulement s'ils sont utilisés.
+- Dépassement : un produit trop grand boucle (200 * 200 = -25536), comme le reste des calculs (D026).
+- Tests : un mini-émulateur Z80 (`tests/CpcBasic.Tests/MiniZ80.cs`) exécute les modules et compare leurs résultats à C# sur des milliers de valeurs. Il ne connaît que les instructions utilisées ; s'il en rencontre une inconnue, il le dit.
+- Mot réservé ajouté : MOD (déjà un mot du Locomotive).
+- Validé sur WinAPE avec `examples/calculs.bas`. 205 tests.
 
+## D038 : Fonctions de calcul (Décidé, 9 nov. 2026)
+- Syntaxe `NOM(valeur, ...)` dans une expression. Fonctions : ABS, SGN, MIN, MAX (existent dans le Locomotive, ici sur des entiers), HIBYTE, LOBYTE, CLAMP (nouvelles).
+- HIBYTE(n) : octet de poids fort, 0 à 255. LOBYTE(n) : octet de poids faible, 0 à 255. Code court écrit directement dans le programme, sans module.
+- CLAMP(valeur, mini, maxi) = MIN(MAX(valeur, mini), maxi) : ramène la valeur dans l'intervalle. Si mini > maxi, le résultat est maxi.
+- MIN et MAX acceptent plus de deux valeurs : MIN(9, 4, 6) devient MIN(MIN(9, 4), 6) dès l'analyse.
+- ABS(-32768) reste -32768 (dépassement). SGN donne -1, 0 ou 1.
+- Modules Abs16, Sgn16, Min16, Max16 (comparaison signée par retournement du bit 15), liés seulement s'ils sont utilisés. CLAMP lie Max16 et Min16.
+- Messages d'erreur : fonction sans parenthèses (ExpectedOpenParenthesis), mauvais nombre de valeurs (WrongArgumentCount) ; les deux montrent la bonne écriture, par exemple « CLAMP(valeur, min, max) ».
+- Mots réservés ajoutés : ABS, SGN, MIN, MAX, HIBYTE, LOBYTE, CLAMP. HIBYTE, LOBYTE, CLAMP (et RANDOM) vérifiés libres dans WinAPE.
+- Prévu ensuite : RANDOM(min, max) et RANDOMIZE (D039), puis les graphismes de base et le calcul 3D en fil de fer.
 ---
 
 ## Notes de fin de session (modÃ¨le)

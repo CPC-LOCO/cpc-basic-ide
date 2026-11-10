@@ -19,7 +19,22 @@ namespace CpcBasic.Core.Language;
 public static class Parser
 {
     static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR",
-        "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP"];
+        "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
+        "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP"];
+
+    sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
+
+    // Fonctions disponibles : nom, écriture à montrer dans les messages, nombre de valeurs
+    static readonly Dictionary<string, FunctionInfo> Functions = new()
+    {
+        ["ABS"] = new("ABS(valeur)", 1, 1),
+        ["SGN"] = new("SGN(valeur)", 1, 1),
+        ["HIBYTE"] = new("HIBYTE(valeur)", 1, 1),
+        ["LOBYTE"] = new("LOBYTE(valeur)", 1, 1),
+        ["MIN"] = new("MIN(a, b)", 2, int.MaxValue),
+        ["MAX"] = new("MAX(a, b)", 2, int.MaxValue),
+        ["CLAMP"] = new("CLAMP(valeur, min, max)", 3, 3)
+    };
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
     {
@@ -768,6 +783,10 @@ public static class Parser
                     Uses(binary.Left);
                     Uses(binary.Right);
                     break;
+                case CallExpression call:
+                    foreach (Expression argument in call.Arguments)
+                        Uses(argument);
+                    break;
             }
         }
 
@@ -858,16 +877,48 @@ public static class Parser
 
     static Expression? ParseExpression(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
     {
-        Expression? left = ParseOperand(tokens, ref pos, diagnostics);
+        Expression? left = ParseTerm(tokens, ref pos, diagnostics);
 
         while (left is not null && (tokens[pos].Kind == TokenKind.Plus || tokens[pos].Kind == TokenKind.Minus))
         {
             BinaryOperator op = tokens[pos].Kind == TokenKind.Plus ? BinaryOperator.Add : BinaryOperator.Subtract;
             pos++;
 
+            Expression? right = ParseTerm(tokens, ref pos, diagnostics);
+            if (right is null)
+                return null;
+            left = new BinaryExpression(op, left, right);
+        }
+
+        return left;
+    }
+
+    static bool IsMultiplicative(Token t) =>
+        t.Kind == TokenKind.Star || t.Kind == TokenKind.Slash || (t.Kind == TokenKind.Word && t.Text == "MOD");
+
+    // terme := opérande { ("*" | "/" | "\\" | MOD) opérande }   (passe avant + et -)
+    static Expression? ParseTerm(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParseOperand(tokens, ref pos, diagnostics);
+
+        while (left is not null && IsMultiplicative(tokens[pos]))
+        {
+            Token opToken = tokens[pos];
+            BinaryOperator op = opToken.Kind switch
+            {
+                TokenKind.Star => BinaryOperator.Multiply,
+                TokenKind.Slash => BinaryOperator.Divide,
+                _ => BinaryOperator.Modulo
+            };
+            pos++;
+
             Expression? right = ParseOperand(tokens, ref pos, diagnostics);
             if (right is null)
                 return null;
+
+            if (op != BinaryOperator.Multiply && right is NumberExpression { Value: 0 })
+                diagnostics.Add(new Diagnostic(DiagnosticCode.DivisionByZero, opToken.Line, opToken.Text));
+
             left = new BinaryExpression(op, left, right);
         }
 
@@ -907,6 +958,8 @@ public static class Parser
                 return ParseNumber(tokens, ref pos, diagnostics, negative: false);
 
             case TokenKind.Word:
+                if (Functions.TryGetValue(t.Text, out FunctionInfo? function))
+                    return ParseFunctionCall(tokens, ref pos, diagnostics, function);
                 if (Commands.Contains(t.Text))
                 {
                     diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, t.Text));
@@ -937,6 +990,61 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, t.Text));
                 return null;
         }
+    }
+
+    // NOM(valeur, ...) : MIN et MAX acceptent plus de deux valeurs (MIN(9, 4, 6) = MIN(MIN(9, 4), 6))
+    static Expression? ParseFunctionCall(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
+                                         FunctionInfo function)
+    {
+        Token nameToken = tokens[pos];
+        pos++;
+
+        if (tokens[pos].Kind != TokenKind.LeftParen)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedOpenParenthesis, nameToken.Line, function.Signature));
+            return null;
+        }
+        pos++;
+
+        var arguments = new List<Expression>();
+        if (tokens[pos].Kind != TokenKind.RightParen)
+        {
+            while (true)
+            {
+                Expression? argument = ParseExpression(tokens, ref pos, diagnostics);
+                if (argument is null)
+                    return null;
+                arguments.Add(argument);
+
+                if (tokens[pos].Kind != TokenKind.Comma)
+                    break;
+                pos++;
+            }
+        }
+
+        if (tokens[pos].Kind != TokenKind.RightParen)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, nameToken.Line));
+            return null;
+        }
+        pos++;
+
+        if (arguments.Count < function.MinArguments || arguments.Count > function.MaxArguments)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, nameToken.Line, function.Signature));
+            return null;
+        }
+
+        if (nameToken.Text is "MIN" or "MAX")
+        {
+            // Plus de deux valeurs : MIN(a, b, c) devient MIN(MIN(a, b), c)
+            Expression result = new CallExpression(nameToken.Text, [arguments[0], arguments[1]]);
+            for (int i = 2; i < arguments.Count; i++)
+                result = new CallExpression(nameToken.Text, [result, arguments[i]]);
+            return result;
+        }
+
+        return new CallExpression(nameToken.Text, arguments);
     }
 
     static Expression? ParseNumber(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics, bool negative)

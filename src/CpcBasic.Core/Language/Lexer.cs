@@ -16,6 +16,8 @@ public enum TokenKind
     Comma,
     Plus,
     Minus,
+    Star,
+    Slash,
     Equals,
     NotEqual,
     Less,
@@ -153,6 +155,9 @@ public static class Lexer
                 ',' => TokenKind.Comma,
                 '+' => TokenKind.Plus,
                 '-' => TokenKind.Minus,
+                '*' => TokenKind.Star,
+                '/' => TokenKind.Slash,
+                '\\' => TokenKind.Slash,   // « \ » : division entière du Locomotive BASIC
                 '=' => TokenKind.Equals,
                 '(' => TokenKind.LeftParen,
                 ')' => TokenKind.RightParen,

@@ -1,0 +1,18 @@
+10 REM Essai de * / \ MOD
+20 PRINT 6 * 7
+30 PRINT 100 / 7
+40 PRINT 100 MOD 7
+50 PRINT -100 / 7
+60 PRINT -100 MOD 7
+70 PRINT 100 / -7
+80 a = 12
+90 b = 5
+100 PRINT a * b + a / b - a MOD b
+110 PRINT (a + 3) * (b - 1)
+120 PRINT 200 * 200
+130 PRINT 7 \ 2
+140 FOR i = 1 TO 5
+150 PRINT i * i;
+160 NEXT
+170 PRINT
+180 PRINT "fin"

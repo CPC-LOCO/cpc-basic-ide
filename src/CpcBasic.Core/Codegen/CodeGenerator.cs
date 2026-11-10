@@ -115,6 +115,31 @@ public static class CodeGenerator
             }
         }
 
+        // Calcule deux expressions : HL = gauche, DE = droite
+        void EmitPair(Expression left, Expression right)
+        {
+            EmitExpression(left);
+            if (right is NumberExpression number)
+            {
+                emitter.LdDeImm(number.Value & 0xFFFF);
+            }
+            else
+            {
+                emitter.PushHl();
+                EmitExpression(right);
+                emitter.PopDe();                            // DE = gauche, HL = droite
+                emitter.ExDeHl();                           // HL = gauche, DE = droite
+            }
+        }
+
+        // MIN ou MAX de deux expressions : le résultat est dans HL
+        void EmitMinMax(string module, string label, Expression first, Expression second)
+        {
+            EmitPair(first, second);
+            required.Add(module);
+            emitter.CallLabel(label);
+        }
+
         // Calcule l'expression : le résultat est dans HL
         void EmitExpression(Expression expression)
         {
@@ -139,18 +164,83 @@ public static class CodeGenerator
                         emitter.PushHl();
                         EmitExpression(binary.Right);
                         emitter.PopDe();                            // DE = gauche, HL = droite
-                        if (binary.Operator == BinaryOperator.Subtract)
+                        if (binary.Operator is not (BinaryOperator.Add or BinaryOperator.Multiply))
                             emitter.ExDeHl();                       // HL = gauche, DE = droite
                     }
 
-                    if (binary.Operator == BinaryOperator.Add)
+                    switch (binary.Operator)
                     {
-                        emitter.AddHlDe();
+                        case BinaryOperator.Add:
+                            emitter.AddHlDe();
+                            break;
+
+                        case BinaryOperator.Subtract:
+                            emitter.OrA();                          // retenue à 0
+                            emitter.SbcHlDe();
+                            break;
+
+                        case BinaryOperator.Multiply:
+                            required.Add(RuntimeLibrary.Mul16Name);
+                            emitter.CallLabel(RuntimeLibrary.Mul16Label);          // HL = HL * DE
+                            break;
+
+                        case BinaryOperator.Divide:
+                            required.Add(RuntimeLibrary.Div16Name);
+                            emitter.CallLabel(RuntimeLibrary.Div16Label);          // HL = quotient
+                            break;
+
+                        default:
+                            required.Add(RuntimeLibrary.Div16Name);
+                            emitter.CallLabel(RuntimeLibrary.Div16Label);
+                            emitter.ExDeHl();                                      // HL = reste
+                            break;
                     }
-                    else
+                    break;
+
+                case CallExpression call:
+                    switch (call.Function)
                     {
-                        emitter.OrA();                              // retenue à 0
-                        emitter.SbcHlDe();
+                        case "ABS":
+                            EmitExpression(call.Arguments[0]);
+                            required.Add(RuntimeLibrary.Abs16Name);
+                            emitter.CallLabel(RuntimeLibrary.Abs16Label);
+                            break;
+
+                        case "SGN":
+                            EmitExpression(call.Arguments[0]);
+                            required.Add(RuntimeLibrary.Sgn16Name);
+                            emitter.CallLabel(RuntimeLibrary.Sgn16Label);
+                            break;
+
+                        case "HIBYTE":                      // octet de poids fort, 0 à 255
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdLH();
+                            emitter.LdHZero();
+                            break;
+
+                        case "LOBYTE":                      // octet de poids faible, 0 à 255
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdHZero();
+                            break;
+
+                        case "MIN":
+                            EmitMinMax(RuntimeLibrary.Min16Name, RuntimeLibrary.Min16Label,
+                                       call.Arguments[0], call.Arguments[1]);
+                            break;
+
+                        case "MAX":
+                            EmitMinMax(RuntimeLibrary.Max16Name, RuntimeLibrary.Max16Label,
+                                       call.Arguments[0], call.Arguments[1]);
+                            break;
+
+                        case "CLAMP":                       // CLAMP(v, mini, maxi) = MIN(MAX(v, mini), maxi)
+                            EmitMinMax(RuntimeLibrary.Min16Name, RuntimeLibrary.Min16Label,
+                                       new CallExpression("MAX", [call.Arguments[0], call.Arguments[1]]),
+                                       call.Arguments[2]);
+                            break;
+
+                        default:
+                            throw new NotSupportedException($"Fonction non gérée : {call.Function}");
                     }
                     break;
 

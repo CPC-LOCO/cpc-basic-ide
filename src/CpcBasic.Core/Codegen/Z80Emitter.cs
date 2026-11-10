@@ -92,6 +92,31 @@ public sealed class Z80Emitter
     public void SbcAA() => code.Add(0x9F);                                         // SBC A,A
     public void IncA() => code.Add(0x3C);                                          // INC A
     public void LdAH() => code.Add(0x7C);                                          // LD A,H
+    public void LdLH() => code.Add(0x6C);                                          // LD L,H
+    public void OrL() => code.Add(0xB5);                                           // OR L
+    public void RetC() => code.Add(0xD8);                                          // RET C
+    public void RetNc() => code.Add(0xD0);                                         // RET NC
+    public void LdBH() => code.Add(0x44);                                          // LD B,H
+    public void LdCL() => code.Add(0x4D);                                          // LD C,L
+    public void LdLC() => code.Add(0x69);                                          // LD L,C
+    public void LdBA() => code.Add(0x47);                                          // LD B,A
+    public void LdEA() => code.Add(0x5F);                                          // LD E,A
+    public void OrE() => code.Add(0xB3);                                           // OR E
+    public void SubE() => code.Add(0x93);                                          // SUB E
+    public void SubD() => code.Add(0x92);                                          // SUB D
+    public void DecA() => code.Add(0x3D);                                          // DEC A
+    public void DecC() => code.Add(0x0D);                                          // DEC C
+    public void Scf() => code.Add(0x37);                                           // SCF
+    public void Rla() => code.Add(0x17);                                           // RLA
+    public void RlC() { code.Add(0xCB); code.Add(0x11); }                          // RL C
+    public void RlD() { code.Add(0xCB); code.Add(0x12); }                          // RL D
+    public void SlaE() { code.Add(0xCB); code.Add(0x23); }                         // SLA E
+    public void Bit7D() { code.Add(0xCB); code.Add(0x7A); }                        // BIT 7,D
+    public void Bit0B() { code.Add(0xCB); code.Add(0x40); }                        // BIT 0,B
+    public void Bit1B() { code.Add(0xCB); code.Add(0x48); }                        // BIT 1,B
+    public void AddHlHl() => code.Add(0x29);                                       // ADD HL,HL
+    public void AddHlBc() => code.Add(0x09);                                       // ADD HL,BC
+    public void AdcHlHl() { code.Add(0xED); code.Add(0x6A); }                      // ADC HL,HL
     public void LdAD() => code.Add(0x7A);                                          // LD A,D
     public void LdDA() => code.Add(0x57);                                          // LD D,A
     public void XorImm(int value) { code.Add(0xEE); code.Add((byte)value); }       // XOR n
@@ -117,6 +142,7 @@ public sealed class Z80Emitter
     public void JrZLabel(string label) => Relative(0x28, label);                   // JR Z,étiquette
     public void JrNzLabel(string label) => Relative(0x20, label);                  // JR NZ,étiquette
     public void JrNcLabel(string label) => Relative(0x30, label);                  // JR NC,étiquette
+    public void DjnzLabel(string label) => Relative(0x10, label);                  // DJNZ étiquette
 
     void Relative(byte opcode, string label)
     {

@@ -39,7 +39,10 @@ public enum DiagnosticCode
     BlocksNotNested,
     ClosingWithoutOpening,
     UnclosedLoop,
-    DoConditionTwice
+    DoConditionTwice,
+    DivisionByZero,
+    ExpectedOpenParenthesis,
+    WrongArgumentCount
 }
 
 /// <summary>
@@ -115,6 +118,12 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"Ligne {Line} : la boucle {Argument} n'est jamais refermée. Ajoutez {(Argument switch { "WHILE" => "WEND", "REPEAT" => "UNTIL", _ => "LOOP" })}.",
         DiagnosticCode.DoConditionTwice =>
             $"Ligne {Line} : ce DO a déjà une condition (WHILE ou UNTIL) au début : LOOP ne peut pas en avoir une aussi.",
+        DiagnosticCode.DivisionByZero =>
+            $"Ligne {Line} : division par zéro avec « {Argument} » : le diviseur ne peut pas être 0.",
+        DiagnosticCode.ExpectedOpenParenthesis =>
+            $"Ligne {Line} : une fonction s'écrit avec des parenthèses, par exemple {Argument}.",
+        DiagnosticCode.WrongArgumentCount =>
+            $"Ligne {Line} : le nombre de valeurs est incorrect. Écrivez {Argument}.",
         _ => $"Ligne {Line} : problème inconnu ({Code})."
     };
 
