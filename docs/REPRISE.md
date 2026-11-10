@@ -31,7 +31,7 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits), fabriquée avec `packaging\build-release.cmd`. Le numéro de version vient de `Directory.Build.props` (à la racine) et de `VERSION` dans `build-release.cmd` : garder les deux identiques. **À confirmer avec l'utilisateur : la publication sur GitHub est-elle faite ?** (somme SHA256 de l'archive testée : `4f8655aecb1ecea38f6f26a31bb0a2dea436619394225473b979a5af0065407a`).
 - **J1 et J2 terminés.** Le compilateur reconnaît : `PRINT`, variables entières (`A`, `A%`) et octets (`BYTE a`), expressions, `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP`, `EXIT`, `CONTINUE`, `IF/THEN/ELSE` (une ligne ou bloc avec `END IF`), comparaisons, `AND`, `OR`.
 - **J3a terminé et validé :** `*`, `/`, `\`, `MOD` (D037), 205 tests, écran WinAPE conforme (`examples\calculs.bas`).
-- **J3b livré, pas encore validé :** fonctions `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` (D038). Fichiers livrés : `Ast.cs`, `Parser.cs`, `Diagnostic.cs`, `Z80Emitter.cs`, `RuntimeLibrary.cs`, `CodeGenerator.cs`, `BasicColorizer.cs`, `MiniZ80.cs`, `FunctionsTests.cs`, `examples\maths.bas`. **À faire :** copier, `dotnet test` (environ 240 tests attendus), puis `examples\maths.bas` dans WinAPE. Écran attendu :
+- **J3b : fonctions `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` (D038).** Les 223 tests passent. **Reste à confirmer avec l'utilisateur :** l'essai de `examples\maths.bas` dans WinAPE. Écran attendu :
   ```
    5  7 
   -1  0  1 

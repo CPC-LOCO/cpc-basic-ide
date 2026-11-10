@@ -1,0 +1,31 @@
+name: Proposer une idée
+description: Une commande à ajouter, une amélioration de l'éditeur, une façon d'écrire plus simple...
+title: "[Idée] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci ! Décrivez votre idée avec vos mots. Un exemple de programme aide beaucoup.
+        Tout ce que vous écrivez ici est public : n'y mettez pas d'informations personnelles.
+  - type: textarea
+    id: idee
+    attributes:
+      label: Mon idée
+      description: Qu'aimeriez-vous pouvoir faire ?
+    validations:
+      required: true
+  - type: textarea
+    id: exemple
+    attributes:
+      label: Un exemple
+      description: Comment aimeriez-vous l'écrire en BASIC ? Qu'est-ce que le programme devrait faire ?
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: pourquoi
+    attributes:
+      label: Pourquoi c'est utile
+      description: Quel problème cela règle-t-il, ou quel programme cela permettrait-il de faire ?
+    validations:
+      required: false

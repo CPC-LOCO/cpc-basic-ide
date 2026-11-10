@@ -1,0 +1,53 @@
+name: Signaler un problème
+description: Le compilateur plante, un programme ne s'affiche pas comme prévu, un message d'erreur est incompréhensible...
+title: "[Problème] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de tester ! Quelques mots par case suffisent.
+        Tout ce que vous écrivez ici est public : n'y mettez pas d'informations personnelles.
+  - type: input
+    id: version
+    attributes:
+      label: Version essayée
+      description: Elle est écrite au début du fichier LISEZMOI.txt, par exemple 0.2.0.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: textarea
+    id: ce-que-j-ai-fait
+    attributes:
+      label: Ce que j'ai fait
+      description: Les étapes, par exemple « j'ai ouvert examples\loops.bas, puis j'ai appuyé sur F5 ».
+    validations:
+      required: true
+  - type: textarea
+    id: ce-qui-s-est-passe
+    attributes:
+      label: Ce qui s'est passé
+      description: Le message d'erreur, ou ce que vous avez vu à l'écran (dans l'éditeur ou dans l'émulateur).
+    validations:
+      required: true
+  - type: textarea
+    id: ce-que-j-attendais
+    attributes:
+      label: Ce que j'attendais
+    validations:
+      required: false
+  - type: textarea
+    id: programme
+    attributes:
+      label: Le programme BASIC en cause
+      description: Copiez-collez le texte du programme (ou la partie qui pose problème).
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: environnement
+    attributes:
+      label: Mon ordinateur
+      description: Version de Windows, antivirus, et émulateur utilisé (par exemple WinAPE).
+      placeholder: "Windows 11, Avast, WinAPE 2.0"
+    validations:
+      required: false
