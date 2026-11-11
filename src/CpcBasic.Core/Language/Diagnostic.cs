@@ -46,85 +46,96 @@ public enum DiagnosticCode
 }
 
 /// <summary>
-/// Un problème trouvé dans le programme : un code, la ligne de l'éditeur (à partir de 1)
-/// et l'élément en cause. Le texte du message est provisoirement écrit en français ici ;
+/// Un problème trouvé dans le programme : un code, la ligne de l'éditeur (à partir de 1),
+/// l'élément en cause (Argument) et la commande dans laquelle l'erreur a été trouvée (Context : PRINT, FOR...). Le texte du message est provisoirement écrit en français ici ;
 /// il rejoindra les fichiers de langue (français, anglais, espagnol) plus tard.
 /// </summary>
-public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument = "")
+public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument = "", string Context = "")
 {
-    public string Message => Code switch
+    /// <summary>
+    /// Fin de phrase des messages « telle chose est attendue » : « La ligne est incomplète. » quand l'erreur
+    /// est à la fin de la ligne (rien à citer), sinon l'élément qui ne convient pas.
+    /// </summary>
+    string Why => Argument.Length == 0
+        ? " La ligne est incomplète."
+        : $" « {Argument} » ne convient pas ici.";
+
+    /// <summary>Le message complet, précédé de « ERREUR en ligne N : ».</summary>
+    public string Message => $"ERREUR en ligne {Line} : {Body}";
+
+    string Body => Code switch
     {
         DiagnosticCode.UnexpectedCharacter =>
-            $"Ligne {Line} : caractère inattendu « {Argument} ». Ce signe n'est pas utilisé dans ce langage.",
+            $"caractère inattendu « {Argument} ». Ce signe n'est pas utilisé dans ce langage.",
         DiagnosticCode.UnterminatedString =>
-            $"Ligne {Line} : il manque le guillemet de fin du texte. Ajoutez un guillemet à la fin du texte.",
+            $"un texte commence par un guillemet mais n'est jamais refermé. Ajoutez un guillemet à la fin du texte.",
         DiagnosticCode.UnknownCommand =>
-            $"Ligne {Line} : commande inconnue « {Argument} ». Vérifiez l'orthographe ou cherchez-la dans la bible.",
+            $"commande inconnue « {Argument} ». Vérifiez l'orthographe ou cherchez-la dans la bible.",
         DiagnosticCode.ExpectedString =>
-            $"Ligne {Line} : PRINT attend un texte entre guillemets, mais a trouvé « {Argument} ».",
+            $"PRINT attend un texte entre guillemets, mais a trouvé « {Argument} ».",
         DiagnosticCode.UnexpectedToken =>
-            $"Ligne {Line} : « {Argument} » n'est pas attendu ici. Séparez les instructions par « : ».",
+            $"« {Argument} » n'est pas attendu ici. Séparez les instructions par « : ».",
         DiagnosticCode.ExpectedExpression =>
-            $"Ligne {Line} : une valeur est attendue (un nombre, une variable ou un calcul), mais « {Argument} » a été trouvé.",
+            $"{(Context.Length == 0 ? "une valeur est attendue ici" : $"{Context} attend ici une valeur")} (un nombre, une variable ou un calcul).{Why}",
         DiagnosticCode.ExpectedEquals =>
-            $"Ligne {Line} : le signe « = » est attendu après le nom de la variable, mais « {Argument} » a été trouvé.",
+            $"le signe « = » est attendu après le nom de la variable.{Why}",
         DiagnosticCode.ExpectedClosingParenthesis =>
-            $"Ligne {Line} : il manque une parenthèse fermante « ) ».",
+            $"{(Context.Length == 0 ? "il" : $"Dans {Context}, il")} manque une parenthèse fermante « ) ».",
         DiagnosticCode.NumberOutOfRange =>
-            $"Ligne {Line} : le nombre {Argument} est hors limites. Un entier va de -32768 à 32767.",
+            $"le nombre {Argument} est hors limites. Un entier va de -32768 à 32767.",
         DiagnosticCode.ByteOutOfRange =>
-            $"Ligne {Line} : {Argument} ne tient pas dans une variable BYTE, qui va de 0 à 255.",
+            $"{Argument} ne tient pas dans une variable BYTE, qui va de 0 à 255.",
         DiagnosticCode.UnsupportedVariableType =>
-            $"Ligne {Line} : le type de « {Argument} » n'existe pas encore. Seuls les entiers (A ou A%) et les variables BYTE sont gérés.",
+            $"le type de « {Argument} » n'existe pas encore. Seuls les entiers (A ou A%) et les variables BYTE sont gérés.",
         DiagnosticCode.ExpectedVariableName =>
-            $"Ligne {Line} : un nom de variable est attendu après BYTE (ou après une virgule), mais « {Argument} » a été trouvé.",
+            $"un nom de variable est attendu après BYTE (ou après une virgule).{Why}",
         DiagnosticCode.SuffixNotAllowedInDeclaration =>
-            $"Ligne {Line} : « {Argument} » : une variable BYTE se déclare sans suffixe. Écrivez simplement le nom.",
+            $"« {Argument} » : une variable BYTE se déclare sans suffixe. Écrivez simplement le nom.",
         DiagnosticCode.AlreadyDeclared =>
-            $"Ligne {Line} : la variable « {Argument} » est déjà déclarée BYTE.",
+            $"la variable « {Argument} » est déjà déclarée BYTE.",
         DiagnosticCode.DeclaredAfterUse =>
-            $"Ligne {Line} : « {Argument} » est déjà utilisée plus haut comme entier. Placez BYTE {Argument} avant sa première utilisation.",
+            $"« {Argument} » est déjà utilisée plus haut comme entier. Placez BYTE {Argument} avant sa première utilisation.",
         DiagnosticCode.ExpectedTo =>
-            $"Ligne {Line} : « TO » est attendu après la valeur de départ de FOR, mais « {Argument} » a été trouvé.",
+            $"« TO » est attendu après la valeur de départ de FOR.{Why}",
         DiagnosticCode.ExpectedNumber =>
-            $"Ligne {Line} : la limite et le pas de FOR doivent être des nombres écrits dans le programme (pas des variables), mais « {Argument} » a été trouvé.",
+            $"la limite et le pas de FOR doivent être des nombres écrits dans le programme (pas des variables).{Why}",
         DiagnosticCode.StepIsZero =>
-            $"Ligne {Line} : le pas de FOR ne peut pas être 0, la boucle ne finirait jamais.",
+            $"le pas de FOR ne peut pas être 0, la boucle ne finirait jamais.",
         DiagnosticCode.NextWithoutFor =>
-            $"Ligne {Line} : NEXT sans FOR correspondant. Ajoutez un FOR avant, ou retirez ce NEXT.",
+            $"NEXT sans FOR correspondant. Ajoutez un FOR avant, ou retirez ce NEXT.",
         DiagnosticCode.NextNameMismatch =>
-            $"Ligne {Line} : ce NEXT ne correspond pas à la boucle ouverte, dont la variable est « {Argument} ».",
+            $"ce NEXT ne correspond pas à la boucle ouverte, dont la variable est « {Argument} ».",
         DiagnosticCode.ForWithoutNext =>
-            $"Ligne {Line} : la boucle FOR {Argument} n'est jamais refermée. Ajoutez un NEXT.",
+            $"la boucle FOR {Argument} n'est jamais refermée. Ajoutez un NEXT.",
         DiagnosticCode.LoopControlWithoutLoop =>
-            $"Ligne {Line} : {Argument} est utilisé en dehors d'une boucle qu'il pourrait quitter ou poursuivre.",
+            $"{Argument} est utilisé en dehors d'une boucle qu'il pourrait quitter ou poursuivre.",
         DiagnosticCode.ExpectedThen =>
-            $"Ligne {Line} : « THEN » est attendu après la condition de IF, mais « {Argument} » a été trouvé.",
+            $"« THEN » est attendu après la condition de IF.{Why}",
         DiagnosticCode.ExpectedComparison =>
-            $"Ligne {Line} : une comparaison est attendue (=, <>, <, >, <=, >=), mais « {Argument} » a été trouvé. Une condition compare deux valeurs, par exemple A > 5.",
+            $"une comparaison est attendue (=, <>, <, >, <=, >=) : une condition compare deux valeurs, par exemple A > 5.{Why}",
         DiagnosticCode.ElseWithoutIf =>
-            $"Ligne {Line} : ELSE sans IF correspondant.",
+            $"ELSE sans IF correspondant.",
         DiagnosticCode.DuplicateElse =>
-            $"Ligne {Line} : ce IF a déjà un ELSE.",
+            $"ce IF a déjà un ELSE.",
         DiagnosticCode.EndIfWithoutIf =>
-            $"Ligne {Line} : END IF sans IF correspondant.",
+            $"END IF sans IF correspondant.",
         DiagnosticCode.IfWithoutEndIf =>
-            $"Ligne {Line} : ce IF sur plusieurs lignes n'est jamais refermé. Ajoutez END IF.",
+            $"ce IF sur plusieurs lignes n'est jamais refermé. Ajoutez END IF.",
         DiagnosticCode.BlocksNotNested =>
-            $"Ligne {Line} : « {Argument} » arrive alors qu'un autre bloc (IF ou FOR) est encore ouvert. Refermez d'abord le bloc le plus récent.",
+            $"« {Argument} » arrive alors qu'un autre bloc (IF ou FOR) est encore ouvert. Refermez d'abord le bloc le plus récent.",
         DiagnosticCode.ClosingWithoutOpening =>
-            $"Ligne {Line} : {Argument} sans début de boucle correspondant (WHILE pour WEND, REPEAT pour UNTIL, DO pour LOOP).",
+            $"{Argument} sans début de boucle correspondant (WHILE pour WEND, REPEAT pour UNTIL, DO pour LOOP).",
         DiagnosticCode.UnclosedLoop =>
-            $"Ligne {Line} : la boucle {Argument} n'est jamais refermée. Ajoutez {(Argument switch { "WHILE" => "WEND", "REPEAT" => "UNTIL", _ => "LOOP" })}.",
+            $"la boucle {Argument} n'est jamais refermée. Ajoutez {(Argument switch { "WHILE" => "WEND", "REPEAT" => "UNTIL", _ => "LOOP" })}.",
         DiagnosticCode.DoConditionTwice =>
-            $"Ligne {Line} : ce DO a déjà une condition (WHILE ou UNTIL) au début : LOOP ne peut pas en avoir une aussi.",
+            $"ce DO a déjà une condition (WHILE ou UNTIL) au début : LOOP ne peut pas en avoir une aussi.",
         DiagnosticCode.DivisionByZero =>
-            $"Ligne {Line} : division par zéro avec « {Argument} » : le diviseur ne peut pas être 0.",
+            $"division par zéro avec « {Argument} » : le diviseur ne peut pas être 0.",
         DiagnosticCode.ExpectedOpenParenthesis =>
-            $"Ligne {Line} : une fonction s'écrit avec des parenthèses, par exemple {Argument}.",
+            $"une fonction s'écrit avec des parenthèses, par exemple {Argument}.",
         DiagnosticCode.WrongArgumentCount =>
-            $"Ligne {Line} : le nombre de valeurs est incorrect. Écrivez {Argument}.",
-        _ => $"Ligne {Line} : problème inconnu ({Code})."
+            $"le nombre de valeurs est incorrect. Écrivez {Argument}.",
+        _ => $"problème inconnu ({Code})."
     };
 
     public override string ToString() => Message;

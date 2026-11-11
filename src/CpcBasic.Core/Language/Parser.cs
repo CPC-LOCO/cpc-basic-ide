@@ -86,7 +86,29 @@ public static class Parser
         return pos;
     }
 
+    // Chaque erreur trouvée dans une instruction reçoit le nom de la commande (PRINT, FOR, IF...), pour que
+    // le message puisse dire « PRINT attend une valeur ». Une instruction placée dans une autre
+    // (IF ... THEN PRINT ...) a déjà marqué ses propres erreurs : on ne touche qu'à celles sans commande.
     static int ParseStatement(IReadOnlyList<Token> tokens, int pos,
+                              List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token first = tokens[pos];
+        int before = diagnostics.Count;
+        int next = ParseStatementCore(tokens, pos, statements, diagnostics);
+
+        if (first.Kind == TokenKind.Word && Commands.Contains(first.Text))
+        {
+            for (int i = before; i < diagnostics.Count; i++)
+            {
+                if (diagnostics[i].Context.Length == 0)
+                    diagnostics[i] = diagnostics[i] with { Context = first.Text };
+            }
+        }
+
+        return next;
+    }
+
+    static int ParseStatementCore(IReadOnlyList<Token> tokens, int pos,
                               List<Statement> statements, List<Diagnostic> diagnostics)
     {
         Token t = tokens[pos];

@@ -2,10 +2,15 @@
 
 Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dans le journal des décisions.
 
-## Accessibilité (à faire après J3, dans la même publication)
-- Taille du texte de l'éditeur réglable (Ctrl + molette, Ctrl+ et Ctrl-), avec mémorisation.
-- Thème à fort contraste, police plus grande pour le panneau de messages.
-- Boutons plus grands, tout utilisable au clavier.
+## Accessibilité (suites de D041)
+- Essai avec un lecteur d'écran (Narrateur de Windows) : les noms sont posés mais jamais vérifiés. Annoncer le résultat d'une compilation sans que la personne cherche.
+- Colonne des numéros de ligne de l'éditeur collée aux numéros BASIC (D008).
+- Taille des boutons qui suit la taille du texte ? (aujourd'hui fixe : 48 points de haut).
+
+## Messages d'erreur (suites de D042)
+- Nommer la commande dans le message du guillemet manquant (erreur trouvée dans le lexer).
+- Étendre l'aide « telle commande attend... » aux autres messages (UnexpectedToken, BlocksNotNested...).
+- Passer les messages dans les fichiers de langue (français, anglais, espagnol).
 
 ## Langage
 - Fonctions de calcul : ABS, SGN, MIN, MAX (existent dans le Locomotive), HIBYTE, LOBYTE, CLAMP, RANDOM, RANDOMIZE.

@@ -31,6 +31,8 @@ public partial class MainWindow : Window
         Patterns = new[] { "*.bas" }
     };
 
+    static IBrush Make(string hex) => new SolidColorBrush(Color.Parse(hex));
+
     // Une ligne du panneau de messages. Line vaut 0 quand le message n'est lié à aucune ligne.
     sealed class MessageItem
     {
@@ -45,6 +47,9 @@ public partial class MainWindow : Window
         public override string ToString() => Text;
     }
 
+    readonly EditorSettings settings = EditorSettings.Load();
+    readonly BasicColorizer colorizer = new();
+
     string? currentPath;
     bool modified;
     bool loading;
@@ -53,8 +58,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        Editor.LineNumbersForeground = new SolidColorBrush(Color.Parse("#8080FF"));
-        Editor.TextArea.TextView.LineTransformers.Add(new BasicColorizer());
+        Editor.TextArea.TextView.LineTransformers.Add(colorizer);
         Editor.TextArea.Caret.PositionChanged += (_, _) => UpdateStatus();
         Editor.TextChanged += (_, _) =>
         {
@@ -62,11 +66,18 @@ public partial class MainWindow : Window
             modified = true;
             UpdateTitle();
         };
-        KeyDown += OnWindowKeyDown;
+
+        // « Tunnel » : la fenêtre voit les touches et la molette avant l'éditeur,
+        // donc Ctrl+molette et Ctrl+plus ne sont pas pris par l'éditeur.
+        AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(PointerWheelChangedEvent, OnWindowWheel, RoutingStrategies.Tunnel);
+
+        // Au démarrage, le curseur est dans l'éditeur : on peut taper tout de suite.
+        Opened += (_, _) => Editor.TextArea.Focus();
 
         SetText(StartProgram);
         UpdateTitle();
-        UpdateStatus();
+        ApplyAppearance();
     }
 
     // ---------- Boutons et raccourcis ----------
@@ -74,6 +85,9 @@ public partial class MainWindow : Window
     async void OnOpenClick(object? sender, RoutedEventArgs e) => await OpenFileAsync();
     async void OnSaveClick(object? sender, RoutedEventArgs e) => await SaveAsync();
     async void OnCompileClick(object? sender, RoutedEventArgs e) => await CompileAsync();
+    void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
+    void OnBiggerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(+2);
+    void OnContrastClick(object? sender, RoutedEventArgs e) => ToggleContrast();
 
     async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
@@ -83,6 +97,40 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             await CompileAsync();
+        }
+        else if (e.Key == Key.F6)
+        {
+            // F6 : passer de l'éditeur au panneau de messages, et inversement
+            e.Handled = true;
+            if (MessageList.IsKeyboardFocusWithin)
+                Editor.TextArea.Focus();
+            else
+            {
+                // Rien de choisi : on prend la première erreur liée à une ligne (sinon le premier message)
+                if (MessageList.SelectedItem is null
+                    && MessageList.ItemsSource is List<MessageItem> messages
+                    && messages.Count > 0)
+                {
+                    int first = messages.FindIndex(m => m.Line > 0);
+                    MessageList.SelectedIndex = first >= 0 ? first : 0;
+                }
+
+                // Le clavier se pose sur un message précis (comme après un clic), pas sur la liste entière
+                Control? container = MessageList.SelectedIndex >= 0
+                    ? MessageList.ContainerFromIndex(MessageList.SelectedIndex)
+                    : null;
+                if (container is not null)
+                    container.Focus(NavigationMethod.Tab);
+                else
+                    MessageList.Focus();
+            }
+        }
+        else if (e.Key == Key.Enter && MessageList.IsKeyboardFocusWithin)
+        {
+            // Entrée sur un message : la liste la garde pour elle, donc on la prend ici, avant la liste
+            e.Handled = true;
+            GoToSelectedMessage(true);
+            Editor.TextArea.Focus();   // même pour un message qui n'est lié à aucune ligne
         }
         else if (ctrl && e.Key == Key.S)
         {
@@ -94,6 +142,90 @@ public partial class MainWindow : Window
             e.Handled = true;
             await OpenFileAsync();
         }
+        else if (ctrl && e.Key is Key.OemPlus or Key.Add)
+        {
+            e.Handled = true;
+            ChangeFontSize(+2);
+        }
+        else if (ctrl && e.Key is Key.OemMinus or Key.Subtract)
+        {
+            e.Handled = true;
+            ChangeFontSize(-2);
+        }
+        else if (ctrl && e.Key is Key.D0 or Key.NumPad0)
+        {
+            e.Handled = true;
+            SetFontSize(EditorSettings.DefaultFontSize);
+        }
+        else if (ctrl && e.Key == Key.H)
+        {
+            e.Handled = true;
+            ToggleContrast();
+        }
+    }
+
+    // Ctrl + molette : taille du texte
+    void OnWindowWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            return;
+
+        e.Handled = true;
+        if (e.Delta.Y > 0)
+            ChangeFontSize(+2);
+        else if (e.Delta.Y < 0)
+            ChangeFontSize(-2);
+    }
+
+    // ---------- Apparence : taille du texte et contraste ----------
+
+    void ChangeFontSize(int delta) => SetFontSize(settings.FontSize + delta);
+
+    void SetFontSize(int size)
+    {
+        size = Math.Clamp(size, EditorSettings.MinFontSize, EditorSettings.MaxFontSize);
+        if (size == settings.FontSize)
+            return;
+
+        settings.FontSize = size;
+        settings.Save();
+        ApplyAppearance();
+    }
+
+    void ToggleContrast()
+    {
+        settings.HighContrast = !settings.HighContrast;
+        settings.Save();
+        ApplyAppearance();
+    }
+
+    // Applique les réglages à l'éditeur, au panneau de messages et à la barre d'état
+    void ApplyAppearance()
+    {
+        bool high = settings.HighContrast;
+
+        Editor.FontSize = settings.FontSize;
+        Editor.Background = Make(high ? "#000000" : "#000080");
+        Editor.Foreground = Make(high ? "#FFFFFF" : "#FFFF00");
+        Editor.LineNumbersForeground = Make(high ? "#FFFF00" : "#8080FF");
+
+        colorizer.HighContrast = high;
+        Editor.TextArea.TextView.Redraw();
+
+        // Le panneau de messages et la barre d'état restent lisibles : au moins 16 et 14 points
+        MessageList.FontSize = Math.Max(16, settings.FontSize);
+        MessageList.Background = Make(high ? "#000000" : "#101010");
+        MessageList.Foreground = Make(high ? "#FFFFFF" : "#E0E0E0");
+
+        StatusText.FontSize = Math.Max(14, settings.FontSize - 2);
+        StatusText.Foreground = Make(high ? "#FFFFFF" : "#C0C0C0");
+        StatusBar.Background = Make(high ? "#000000" : "#202020");
+
+        ContrastButton.Content = high
+            ? "Contraste élevé : oui (Ctrl+H)"
+            : "Contraste élevé : non (Ctrl+H)";
+
+        UpdateStatus();
     }
 
     // ---------- Ouvrir et enregistrer ----------
@@ -233,14 +365,39 @@ public partial class MainWindow : Window
         MessageList.SelectedItem = null;
     }
 
-    // Un clic sur une erreur place le curseur sur la ligne concernée
-    void OnMessageSelected(object? sender, SelectionChangedEventArgs e)
+    // Place le curseur de l'éditeur sur la ligne du message choisi.
+    // Avec focusEditor, le clavier passe aussi dans l'éditeur.
+    void GoToSelectedMessage(bool focusEditor)
     {
         if (MessageList.SelectedItem is MessageItem { Line: > 0 } item)
         {
             int line = Math.Min(item.Line, Editor.Document.LineCount);
             Editor.TextArea.Caret.Position = new TextViewPosition(line, 1);
             Editor.ScrollToLine(line);
+            if (focusEditor)
+                Editor.TextArea.Focus();
+        }
+    }
+
+    // Flèches haut/bas dans la liste : le curseur de l'éditeur suit, mais on reste dans la liste
+    void OnMessageSelected(object? sender, SelectionChangedEventArgs e) => GoToSelectedMessage(false);
+
+    // Clic sur un message : on va dans l'éditeur, sur la ligne concernée
+    void OnMessageTapped(object? sender, TappedEventArgs e) => GoToSelectedMessage(true);
+
+    // Entrée sur un message : on va dans l'éditeur, sur la ligne concernée s'il y en a une.
+    // Échap : retour dans l'éditeur, sans changer de ligne.
+    void OnMessageKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            GoToSelectedMessage(true);
+            Editor.TextArea.Focus();   // même pour un message qui n'est lié à aucune ligne
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
             Editor.TextArea.Focus();
         }
     }
@@ -264,6 +421,8 @@ public partial class MainWindow : Window
     void UpdateStatus()
     {
         var caret = Editor.TextArea.Caret;
-        StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}";
+        string contrast = settings.HighContrast ? "oui" : "non";
+        StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   " +
+                          $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}";
     }
 }

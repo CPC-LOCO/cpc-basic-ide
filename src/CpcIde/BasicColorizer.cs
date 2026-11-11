@@ -14,18 +14,34 @@ namespace CpcIde;
 /// <summary>
 /// Colore chaque ligne du programme BASIC : numéros de ligne, mots-clés du Locomotive BASIC,
 /// nouvelles commandes du projet, nombres, chaînes de caractères et commentaires.
+/// Deux palettes existent : la normale (papier bleu, comme le CPC) et le fort contraste (papier noir).
 /// Les listes de mots ci-dessous sont des exemples pour l'essai, pas la liste définitive.
 /// </summary>
 public class BasicColorizer : DocumentColorizingTransformer
 {
     static IBrush Make(string hex) => new SolidColorBrush(Color.Parse(hex));
 
-    static readonly IBrush LineNumberBrush = Make("#8080FF");
-    static readonly IBrush KeywordBrush = Make("#00FFFF");   // mots-clés classiques
-    static readonly IBrush NewCommandBrush = Make("#FF80FF"); // nouvelles commandes du projet
-    static readonly IBrush NumberBrush = Make("#FFFFFF");
-    static readonly IBrush StringBrush = Make("#00FF00");
-    static readonly IBrush CommentBrush = Make("#A0A0A0");
+    /// <summary>Les six couleurs utilisées pour colorer un programme.</summary>
+    sealed record Palette(
+        IBrush LineNumber,
+        IBrush Keyword,      // mots-clés classiques
+        IBrush NewCommand,   // nouvelles commandes du projet
+        IBrush Number,
+        IBrush String,
+        IBrush Comment);
+
+    // Sur papier bleu (#000080)
+    static readonly Palette CpcPalette = new(
+        Make("#8080FF"), Make("#00FFFF"), Make("#FF80FF"),
+        Make("#FFFFFF"), Make("#00FF00"), Make("#A0A0A0"));
+
+    // Sur papier noir : couleurs vives, commentaires plus clairs
+    static readonly Palette HighContrastPalette = new(
+        Make("#FFFF00"), Make("#00FFFF"), Make("#FF80FF"),
+        Make("#FFC040"), Make("#00FF00"), Make("#C0C0C0"));
+
+    /// <summary>Vrai pour utiliser la palette à fort contraste.</summary>
+    public bool HighContrast { get; set; }
 
     static readonly HashSet<string> Classic = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -56,6 +72,7 @@ public class BasicColorizer : DocumentColorizingTransformer
 
     protected override void ColorizeLine(DocumentLine line)
     {
+        Palette colors = HighContrast ? HighContrastPalette : CpcPalette;
         string text = CurrentContext.Document.GetText(line);
         int offset = line.Offset;
         int i = 0;
@@ -74,7 +91,7 @@ public class BasicColorizer : DocumentColorizingTransformer
             // Commentaire commençant par une apostrophe : jusqu'à la fin de la ligne
             if (c == '\'')
             {
-                Paint(offset + i, offset + text.Length, CommentBrush);
+                Paint(offset + i, offset + text.Length, colors.Comment);
                 return;
             }
 
@@ -83,7 +100,7 @@ public class BasicColorizer : DocumentColorizingTransformer
             {
                 int end = text.IndexOf('"', i + 1);
                 end = end < 0 ? text.Length : end + 1;
-                Paint(offset + i, offset + end, StringBrush);
+                Paint(offset + i, offset + end, colors.String);
                 i = end;
                 firstToken = false;
                 continue;
@@ -96,7 +113,7 @@ public class BasicColorizer : DocumentColorizingTransformer
                 i++;
                 while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '.'))
                     i++;
-                Paint(offset + start, offset + i, firstToken ? LineNumberBrush : NumberBrush);
+                Paint(offset + start, offset + i, firstToken ? colors.LineNumber : colors.Number);
                 firstToken = false;
                 continue;
             }
@@ -114,14 +131,14 @@ public class BasicColorizer : DocumentColorizingTransformer
 
                 if (word.Equals("REM", StringComparison.OrdinalIgnoreCase))
                 {
-                    Paint(offset + start, offset + text.Length, CommentBrush);
+                    Paint(offset + start, offset + text.Length, colors.Comment);
                     return;
                 }
 
                 if (NewCommands.Contains(word))
-                    Paint(offset + start, offset + i, NewCommandBrush);
+                    Paint(offset + start, offset + i, colors.NewCommand);
                 else if (Classic.Contains(word))
-                    Paint(offset + start, offset + i, KeywordBrush);
+                    Paint(offset + start, offset + i, colors.Keyword);
 
                 firstToken = false;
                 continue;
@@ -130,7 +147,7 @@ public class BasicColorizer : DocumentColorizingTransformer
             // « ? » est un raccourci de PRINT : coloré comme un mot-clé
             if (c == '?')
             {
-                Paint(offset + i, offset + i + 1, KeywordBrush);
+                Paint(offset + i, offset + i + 1, colors.Keyword);
                 firstToken = false;
                 i++;
                 continue;

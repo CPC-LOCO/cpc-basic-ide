@@ -243,7 +243,7 @@ public class ParserTests
         AnalysisResult result = BasicAnalyzer.Analyze("10 PRINT \"A\"\n20 PRNT \"B\"");
 
         string message = Assert.Single(result.Diagnostics).Message;
-        Assert.Contains("Ligne 2", message);   // la ligne affichée est celle de l'éditeur
+        Assert.Contains("en ligne 2", message);   // la ligne affichée est celle de l'éditeur
         Assert.Contains("PRNT", message);
     }
 }

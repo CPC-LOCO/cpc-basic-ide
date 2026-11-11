@@ -108,103 +108,121 @@ Pour J1, le compilateur reconnaît `PRINT "texte"` (avec `;` final pour supprime
 ## D016 : ROM (Ouvert)
 Ne pas redistribuer les ROM Amstrad. Comment les fournir : demander à l'utilisateur, ou ROM libres de remplacement. À trancher avant la publication.
 
-## D026 : Types de J2 (DÃ©cidÃ©, 8 nov. 2026)
-Deux types de variables : entier signÃ© 16 bits (`A` ou `A%`, sans dÃ©claration) et octet non signÃ© 8 bits (voir D032). Le suffixe fait partie du nom : `A` et `A%` sont des variables distinctes, comme dans le Locomotive BASIC. DiffÃ©rence assumÃ©e : dans le Locomotive, `A` est un rÃ©el. RÃ©els et chaÃ®nes : Ã©tapes ultÃ©rieures (voir D016 pour les ROM).
-DÃ©passement : un littÃ©ral hors intervalle est une erreur de compilation ; Ã  l'exÃ©cution, le calcul boucle (modulo 256 pour l'octet, modulo 65536 pour l'entier), comportement natif du Z80, sans test coÃ»teux.
+## D026 : Types de J2 (Décidé, 8 nov. 2026)
+Deux types de variables : entier signé 16 bits (`A` ou `A%`, sans déclaration) et octet non signé 8 bits (voir D032). Le suffixe fait partie du nom : `A` et `A%` sont des variables distinctes, comme dans le Locomotive BASIC. Différence assumée : dans le Locomotive, `A` est un réel. Réels et chaînes : étapes ultérieures (voir D016 pour les ROM).
+Dépassement : un littéral hors intervalle est une erreur de compilation ; à l'exécution, le calcul boucle (modulo 256 pour l'octet, modulo 65536 pour l'entier), comportement natif du Z80, sans test coûteux.
 
-## D027 : Variables et expressions (DÃ©cidÃ©, 8 nov. 2026)
-Variables allouÃ©es statiquement aprÃ¨s les textes : 1 octet pour un octet, 2 octets (petit-boutiste) pour un entier. Seules les variables utilisÃ©es sont rÃ©servÃ©es ; valeur initiale 0. Expressions Ã©valuÃ©es dans HL, opÃ©rande de gauche empilÃ©. Lecture d'un octet : LD A,(var) / LD L,A / LD H,0. Ã‰criture : LD A,L / LD (var),A. Les modules PrintInt, Mul16 et Div16 ne connaissent donc que HL. Les futurs tableaux hÃ©riteront du type de leur Ã©lÃ©ment.
+## D027 : Variables et expressions (Décidé, 8 nov. 2026)
+Variables allouées statiquement après les textes : 1 octet pour un octet, 2 octets (petit-boutiste) pour un entier. Seules les variables utilisées sont réservées ; valeur initiale 0. Expressions évaluées dans HL, opérande de gauche empilé. Lecture d'un octet : LD A,(var) / LD L,A / LD H,0. Écriture : LD A,L / LD (var),A. Les modules PrintInt, Mul16 et Div16 ne connaissent donc que HL. Les futurs tableaux hériteront du type de leur élément.
 
-## D028 : Format de dÃ©claration des modules (Ouvert, 8 nov. 2026)
-PrÃ©cise la question laissÃ©e ouverte par D024 : format de dÃ©claration des modules de la bibliothÃ¨que sous forme de fichiers (source Z80 et mÃ©tadonnÃ©es). Ã€ trancher avant l'ouverture du projet de commandes Z80.
+## D028 : Format de déclaration des modules (Ouvert, 8 nov. 2026)
+Précise la question laissée ouverte par D024 : format de déclaration des modules de la bibliothèque sous forme de fichiers (source Z80 et métadonnées). À trancher avant l'ouverture du projet de commandes Z80.
 
-## D029 : Suffixe du type octet (RemplacÃ©e par D032, 8 nov. 2026)
-Le suffixe Â« ~ Â» avait Ã©tÃ© retenu provisoirement (Â« @ Â» Ã©cartÃ© : adresse de variable du Locomotive BASIC). AbandonnÃ© : Â« ~ Â» demande AltGr sur clavier AZERTY. Voir D032.
+## D029 : Suffixe du type octet (Remplacée par D032, 8 nov. 2026)
+Le suffixe « ~ » avait été retenu provisoirement (« @ » écarté : adresse de variable du Locomotive BASIC). Abandonné : « ~ » demande AltGr sur clavier AZERTY. Voir D032.
 
-## D030 : NumÃ©ro non utilisÃ©
-RÃ©servÃ© pendant la discussion sur le suffixe, finalement sans objet.
+## D030 : Numéro non utilisé
+Réservé pendant la discussion sur le suffixe, finalement sans objet.
 
-## D031 : Bilan de l'Ã©tape 2a (DÃ©cidÃ©, 8 nov. 2026)
-- Variables entiÃ¨res (A, A%) implicites ; variables octet dÃ©clarÃ©es avec BYTE (voir D032). Affectation avec ou sans LET, expressions avec + et - (parenthÃ¨ses, moins unaire), PRINT d'expressions, PRINT avec plusieurs Ã©lÃ©ments sÃ©parÃ©s par Â« ; Â». La virgule dans PRINT n'est pas gÃ©rÃ©e.
-- Les types $ et ! sont refusÃ©s avec un message (UnsupportedVariableType).
-- Nouveau module PrintInt, liÃ© seulement si un nombre est affichÃ©. Format vÃ©rifiÃ© sur WinAPE : espace devant (ou Â« - Â»), chiffres, espace final, identique au BASIC rÃ©el (`PRINT 5;"X"` donne Â« 5 X Â»).
+## D031 : Bilan de l'étape 2a (Décidé, 8 nov. 2026)
+- Variables entières (A, A%) implicites ; variables octet déclarées avec BYTE (voir D032). Affectation avec ou sans LET, expressions avec + et - (parenthèses, moins unaire), PRINT d'expressions, PRINT avec plusieurs éléments séparés par « ; ». La virgule dans PRINT n'est pas gérée.
+- Les types $ et ! sont refusés avec un message (UnsupportedVariableType).
+- Nouveau module PrintInt, lié seulement si un nombre est affiché. Format vérifié sur WinAPE : espace devant (ou « - »), chiffres, espace final, identique au BASIC réel (`PRINT 5;"X"` donne « 5 X »).
 - ExpectedString n'est plus produit (PRINT accepte les expressions).
-- ValidÃ© sur WinAPE avec `examples/variable.bas`.
-- Limite : le nom du fichier .bas est limitÃ© Ã  8 caractÃ¨res (D022).
+- Validé sur WinAPE avec `examples/variable.bas`.
+- Limite : le nom du fichier .bas est limité à 8 caractères (D022).
 
-## D032 : Type octet par dÃ©claration BYTE (DÃ©cidÃ©, 8 nov. 2026)
-Remplace D029. Une variable octet (0 Ã  255) se dÃ©clare avec `BYTE nom [, nom ...]`, sans suffixe, avant sa premiÃ¨re utilisation. Les entiers (A, A%) restent implicites.
-Choix de BYTE plutÃ´t que CHAR : CHAR Ã©voque un caractÃ¨re de texte. BYTE n'est pas un mot rÃ©servÃ© du Locomotive BASIC (vÃ©rifiÃ© dans WinAPE : `BYTE=5` fonctionne), mais un programme du Locomotive qui nomme une variable BYTE n'est plus compilable.
-Erreurs : double dÃ©claration, dÃ©claration aprÃ¨s usage, suffixe dans la dÃ©claration, littÃ©ral hors de 0 Ã  255. Un calcul qui dÃ©passe 255 boucle (modulo 256). Option OPTION EXPLICIT (dÃ©claration obligatoire pour tous les types) possible plus tard. ComplÃ¨te D026 et D027.
+## D032 : Type octet par déclaration BYTE (Décidé, 8 nov. 2026)
+Remplace D029. Une variable octet (0 à 255) se déclare avec `BYTE nom [, nom ...]`, sans suffixe, avant sa première utilisation. Les entiers (A, A%) restent implicites.
+Choix de BYTE plutôt que CHAR : CHAR évoque un caractère de texte. BYTE n'est pas un mot réservé du Locomotive BASIC (vérifié dans WinAPE : `BYTE=5` fonctionne), mais un programme du Locomotive qui nomme une variable BYTE n'est plus compilable.
+Erreurs : double déclaration, déclaration après usage, suffixe dans la déclaration, littéral hors de 0 à 255. Un calcul qui dépasse 255 boucle (modulo 256). Option OPTION EXPLICIT (déclaration obligatoire pour tous les types) possible plus tard. Complète D026 et D027.
 
-## D033 : Boucles FOR/NEXT, EXIT, CONTINUE (DÃ©cidÃ©, 8 nov. 2026)
-- Syntaxe : `FOR v = dÃ©part TO limite [STEP pas] ... NEXT [v]`. Limite et pas : nombres Ã©crits dans le programme (pas de variables pour l'instant). Pas non nul.
-- Test au NEXT (corps exÃ©cutÃ© au moins une fois), comme sur le CPC. Comparaison signÃ©e (bit 15 retournÃ© puis comparaison non signÃ©e). DÃ©bordement de l'entier : fin de boucle.
-- Variable de boucle : entier ou BYTE dÃ©clarÃ©. BYTE : limite dans 0..255, pas dans -255..255.
-- EXIT et CONTINUE : sauts rÃ©solus Ã  la compilation (pile de boucles dans le gÃ©nÃ©rateur, aucun nettoyage sur la pile du Z80).
-- Ã‰cart avec le Locomotive : aprÃ¨s la boucle, la variable garde sa derniÃ¨re valeur (le CPC lui laisse la valeur suivante).
-- Mots rÃ©servÃ©s ajoutÃ©s : FOR, NEXT, TO, STEP, EXIT, CONTINUE (EXIT n'est pas utilisÃ© par le Locomotive, vÃ©rifiÃ© dans WinAPE).
-- ValidÃ© sur WinAPE avec `examples/boucles.bas`.
+## D033 : Boucles FOR/NEXT, EXIT, CONTINUE (Décidé, 8 nov. 2026)
+- Syntaxe : `FOR v = départ TO limite [STEP pas] ... NEXT [v]`. Limite et pas : nombres écrits dans le programme (pas de variables pour l'instant). Pas non nul.
+- Test au NEXT (corps exécuté au moins une fois), comme sur le CPC. Comparaison signée (bit 15 retourné puis comparaison non signée). Débordement de l'entier : fin de boucle.
+- Variable de boucle : entier ou BYTE déclaré. BYTE : limite dans 0..255, pas dans -255..255.
+- EXIT et CONTINUE : sauts résolus à la compilation (pile de boucles dans le générateur, aucun nettoyage sur la pile du Z80).
+- Écart avec le Locomotive : après la boucle, la variable garde sa dernière valeur (le CPC lui laisse la valeur suivante).
+- Mots réservés ajoutés : FOR, NEXT, TO, STEP, EXIT, CONTINUE (EXIT n'est pas utilisé par le Locomotive, vérifié dans WinAPE).
+- Validé sur WinAPE avec `examples/boucles.bas`.
 
-## D034 : Comparaisons et IF...THEN...ELSE (DÃ©cidÃ©, 8 nov. 2026)
-- Comparaisons = <> < <= > >= entre deux expressions, signÃ©es sur 16 bits (bit 15 retournÃ© puis comparaison non signÃ©e par la retenue ; > et <= en Ã©changeant les opÃ©randes ; = et <> par SBC seul). AND/OR entre comparaisons, Ã©valuation de gauche Ã  droite avec arrÃªt anticipÃ© ; AND passe avant OR.
+## D034 : Comparaisons et IF...THEN...ELSE (Décidé, 8 nov. 2026)
+- Comparaisons = <> < <= > >= entre deux expressions, signées sur 16 bits (bit 15 retourné puis comparaison non signée par la retenue ; > et <= en échangeant les opérandes ; = et <> par SBC seul). AND/OR entre comparaisons, évaluation de gauche à droite avec arrêt anticipé ; AND passe avant OR.
 - IF sur une ligne (compatible Locomotive) : tout le reste de la ligne appartient au IF, ELSE se rattache au IF le plus proche. IF en bloc (THEN en fin de ligne, ELSE, END IF ou ENDIF) : extension du projet, absente du Locomotive.
-- Le parser Ã©met IfStatement / ElseStatement / EndIfStatement ; la fin d'un IF sur une ligne est ajoutÃ©e automatiquement. VÃ©rification des blocs avec une pile commune.
-- Limites : condition = comparaison (pas de nombre seul), pas de NOT, pas de parenthÃ¨ses autour d'une condition, pas de IF ... THEN numÃ©ro (GOTO viendra plus tard).
-- Mots rÃ©servÃ©s ajoutÃ©s : IF, THEN, ELSE, ENDIF, AND, OR (ENDIF seul n'existe pas dans le Locomotive).
-- ValidÃ© sur WinAPE avec `examples/cond.bas`.
+- Le parser émet IfStatement / ElseStatement / EndIfStatement ; la fin d'un IF sur une ligne est ajoutée automatiquement. Vérification des blocs avec une pile commune.
+- Limites : condition = comparaison (pas de nombre seul), pas de NOT, pas de parenthèses autour d'une condition, pas de IF ... THEN numéro (GOTO viendra plus tard).
+- Mots réservés ajoutés : IF, THEN, ELSE, ENDIF, AND, OR (ENDIF seul n'existe pas dans le Locomotive).
+- Validé sur WinAPE avec `examples/cond.bas`.
 
-## D035 : WHILE, REPEAT, DO...LOOP, EXIT/CONTINUE par type (DÃ©cidÃ©, 8 nov. 2026)
+## D035 : WHILE, REPEAT, DO...LOOP, EXIT/CONTINUE par type (Décidé, 8 nov. 2026)
 - WHILE c ... WEND (test en haut), REPEAT ... UNTIL c (test en bas, sortie quand c est vrai), DO [WHILE c | UNTIL c] ... LOOP [WHILE c | UNTIL c] (une seule condition par DO).
-- EXIT / CONTINUE [FOR | WHILE | REPEAT | DO] : saut rÃ©solu Ã  la compilation vers la boucle la plus proche du type demandÃ© (ou la plus proche tout court). CONTINUE revient au test.
-- Le gÃ©nÃ©rateur garde une pile de boucles commune Ã  tous les types ; l'Ã©metteur Z80 reÃ§oit AliasLabel pour donner deux noms Ã  une mÃªme adresse.
-- Pile de vÃ©rification commune Ã  FOR, WHILE, REPEAT, DO et IF : ClosingWithoutOpening, UnclosedLoop, DoConditionTwice, BlocksNotNested.
-- Mots rÃ©servÃ©s ajoutÃ©s : WHILE, WEND (Locomotive), REPEAT, UNTIL, DO, LOOP (Ã  vÃ©rifier dans WinAPE comme EXIT).
-- ValidÃ© sur WinAPE avec `examples/loops.bas`.
+- EXIT / CONTINUE [FOR | WHILE | REPEAT | DO] : saut résolu à la compilation vers la boucle la plus proche du type demandé (ou la plus proche tout court). CONTINUE revient au test.
+- Le générateur garde une pile de boucles commune à tous les types ; l'émetteur Z80 reçoit AliasLabel pour donner deux noms à une même adresse.
+- Pile de vérification commune à FOR, WHILE, REPEAT, DO et IF : ClosingWithoutOpening, UnclosedLoop, DoConditionTwice, BlocksNotNested.
+- Mots réservés ajoutés : WHILE, WEND (Locomotive), REPEAT, UNTIL, DO, LOOP (à vérifier dans WinAPE comme EXIT).
+- Validé sur WinAPE avec `examples/loops.bas`.
 
-## D036 : Bilan de J2 (DÃ©cidÃ©, 8 nov. 2026)
-- **J2 est terminÃ© cÃ´tÃ© langage.** Un programme avec variables, calculs simples, boucles et conditions se compile et se lance dans WinAPE. 175 tests automatiques, trois programmes d'exemple vÃ©rifiÃ©s Ã  l'Ã©cran (`boucles.bas`, `cond.bas`, `loops.bas`).
-- **Ã‰carts avec le Locomotive BASIC** : consignÃ©s dans le tableau de la section 8 de `ARCHITECTURE.md` (version 0.3).
-- **Pas encore faits, par ordre de prioritÃ© proposÃ© pour J3** : multiplication, division et MOD (modules Mul16 et Div16) ; NOT ; GOTO et GOSUB avec Ã©tiquettes ; tableaux ; chaÃ®nes ; rÃ©els ; INPUT et clavier ; graphiques et sons ; DATA/READ.
-- **Dettes connues** : accents (table des caractÃ¨res du CPC), confirmation Ã  l'ouverture d'un fichier modifiÃ© dans l'Ã©diteur, colonne des numÃ©ros de ligne collÃ©e aux numÃ©ros BASIC, entrelacement du .dsk, fichiers de plus de 16 Ko, messages d'erreur Ã  passer dans des fichiers de langue.
-- **Ã€ traiter avant la prochaine publication** : D016 (ROM : vÃ©rifier que rien n'est redistribuÃ©) et relecture juridique de l'exception de liaison (D017).
-## D037 : Multiplication, division et MOD (D�cid�, 9 nov. 2026)
-- Op�rateurs `*`, `/` et `MOD` ; le signe `\` du Locomotive BASIC est accept� comme synonyme de `/`. `*`, `/` et `MOD` passent avant `+` et `-`. Le moins unaire se lie � son op�rande.
-- `/` est une division enti�re (7 / 2 = 3), tronqu�e vers 0. �cart avec le Locomotive, o� `/` donne un r�el. `MOD` : le reste a le signe du dividende (-7 MOD 3 = -1), comme `\` et MOD du Locomotive.
-- Diviseur �gal � un 0 �crit dans le programme : erreur de compilation (DivisionByZero). Diviseur calcul� �gal � 0 : pas d'erreur � l'ex�cution pour l'instant, le quotient vaut 0 et le reste vaut le dividende (� am�liorer, voir IDEES.md).
-- Modules Mul16 (les 16 bits de poids faible du produit : m�me r�sultat sign� ou non) et Div16 (quotient dans HL, reste dans DE ; valeurs absolues puis signes corrig�s), li�s seulement s'ils sont utilis�s.
-- D�passement : un produit trop grand boucle (200 * 200 = -25536), comme le reste des calculs (D026).
-- Tests : un mini-�mulateur Z80 (`tests/CpcBasic.Tests/MiniZ80.cs`) ex�cute les modules et compare leurs r�sultats � C# sur des milliers de valeurs. Il ne conna�t que les instructions utilis�es ; s'il en rencontre une inconnue, il le dit.
-- Mot r�serv� ajout� : MOD (d�j� un mot du Locomotive).
-- Valid� sur WinAPE avec `examples/calculs.bas`. 205 tests.
+## D036 : Bilan de J2 (Décidé, 8 nov. 2026)
+- **J2 est terminé côté langage.** Un programme avec variables, calculs simples, boucles et conditions se compile et se lance dans WinAPE. 175 tests automatiques, trois programmes d'exemple vérifiés à l'écran (`boucles.bas`, `cond.bas`, `loops.bas`).
+- **Écarts avec le Locomotive BASIC** : consignés dans le tableau de la section 8 de `ARCHITECTURE.md` (version 0.3).
+- **Pas encore faits, par ordre de priorité proposé pour J3** : multiplication, division et MOD (modules Mul16 et Div16) ; NOT ; GOTO et GOSUB avec étiquettes ; tableaux ; chaînes ; réels ; INPUT et clavier ; graphiques et sons ; DATA/READ.
+- **Dettes connues** : accents (table des caractères du CPC), confirmation à l'ouverture d'un fichier modifié dans l'éditeur, colonne des numéros de ligne collée aux numéros BASIC, entrelacement du .dsk, fichiers de plus de 16 Ko, messages d'erreur à passer dans des fichiers de langue.
+- **À traiter avant la prochaine publication** : D016 (ROM : vérifier que rien n'est redistribué) et relecture juridique de l'exception de liaison (D017).
+## D037 : Multiplication, division et MOD (Décidé, 9 nov. 2026)
+- Opérateurs `*`, `/` et `MOD` ; le signe `\` du Locomotive BASIC est accepté comme synonyme de `/`. `*`, `/` et `MOD` passent avant `+` et `-`. Le moins unaire se lie à son opérande.
+- `/` est une division entière (7 / 2 = 3), tronquée vers 0. Écart avec le Locomotive, où `/` donne un réel. `MOD` : le reste a le signe du dividende (-7 MOD 3 = -1), comme `\` et MOD du Locomotive.
+- Diviseur égal à un 0 écrit dans le programme : erreur de compilation (DivisionByZero). Diviseur calculé égal à 0 : pas d'erreur à l'exécution pour l'instant, le quotient vaut 0 et le reste vaut le dividende (à améliorer, voir IDEES.md).
+- Modules Mul16 (les 16 bits de poids faible du produit : même résultat signé ou non) et Div16 (quotient dans HL, reste dans DE ; valeurs absolues puis signes corrigés), liés seulement s'ils sont utilisés.
+- Dépassement : un produit trop grand boucle (200 * 200 = -25536), comme le reste des calculs (D026).
+- Tests : un mini-émulateur Z80 (`tests/CpcBasic.Tests/MiniZ80.cs`) exécute les modules et compare leurs résultats à C# sur des milliers de valeurs. Il ne connaît que les instructions utilisées ; s'il en rencontre une inconnue, il le dit.
+- Mot réservé ajouté : MOD (déjà un mot du Locomotive).
+- Validé sur WinAPE avec `examples/calculs.bas`. 205 tests.
 
-## D038 : Fonctions de calcul (D�cid�, 9 nov. 2026)
+## D038 : Fonctions de calcul (Décidé, 9 nov. 2026)
 - Syntaxe `NOM(valeur, ...)` dans une expression. Fonctions : ABS, SGN, MIN, MAX (existent dans le Locomotive, ici sur des entiers), HIBYTE, LOBYTE, CLAMP (nouvelles).
-- HIBYTE(n) : octet de poids fort, 0 � 255. LOBYTE(n) : octet de poids faible, 0 � 255. Code court �crit directement dans le programme, sans module.
-- CLAMP(valeur, mini, maxi) = MIN(MAX(valeur, mini), maxi) : ram�ne la valeur dans l'intervalle. Si mini > maxi, le r�sultat est maxi.
-- MIN et MAX acceptent plus de deux valeurs : MIN(9, 4, 6) devient MIN(MIN(9, 4), 6) d�s l'analyse.
-- ABS(-32768) reste -32768 (d�passement). SGN donne -1, 0 ou 1.
-- Modules Abs16, Sgn16, Min16, Max16 (comparaison sign�e par retournement du bit 15), li�s seulement s'ils sont utilis�s. CLAMP lie Max16 et Min16.
-- Messages d'erreur : fonction sans parenth�ses (ExpectedOpenParenthesis), mauvais nombre de valeurs (WrongArgumentCount) ; les deux montrent la bonne �criture, par exemple � CLAMP(valeur, min, max) �.
-- Mots r�serv�s ajout�s : ABS, SGN, MIN, MAX, HIBYTE, LOBYTE, CLAMP. HIBYTE, LOBYTE, CLAMP (et RANDOM) v�rifi�s libres dans WinAPE.
-- Pr�vu ensuite : RANDOM(min, max) et RANDOMIZE (D039), puis les graphismes de base et le calcul 3D en fil de fer.
+- HIBYTE(n) : octet de poids fort, 0 à 255. LOBYTE(n) : octet de poids faible, 0 à 255. Code court écrit directement dans le programme, sans module.
+- CLAMP(valeur, mini, maxi) = MIN(MAX(valeur, mini), maxi) : ramène la valeur dans l'intervalle. Si mini > maxi, le résultat est maxi.
+- MIN et MAX acceptent plus de deux valeurs : MIN(9, 4, 6) devient MIN(MIN(9, 4), 6) dès l'analyse.
+- ABS(-32768) reste -32768 (dépassement). SGN donne -1, 0 ou 1.
+- Modules Abs16, Sgn16, Min16, Max16 (comparaison signée par retournement du bit 15), liés seulement s'ils sont utilisés. CLAMP lie Max16 et Min16.
+- Messages d'erreur : fonction sans parenthèses (ExpectedOpenParenthesis), mauvais nombre de valeurs (WrongArgumentCount) ; les deux montrent la bonne écriture, par exemple « CLAMP(valeur, min, max) ».
+- Mots réservés ajoutés : ABS, SGN, MIN, MAX, HIBYTE, LOBYTE, CLAMP. HIBYTE, LOBYTE, CLAMP (et RANDOM) vérifiés libres dans WinAPE.
+- Prévu ensuite : RANDOM(min, max) et RANDOMIZE (D039), puis les graphismes de base et le calcul 3D en fil de fer.
 
-## D039 : RANDOM et RANDOMIZE (D�cid�, 10 nov. 2026)
-- `RANDOM(min, max)` : nombre entier de min � max compris (fonction � deux valeurs). `RANDOMIZE graine` fixe le d�part : la m�me graine redonne toujours la m�me suite (utile pour tester un jeu). `RANDOMIZE` seul : le d�part vient de l'horloge du CPC. Sans RANDOMIZE, le premier RANDOM prend aussi son d�part dans l'horloge.
-- G�n�rateur : registre � d�calage de 16 bits (polyn�me &B400, p�riode 65535, v�rifi�e par un test), avanc� de 16 pas � chaque appel. Entiers seulement, aucun calcul � virgule : beaucoup plus court et plus rapide que le RND du Locomotive (pas de mesure chiffr�e pour l'instant).
-- Horloge : routine du firmware KL TIME PLEASE (&BD0D), qui rend le temps �coul� depuis l'allumage dans DEHL. Adresse � confirmer par l'essai (deux lancements de `hasard.bas` doivent donner des suites diff�rentes sur la 3e ligne).
-- Le r�sultat est le reste de la division d'un nombre de 15 bits par l'�cart (max - min + 1). L'�cart doit aller de 1 � 32767. Sinon (max plus petit que min, ou �cart trop grand) le r�sultat est min et aucun nombre n'est consomm�. L�ger d�s�quilibre possible pour les tr�s grands �carts, n�gligeable pour un d� ou un tirage de jeu.
-- L'�tat du g�n�rateur est rang� dans le programme, juste apr�s le code du module Rand16. �tat � 0 = � pas initialis� � : RANDOMIZE 0 devient la graine 1.
-- Modules Rand16, Randomize (d�pend de Rand16) et RandomRange (d�pend de Rand16 et Div16), li�s seulement s'ils sont utilis�s.
-- Mots r�serv�s ajout�s : RANDOM (v�rifi� libre dans WinAPE) ; RANDOMIZE existe d�j� dans le Locomotive (qui demande la graine au clavier quand elle manque : ici, l'horloge).
-- Tests : le mini-�mulateur ex�cute les modules et compare � la m�me suite �crite en C#.
+## D039 : RANDOM et RANDOMIZE (Décidé, 10 nov. 2026)
+- `RANDOM(min, max)` : nombre entier de min à max compris (fonction à deux valeurs). `RANDOMIZE graine` fixe le départ : la même graine redonne toujours la même suite (utile pour tester un jeu). `RANDOMIZE` seul : le départ vient de l'horloge du CPC. Sans RANDOMIZE, le premier RANDOM prend aussi son départ dans l'horloge.
+- Générateur : registre à décalage de 16 bits (polynôme &B400, période 65535, vérifiée par un test), avancé de 16 pas à chaque appel. Entiers seulement, aucun calcul à virgule : beaucoup plus court et plus rapide que le RND du Locomotive (pas de mesure chiffrée pour l'instant).
+- Horloge : routine du firmware KL TIME PLEASE (&BD0D), qui rend le temps écoulé depuis l'allumage dans DEHL. Adresse à confirmer par l'essai (deux lancements de `hasard.bas` doivent donner des suites différentes sur la 3e ligne).
+- Le résultat est le reste de la division d'un nombre de 15 bits par l'écart (max - min + 1). L'écart doit aller de 1 à 32767. Sinon (max plus petit que min, ou écart trop grand) le résultat est min et aucun nombre n'est consommé. Léger déséquilibre possible pour les très grands écarts, négligeable pour un dé ou un tirage de jeu.
+- L'état du générateur est rangé dans le programme, juste après le code du module Rand16. État à 0 = « pas initialisé » : RANDOMIZE 0 devient la graine 1.
+- Modules Rand16, Randomize (dépend de Rand16) et RandomRange (dépend de Rand16 et Div16), liés seulement s'ils sont utilisés.
+- Mots réservés ajoutés : RANDOM (vérifié libre dans WinAPE) ; RANDOMIZE existe déjà dans le Locomotive (qui demande la graine au clavier quand elle manque : ici, l'horloge).
+- Tests : le mini-émulateur exécute les modules et compare à la même suite écrite en C#.
 
-## D040 : TIME, l'horloge du CPC (D�cid�, 10 nov. 2026)
-- `TIME` s'�crit sans parenth�ses, comme dans le Locomotive BASIC. Il donne le temps �coul� depuis l'allumage de la machine, en 300 i�mes de seconde (routine du firmware KL TIME PLEASE, &BD0D). `RANDOMIZE TIME` fonctionne donc comme sur le CPC.
-- �cart avec le Locomotive : TIME est ici un entier de 16 bits (les 16 bits de poids faible du compteur), alors que le Locomotive rend un r�el qui ne repart presque jamais de z�ro. Notre TIME recommence donc environ toutes les 3 minutes et 38 secondes, et passe aux nombres n�gatifs apr�s 1 minute 49 secondes.
-- Pour mesurer une dur�e, il faut �crire la diff�rence : `t = TIME : WHILE TIME - t < 600 : WEND` attend 2 secondes, et reste exact m�me quand TIME repart de z�ro, tant que la dur�e est inf�rieure � 1 minute 49 secondes. �crire `WHILE TIME < t + 600` est faux pr�s du retour � z�ro.
-- Code : un simple appel de la routine du firmware, sans module de la biblioth�que. On ne peut pas �crire `TIME = n` (erreur, comme sur le CPC).
-- Mot r�serv� ajout� : TIME (d�j� un mot du Locomotive).
+## D040 : TIME, l'horloge du CPC (Décidé, 10 nov. 2026)
+- `TIME` s'écrit sans parenthèses, comme dans le Locomotive BASIC. Il donne le temps écoulé depuis l'allumage de la machine, en 300 ièmes de seconde (routine du firmware KL TIME PLEASE, &BD0D). `RANDOMIZE TIME` fonctionne donc comme sur le CPC.
+- Écart avec le Locomotive : TIME est ici un entier de 16 bits (les 16 bits de poids faible du compteur), alors que le Locomotive rend un réel qui ne repart presque jamais de zéro. Notre TIME recommence donc environ toutes les 3 minutes et 38 secondes, et passe aux nombres négatifs après 1 minute 49 secondes.
+- Pour mesurer une durée, il faut écrire la différence : `t = TIME : WHILE TIME - t < 600 : WEND` attend 2 secondes, et reste exact même quand TIME repart de zéro, tant que la durée est inférieure à 1 minute 49 secondes. Écrire `WHILE TIME < t + 600` est faux près du retour à zéro.
+- Code : un simple appel de la routine du firmware, sans module de la bibliothèque. On ne peut pas écrire `TIME = n` (erreur, comme sur le CPC).
+- Mot réservé ajouté : TIME (déjà un mot du Locomotive).
+
+## D041 : Accessibilité de l'éditeur (Décidé, 11 nov. 2026)
+- **Taille du texte :** de 10 à 48 points, par pas de 2, 16 au départ. Ctrl + molette, Ctrl et « + » ou « - » (clavier ou pavé numérique), Ctrl+0 pour revenir à 16, ou les boutons « Texte plus petit » et « Texte plus grand ». Le choix est mémorisé dans `%APPDATA%\CpcBasicIde\reglages.json` (classe `EditorSettings`). Le panneau de messages reste à 16 points au moins, la barre d'état à 14.
+- **Contraste élevé :** Ctrl+H ou bouton. Fond noir, texte blanc, numéros de ligne jaunes, couleurs vives (deuxième palette dans `BasicColorizer`). Choix mémorisé. La palette normale (papier bleu, stylo jaune, comme le MODE 1 du CPC) ne change pas.
+- **Boutons :** 48 points de haut, texte de 18, avec leur raccourci écrit dans le nom. Ils passent à la ligne si la fenêtre est étroite. Trois boutons ajoutés : texte plus petit, texte plus grand, contraste.
+- **Tout au clavier :** le curseur est dans l'éditeur dès l'ouverture. **F6** passe de l'éditeur au panneau de messages et inversement. Dans les messages : flèches haut et bas (le curseur de l'éditeur suit la ligne de l'erreur sans que le clavier quitte la liste), **Entrée** (retour dans l'éditeur sur la ligne de l'erreur), **Échap** (retour sans changer de ligne). Le message choisi est en jaune avec du texte noir, quel que soit le thème de Windows.
+- **Leçons des essais :** le clavier doit être posé sur un message précis (pas sur la liste entière) pour que les flèches marchent ; la liste garde la touche Entrée pour elle, donc la fenêtre l'intercepte avant. Dans l'éditeur, Tab écrit une tabulation : on ne peut pas en sortir avec Tab, d'où F6.
+- **Essayé à la main par l'utilisateur** : toutes les touches, le contraste, la mémorisation, F6, flèches, Entrée, Échap. Pas de test automatique (c'est de l'interface). Ctrl+« - » fonctionne sur le clavier AZERTY de l'utilisateur.
+- **Pas encore fait :** essai avec un lecteur d'écran (des noms d'accessibilité sont posés sur l'éditeur, les messages et la barre d'état, sans vérification) ; numéros de ligne collés aux numéros BASIC (D008) ; confirmation à l'ouverture d'un fichier modifié (D022).
+
+## D042 : Messages d'erreur qui nomment la commande (Décidé, 11 nov. 2026)
+- **Principe :** un message dit quelle commande est concernée, ce qu'elle attend, et comment corriger. Il ne laisse pas penser à une contradiction : plus de « mais la fin de la ligne a été trouvée ». Idée de l'utilisateur.
+- **Début commun :** « ERREUR en ligne N : » au lieu de « Ligne N : ». Le préfixe est ajouté en un seul endroit (`Diagnostic.Message`).
+- **Commande :** `Diagnostic` reçoit un champ `Context` (nom de la commande : PRINT, FOR, IF...). Le parser le remplit : `ParseStatement` enveloppe `ParseStatementCore` et marque les erreurs sans commande avec le mot qui commence l'instruction (s'il est dans la liste `Commands`). Une instruction contenue dans une autre (`IF ... THEN PRINT ...`) garde sa propre commande.
+- **Ligne incomplète :** quand l'erreur est à la fin de la ligne, rien n'est cité : « La ligne est incomplète. » Sinon : « « x » ne convient pas ici. »
+- **Exemples :** `10 PRINT (` donne « PRINT attend ici une valeur (un nombre, une variable ou un calcul). La ligne est incomplète. » ; `10 PRINT (1 + 2` donne « Dans PRINT, il manque une parenthèse fermante « ) ». » ; `10 PRINT "BONJOUR` donne « un texte commence par un guillemet mais n'est jamais refermé. Ajoutez un guillemet à la fin du texte. »
+- **Pas encore fait :** le message du guillemet manquant ne nomme pas la commande (l'erreur est trouvée avant l'analyse des commandes, dans le lexer) ; seules la valeur attendue (ExpectedExpression) et la parenthèse fermante (ExpectedClosingParenthesis) utilisent la commande, les autres messages gardent leur texte avec la nouvelle fin de phrase ; le texte reste en français dans `Diagnostic.cs` (fichiers de langue plus tard).
+- **Tests :** `DiagnosticMessageTests.cs` (9 tests) ; un test de `LanguageTests.cs` attendait l'ancien début « Ligne 2 » et attend maintenant « en ligne 2 ». Total : 263 tests.
 
 ---
 
