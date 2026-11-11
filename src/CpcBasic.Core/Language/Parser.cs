@@ -20,7 +20,7 @@ public static class Parser
 {
     static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR",
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
-        "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP"];
+        "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME"];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
 
@@ -33,7 +33,8 @@ public static class Parser
         ["LOBYTE"] = new("LOBYTE(valeur)", 1, 1),
         ["MIN"] = new("MIN(a, b)", 2, int.MaxValue),
         ["MAX"] = new("MAX(a, b)", 2, int.MaxValue),
-        ["CLAMP"] = new("CLAMP(valeur, min, max)", 3, 3)
+        ["CLAMP"] = new("CLAMP(valeur, min, max)", 3, 3),
+        ["RANDOM"] = new("RANDOM(min, max)", 2, 2)
     };
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
@@ -123,6 +124,9 @@ public static class Parser
 
             case "IF":
                 return ParseIf(tokens, pos, statements, diagnostics);
+
+            case "RANDOMIZE":
+                return ParseRandomize(tokens, pos, statements, diagnostics);
 
             case "WHILE":
                 return ParseConditionStatement(tokens, pos, statements, diagnostics, isWhile: true);
@@ -255,6 +259,27 @@ public static class Parser
                 ? new PrintStatement(line, text, newLine)
                 : new PrintValueStatement(line, (Expression)items[i], newLine));
         }
+        return pos;
+    }
+
+    // RANDOMIZE [graine]
+    static int ParseRandomize(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
+                              List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        if (IsStatementEnd(tokens[pos]) || IsElse(tokens[pos]))
+        {
+            statements.Add(new RandomizeStatement(line, null));
+            return pos;
+        }
+
+        Expression? seed = ParseExpression(tokens, ref pos, diagnostics);
+        if (seed is null)
+            return SkipToStatementEnd(tokens, pos);
+
+        statements.Add(new RandomizeStatement(line, seed));
         return pos;
     }
 
@@ -832,6 +857,10 @@ public static class Parser
                         diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, assign.SourceLine, n.Value.ToString()));
                     break;
 
+                case RandomizeStatement randomize when randomize.Seed is not null:
+                    Uses(randomize.Seed);
+                    break;
+
                 case IfStatement ifStatement:
                     UsesCondition(ifStatement.Condition);
                     break;
@@ -958,6 +987,11 @@ public static class Parser
                 return ParseNumber(tokens, ref pos, diagnostics, negative: false);
 
             case TokenKind.Word:
+                if (t.Text == "TIME")
+                {
+                    pos++;                              // TIME s'écrit sans parenthèses, comme sur le CPC
+                    return new CallExpression("TIME", []);
+                }
                 if (Functions.TryGetValue(t.Text, out FunctionInfo? function))
                     return ParseFunctionCall(tokens, ref pos, diagnostics, function);
                 if (Commands.Contains(t.Text))

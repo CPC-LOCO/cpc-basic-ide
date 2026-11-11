@@ -100,6 +100,12 @@ public sealed record ElseStatement(int SourceLine) : Statement(SourceLine);
 /// <summary>Fin du IF ouvert (END IF, ENDIF, ou fin de ligne pour un IF sur une ligne).</summary>
 public sealed record EndIfStatement(int SourceLine) : Statement(SourceLine);
 
+/// <summary>
+/// RANDOMIZE [graine] : fixe le départ des nombres aléatoires (la même graine redonne la même suite).
+/// Sans graine (Seed est null), le départ vient de l'horloge du CPC.
+/// </summary>
+public sealed record RandomizeStatement(int SourceLine, Expression? Seed) : Statement(SourceLine);
+
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 

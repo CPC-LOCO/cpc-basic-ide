@@ -24,6 +24,12 @@ public sealed class Z80Emitter
     /// <summary>Nombre d'octets écrits jusqu'ici.</summary>
     public int Size => code.Count;
 
+    /// <summary>Adresse d'une étiquette déjà placée, dans la mémoire du CPC (utile pour les tests).</summary>
+    public int AddressOf(string label) =>
+        labels.TryGetValue(label, out int position)
+            ? Origin + position
+            : throw new InvalidOperationException($"Étiquette inconnue : {label}");
+
     public Z80Emitter(int origin) => Origin = origin;
 
     /// <summary>Place une étiquette à l'endroit actuel.</summary>
@@ -94,6 +100,11 @@ public sealed class Z80Emitter
     public void LdAH() => code.Add(0x7C);                                          // LD A,H
     public void LdLH() => code.Add(0x6C);                                          // LD L,H
     public void OrL() => code.Add(0xB5);                                           // OR L
+    public void XorD() => code.Add(0xAA);                                          // XOR D
+    public void XorE() => code.Add(0xAB);                                          // XOR E
+    public void SrlH() { code.Add(0xCB); code.Add(0x3C); }                         // SRL H
+    public void RrL() { code.Add(0xCB); code.Add(0x1D); }                          // RR L
+    public void Res7H() { code.Add(0xCB); code.Add(0xBC); }                        // RES 7,H
     public void RetC() => code.Add(0xD8);                                          // RET C
     public void RetNc() => code.Add(0xD0);                                         // RET NC
     public void LdBH() => code.Add(0x44);                                          // LD B,H

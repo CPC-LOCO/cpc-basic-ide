@@ -22,11 +22,26 @@ public static class RuntimeLibrary
     /// <summary>Routine du firmware CPC qui attend l'appui sur une touche (KM WAIT KEY).</summary>
     public const int KmWaitKey = 0xBB18;
 
+    /// <summary>Routine du firmware CPC qui donne le temps écoulé dans DEHL (KL TIME PLEASE).</summary>
+    public const int KlTimePlease = 0xBD0D;
+
     public const string PrintStringName = "PrintString";
     public const string PrintStringLabel = "rt_print_string";
 
     public const string PrintIntName = "PrintInt";
     public const string PrintIntLabel = "rt_print_int";
+
+    public const string RandStateLabel = "rt_rand_state";
+
+    public const string Rand16Name = "Rand16";
+    public const string Rand16Label = "rt_rand16";
+
+    public const string RandomizeName = "Randomize";
+    public const string RandomizeLabel = "rt_randomize";
+    public const string RandomizeClockLabel = "rt_randomize_clock";
+
+    public const string RandomRangeName = "RandomRange";
+    public const string RandomRangeLabel = "rt_random_range";
 
     public const string Abs16Name = "Abs16";
     public const string Abs16Label = "rt_abs16";
@@ -48,6 +63,94 @@ public static class RuntimeLibrary
 
     static readonly Dictionary<string, RuntimeModule> Modules = new()
     {
+        // HL = nombre aléatoire de 16 bits. Registre à décalage de 16 bits (polynôme &B400, période 65535),
+        // avancé de 16 pas à chaque appel : chaque résultat est fait de bits entièrement nouveaux.
+        // L'état est rangé juste après le code. État à 0 = pas encore initialisé : le départ est alors
+        // pris dans l'horloge du CPC (KL TIME PLEASE). Détruit AF, B, DE, HL.
+        [Rand16Name] = new RuntimeModule(Rand16Name, [], e =>
+        {
+            e.Label(Rand16Label);
+            e.LdHlMem(RandStateLabel);
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel("rt_rand_go");
+            e.CallAddress(KlTimePlease);         // DEHL = temps écoulé
+            e.LdAH();                            // HL = HL xor DE
+            e.XorD();
+            e.LdHA();
+            e.LdAL();
+            e.XorE();
+            e.LdLA();
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel("rt_rand_go");
+            e.LdHlImm(1);                        // l'état ne doit jamais être 0
+            e.Label("rt_rand_go");
+            e.LdBImm(16);
+            e.Label("rt_rand_loop");
+            e.SrlH();                            // décalage à droite, le bit sorti va dans la retenue
+            e.RrL();
+            e.JrNcLabel("rt_rand_skip");
+            e.LdAH();                            // bit sorti à 1 : on applique le polynôme
+            e.XorImm(0xB4);
+            e.LdHA();
+            e.Label("rt_rand_skip");
+            e.DjnzLabel("rt_rand_loop");
+            e.LdMemHl(RandStateLabel);
+            e.Ret();
+            e.Label(RandStateLabel);
+            e.Reserve(2);                        // l'état
+        }),
+
+        // RANDOMIZE : HL = graine (0 devient 1, car l'état 0 veut dire « pas initialisé »).
+        // rt_randomize_clock : la prochaine valeur repart de l'horloge. Détruit HL.
+        [RandomizeName] = new RuntimeModule(RandomizeName, [Rand16Name], e =>
+        {
+            e.Label(RandomizeLabel);
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel("rt_randomize_set");
+            e.LdHlImm(1);
+            e.Label("rt_randomize_set");
+            e.LdMemHl(RandStateLabel);
+            e.Ret();
+
+            e.Label(RandomizeClockLabel);
+            e.LdHlImm(0);
+            e.LdMemHl(RandStateLabel);
+            e.Ret();
+        }),
+
+        // RANDOM(min, max) : HL = min, DE = max, résultat dans HL, de min à max compris.
+        // L'écart (max - min + 1) doit aller de 1 à 32767 ; sinon le résultat est min.
+        // On prend le reste de la division d'un nombre aléatoire de 15 bits par l'écart.
+        [RandomRangeName] = new RuntimeModule(RandomRangeName, [Rand16Name, Div16Name], e =>
+        {
+            e.Label(RandomRangeLabel);
+            e.PushHl();                          // min
+            e.ExDeHl();                          // HL = max, DE = min
+            e.OrA();
+            e.SbcHlDe();
+            e.IncHl();                           // HL = nombre de valeurs possibles
+            e.Bit7H();
+            e.JrNzLabel("rt_rr_bad");            // négatif (max < min, ou écart trop grand)
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_rr_bad");             // 0
+            e.PushHl();                          // écart
+            e.CallLabel(Rand16Label);
+            e.Res7H();                           // 0 à 32767
+            e.PopDe();                           // DE = écart
+            e.CallLabel(Div16Label);             // DE = reste : 0 à écart - 1
+            e.ExDeHl();
+            e.PopDe();                           // DE = min
+            e.AddHlDe();
+            e.Ret();
+            e.Label("rt_rr_bad");
+            e.PopHl();                           // HL = min
+            e.Ret();
+        }),
+
         // HL = valeur absolue de HL (la valeur -32768 reste -32768). Détruit AF.
         [Abs16Name] = new RuntimeModule(Abs16Name, [], e =>
         {

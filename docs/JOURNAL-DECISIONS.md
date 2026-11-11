@@ -188,6 +188,16 @@ Erreurs : double dÃƒÂ©claration, dÃƒÂ©claration aprÃƒÂ¨s usage, suffixe dans la 
 - Messages d'erreur : fonction sans parenthèses (ExpectedOpenParenthesis), mauvais nombre de valeurs (WrongArgumentCount) ; les deux montrent la bonne écriture, par exemple « CLAMP(valeur, min, max) ».
 - Mots réservés ajoutés : ABS, SGN, MIN, MAX, HIBYTE, LOBYTE, CLAMP. HIBYTE, LOBYTE, CLAMP (et RANDOM) vérifiés libres dans WinAPE.
 - Prévu ensuite : RANDOM(min, max) et RANDOMIZE (D039), puis les graphismes de base et le calcul 3D en fil de fer.
+## D039 : RANDOM et RANDOMIZE (Décidé, 10 nov. 2026)
+- `RANDOM(min, max)` : nombre entier de min à max compris (fonction à deux valeurs). `RANDOMIZE graine` fixe le départ : la même graine redonne toujours la même suite (utile pour tester un jeu). `RANDOMIZE` seul : le départ vient de l'horloge du CPC. Sans RANDOMIZE, le premier RANDOM prend aussi son départ dans l'horloge.
+- Générateur : registre à décalage de 16 bits (polynôme &B400, période 65535, vérifiée par un test), avancé de 16 pas à chaque appel. Entiers seulement, aucun calcul à virgule : beaucoup plus court et plus rapide que le RND du Locomotive (pas de mesure chiffrée pour l'instant).
+- Horloge : routine du firmware KL TIME PLEASE (&BD0D), qui rend le temps écoulé depuis l'allumage dans DEHL. Adresse à confirmer par l'essai (deux lancements de `hasard.bas` doivent donner des suites différentes sur la 3e ligne).
+- Le résultat est le reste de la division d'un nombre de 15 bits par l'écart (max - min + 1). L'écart doit aller de 1 à 32767. Sinon (max plus petit que min, ou écart trop grand) le résultat est min et aucun nombre n'est consommé. Léger déséquilibre possible pour les très grands écarts, négligeable pour un dé ou un tirage de jeu.
+- L'état du générateur est rangé dans le programme, juste après le code du module Rand16. État à 0 = « pas initialisé » : RANDOMIZE 0 devient la graine 1.
+- Modules Rand16, Randomize (dépend de Rand16) et RandomRange (dépend de Rand16 et Div16), liés seulement s'ils sont utilisés.
+- Mots réservés ajoutés : RANDOM (vérifié libre dans WinAPE) ; RANDOMIZE existe déjà dans le Locomotive (qui demande la graine au clavier quand elle manque : ici, l'horloge).
+- Tests : le mini-émulateur exécute les modules et compare à la même suite écrite en C#.
+
 ---
 
 ## Notes de fin de session (modÃ¨le)

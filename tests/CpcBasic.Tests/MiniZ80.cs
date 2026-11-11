@@ -20,6 +20,9 @@ internal sealed class MiniZ80
     public readonly byte[] Memory = new byte[65536];
     public readonly StringBuilder Output = new();
 
+    /// <summary>Temps rendu par KL TIME PLEASE (&BD0D) dans DEHL.</summary>
+    public uint Clock;
+
     int pc;
     int sp;
     int steps;
@@ -104,6 +107,15 @@ internal sealed class MiniZ80
             pc += offset;
     }
 
+    byte Rl_Right(byte value)
+    {
+        bool carryOut = (value & 0x01) != 0;
+        byte result = (byte)((value >> 1) | (CarryFlag ? 0x80 : 0));
+        CarryFlag = carryOut;
+        ZeroFlag = result == 0;
+        return result;
+    }
+
     byte Rl(byte value)
     {
         bool carryOut = (value & 0x80) != 0;
@@ -149,6 +161,22 @@ internal sealed class MiniZ80
             case 0x29: AddHl(HL); break;                               // ADD HL,HL
 
             // Compteurs et opérations sur A
+            case 0x23: HL = (ushort)(HL + 1); break;                   // INC HL
+            case 0x2A:                                                 // LD HL,(nn)
+            {
+                int at = Fetch16();
+                HL = (ushort)(Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8));
+                break;
+            }
+            case 0x22:                                                 // LD (nn),HL
+            {
+                int at = Fetch16();
+                Memory[at] = L;
+                Memory[(at + 1) & 0xFFFF] = H;
+                break;
+            }
+            case 0xAA: A ^= D; ZeroFlag = A == 0; CarryFlag = false; break;   // XOR D
+            case 0xAB: A ^= E; ZeroFlag = A == 0; CarryFlag = false; break;   // XOR E
             case 0x3C: A++; ZeroFlag = A == 0; break;                  // INC A
             case 0x3D: A--; ZeroFlag = A == 0; break;                  // DEC A
             case 0x0D: C--; ZeroFlag = C == 0; break;                  // DEC C
@@ -200,6 +228,11 @@ internal sealed class MiniZ80
                 {
                     Output.Append((char)A);                            // TXT OUTPUT : caractère affiché
                 }
+                else if (address == 0xBD0D)
+                {
+                    DE = (ushort)(Clock >> 16);                        // KL TIME PLEASE : temps dans DEHL
+                    HL = (ushort)(Clock & 0xFFFF);
+                }
                 else
                 {
                     Push((ushort)pc);
@@ -246,6 +279,9 @@ internal sealed class MiniZ80
                 E = (byte)(E << 1);
                 ZeroFlag = E == 0;
                 break;
+            case 0x1D: L = Rl_Right(L); break;                         // RR L
+            case 0x3C: CarryFlag = (H & 0x01) != 0; H = (byte)(H >> 1); ZeroFlag = H == 0; break;   // SRL H
+            case 0xBC: H = (byte)(H & 0x7F); break;                    // RES 7,H
             case 0x40: ZeroFlag = (B & 0x01) == 0; break;              // BIT 0,B
             case 0x48: ZeroFlag = (B & 0x02) == 0; break;              // BIT 1,B
             case 0x7A: ZeroFlag = (D & 0x80) == 0; break;              // BIT 7,D

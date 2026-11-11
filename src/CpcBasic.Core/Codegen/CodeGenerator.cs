@@ -233,6 +233,16 @@ public static class CodeGenerator
                                        call.Arguments[0], call.Arguments[1]);
                             break;
 
+                        case "TIME":                        // temps écoulé : 16 bits de poids faible
+                            emitter.CallAddress(RuntimeLibrary.KlTimePlease);   // le firmware rend DEHL ; HL est le bas
+                            break;
+
+                        case "RANDOM":                      // nombre de min à max compris
+                            EmitPair(call.Arguments[0], call.Arguments[1]);
+                            required.Add(RuntimeLibrary.RandomRangeName);
+                            emitter.CallLabel(RuntimeLibrary.RandomRangeLabel);
+                            break;
+
                         case "CLAMP":                       // CLAMP(v, mini, maxi) = MIN(MAX(v, mini), maxi)
                             EmitMinMax(RuntimeLibrary.Min16Name, RuntimeLibrary.Min16Label,
                                        new CallExpression("MAX", [call.Arguments[0], call.Arguments[1]]),
@@ -547,6 +557,19 @@ public static class CodeGenerator
                     emitter.Label(info.EndLabel);
                     break;
                 }
+
+                case RandomizeStatement randomize:
+                    if (randomize.Seed is null)
+                    {
+                        emitter.CallLabel(RuntimeLibrary.RandomizeClockLabel);   // départ pris dans l'horloge
+                    }
+                    else
+                    {
+                        EmitExpression(randomize.Seed);
+                        emitter.CallLabel(RuntimeLibrary.RandomizeLabel);
+                    }
+                    required.Add(RuntimeLibrary.RandomizeName);
+                    break;
 
                 case EndStatement:
                     emitter.JpLabel(EndLabel);
