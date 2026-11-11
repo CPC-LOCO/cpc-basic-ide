@@ -188,6 +188,7 @@ Erreurs : double dÃƒÂ©claration, dÃƒÂ©claration aprÃƒÂ¨s usage, suffixe dans la 
 - Messages d'erreur : fonction sans parenthèses (ExpectedOpenParenthesis), mauvais nombre de valeurs (WrongArgumentCount) ; les deux montrent la bonne écriture, par exemple « CLAMP(valeur, min, max) ».
 - Mots réservés ajoutés : ABS, SGN, MIN, MAX, HIBYTE, LOBYTE, CLAMP. HIBYTE, LOBYTE, CLAMP (et RANDOM) vérifiés libres dans WinAPE.
 - Prévu ensuite : RANDOM(min, max) et RANDOMIZE (D039), puis les graphismes de base et le calcul 3D en fil de fer.
+
 ## D039 : RANDOM et RANDOMIZE (Décidé, 10 nov. 2026)
 - `RANDOM(min, max)` : nombre entier de min à max compris (fonction à deux valeurs). `RANDOMIZE graine` fixe le départ : la même graine redonne toujours la même suite (utile pour tester un jeu). `RANDOMIZE` seul : le départ vient de l'horloge du CPC. Sans RANDOMIZE, le premier RANDOM prend aussi son départ dans l'horloge.
 - Générateur : registre à décalage de 16 bits (polynôme &B400, période 65535, vérifiée par un test), avancé de 16 pas à chaque appel. Entiers seulement, aucun calcul à virgule : beaucoup plus court et plus rapide que le RND du Locomotive (pas de mesure chiffrée pour l'instant).
@@ -197,6 +198,13 @@ Erreurs : double dÃƒÂ©claration, dÃƒÂ©claration aprÃƒÂ¨s usage, suffixe dans la 
 - Modules Rand16, Randomize (dépend de Rand16) et RandomRange (dépend de Rand16 et Div16), liés seulement s'ils sont utilisés.
 - Mots réservés ajoutés : RANDOM (vérifié libre dans WinAPE) ; RANDOMIZE existe déjà dans le Locomotive (qui demande la graine au clavier quand elle manque : ici, l'horloge).
 - Tests : le mini-émulateur exécute les modules et compare à la même suite écrite en C#.
+
+## D040 : TIME, l'horloge du CPC (Décidé, 10 nov. 2026)
+- `TIME` s'écrit sans parenthèses, comme dans le Locomotive BASIC. Il donne le temps écoulé depuis l'allumage de la machine, en 300 ièmes de seconde (routine du firmware KL TIME PLEASE, &BD0D). `RANDOMIZE TIME` fonctionne donc comme sur le CPC.
+- Écart avec le Locomotive : TIME est ici un entier de 16 bits (les 16 bits de poids faible du compteur), alors que le Locomotive rend un réel qui ne repart presque jamais de zéro. Notre TIME recommence donc environ toutes les 3 minutes et 38 secondes, et passe aux nombres négatifs après 1 minute 49 secondes.
+- Pour mesurer une durée, il faut écrire la différence : `t = TIME : WHILE TIME - t < 600 : WEND` attend 2 secondes, et reste exact même quand TIME repart de zéro, tant que la durée est inférieure à 1 minute 49 secondes. Écrire `WHILE TIME < t + 600` est faux près du retour à zéro.
+- Code : un simple appel de la routine du firmware, sans module de la bibliothèque. On ne peut pas écrire `TIME = n` (erreur, comme sur le CPC).
+- Mot réservé ajouté : TIME (déjà un mot du Locomotive).
 
 ---
 
