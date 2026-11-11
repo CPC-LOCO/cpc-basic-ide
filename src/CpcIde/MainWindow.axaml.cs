@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     string? currentPath;
     bool modified;
     bool loading;
+    bool closeConfirmed;   // vrai quand on a déjà demandé quoi faire des modifications avant de fermer
 
     public MainWindow()
     {
@@ -230,8 +231,50 @@ public partial class MainWindow : Window
 
     // ---------- Ouvrir et enregistrer ----------
 
+    // Si le programme a des modifications non enregistrées, demande quoi faire (Enregistrer, Ne pas enregistrer, Annuler).
+    // Renvoie vrai si on peut continuer (enregistré ou abandonné), faux si la personne a annulé.
+    async Task<bool> ConfirmDiscardOrSaveAsync()
+    {
+        if (!modified)
+            return true;
+
+        string file = currentPath is null ? "sans titre" : Path.GetFileName(currentPath);
+        var dialog = new SaveChangesDialog(file);
+        SaveChangesDialog.Choice choice = await dialog.ShowDialog<SaveChangesDialog.Choice>(this);
+
+        return choice switch
+        {
+            SaveChangesDialog.Choice.Save => await SaveAsync(),   // faux si l'enregistrement échoue ou est annulé
+            SaveChangesDialog.Choice.Discard => true,
+            _ => false
+        };
+    }
+
+    // Fermeture de la fenêtre : si le programme est modifié, on la retient et on demande d'abord quoi faire
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+        if (closeConfirmed || !modified)
+            return;
+
+        e.Cancel = true;
+        _ = CloseAfterConfirmAsync();
+    }
+
+    async Task CloseAfterConfirmAsync()
+    {
+        if (await ConfirmDiscardOrSaveAsync())
+        {
+            closeConfirmed = true;
+            Close();
+        }
+    }
+
     async Task OpenFileAsync()
     {
+        if (!await ConfirmDiscardOrSaveAsync())
+            return;
+
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Ouvrir un programme BASIC",

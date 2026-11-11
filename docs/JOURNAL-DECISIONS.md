@@ -224,6 +224,19 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Pas encore fait :** le message du guillemet manquant ne nomme pas la commande (l'erreur est trouvée avant l'analyse des commandes, dans le lexer) ; seules la valeur attendue (ExpectedExpression) et la parenthèse fermante (ExpectedClosingParenthesis) utilisent la commande, les autres messages gardent leur texte avec la nouvelle fin de phrase ; le texte reste en français dans `Diagnostic.cs` (fichiers de langue plus tard).
 - **Tests :** `DiagnosticMessageTests.cs` (9 tests) ; un test de `LanguageTests.cs` attendait l'ancien début « Ligne 2 » et attend maintenant « en ligne 2 ». Total : 263 tests.
 
+## D043 : Confirmation avant de perdre des modifications (Décidé, 11 nov. 2026)
+- **Problème (D022) :** ouvrir un fichier, ou fermer la fenêtre, effaçait sans prévenir ce qui avait été tapé et pas enregistré.
+- **Choix :** quand le programme est modifié (étoile `*` dans le titre), ouvrir un fichier ou fermer la fenêtre ouvre une boîte à trois gros boutons (texte de 18 points, 48 points de haut) : **Enregistrer** (Entrée), **Ne pas enregistrer** (touche N), **Annuler** (Échap). Un programme non modifié s'ouvre et se ferme sans question.
+- **Sécurité :** fermer la boîte avec la croix compte comme « Annuler » (dans l'énumération `Choice`, `Cancel` est la première valeur, donc la valeur par défaut). Si l'enregistrement échoue ou si la personne annule le choix du nom du fichier, on ne continue pas : la fenêtre reste ouverte.
+- **Réalisation :** nouvelle classe `SaveChangesDialog` (fenêtre écrite en C#, sans XAML) ; dans `MainWindow`, `ConfirmDiscardOrSaveAsync`, `OnClosing` (retient la fermeture le temps de la question, puis ferme avec `closeConfirmed`) et un appel au début de `OpenFileAsync`.
+- **Essayé à la main par l'utilisateur** (ouverture, fermeture, N, Échap, croix, programme sans titre, programme non modifié) : aucun problème. Pas de test automatique (interface).
+- **Pas encore fait :** pas de commande « Nouveau programme » dans l'éditeur ; pas d'ouverture par glisser-déposer. Reste de D022 : rien.
+
+## D044 : Script commit.cmd et dossier essais (Décidé, 11 nov. 2026)
+- **Problème :** les longues séries de commandes git à copier étaient difficiles à suivre (une ligne coupée a laissé deux fichiers hors d'un commit), et les fichiers d'essai de l'utilisateur apparaissaient dans `git status`.
+- **Choix :** `packaging\commit.cmd`, à lancer par double-clic : lance `dotnet test` (arrêt si un test échoue), montre la liste des fichiers, demande confirmation, demande le message, fait `git add -A` puis `git commit`, propose `git push`. Le script crée le dossier `essais` et l'ajoute à `.gitignore` : les programmes d'essai s'y enregistrent, git les ignore. `examples\` reste réservé aux exemples du projet.
+- **Essayé à la main par l'utilisateur** : premier commit réussi par ce script (« Ajout du script commit.cmd »).
+
 ---
 
 ## Notes de fin de session (modèle)

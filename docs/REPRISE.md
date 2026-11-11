@@ -8,7 +8,7 @@ Un éditeur et un compilateur pour un BASIC évolué, dérivé du Locomotive BAS
 
 Dépôt : https://github.com/CPC-LOCO/cpc-basic-ide
 Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
-Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D042), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
+Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D044), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
 
 ## 2. Comment travailler avec l'utilisateur (important)
 
@@ -22,7 +22,7 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
   2. livrer le code, les tests xUnit et un petit programme d'exemple dans `examples\` (nom de 8 caractères au plus) ;
   3. l'utilisateur copie, lance `dotnet test`, compile l'exemple avec F5 dans l'éditeur, le lance dans WinAPE ;
   4. Claude donne à l'avance l'écran attendu ; l'utilisateur confirme ;
-  5. écrire l'entrée de journal (D0xx), puis commit : `git add -A` puis `git commit -m "..."`.
+  5. écrire l'entrée de journal (D0xx), puis commit : double-clic sur `packaging\commit.cmd` (il lance les tests, montre les fichiers, demande le message, propose le push). Les programmes d'essai de l'utilisateur vont dans `essais\`, jamais dans `examples\`. Ne pas donner de longues séries de commandes à copier : l'utilisateur les trouve difficiles à suivre.
 - **Journal :** on n'efface jamais une entrée ; si une décision change, on en ajoute une nouvelle qui renvoie à l'ancienne.
 - **Mots réservés :** chaque nouveau mot-clé (BYTE, EXIT, DO, MOD, RANDOM...) empêche d'utiliser ce nom comme variable ; à signaler et à noter dans le journal.
 
@@ -34,17 +34,19 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
   - J2 : variables entières (`A`, `A%`) et octets (`BYTE a`), `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP`, `EXIT`, `CONTINUE`, `IF/THEN/ELSE` (une ligne ou bloc), comparaisons, `AND`, `OR`.
   - J3 : `*`, `/`, `\`, `MOD` (D037) ; fonctions `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` (D038) ; `RANDOM`, `RANDOMIZE` (D039) ; `TIME` (D040).
   - **Accessibilité de l'éditeur (D041, validée à la main le 11 novembre) :** taille du texte réglable et mémorisée (Ctrl + molette, Ctrl+plus et moins, Ctrl+0, boutons), contraste élevé (Ctrl+H), gros boutons, navigation au clavier (F6, flèches, Entrée, Échap), sélection jaune et noir dans le panneau de messages. Nouveau fichier `src\CpcIde\EditorSettings.cs`.
+  - **Confirmation avant de perdre des modifications (D043, validée à la main) :** boîte Enregistrer / Ne pas enregistrer / Annuler à l'ouverture d'un fichier et à la fermeture de la fenêtre. Nouveau fichier `src\CpcIde\SaveChangesDialog.cs`.
+  - **Script `packaging\commit.cmd` (D044) :** double-clic = tests, liste des fichiers, commit, push. Dossier `essais\` (ignoré par git) pour les programmes d'essai.
   - **Messages d'erreur qui nomment la commande (D042) :** « ERREUR en ligne N : PRINT attend ici une valeur... La ligne est incomplète. » Champ `Context` dans `Diagnostic`, rempli par `ParseStatement` dans `Parser.cs`.
-- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D042 (D041 et D042 viennent de `JOURNAL-D041.md`, à coller avant la ligne `---` qui précède les « Notes de fin de session »).
-- **Prochaine étape :** à choisir. Dettes de la fenêtre : numéros de ligne collés aux numéros BASIC (D008), confirmation à l'ouverture d'un fichier modifié (D022). Puis les graphismes de base (voir chapitre 4). Rien n'est commencé.
+- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D044 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
+- **Prochaine étape :** la dernière dette de la fenêtre, les numéros de ligne collés aux numéros BASIC (D008). Puis les graphismes de base (voir chapitre 4). Rien n'est commencé.
 
 ## 4. Suite prévue
 
-1. **Dettes de la fenêtre** (au choix, avant la prochaine publication) : numéros de ligne collés aux numéros BASIC (D008), confirmation à l'ouverture d'un fichier modifié (D022). L'accessibilité (D041) est faite ; ses suites sont dans `IDEES.md` (lecteur d'écran à essayer).
+1. **Dernière dette de la fenêtre** (avant la prochaine publication) : numéros de ligne collés aux numéros BASIC (D008). L'accessibilité (D041) et la confirmation (D043) sont faites ; les suites sont dans `IDEES.md` (lecteur d'écran à essayer).
 2. **Graphismes de base** (MODE, INK, PLOT, DRAW...) par les routines du firmware.
 3. **Calcul 3D en fil de fer** (demandé) : SIN et COS par tableau (256 angles pour un tour), multiplication en virgule fixe avec calcul intermédiaire sur 32 bits, racine carrée entière, projection d'un point sur l'écran. Dépend des graphismes (tracer des lignes). Le tableau des sinus n'entre que dans les programmes qui s'en servent.
 4. **Ensuite :** `GOTO`/`GOSUB`, tableaux, chaînes, réels, `INPUT`, clavier, sons, sprites, accents (table de caractères du CPC), choix de la machine cible, cassette, cartouche GX4000. Division par zéro avec un diviseur calculé : pas d'erreur à l'exécution pour l'instant (voir `IDEES.md`).
-5. **Avant la prochaine publication :** D016 (vérifier qu'aucune ROM Amstrad n'est livrée) et la relecture juridique de l'exception de liaison (D017, texte dans `docs\RUNTIME-EXCEPTION.md`). Penser à refaire `LISEZMOI.txt` (nouveautés : fonctions, RANDOM, TIME, accessibilité de l'éditeur, messages d'erreur) et le numéro de version.
+5. **Avant la prochaine publication :** D016 (vérifier qu'aucune ROM Amstrad n'est livrée) et la relecture juridique de l'exception de liaison (D017, texte dans `docs\RUNTIME-EXCEPTION.md`). Penser à refaire `LISEZMOI.txt` (nouveautés : fonctions, RANDOM, TIME, accessibilité de l'éditeur, confirmation avant de perdre des modifications, messages d'erreur) et le numéro de version.
 
 ## 5. Points techniques à connaître
 
@@ -85,10 +87,11 @@ Pour l'éditeur (accessibilité) :
 15. `src\CpcIde\MainWindow.axaml.cs`
 16. `src\CpcIde\BasicColorizer.cs`
 17. `src\CpcIde\EditorSettings.cs`
+18. `src\CpcIde\SaveChangesDialog.cs`
 
 Pour le style des tests :
 
-18. `tests\CpcBasic.Tests\MiniZ80.cs`
+19. `tests\CpcBasic.Tests\MiniZ80.cs`
 
 À envoyer seulement quand le sujet le demande (Claude doit les réclamer avec leur chemin) : `packaging\build-release.cmd`, `packaging\LISEZMOI.txt`, `src\CpcBasic.Core\Output\DiskImage.cs`, `src\CpcBasic.Core\Output\BasicLoader.cs`, les fichiers `.csproj`.
 

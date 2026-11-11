@@ -22,5 +22,5 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Multiplication et division par une puissance de 2 : décalages plus rapides.
 
 ## Outils
+- Commande « Nouveau programme » (avec la confirmation de D043) ; ouverture d'un fichier par glisser-déposer.
 - Commande « Mettre en forme » dans l'éditeur (remplace ? par PRINT, etc.).
-- Confirmation à l'ouverture d'un fichier modifié.
