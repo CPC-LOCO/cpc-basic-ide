@@ -237,6 +237,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Choix :** `packaging\commit.cmd`, à lancer par double-clic : lance `dotnet test` (arrêt si un test échoue), montre la liste des fichiers, demande confirmation, demande le message, fait `git add -A` puis `git commit`, propose `git push`. Le script crée le dossier `essais` et l'ajoute à `.gitignore` : les programmes d'essai s'y enregistrent, git les ignore. `examples\` reste réservé aux exemples du projet.
 - **Essayé à la main par l'utilisateur** : premier commit réussi par ce script (« Ajout du script commit.cmd »).
 
+## D045 : Numéros de ligne séparés, boutons compacts, largeur en colonnes (Décidé, 11 nov. 2026)
+- **Numéros (D008) :** la colonne des numéros de l'éditeur était collée au numéro BASIC (« 1 » et « 10 » se lisaient « 110 »). Un espace de 14 points est ajouté entre cette colonne et le texte (un petit contrôle ajouté aux marges de gauche de l'éditeur), et les numéros de l'éditeur sont en gris (#B0B0B0, #C0C0C0 en contraste élevé), jamais de la couleur des numéros BASIC.
+- **Boutons :** plus petits que dans D041 sur demande de l'utilisateur : 36 points de haut, texte de 16. Noms raccourcis : « Texte - (Ctrl+-) », « Texte + (Ctrl++) », « Contraste : non (Ctrl+H) ». La boîte de D043 garde ses gros boutons.
+- **Largeur en colonnes :** la barre d'état affiche `[Larg : N]`, le nombre de caractères qui tiennent dans la largeur visible de la fenêtre d'édition (largeur de la zone de texte divisée par la largeur d'un caractère, la police étant à chasse fixe). Il se met à jour quand la fenêtre ou la taille du texte change. Raison : sur le CPC, on se sert de la largeur du MODE (20, 40 ou 80 colonnes) pour centrer le texte à l'écran.
+- **Essayé à la main par l'utilisateur :** une ligne de 80 caractères tombe pile sur `[Larg : 80]`, numéros bien séparés, boutons satisfaisants.
+- **Idée adoptée, pas faite :** une ligne verticale discrète dans l'éditeur à la colonne 20, 40 ou 80 selon le MODE (voir `IDEES.md`), quand `MODE` existera dans le langage.
+
 ---
 
 ## Notes de fin de session (modèle)

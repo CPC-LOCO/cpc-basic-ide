@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -53,6 +54,8 @@ public partial class MainWindow : Window
     string? currentPath;
     bool modified;
     bool loading;
+    double charWidth;        // largeur d'un caractère de l'éditeur, en points
+    int visibleColumns;      // nombre de colonnes de caractères visibles dans la fenêtre d'édition
     bool closeConfirmed;   // vrai quand on a déjà demandé quoi faire des modifications avant de fermer
 
     public MainWindow()
@@ -60,6 +63,17 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         Editor.TextArea.TextView.LineTransformers.Add(colorizer);
+
+        // Un espace entre la colonne des numéros de l'éditeur et le texte du programme :
+        // sans lui, « 1 » (éditeur) et « 10 » (numéro BASIC) se lisent comme « 110 ».
+        Editor.TextArea.LeftMargins.Add(new Border { Width = 14 });
+
+        // La largeur en colonnes change quand la fenêtre d'édition change de taille
+        Editor.TextArea.TextView.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Avalonia.Visual.BoundsProperty)
+                ComputeColumns();
+        };
         Editor.TextArea.Caret.PositionChanged += (_, _) => UpdateStatus();
         Editor.TextChanged += (_, _) =>
         {
@@ -74,7 +88,11 @@ public partial class MainWindow : Window
         AddHandler(PointerWheelChangedEvent, OnWindowWheel, RoutingStrategies.Tunnel);
 
         // Au démarrage, le curseur est dans l'éditeur : on peut taper tout de suite.
-        Opened += (_, _) => Editor.TextArea.Focus();
+        Opened += (_, _) =>
+        {
+            Editor.TextArea.Focus();
+            ComputeColumns();
+        };
 
         SetText(StartProgram);
         UpdateTitle();
@@ -208,7 +226,8 @@ public partial class MainWindow : Window
         Editor.FontSize = settings.FontSize;
         Editor.Background = Make(high ? "#000000" : "#000080");
         Editor.Foreground = Make(high ? "#FFFFFF" : "#FFFF00");
-        Editor.LineNumbersForeground = Make(high ? "#FFFF00" : "#8080FF");
+        // Numéros de l'éditeur en gris : jamais de la couleur des numéros BASIC (violet ou jaune)
+        Editor.LineNumbersForeground = Make(high ? "#C0C0C0" : "#B0B0B0");
 
         colorizer.HighContrast = high;
         Editor.TextArea.TextView.Redraw();
@@ -226,6 +245,22 @@ public partial class MainWindow : Window
             ? "Contraste élevé : oui (Ctrl+H)"
             : "Contraste élevé : non (Ctrl+H)";
 
+        UpdateColumns();
+    }
+
+    // Mesure la largeur d'un caractère de l'éditeur (la police est à chasse fixe), puis la largeur en colonnes
+    void UpdateColumns()
+    {
+        var sample = new FormattedText("0", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                                       new Typeface(Editor.FontFamily), Editor.FontSize, Brushes.Black);
+        charWidth = sample.Width;
+        ComputeColumns();
+    }
+
+    void ComputeColumns()
+    {
+        double width = Editor.TextArea.TextView.Bounds.Width;
+        visibleColumns = charWidth > 0 ? (int)Math.Floor(width / charWidth) : 0;
         UpdateStatus();
     }
 
@@ -465,7 +500,7 @@ public partial class MainWindow : Window
     {
         var caret = Editor.TextArea.Caret;
         string contrast = settings.HighContrast ? "oui" : "non";
-        StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   " +
+        StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   [Larg : {visibleColumns}]   |   " +
                           $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}";
     }
 }

@@ -4,7 +4,6 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 
 ## Accessibilité (suites de D041)
 - Essai avec un lecteur d'écran (Narrateur de Windows) : les noms sont posés mais jamais vérifiés. Annoncer le résultat d'une compilation sans que la personne cherche.
-- Colonne des numéros de ligne de l'éditeur collée aux numéros BASIC (D008).
 - Taille des boutons qui suit la taille du texte ? (aujourd'hui fixe : 48 points de haut).
 
 ## Messages d'erreur (suites de D042)
@@ -22,5 +21,6 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Multiplication et division par une puissance de 2 : décalages plus rapides.
 
 ## Outils
+- Adoptée : ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80), pour voir où s'arrête l'écran du CPC. À faire avec `MODE` (l'éditeur devra savoir quel MODE le programme utilise).
 - Commande « Nouveau programme » (avec la confirmation de D043) ; ouverture d'un fichier par glisser-déposer.
 - Commande « Mettre en forme » dans l'éditeur (remplace ? par PRINT, etc.).

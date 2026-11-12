@@ -7,12 +7,12 @@
         MinWidth="600" MinHeight="400">
 
     <Window.Styles>
-        <!-- Gros boutons : hauteur d'au moins 48 points, texte de 18 -->
+        <!-- Boutons compacts mais lisibles : 36 points de haut, texte de 16 -->
         <Style Selector="Button">
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="MinHeight" Value="48" />
-            <Setter Property="Padding" Value="16,8" />
-            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
@@ -52,13 +52,13 @@
 
     <DockPanel>
         <!-- Barre de boutons en haut : elle passe à la ligne si la fenêtre est étroite -->
-        <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,8,8,0">
+        <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,6,6,0">
             <Button Content="Ouvrir (Ctrl+O)" Click="OnOpenClick" />
             <Button Content="Enregistrer (Ctrl+S)" Click="OnSaveClick" />
             <Button Content="Compiler (F5)" Click="OnCompileClick" />
-            <Button Content="Texte plus petit (Ctrl+-)" Click="OnSmallerClick" />
-            <Button Content="Texte plus grand (Ctrl++)" Click="OnBiggerClick" />
-            <Button x:Name="ContrastButton" Content="Contraste élevé : non (Ctrl+H)" Click="OnContrastClick" />
+            <Button Content="Texte - (Ctrl+-)" Click="OnSmallerClick" />
+            <Button Content="Texte + (Ctrl++)" Click="OnBiggerClick" />
+            <Button x:Name="ContrastButton" Content="Contraste : non (Ctrl+H)" Click="OnContrastClick" />
         </WrapPanel>
 
         <!-- Barre d'état tout en bas -->

@@ -8,7 +8,7 @@ Un éditeur et un compilateur pour un BASIC évolué, dérivé du Locomotive BAS
 
 Dépôt : https://github.com/CPC-LOCO/cpc-basic-ide
 Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
-Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D044), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
+Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D045), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
 
 ## 2. Comment travailler avec l'utilisateur (important)
 
@@ -35,18 +35,18 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
   - J3 : `*`, `/`, `\`, `MOD` (D037) ; fonctions `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` (D038) ; `RANDOM`, `RANDOMIZE` (D039) ; `TIME` (D040).
   - **Accessibilité de l'éditeur (D041, validée à la main le 11 novembre) :** taille du texte réglable et mémorisée (Ctrl + molette, Ctrl+plus et moins, Ctrl+0, boutons), contraste élevé (Ctrl+H), gros boutons, navigation au clavier (F6, flèches, Entrée, Échap), sélection jaune et noir dans le panneau de messages. Nouveau fichier `src\CpcIde\EditorSettings.cs`.
   - **Confirmation avant de perdre des modifications (D043, validée à la main) :** boîte Enregistrer / Ne pas enregistrer / Annuler à l'ouverture d'un fichier et à la fermeture de la fenêtre. Nouveau fichier `src\CpcIde\SaveChangesDialog.cs`.
+  - **Numéros séparés, boutons compacts, largeur en colonnes (D045, validés à la main) :** espace entre les numéros de l'éditeur (gris) et le texte, boutons de 36 points, `[Larg : N]` dans la barre d'état.
   - **Script `packaging\commit.cmd` (D044) :** double-clic = tests, liste des fichiers, commit, push. Dossier `essais\` (ignoré par git) pour les programmes d'essai.
   - **Messages d'erreur qui nomment la commande (D042) :** « ERREUR en ligne N : PRINT attend ici une valeur... La ligne est incomplète. » Champ `Context` dans `Diagnostic`, rempli par `ParseStatement` dans `Parser.cs`.
-- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D044 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
-- **Prochaine étape :** la dernière dette de la fenêtre, les numéros de ligne collés aux numéros BASIC (D008). Puis les graphismes de base (voir chapitre 4). Rien n'est commencé.
+- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D045 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
+- **Prochaine étape :** les graphismes de base (`MODE`, `INK`, `PLOT`, `DRAW`... voir chapitre 4). Plus aucune dette connue dans la fenêtre. Rien n'est commencé : commencer par la conception et par vérifier les mots-clés dans WinAPE.
 
 ## 4. Suite prévue
 
-1. **Dernière dette de la fenêtre** (avant la prochaine publication) : numéros de ligne collés aux numéros BASIC (D008). L'accessibilité (D041) et la confirmation (D043) sont faites ; les suites sont dans `IDEES.md` (lecteur d'écran à essayer).
-2. **Graphismes de base** (MODE, INK, PLOT, DRAW...) par les routines du firmware.
-3. **Calcul 3D en fil de fer** (demandé) : SIN et COS par tableau (256 angles pour un tour), multiplication en virgule fixe avec calcul intermédiaire sur 32 bits, racine carrée entière, projection d'un point sur l'écran. Dépend des graphismes (tracer des lignes). Le tableau des sinus n'entre que dans les programmes qui s'en servent.
-4. **Ensuite :** `GOTO`/`GOSUB`, tableaux, chaînes, réels, `INPUT`, clavier, sons, sprites, accents (table de caractères du CPC), choix de la machine cible, cassette, cartouche GX4000. Division par zéro avec un diviseur calculé : pas d'erreur à l'exécution pour l'instant (voir `IDEES.md`).
-5. **Avant la prochaine publication :** D016 (vérifier qu'aucune ROM Amstrad n'est livrée) et la relecture juridique de l'exception de liaison (D017, texte dans `docs\RUNTIME-EXCEPTION.md`). Penser à refaire `LISEZMOI.txt` (nouveautés : fonctions, RANDOM, TIME, accessibilité de l'éditeur, confirmation avant de perdre des modifications, messages d'erreur) et le numéro de version.
+1. **Graphismes de base** (MODE, INK, PLOT, DRAW...) par les routines du firmware.
+2. **Calcul 3D en fil de fer** (demandé) : SIN et COS par tableau (256 angles pour un tour), multiplication en virgule fixe avec calcul intermédiaire sur 32 bits, racine carrée entière, projection d'un point sur l'écran. Dépend des graphismes (tracer des lignes). Le tableau des sinus n'entre que dans les programmes qui s'en servent.
+3. **Ensuite :** `GOTO`/`GOSUB`, tableaux, chaînes, réels, `INPUT`, clavier, sons, sprites, accents (table de caractères du CPC), choix de la machine cible, cassette, cartouche GX4000. Division par zéro avec un diviseur calculé : pas d'erreur à l'exécution pour l'instant (voir `IDEES.md`).
+4. **Avant la prochaine publication :** D016 (vérifier qu'aucune ROM Amstrad n'est livrée) et la relecture juridique de l'exception de liaison (D017, texte dans `docs\RUNTIME-EXCEPTION.md`). Penser à refaire `LISEZMOI.txt` (nouveautés : fonctions, RANDOM, TIME, accessibilité de l'éditeur, confirmation avant de perdre des modifications, messages d'erreur) et le numéro de version.
 
 ## 5. Points techniques à connaître
 
