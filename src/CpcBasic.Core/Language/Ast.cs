@@ -106,6 +106,13 @@ public sealed record EndIfStatement(int SourceLine) : Statement(SourceLine);
 /// </summary>
 public sealed record RandomizeStatement(int SourceLine, Expression? Seed) : Statement(SourceLine);
 
+/// <summary>
+/// Commandes d'écran du firmware : MODE, CLS, LOCATE, PEN, PAPER, INK, BORDER (décision D046).
+/// Command est en majuscules ; Arguments sont les valeurs, dans l'ordre où elles sont écrites.
+/// </summary>
+public sealed record ScreenStatement(int SourceLine, string Command, IReadOnlyList<Expression> Arguments)
+    : Statement(SourceLine);
+
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 

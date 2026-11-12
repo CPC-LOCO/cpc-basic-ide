@@ -20,7 +20,8 @@ public static class Parser
 {
     static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR",
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
-        "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME"];
+        "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
+        "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER"];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
 
@@ -35,6 +36,21 @@ public static class Parser
         ["MAX"] = new("MAX(a, b)", 2, int.MaxValue),
         ["CLAMP"] = new("CLAMP(valeur, min, max)", 3, 3),
         ["RANDOM"] = new("RANDOM(min, max)", 2, 2)
+    };
+
+    /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
+    sealed record ScreenCommandInfo(string Signature, int MinArguments, int[] Min, int[] Max);
+
+    // Commandes d'écran (D046) : les valeurs écrites en nombres sont vérifiées à la compilation
+    static readonly Dictionary<string, ScreenCommandInfo> ScreenCommands = new()
+    {
+        ["MODE"] = new("MODE mode (0, 1 ou 2)", 1, [0], [2]),
+        ["CLS"] = new("CLS", 0, [], []),
+        ["LOCATE"] = new("LOCATE colonne, ligne", 2, [1, 1], [80, 25]),
+        ["PEN"] = new("PEN stylo (0 à 15)", 1, [0], [15]),
+        ["PAPER"] = new("PAPER fond (0 à 15)", 1, [0], [15]),
+        ["INK"] = new("INK stylo, couleur [, couleur2]", 2, [0, 0, 0], [15, 26, 26]),
+        ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26])
     };
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
@@ -182,6 +198,9 @@ public static class Parser
             case "CONTINUE":
                 return ParseLoopControl(tokens, pos, statements, isExit: false);
 
+            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER":
+                return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
+
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
 
@@ -281,6 +300,47 @@ public static class Parser
                 ? new PrintStatement(line, text, newLine)
                 : new PrintValueStatement(line, (Expression)items[i], newLine));
         }
+        return pos;
+    }
+
+    // MODE n | CLS | LOCATE colonne, ligne | PEN n | PAPER n | INK stylo, couleur [, couleur2] | BORDER couleur [, couleur2]
+    static int ParseScreenCommand(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
+                                  List<Diagnostic> diagnostics, ScreenCommandInfo info)
+    {
+        Token name = tokens[pos];
+        pos++;
+
+        var arguments = new List<Expression>();
+        if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            while (true)
+            {
+                Expression? argument = ParseExpression(tokens, ref pos, diagnostics);
+                if (argument is null)
+                    return SkipToStatementEnd(tokens, pos);
+                arguments.Add(argument);
+
+                if (tokens[pos].Kind != TokenKind.Comma)
+                    break;
+                pos++;
+            }
+        }
+
+        if (arguments.Count < info.MinArguments || arguments.Count > info.Min.Length)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, info.Signature));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        // Une valeur écrite en nombre est vérifiée tout de suite ; une valeur calculée ne l'est pas
+        for (int i = 0; i < arguments.Count; i++)
+        {
+            if (arguments[i] is NumberExpression number && (number.Value < info.Min[i] || number.Value > info.Max[i]))
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line,
+                                               $"{number.Value}|{info.Min[i]} à {info.Max[i]}"));
+        }
+
+        statements.Add(new ScreenStatement(name.Line, name.Text, arguments));
         return pos;
     }
 
@@ -919,6 +979,11 @@ public static class Parser
 
                 case PrintValueStatement print:
                     Uses(print.Value);
+                    break;
+
+                case ScreenStatement screen:
+                    foreach (Expression argument in screen.Arguments)
+                        Uses(argument);
                     break;
             }
         }

@@ -406,6 +406,87 @@ public static class CodeGenerator
             }
         }
 
+        // Première couleur dans B, seconde dans C (la même si elle est omise). first : rang de la première couleur.
+        void EmitColors(IReadOnlyList<Expression> arguments, int first)
+        {
+            EmitExpression(arguments[first]);
+            if (arguments.Count > first + 1)
+            {
+                emitter.PushHl();
+                EmitExpression(arguments[first + 1]);
+                emitter.LdAL();
+                emitter.LdCA();          // C = seconde couleur
+                emitter.PopHl();
+                emitter.LdAL();
+                emitter.LdBA();          // B = première couleur
+            }
+            else
+            {
+                emitter.LdAL();
+                emitter.LdBA();          // B = couleur
+                emitter.LdCA();          // C = la même couleur
+            }
+        }
+
+        // Une valeur dans A, puis appel de la routine du firmware
+        void EmitCallWithA(Expression value, int address)
+        {
+            EmitExpression(value);
+            emitter.LdAL();
+            emitter.CallAddress(address);
+        }
+
+        void EmitScreen(ScreenStatement screen)
+        {
+            IReadOnlyList<Expression> a = screen.Arguments;
+            switch (screen.Command)
+            {
+                case "CLS":
+                    emitter.CallAddress(TxtClearWindow);
+                    break;
+
+                case "MODE":
+                    EmitCallWithA(a[0], ScrSetMode);
+                    break;
+
+                case "PEN":
+                    EmitCallWithA(a[0], TxtSetPen);
+                    break;
+
+                case "PAPER":
+                    EmitCallWithA(a[0], TxtSetPaper);
+                    break;
+
+                case "LOCATE":
+                    // H = colonne, L = ligne
+                    EmitExpression(a[0]);
+                    emitter.PushHl();
+                    EmitExpression(a[1]);
+                    emitter.PopDe();
+                    emitter.LdHE();
+                    emitter.CallAddress(TxtSetCursor);
+                    break;
+
+                case "INK":
+                    // A = stylo, B = couleur, C = seconde couleur
+                    EmitExpression(a[0]);
+                    emitter.PushHl();
+                    EmitColors(a, 1);
+                    emitter.PopHl();
+                    emitter.LdAL();
+                    emitter.CallAddress(ScrSetInk);
+                    break;
+
+                case "BORDER":
+                    EmitColors(a, 0);
+                    emitter.CallAddress(ScrSetBorder);
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Commande d'écran non gérée : {screen.Command}");
+            }
+        }
+
         foreach (Statement statement in program.Statements)
         {
             switch (statement)
@@ -571,6 +652,10 @@ public static class CodeGenerator
                     required.Add(RuntimeLibrary.RandomizeName);
                     break;
 
+                case ScreenStatement screen:
+                    EmitScreen(screen);
+                    break;
+
                 case EndStatement:
                     emitter.JpLabel(EndLabel);
                     break;
@@ -606,6 +691,15 @@ public static class CodeGenerator
 
         return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList());
     }
+
+    // Routines du firmware appelées par les commandes d'écran (décision D046)
+    const int ScrSetMode = 0xBC0E;      // SCR SET MODE : A = mode
+    const int TxtClearWindow = 0xBB6C;  // TXT CLEAR WINDOW : efface la fenêtre de texte
+    const int TxtSetCursor = 0xBB75;    // TXT SET CURSOR : H = colonne, L = ligne
+    const int TxtSetPen = 0xBB90;       // TXT SET PEN : A = stylo
+    const int TxtSetPaper = 0xBB96;     // TXT SET PAPER : A = fond
+    const int ScrSetInk = 0xBC32;       // SCR SET INK : A = stylo, B = couleur, C = seconde couleur
+    const int ScrSetBorder = 0xBC38;    // SCR SET BORDER : B = couleur, C = seconde couleur
 
     static string StringLabel(int index) => $"str_{index}";
 

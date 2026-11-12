@@ -108,6 +108,7 @@ public sealed class Z80Emitter
     public void RetC() => code.Add(0xD8);                                          // RET C
     public void RetNc() => code.Add(0xD0);                                         // RET NC
     public void LdBH() => code.Add(0x44);                                          // LD B,H
+    public void LdHE() => code.Add(0x63);                                          // LD H,E
     public void LdCL() => code.Add(0x4D);                                          // LD C,L
     public void LdLC() => code.Add(0x69);                                          // LD L,C
     public void LdBA() => code.Add(0x47);                                          // LD B,A

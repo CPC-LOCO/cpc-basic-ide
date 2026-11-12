@@ -12,6 +12,7 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Passer les messages dans les fichiers de langue (français, anglais, espagnol).
 
 ## Langage
+- Commandes d'écran : vérifier les valeurs calculées (MODE, PEN, PAPER, INK, BORDER) ; limites de LOCATE selon le MODE (20, 40 ou 80 colonnes) ; WINDOW ; TAG et GRAPHICS PEN ; MODE avec effacement choisi.
 - Fonctions de calcul : ABS, SGN, MIN, MAX (existent dans le Locomotive), HIBYTE, LOBYTE, CLAMP, RANDOM, RANDOMIZE.
 - Calcul en 3D : SIN, COS par table, multiplication en virgule fixe, racine carrée entière, projection.
 - Conditions sans comparaison (IF a THEN), NOT, GOTO et GOSUB, tableaux, chaînes, réels.
@@ -21,6 +22,6 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Multiplication et division par une puissance de 2 : décalages plus rapides.
 
 ## Outils
-- Adoptée : ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80), pour voir où s'arrête l'écran du CPC. À faire avec `MODE` (l'éditeur devra savoir quel MODE le programme utilise).
+- Adoptée : ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80), pour voir où s'arrête l'écran du CPC. `MODE` existe maintenant (D046) : l'éditeur peut lire le MODE du programme (par exemple le premier `MODE n` écrit en nombre) pour placer la ligne à la colonne 20, 40 ou 80.
 - Commande « Nouveau programme » (avec la confirmation de D043) ; ouverture d'un fichier par glisser-déposer.
 - Commande « Mettre en forme » dans l'éditeur (remplace ? par PRINT, etc.).

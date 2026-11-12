@@ -42,7 +42,8 @@ public enum DiagnosticCode
     DoConditionTwice,
     DivisionByZero,
     ExpectedOpenParenthesis,
-    WrongArgumentCount
+    WrongArgumentCount,
+    ValueOutOfRange
 }
 
 /// <summary>
@@ -135,6 +136,8 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"une fonction s'écrit avec des parenthèses, par exemple {Argument}.",
         DiagnosticCode.WrongArgumentCount =>
             $"le nombre de valeurs est incorrect. Écrivez {Argument}.",
+        DiagnosticCode.ValueOutOfRange =>
+            $"{(Context.Length == 0 ? "" : Context + " : ")}la valeur {Argument.Split('|')[0]} n'est pas permise. Valeurs possibles : {Argument.Split('|')[1]}.",
         _ => $"problème inconnu ({Code})."
     };
 

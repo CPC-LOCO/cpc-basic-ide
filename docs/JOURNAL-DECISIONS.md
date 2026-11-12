@@ -244,6 +244,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé à la main par l'utilisateur :** une ligne de 80 caractères tombe pile sur `[Larg : 80]`, numéros bien séparés, boutons satisfaisants.
 - **Idée adoptée, pas faite :** une ligne verticale discrète dans l'éditeur à la colonne 20, 40 ou 80 selon le MODE (voir `IDEES.md`), quand `MODE` existera dans le langage.
 
+## D046 : Commandes d'écran MODE, CLS, LOCATE, PEN, PAPER, INK, BORDER (Décidé, 12 nov. 2026)
+- **Choix :** première étape des graphismes : l'écran et les couleurs, avec les mêmes mots et le même sens que dans le Locomotive BASIC. Le dessin (MOVE, PLOT, DRAW, CLG) viendra ensuite.
+- **Écriture :** `MODE n` (0, 1 ou 2), `CLS`, `LOCATE colonne, ligne`, `PEN n` (0 à 15), `PAPER n` (0 à 15), `INK stylo, couleur [, couleur2]` (stylo 0 à 15, couleurs 0 à 26), `BORDER couleur [, couleur2]` (0 à 26). La seconde couleur, si elle est omise, est la même que la première (pas de clignotement). Les valeurs peuvent être des nombres, des variables ou des calculs, évalués de gauche à droite.
+- **Réalisation :** aucun module Z80 : chaque commande est du code en ligne qui appelle le firmware. `SCR SET MODE` &BC0E (A = mode), `TXT CLEAR WINDOW` &BB6C, `TXT SET CURSOR` &BB75 (H = colonne, L = ligne), `TXT SET PEN` &BB90 (A), `TXT SET PAPER` &BB96 (A), `SCR SET INK` &BC32 (A = stylo, B et C = couleurs), `SCR SET BORDER` &BC38 (B et C). Toutes les adresses sont confirmées par les essais dans WinAPE. Un programme sans texte ne lie aucun module. Instruction ajoutée à `Z80Emitter` : `LdHE` (LD H,E).
+- **Analyse :** nouvelle instruction `ScreenStatement(Command, Arguments)` ; table `ScreenCommands` du parser (écriture à montrer, nombre de valeurs, limites). Les valeurs **écrites en nombres** sont vérifiées à la compilation (nouveau code `ValueOutOfRange` : « MODE : la valeur 3 n'est pas permise. Valeurs possibles : 0 à 2. ») ; le mauvais nombre de valeurs réutilise `WrongArgumentCount` (« Écrivez MODE mode (0, 1 ou 2). »). Une valeur **calculée** n'est pas vérifiée : le firmware la reçoit telle quelle.
+- **Limite de LOCATE :** colonne de 1 à 80 et ligne de 1 à 25 (maximum du MODE 2), car le compilateur ne connaît pas encore le MODE en cours : en MODE 0, `LOCATE 30, 1` passe la compilation.
+- **Mots réservés (nouveaux) :** MODE, CLS, LOCATE, PEN, PAPER, INK, BORDER ne peuvent plus servir de noms de variables.
+- **Constaté dans WinAPE :** changer de mode efface l'écran mais garde la palette (fond bleu et texte jaune dans les trois modes). En MODE 1, un caractère mesure 16 points de large et de haut sur la capture d'écran de WinAPE. 20, 40 et 80 chiffres remplissent exactement la largeur en MODE 0, 1 et 2. Après 80 caractères en MODE 2, le curseur passe déjà à la ligne : le `PRINT` suivant laisse une ligne vide.
+- **Essayé à la main par l'utilisateur :** `examples\ecran.bas` (couleurs, positions, valeurs calculées) et `examples\modes.bas` (les trois modes, avec une règle de chiffres pour chaque mode). Tests : `ScreenCommandTests.cs`, 32 cas ; total 295 tests réussis.
+- **Pas encore fait :** le dessin ; la vérification des valeurs calculées ; les limites de LOCATE selon le MODE ; la fenêtre de texte (WINDOW) ; l'éditeur qui lit le MODE du programme pour tracer la ligne verticale de la largeur d'écran (idée adoptée, voir `IDEES.md`).
+
 ---
 
 ## Notes de fin de session (modèle)
