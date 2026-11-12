@@ -8,7 +8,7 @@ Un éditeur et un compilateur pour un BASIC évolué, dérivé du Locomotive BAS
 
 Dépôt : https://github.com/CPC-LOCO/cpc-basic-ide
 Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
-Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D046), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
+Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D047), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
 
 ## 2. Comment travailler avec l'utilisateur (important)
 
@@ -29,18 +29,19 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
 ## 3. État au moment de la reprise (11 novembre 2026)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Les testeurs peuvent la télécharger et signaler des problèmes (formulaires dans `.github\ISSUE_TEMPLATE\`). Le numéro de version vient de `Directory.Build.props` (à la racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques. Les nouveautés ci-dessous ne sont pas encore publiées.
-- **Jalons terminés et validés (295 tests, écrans WinAPE conformes) :**
+- **Jalons terminés et validés (323 tests, écrans WinAPE conformes) :**
   - J1 : `PRINT`, fabrication de la disquette.
   - J2 : variables entières (`A`, `A%`) et octets (`BYTE a`), `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP`, `EXIT`, `CONTINUE`, `IF/THEN/ELSE` (une ligne ou bloc), comparaisons, `AND`, `OR`.
   - J3 : `*`, `/`, `\`, `MOD` (D037) ; fonctions `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` (D038) ; `RANDOM`, `RANDOMIZE` (D039) ; `TIME` (D040).
   - **Accessibilité de l'éditeur (D041, validée à la main le 11 novembre) :** taille du texte réglable et mémorisée (Ctrl + molette, Ctrl+plus et moins, Ctrl+0, boutons), contraste élevé (Ctrl+H), gros boutons, navigation au clavier (F6, flèches, Entrée, Échap), sélection jaune et noir dans le panneau de messages. Nouveau fichier `src\CpcIde\EditorSettings.cs`.
   - **Confirmation avant de perdre des modifications (D043, validée à la main) :** boîte Enregistrer / Ne pas enregistrer / Annuler à l'ouverture d'un fichier et à la fermeture de la fenêtre. Nouveau fichier `src\CpcIde\SaveChangesDialog.cs`.
+  - **Tracé Locomotive (D047, validé) :** `MOVE(R)`, `PLOT(R)`, `DRAW(R)`, `CLG`, `ORIGIN`, stylo et mode facultatifs ; le mode graphique persiste après `MODE`. Exemples `dessin.bas`, `xor.bas`.
   - **Commandes d'écran (D046, validées dans WinAPE) :** `MODE`, `CLS`, `LOCATE`, `PEN`, `PAPER`, `INK`, `BORDER`, en code en ligne qui appelle le firmware (aucun module). Nouveaux mots réservés. `examples\ecran.bas` et `examples\modes.bas`.
   - **Numéros séparés, boutons compacts, largeur en colonnes (D045, validés à la main) :** espace entre les numéros de l'éditeur (gris) et le texte, boutons de 36 points, `[Larg : N]` dans la barre d'état.
   - **Script `packaging\commit.cmd` (D044) :** double-clic = tests, liste des fichiers, commit, push. Dossier `essais\` (ignoré par git) pour les programmes d'essai.
   - **Messages d'erreur qui nomment la commande (D042) :** « ERREUR en ligne N : PRINT attend ici une valeur... La ligne est incomplète. » Champ `Context` dans `Diagnostic`, rempli par `ParseStatement` dans `Parser.cs`.
-- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D046 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
-- **Prochaine étape :** le dessin : `MOVE`, `PLOT`, `DRAW`, `CLG`... (voir chapitre 4). Rien n'est commencé : commencer par la conception.
+- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D047 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
+- **Prochaine étape :** `CIRCLE`, `PAINT` et autres commandes à coordonnées propres (origine en haut à gauche, 200 lignes ; le MODE devra être mémorisé à l'exécution), ou le calcul 3D. Le tracé Locomotive (D047) est fait.
 
 ## 4. Suite prévue
 
@@ -99,4 +100,4 @@ Pour le style des tests :
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE. Lis d'abord REPRISE.md, puis les autres fichiers joints. Tout est copié dans le dépôt, les 295 tests passent. On choisit la prochaine étape.
+> Je reprends le projet CPC BASIC IDE. Lis d'abord REPRISE.md, puis les autres fichiers joints. Tout est copié dans le dépôt, les 323 tests passent. On choisit la prochaine étape.

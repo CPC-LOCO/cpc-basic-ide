@@ -482,9 +482,54 @@ public static class CodeGenerator
                     emitter.CallAddress(ScrSetBorder);
                     break;
 
+                case "CLG":
+                    // Avec un stylo : il devient le fond graphique, puis la fenêtre graphique est effacée
+                    if (a.Count > 0)
+                        EmitCallWithA(a[0], GraSetPaper);
+                    emitter.CallAddress(GraClearWindow);
+                    break;
+
+                case "ORIGIN":
+                    // DE = x, HL = y
+                    EmitExpression(a[0]);
+                    emitter.PushHl();
+                    EmitExpression(a[1]);
+                    emitter.PopDe();
+                    emitter.CallAddress(GraSetOrigin);
+                    break;
+
                 default:
                     throw new NotSupportedException($"Commande d'écran non gérée : {screen.Command}");
             }
+        }
+
+        // MOVE, MOVER, PLOT, PLOTR, DRAW, DRAWR : DE = x, HL = y ; le stylo et le mode (facultatifs) sont réglés avant
+        void EmitDraw(DrawStatement draw)
+        {
+            int address = draw.Command switch
+            {
+                "MOVE" => GraMoveAbsolute,
+                "MOVER" => GraMoveRelative,
+                "PLOT" => GraPlotAbsolute,
+                "PLOTR" => GraPlotRelative,
+                "DRAW" => GraLineAbsolute,
+                "DRAWR" => GraLineRelative,
+                _ => throw new NotSupportedException($"Commande de tracé non gérée : {draw.Command}")
+            };
+
+            EmitExpression(draw.X);
+            emitter.PushHl();
+            EmitExpression(draw.Y);
+            emitter.PushHl();
+
+            if (draw.Pen is not null)
+                EmitCallWithA(draw.Pen, GraSetPen);
+            if (draw.Mode is not null)
+                EmitCallWithA(draw.Mode, ScrAccess);
+
+            emitter.PopHl();       // y
+            emitter.PopDe();       // x
+            emitter.CallAddress(address);
         }
 
         foreach (Statement statement in program.Statements)
@@ -656,6 +701,10 @@ public static class CodeGenerator
                     EmitScreen(screen);
                     break;
 
+                case DrawStatement draw:
+                    EmitDraw(draw);
+                    break;
+
                 case EndStatement:
                     emitter.JpLabel(EndLabel);
                     break;
@@ -700,6 +749,19 @@ public static class CodeGenerator
     const int TxtSetPaper = 0xBB96;     // TXT SET PAPER : A = fond
     const int ScrSetInk = 0xBC32;       // SCR SET INK : A = stylo, B = couleur, C = seconde couleur
     const int ScrSetBorder = 0xBC38;    // SCR SET BORDER : B = couleur, C = seconde couleur
+
+    // Tracé (décision D047)
+    const int GraMoveAbsolute = 0xBBC0; // GRA MOVE ABSOLUTE : DE = x, HL = y
+    const int GraMoveRelative = 0xBBC3; // GRA MOVE RELATIVE : DE = écart x, HL = écart y
+    const int GraSetOrigin = 0xBBC9;    // GRA SET ORIGIN : DE = x, HL = y
+    const int GraClearWindow = 0xBBDB;  // GRA CLEAR WINDOW : efface la fenêtre graphique
+    const int GraSetPen = 0xBBDE;       // GRA SET PEN : A = stylo
+    const int GraSetPaper = 0xBBE4;     // GRA SET PAPER : A = fond
+    const int GraPlotAbsolute = 0xBBEA; // GRA PLOT ABSOLUTE : DE = x, HL = y
+    const int GraPlotRelative = 0xBBED; // GRA PLOT RELATIVE : DE = écart x, HL = écart y
+    const int GraLineAbsolute = 0xBBF6; // GRA LINE ABSOLUTE : DE = x, HL = y
+    const int GraLineRelative = 0xBBF9; // GRA LINE RELATIVE : DE = écart x, HL = écart y
+    const int ScrAccess = 0xBC59;       // SCR ACCESS : A = mode d'écriture (0 normal, 1 XOR, 2 AND, 3 OR)
 
     static string StringLabel(int index) => $"str_{index}";
 

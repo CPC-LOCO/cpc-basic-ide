@@ -113,6 +113,14 @@ public sealed record RandomizeStatement(int SourceLine, Expression? Seed) : Stat
 public sealed record ScreenStatement(int SourceLine, string Command, IReadOnlyList<Expression> Arguments)
     : Statement(SourceLine);
 
+/// <summary>
+/// Tracé du Locomotive BASIC : MOVE, MOVER, PLOT, PLOTR, DRAW, DRAWR (décision D047).
+/// X et Y sont des coordonnées (ou des écarts pour les commandes en « R »). Pen (le stylo) et Mode
+/// (0 normal, 1 XOR, 2 AND, 3 OR) sont facultatifs : null s'ils sont omis.
+/// </summary>
+public sealed record DrawStatement(int SourceLine, string Command, Expression X, Expression Y,
+                                   Expression? Pen, Expression? Mode) : Statement(SourceLine);
+
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 

@@ -255,6 +255,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé à la main par l'utilisateur :** `examples\ecran.bas` (couleurs, positions, valeurs calculées) et `examples\modes.bas` (les trois modes, avec une règle de chiffres pour chaque mode). Tests : `ScreenCommandTests.cs`, 32 cas ; total 295 tests réussis.
 - **Pas encore fait :** le dessin ; la vérification des valeurs calculées ; les limites de LOCATE selon le MODE ; la fenêtre de texte (WINDOW) ; l'éditeur qui lit le MODE du programme pour tracer la ligne verticale de la largeur d'écran (idée adoptée, voir `IDEES.md`).
 
+## D047 : Commandes de tracé du Locomotive BASIC (Décidé, 12 nov. 2026)
+- **Choix :** même écriture et même sens que le Locomotive BASIC, pour la compatibilité : `MOVE`, `MOVER`, `PLOT`, `PLOTR`, `DRAW`, `DRAWR` (`x, y [, [stylo] [, mode]]`, le stylo peut rester vide : `PLOT 1, 2, , 1`), `CLG [stylo]`, `ORIGIN x, y`. Coordonnées de 0 à 639 en largeur et 0 à 399 en hauteur dans tous les modes, origine en bas à gauche.
+- **Hors écran :** aucune vérification ; le firmware coupe le tracé comme le vrai BASIC. Le stylo (0 à 15) et le mode (0 à 3) écrits en nombres sont vérifiés à la compilation (`ValueOutOfRange`).
+- **Réalisation :** code en ligne, aucun module. Firmware : `GRA MOVE ABSOLUTE` &BBC0, `MOVE RELATIVE` &BBC3, `SET ORIGIN` &BBC9, `CLEAR WINDOW` &BBDB, `SET PEN` &BBDE, `SET PAPER` &BBE4, `PLOT ABSOLUTE` &BBEA, `PLOT RELATIVE` &BBED, `LINE ABSOLUTE` &BBF6, `LINE RELATIVE` &BBF9, `SCR ACCESS` &BC59 (mode d'écriture). Nouvelle instruction `DrawStatement`. Nouveaux mots réservés : MOVE, MOVER, PLOT, PLOTR, DRAW, DRAWR, CLG, ORIGIN.
+- **Constaté dans WinAPE :** le mode graphique (XOR, AND, OR) reste actif jusqu'à ce qu'on le change, et **MODE ne le remet pas à zéro** (vérifié par l'utilisateur avec le vrai BASIC) : notre `MODE` fait donc comme le vrai. Un point isolé de PLOT est d'un seul pixel : invisible au croisement de deux lignes.
+- **Essayé à la main par l'utilisateur :** `examples\dessin.bas` (cadre, diagonales, carré, L, points) et `examples\xor.bas` conformes ; 323 tests réussis.
+- **Décision pour les futures commandes (CIRCLE, PAINT, 3D...) :** coordonnées propres, origine en **haut à gauche**, **200 lignes** dans les 3 modes ; largeur 0 à 639 (MODE 2), 0 à 319 (MODE 1), MODE 0 à confirmer (l'écran fait 160 points : 0 à 159). Ces commandes devront connaître le MODE en cours à l'exécution : `MODE` devra le mémoriser.
+- **Pas encore fait :** `ORIGIN` à quatre valeurs de fenêtre, `GRAPHICS PEN`, `TEST`, `TESTR`, `XPOS`, `YPOS`, `FILL`, `MASK`.
+
 ---
 
 ## Notes de fin de session (modèle)

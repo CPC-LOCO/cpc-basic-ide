@@ -21,7 +21,8 @@ public static class Parser
     static readonly HashSet<string> Commands = ["PRINT", "END", "LET", "BYTE", "FOR", "NEXT", "TO", "STEP", "EXIT", "CONTINUE", "IF", "THEN", "ELSE", "ENDIF", "AND", "OR",
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
-        "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER"];
+        "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
+        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN"];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
 
@@ -50,7 +51,20 @@ public static class Parser
         ["PEN"] = new("PEN stylo (0 à 15)", 1, [0], [15]),
         ["PAPER"] = new("PAPER fond (0 à 15)", 1, [0], [15]),
         ["INK"] = new("INK stylo, couleur [, couleur2]", 2, [0, 0, 0], [15, 26, 26]),
-        ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26])
+        ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26]),
+        ["CLG"] = new("CLG [stylo]", 0, [0], [15]),
+        ["ORIGIN"] = new("ORIGIN x, y", 2, [-32768, -32768], [32767, 32767])
+    };
+
+    // Tracé (D047) : écriture à montrer dans les messages. Le stylo va de 0 à 15, le mode de 0 à 3.
+    static readonly Dictionary<string, string> DrawCommands = new()
+    {
+        ["MOVE"] = "MOVE x, y [, [stylo] [, mode]]",
+        ["MOVER"] = "MOVER écartx, écarty [, [stylo] [, mode]]",
+        ["PLOT"] = "PLOT x, y [, [stylo] [, mode]]",
+        ["PLOTR"] = "PLOTR écartx, écarty [, [stylo] [, mode]]",
+        ["DRAW"] = "DRAW x, y [, [stylo] [, mode]]",
+        ["DRAWR"] = "DRAWR écartx, écarty [, [stylo] [, mode]]"
     };
 
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
@@ -198,8 +212,11 @@ public static class Parser
             case "CONTINUE":
                 return ParseLoopControl(tokens, pos, statements, isExit: false);
 
-            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER":
+            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
+
+            case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
+                return ParseDrawCommand(tokens, pos, statements, diagnostics, DrawCommands[t.Text]);
 
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
@@ -342,6 +359,63 @@ public static class Parser
 
         statements.Add(new ScreenStatement(name.Line, name.Text, arguments));
         return pos;
+    }
+
+    // MOVE x, y [, [stylo] [, mode]]  (et MOVER, PLOT, PLOTR, DRAW, DRAWR). Le stylo peut rester vide : PLOT 1, 2, , 1
+    static int ParseDrawCommand(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
+                                List<Diagnostic> diagnostics, string signature)
+    {
+        Token name = tokens[pos];
+        pos++;
+
+        Expression? x = ParseExpression(tokens, ref pos, diagnostics);
+        if (x is null)
+            return SkipToStatementEnd(tokens, pos);
+
+        if (tokens[pos].Kind != TokenKind.Comma)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, signature));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+
+        Expression? y = ParseExpression(tokens, ref pos, diagnostics);
+        if (y is null)
+            return SkipToStatementEnd(tokens, pos);
+
+        Expression? pen = null;
+        Expression? mode = null;
+        if (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            if (tokens[pos].Kind != TokenKind.Comma)
+            {
+                pen = ParseExpression(tokens, ref pos, diagnostics);
+                if (pen is null)
+                    return SkipToStatementEnd(tokens, pos);
+            }
+
+            if (tokens[pos].Kind == TokenKind.Comma)
+            {
+                pos++;
+                mode = ParseExpression(tokens, ref pos, diagnostics);
+                if (mode is null)
+                    return SkipToStatementEnd(tokens, pos);
+            }
+        }
+
+        CheckConstantRange(pen, 0, 15, name.Line, diagnostics);
+        CheckConstantRange(mode, 0, 3, name.Line, diagnostics);
+
+        statements.Add(new DrawStatement(name.Line, name.Text, x, y, pen, mode));
+        return pos;
+    }
+
+    // Une valeur écrite en nombre est vérifiée tout de suite ; une valeur calculée ne l'est pas
+    static void CheckConstantRange(Expression? value, int min, int max, int line, List<Diagnostic> diagnostics)
+    {
+        if (value is NumberExpression number && (number.Value < min || number.Value > max))
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, line, $"{number.Value}|{min} à {max}"));
     }
 
     // RANDOMIZE [graine]
@@ -984,6 +1058,15 @@ public static class Parser
                 case ScreenStatement screen:
                     foreach (Expression argument in screen.Arguments)
                         Uses(argument);
+                    break;
+
+                case DrawStatement draw:
+                    Uses(draw.X);
+                    Uses(draw.Y);
+                    if (draw.Pen is not null)
+                        Uses(draw.Pen);
+                    if (draw.Mode is not null)
+                        Uses(draw.Mode);
                     break;
             }
         }
