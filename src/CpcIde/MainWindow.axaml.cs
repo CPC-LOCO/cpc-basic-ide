@@ -420,7 +420,13 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ShowMessage($"Impossible d'écrire le fichier .dsk : {ex.Message}");
+            ShowMessages(new[]
+            {
+                new MessageItem("Impossible d'écrire le fichier .dsk : il est sans doute ouvert dans votre émulateur.", 0),
+                new MessageItem("Fermez l'émulateur (ou éjectez la disquette), puis compilez de nouveau.", 0),
+                new MessageItem($"Fichier : {dskPath}", 0),
+                new MessageItem($"Détail de Windows : {ex.Message}", 0)
+            });
             return;
         }
 
@@ -429,7 +435,8 @@ public partial class MainWindow : Window
         {
             new MessageItem($"Compilation réussie : {dskPath}", 0),
             new MessageItem($"Programme Z80 : {result.BinarySize} octets. Modules liés : {modules}.", 0),
-            new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0)
+            new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0),
+            new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0)
         });
     }
 

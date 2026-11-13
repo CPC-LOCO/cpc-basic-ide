@@ -24,6 +24,8 @@ Aucune installation n'est necessaire, et il n'est pas utile d'installer .NET.
   Le programme est enregistre, puis un fichier .dsk est cree a cote.
 - Dans un emulateur (WinAPE par exemple), inserez le .dsk dans le lecteur A,
   puis tapez : RUN"NOM"   (NOM = le nom du fichier .bas)
+- Avant de recompiler le meme programme, fermez l'emulateur : il garde le
+  fichier .dsk ouvert et l'editeur ne peut plus l'ecrire.
 
 Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus,
 sinon la compilation est refusee. Exemple : "boucles.bas" convient,

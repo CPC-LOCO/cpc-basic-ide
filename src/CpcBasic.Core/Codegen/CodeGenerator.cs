@@ -498,6 +498,39 @@ public static class CodeGenerator
                     emitter.CallAddress(GraSetOrigin);
                     break;
 
+                case "BOX":
+                {
+                    // x1, y1, x2, y2 sont rangés dans le module, puis A = stylo (1 s'il est omis)
+                    string[] cells = [RuntimeLibrary.BoxX1Label, RuntimeLibrary.BoxY1Label,
+                                      RuntimeLibrary.BoxX2Label, RuntimeLibrary.BoxY2Label];
+                    for (int i = 0; i < 4; i++)
+                    {
+                        EmitExpression(a[i]);
+                        emitter.LdMemHl(cells[i]);
+                    }
+                    // 5e valeur : stylo du contour (stylo courant du tracé s'il est omis) ; 6e : stylo de l'intérieur (pas d'intérieur s'il est omis)
+                    if (a.Count > 4)
+                    {
+                        EmitExpression(a[4]);
+                        emitter.LdAL();
+                    }
+                    else
+                        emitter.CallAddress(GraGetPen);
+                    emitter.LdMemA(RuntimeLibrary.BoxPenLabel);
+                    if (a.Count > 5)
+                    {
+                        EmitExpression(a[5]);
+                        emitter.LdAL();
+                        emitter.LdMemA(RuntimeLibrary.BoxFillPenLabel);
+                    }
+                    emitter.LdHlImm(a.Count > 5 ? 1 : 0);
+                    emitter.LdAL();
+                    emitter.LdMemA(RuntimeLibrary.BoxDoFillLabel);
+                    required.Add(RuntimeLibrary.BoxName);
+                    emitter.CallLabel(RuntimeLibrary.BoxLabel);
+                    break;
+                }
+
                 default:
                     throw new NotSupportedException($"Commande d'écran non gérée : {screen.Command}");
             }
@@ -754,6 +787,7 @@ public static class CodeGenerator
     const int GraMoveAbsolute = 0xBBC0; // GRA MOVE ABSOLUTE : DE = x, HL = y
     const int GraMoveRelative = 0xBBC3; // GRA MOVE RELATIVE : DE = écart x, HL = écart y
     const int GraSetOrigin = 0xBBC9;    // GRA SET ORIGIN : DE = x, HL = y
+    const int GraGetPen = 0xBBE1;       // GRA GET PEN : renvoie A = stylo du tracé (0 à 15)
     const int GraClearWindow = 0xBBDB;  // GRA CLEAR WINDOW : efface la fenêtre graphique
     const int GraSetPen = 0xBBDE;       // GRA SET PEN : A = stylo
     const int GraSetPaper = 0xBBE4;     // GRA SET PAPER : A = fond

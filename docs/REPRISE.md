@@ -8,7 +8,7 @@ Un éditeur et un compilateur pour un BASIC évolué, dérivé du Locomotive BAS
 
 Dépôt : https://github.com/CPC-LOCO/cpc-basic-ide
 Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
-Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D047), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
+Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D052), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
 
 ## 2. Comment travailler avec l'utilisateur (important)
 
@@ -29,19 +29,21 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
 ## 3. État au moment de la reprise (11 novembre 2026)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Les testeurs peuvent la télécharger et signaler des problèmes (formulaires dans `.github\ISSUE_TEMPLATE\`). Le numéro de version vient de `Directory.Build.props` (à la racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques. Les nouveautés ci-dessous ne sont pas encore publiées.
-- **Jalons terminés et validés (323 tests, écrans WinAPE conformes) :**
+- **Jalons terminés et validés (357 tests ; D050, D051, D052 validés) :**
   - J1 : `PRINT`, fabrication de la disquette.
   - J2 : variables entières (`A`, `A%`) et octets (`BYTE a`), `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP`, `EXIT`, `CONTINUE`, `IF/THEN/ELSE` (une ligne ou bloc), comparaisons, `AND`, `OR`.
   - J3 : `*`, `/`, `\`, `MOD` (D037) ; fonctions `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` (D038) ; `RANDOM`, `RANDOMIZE` (D039) ; `TIME` (D040).
   - **Accessibilité de l'éditeur (D041, validée à la main le 11 novembre) :** taille du texte réglable et mémorisée (Ctrl + molette, Ctrl+plus et moins, Ctrl+0, boutons), contraste élevé (Ctrl+H), gros boutons, navigation au clavier (F6, flèches, Entrée, Échap), sélection jaune et noir dans le panneau de messages. Nouveau fichier `src\CpcIde\EditorSettings.cs`.
   - **Confirmation avant de perdre des modifications (D043, validée à la main) :** boîte Enregistrer / Ne pas enregistrer / Annuler à l'ouverture d'un fichier et à la fermeture de la fenêtre. Nouveau fichier `src\CpcIde\SaveChangesDialog.cs`.
+  - **BOX et tracé direct dans la mémoire écran (D048, validé dans WinAPE) :** `BOX x1, y1, x2, y2 [, stylo]`, coordonnées natives (origine en haut à gauche, y 0 à 199, x 0 à 159 / 319 / 639 selon le MODE). Modules `Pixel` et `Box`, lecture du MODE par le firmware (&BC11), ROM haute coupée pendant le tracé (&B903 / &B90C). Fichiers : `BoxTests.cs` (nouveau), `RuntimeLibrary.cs`, `Z80Emitter.cs`, `MiniZ80.cs`, `Parser.cs`, `CodeGenerator.cs`, `Ast.cs` (commentaire), `examples\boite.bas`. Total attendu : 351 tests.
+  - **D049 annulé :** `PAUSE` retiré (réservé au temps : `PAUSE [heure,][minute,] seconde`). Idée notée pour plus tard : `CLIC code_ascii`. Ne pas ajouter de commande sans demande. Total de tests attendu : 351.
   - **Tracé Locomotive (D047, validé) :** `MOVE(R)`, `PLOT(R)`, `DRAW(R)`, `CLG`, `ORIGIN`, stylo et mode facultatifs ; le mode graphique persiste après `MODE`. Exemples `dessin.bas`, `xor.bas`.
   - **Commandes d'écran (D046, validées dans WinAPE) :** `MODE`, `CLS`, `LOCATE`, `PEN`, `PAPER`, `INK`, `BORDER`, en code en ligne qui appelle le firmware (aucun module). Nouveaux mots réservés. `examples\ecran.bas` et `examples\modes.bas`.
   - **Numéros séparés, boutons compacts, largeur en colonnes (D045, validés à la main) :** espace entre les numéros de l'éditeur (gris) et le texte, boutons de 36 points, `[Larg : N]` dans la barre d'état.
   - **Script `packaging\commit.cmd` (D044) :** double-clic = tests, liste des fichiers, commit, push. Dossier `essais\` (ignoré par git) pour les programmes d'essai.
   - **Messages d'erreur qui nomment la commande (D042) :** « ERREUR en ligne N : PRINT attend ici une valeur... La ligne est incomplète. » Champ `Context` dans `Diagnostic`, rempli par `ParseStatement` dans `Parser.cs`.
-- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D047 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
-- **Prochaine étape :** `CIRCLE`, `PAINT` et autres commandes à coordonnées propres (origine en haut à gauche, 200 lignes ; le MODE devra être mémorisé à l'exécution), ou le calcul 3D. Le tracé Locomotive (D047) est fait.
+- **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D052 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
+- **D051 (VALIDÉ, 357 tests) :** `BOX x1,y1,x2,y2 [,stylo [,remplissage]]` : 4 valeurs = contour au stylo courant (GRA GET PEN &BBE1), 5 = contour, 6 = contour + intérieur. `examples\plein.bas` (validé le 12 nov., y compris le cas à 4 valeurs : GRA GET PEN &BBE1 confirmé). **Exemples : une attente avant chaque changement d'écran ET avant le texte final, de plus en plus longue à chaque fois (boucles 6, 10, 14).** **D052 :** toutes les futures formes (CIRCLE, ELLIPSE, STAR, POLYGON...) suivent ce modèle contour + remplissage, très rapides. **Prochaine étape :**  `CIRCLE`, `PAINT`, BOX rempli sur le module `Pixel` (toute commande à écriture directe doit couper la ROM haute comme `rt_box`, voir D048), ou le calcul 3D. Le tracé Locomotive (D047) est fait.
 
 ## 4. Suite prévue
 
@@ -53,11 +55,11 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
 ## 5. Points techniques à connaître
 
 - Le compilateur est découpé : `Lexer` (mots et symboles) -> `Parser` (instructions, expressions, vérifications) -> `CodeGenerator` (octets Z80 avec `Z80Emitter`) -> `Compiler` (enchaîne tout et écrit la disquette).
-- Les modules Z80 sont écrits en C# avec l'assembleur interne, dans `RuntimeLibrary.cs`. Chaque module déclare son nom et ses dépendances ; seuls les modules utilisés sont liés au programme (liaison sélective). Modules actuels : PrintString, PrintInt, Mul16, Div16, Abs16, Sgn16, Min16, Max16, Rand16, Randomize, RandomRange.
+- Les modules Z80 sont écrits en C# avec l'assembleur interne, dans `RuntimeLibrary.cs`. Chaque module déclare son nom et ses dépendances ; seuls les modules utilisés sont liés au programme (liaison sélective). Modules actuels : PrintString, PrintInt, Mul16, Div16, Abs16, Sgn16, Min16, Max16, Rand16, Randomize, RandomRange, Pixel, Box (D048).
 - Les expressions sont calculées sur 16 bits, résultat dans `HL`. Les variables sont réservées à la fin du binaire. Les octets (`BYTE`) sont étendus à 16 bits en lecture. Les fonctions s'écrivent `NOM(valeurs)` (table `Functions` du parser) ; `TIME` s'écrit sans parenthèses.
 - Les blocs (FOR, WHILE, REPEAT, DO, IF) sont suivis par une pile commune dans le parser (vérification) et dans le générateur (étiquettes). `EXIT` et `CONTINUE` sont de simples sauts.
 - Les comparaisons signées retournent le bit 15 des deux valeurs puis comparent avec la retenue (même méthode dans `Min16`, `Max16`, les boucles `FOR` et les conditions).
-- Les tests sont en xUnit. `tests\CpcBasic.Tests\MiniZ80.cs` est un mini-simulateur Z80 qui exécute les modules ; pour tester un nouveau module, y ajouter les instructions qu'il utilise si besoin (il le dit quand il rencontre une instruction inconnue).
+- Les tests sont en xUnit. `tests\CpcBasic.Tests\MiniZ80.cs` est un mini-simulateur Z80 qui exécute les modules ; pour tester un nouveau module, y ajouter les instructions qu'il utilise si besoin (il le dit quand il rencontre une instruction inconnue). Il connaît aussi `ScreenMode` (réponse de &BC11) et `UpperRomEnabled` (la ROM haute masque la lecture de &C000-&FFFF, comme sur un vrai CPC) ; sa pile est à &BF00, sous l'écran.
 - Les commandes d'écran (D046) sont du code en ligne : `ScreenStatement` dans l'analyse, `EmitScreen` dans le générateur, routines du firmware &BC0E, &BB6C, &BB75, &BB90, &BB96, &BC32, &BC38. Les valeurs écrites en nombres sont vérifiées par le parser (table `ScreenCommands`), pas les valeurs calculées.
 - Fin de programme : le programme compilé attend une touche puis redémarre (`JP 0`) : un programme compilé ne revient pas au BASIC.
 - Le nom du fichier `.bas` donne le nom sur la disquette : 8 caractères au plus.
@@ -100,4 +102,4 @@ Pour le style des tests :
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE. Lis d'abord REPRISE.md, puis les autres fichiers joints. Tout est copié dans le dépôt, les 323 tests passent. On choisit la prochaine étape.
+> Je reprends le projet CPC BASIC IDE. Lis d'abord REPRISE.md, puis les autres fichiers joints. Tout est copié dans le dépôt, les tests passent (351, ou 355 si D049 est validé). On choisit la prochaine étape.

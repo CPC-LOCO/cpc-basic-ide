@@ -9,7 +9,7 @@ namespace CpcBasic.Tests;
 
 /// <summary>
 /// Mini-émulateur Z80 pour les tests : il ne connaît que les instructions utilisées par les modules
-/// de la bibliothèque (PrintInt, Mul16, Div16...). Seuls les indicateurs Z (zéro) et C (retenue)
+/// de la bibliothèque (PrintInt, Mul16, Div16, Pixel, Box...). Seuls les indicateurs Z (zéro) et C (retenue)
 /// sont gérés. Un appel au firmware &amp;BB5A (afficher un caractère) est capté dans Output.
 /// Si un module utilise une instruction inconnue, l'émulateur le dit : il suffit de l'ajouter ici.
 /// </summary>
@@ -22,6 +22,19 @@ internal sealed class MiniZ80
 
     /// <summary>Temps rendu par KL TIME PLEASE (&BD0D) dans DEHL.</summary>
     public uint Clock;
+
+    /// <summary>Mode d'écran rendu par SCR GET MODE (&BC11) dans A : 0, 1 ou 2.</summary>
+    public byte ScreenMode = 1;
+
+    /// <summary>
+    /// Vrai si la ROM haute (celle du BASIC) est active : le Z80 lit alors la ROM de &C000 à &FFFF au lieu de l'écran,
+    /// comme sur un vrai CPC (les écritures vont toujours dans la RAM). KL U ROM DISABLE (&B903) la coupe.
+    /// </summary>
+    public bool UpperRomEnabled = true;
+
+    /// <summary>Lecture d'un octet de la mémoire, avec le masque de la ROM haute.</summary>
+    byte ReadMemory(int address) =>
+        UpperRomEnabled && address >= 0xC000 ? (byte)(0xA5 ^ address) : Memory[address & 0xFFFF];
 
     int pc;
     int sp;
@@ -50,7 +63,7 @@ internal sealed class MiniZ80
     /// <summary>Appelle la routine à cette adresse et s'arrête quand elle fait RET.</summary>
     public void Call(int address)
     {
-        sp = 0xF000;
+        sp = 0xBF00;           // sous l'écran (&C000) : la pile ne doit pas se mélanger aux tests de tracé
         Push(0x0000);          // adresse de retour : 0 signifie « terminé »
         pc = address;
         steps = 0;
@@ -91,6 +104,27 @@ internal sealed class MiniZ80
         int result = HL + value;
         CarryFlag = result > 0xFFFF;
         HL = (ushort)result;
+    }
+
+    void Add(byte value, bool withCarry = false)
+    {
+        int total = A + value + (withCarry && CarryFlag ? 1 : 0);
+        CarryFlag = total > 0xFF;
+        A = (byte)total;
+        ZeroFlag = A == 0;
+    }
+
+    void And(byte value)
+    {
+        A &= value;
+        ZeroFlag = A == 0;
+        CarryFlag = false;
+    }
+
+    void Compare(byte value)
+    {
+        CarryFlag = A < value;
+        ZeroFlag = A == value;
     }
 
     void Sub(byte value)
@@ -136,6 +170,13 @@ internal sealed class MiniZ80
 
             // Chargements
             case 0x06: B = Fetch(); break;                             // LD B,n
+            case 0x16: D = Fetch(); break;                             // LD D,n
+            case 0x2E: L = Fetch(); break;                             // LD L,n
+            case 0x3A: A = Memory[Fetch16()]; break;                   // LD A,(nn)
+            case 0x32: Memory[Fetch16()] = A; break;                   // LD (nn),A
+            case 0x7E: A = ReadMemory(HL); break;                      // LD A,(HL)
+            case 0x77: Memory[HL] = A; break;                          // LD (HL),A
+            case 0x7B: A = E; break;                                   // LD A,E
             case 0x3E: A = Fetch(); break;                             // LD A,n
             case 0x21: HL = Fetch16(); break;                          // LD HL,nn
             case 0x11: DE = Fetch16(); break;                          // LD DE,nn
@@ -181,6 +222,19 @@ internal sealed class MiniZ80
             case 0x3D: A--; ZeroFlag = A == 0; break;                  // DEC A
             case 0x0D: C--; ZeroFlag = C == 0; break;                  // DEC C
             case 0xB7: ZeroFlag = A == 0; CarryFlag = false; break;    // OR A
+            case 0x2F: A ^= 0xFF; break;                               // CPL
+            case 0x80: Add(B); break;                                  // ADD A,B
+            case 0x81: Add(C); break;                                  // ADD A,C
+            case 0x85: Add(L); break;                                  // ADD A,L
+            case 0x87: Add(A); break;                                  // ADD A,A
+            case 0xC6: Add(Fetch()); break;                            // ADD A,n
+            case 0xCE: Add(Fetch(), withCarry: true); break;          // ADC A,n
+            case 0x91: Sub(C); break;                                  // SUB C
+            case 0xA2: And(D); break;                                  // AND D
+            case 0xA3: And(E); break;                                  // AND E
+            case 0xA6: And(ReadMemory(HL)); break;                     // AND (HL)
+            case 0xE6: And(Fetch()); break;                            // AND n
+            case 0xB8: Compare(B); break;                              // CP B
             case 0xB5: A |= L; ZeroFlag = A == 0; CarryFlag = false; break;   // OR L
             case 0xB3: A |= E; ZeroFlag = A == 0; CarryFlag = false; break;   // OR E
             case 0xAF: A = 0; ZeroFlag = true; CarryFlag = false; break;      // XOR A
@@ -214,19 +268,57 @@ internal sealed class MiniZ80
             case 0xD5: Push(DE); break;                                // PUSH DE
             case 0xE5: Push(HL); break;                                // PUSH HL
             case 0xC1: BC = Pop(); break;                              // POP BC
+            case 0xF5:                                                 // PUSH AF
+                Push((ushort)((A << 8) | (ZeroFlag ? 0x40 : 0) | (CarryFlag ? 0x01 : 0)));
+                break;
+            case 0xF1:                                                 // POP AF
+            {
+                ushort af = Pop();
+                A = (byte)(af >> 8);
+                ZeroFlag = (af & 0x40) != 0;
+                CarryFlag = (af & 0x01) != 0;
+                break;
+            }
+            case 0xC0: if (!ZeroFlag) pc = Pop(); break;               // RET NZ
             case 0xD1: DE = Pop(); break;                              // POP DE
             case 0xE1: HL = Pop(); break;                              // POP HL
             case 0xC9: pc = Pop(); break;                              // RET
             case 0xC8: if (ZeroFlag) pc = Pop(); break;                // RET Z
             case 0xD0: if (!CarryFlag) pc = Pop(); break;              // RET NC
             case 0xD8: if (CarryFlag) pc = Pop(); break;               // RET C
-            case 0xC3: pc = Fetch16(); break;                          // JP nn
+            case 0xC3:                                                 // JP nn
+            {
+                ushort target = Fetch16();
+                if (target == 0xB90C)
+                {
+                    UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
+                    pc = Pop();
+                }
+                else
+                {
+                    pc = target;
+                }
+                break;
+            }
             case 0xCD:                                                 // CALL nn
             {
                 ushort address = Fetch16();
                 if (address == 0xBB5A)
                 {
                     Output.Append((char)A);                            // TXT OUTPUT : caractère affiché
+                }
+                else if (address == 0xBC11)
+                {
+                    A = ScreenMode;                                    // SCR GET MODE
+                }
+                else if (address == 0xB903)
+                {
+                    A = (byte)(UpperRomEnabled ? 1 : 0);               // KL U ROM DISABLE : A = état précédent
+                    UpperRomEnabled = false;
+                }
+                else if (address == 0xB90C)
+                {
+                    UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE
                 }
                 else if (address == 0xBD0D)
                 {
@@ -273,6 +365,9 @@ internal sealed class MiniZ80
         switch (op)
         {
             case 0x11: C = Rl(C); break;                               // RL C
+            case 0x1B: E = Rl_Right(E); break;                         // RR E
+            case 0x3A: CarryFlag = (D & 0x01) != 0; D = (byte)(D >> 1); ZeroFlag = D == 0; break;   // SRL D
+            case 0x3F: CarryFlag = (A & 0x01) != 0; A = (byte)(A >> 1); ZeroFlag = A == 0; break;   // SRL A
             case 0x12: D = Rl(D); break;                               // RL D
             case 0x23:                                                 // SLA E
                 CarryFlag = (E & 0x80) != 0;
@@ -296,6 +391,12 @@ internal sealed class MiniZ80
         byte op = Fetch();
         switch (op)
         {
+            case 0x5B:                                                 // LD DE,(nn)
+            {
+                int at = Fetch16();
+                DE = (ushort)(Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8));
+                break;
+            }
             case 0x52:                                                 // SBC HL,DE
             {
                 int result = HL - DE - (CarryFlag ? 1 : 0);

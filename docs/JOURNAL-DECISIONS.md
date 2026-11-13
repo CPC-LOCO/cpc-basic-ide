@@ -264,6 +264,57 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Décision pour les futures commandes (CIRCLE, PAINT, 3D...) :** coordonnées propres, origine en **haut à gauche**, **200 lignes** dans les 3 modes ; largeur 0 à 639 (MODE 2), 0 à 319 (MODE 1), MODE 0 à confirmer (l'écran fait 160 points : 0 à 159). Ces commandes devront connaître le MODE en cours à l'exécution : `MODE` devra le mémoriser.
 - **Pas encore fait :** `ORIGIN` à quatre valeurs de fenêtre, `GRAPHICS PEN`, `TEST`, `TESTR`, `XPOS`, `YPOS`, `FILL`, `MASK`.
 
+## D048 : Tracé direct dans la mémoire écran et commande BOX (Décidé, 12 nov. 2026)
+- **Question de l'utilisateur :** les coordonnées propres (origine en haut à gauche, 200 lignes, largeur selon le MODE) rendraient-elles CIRCLE, PAINT, BOX, etc. plus rapides ?
+- **Réponse et choix :** oui, mais seulement si ces commandes écrivent **directement dans la mémoire écran** : le firmware travaille en 640 x 400 et reconvertit chaque point en pixel réel à chaque appel ; avec des coordonnées natives, l'adresse de l'octet se calcule sans conversion. Les nouvelles commandes (hors Locomotive) utilisent donc : origine en **haut à gauche**, y de **0 à 199**, x de **0 à 159** (MODE 0, confirmé par l'utilisateur le 12 nov.), **0 à 319** (MODE 1), **0 à 639** (MODE 2). Les commandes du Locomotive (D047) gardent leur repère (origine en bas à gauche, 640 x 400). Ce qui sort de l'écran est ignoré, rien n'est écrit hors de l'écran.
+- **Remplace une décision de D047 :** il n'est **pas nécessaire que `MODE` mémorise le mode** : la routine le demande au firmware à chaque commande (`SCR GET MODE`, &BC11 : A = 0, 1 ou 2). `MODE` n'a pas changé.
+- **BOX :** `BOX x1, y1, x2, y2 [, stylo]` trace le **contour** d'un rectangle. Stylo de 0 à 15 (1 s'il est omis). Les coins peuvent être donnés dans n'importe quel ordre (ils sont rangés avec `Min16` et `Max16`) et peuvent sortir de l'écran. Nouveau mot réservé : **BOX** (déjà coloré dans l'éditeur comme nouvelle commande). C'est un `ScreenStatement` de commande « BOX ». Les valeurs peuvent être des nombres, des variables ou des calculs.
+- **Réalisation :** deux nouveaux modules Z80, liés seulement si le programme utilise BOX (avec `Min16` et `Max16`) :
+  - `Pixel` : `rt_px_setup` (A = stylo ; lit le MODE et prépare des tables), `rt_pixel` (un point), `rt_px_hline` (ligne horizontale **par octets entiers**, avec octets partiels aux deux bouts), `rt_px_vline` (ligne verticale qui descend d'une ligne écran à la fois : +&0800, puis +&C050 au passage à la ligne de caractères). Tables de 16 stylos par MODE, masques « du point p à la fin de l'octet » et « du début au point p ». Le point de chaque octet suit l'entrelacement des bits du CPC (MODE 0 : bits 7,5,3,1 et 6,4,2,0 ; MODE 1 : 7-4 et 3-0 ; MODE 2 : un bit par point).
+  - `Box` : `rt_box` coupe la ROM haute, appelle `rt_box_draw`, puis la remet (états conservés avec `PUSH AF` / `POP AF`).
+- **ROM haute (important) :** un programme lancé depuis le BASIC a la ROM du BASIC visible de &C000 à &FFFF **en lecture** (l'écriture va dans la RAM). Les routines relisent l'octet de l'écran pour les points partiels : sans précaution, elles fusionneraient des octets de ROM dans l'image. `BOX` appelle donc `KL U ROM DISABLE` (&B903, rend l'état précédent dans A) avant le tracé et `KL ROM RESTORE` (&B90C, A = état précédent) après. **Toute future commande à écriture directe devra faire pareil.**
+- **Limites connues :** l'écran est supposé à &C000 sans défilement matériel : après un `PRINT` qui fait défiler l'écran vers le haut, les coordonnées seraient décalées ; le contour n'est pas rempli (BOX rempli viendra) ; les coins du contour sont écrits deux fois (sans effet en écriture normale, à revoir quand le mode XOR existera pour ces commandes) ; le mode d'écriture (XOR, AND, OR) n'existe pas encore pour les commandes à écriture directe ; le stylo est pris modulo 16 (valeur calculée).
+- **Vérification (sans compilateur .NET sur place) :** les deux modules ont été écrits une seule fois dans une description à part, dont ont été tirés le code C# et les octets, puis exécutés dans un simulateur Z80 écrit séparément (décodage par règles du processeur) et comparés à une description indépendante de la mémoire écran du CPC : 2010 points (dont tous les bords et les points hors écran), 138 rectangles (coins inversés, hors écran), 2400 lignes horizontales et verticales, dans les 3 MODES, tous identiques ; aucune écriture hors de l'écran. Contre-épreuve : sans la coupure de la ROM haute, les rectangles de test sont faux. **Vitesse** (en instructions Z80, rectangle plein écran en MODE 2) : 144 240 avec un point à la fois, **5 716** avec les lignes par octets, soit environ 25 fois moins. Le C# a ensuite été compilé par l'utilisateur sans aucune erreur.
+- **Autres changements :** `Z80Emitter` : 26 instructions ajoutées (AND, ADD A, ADC A, CPL, SRL, RR E, CP B, SUB C, JR C, PUSH/POP AF, RET NZ, LD DE,(nn), etc.). `MiniZ80` : mêmes instructions, plus `ScreenMode` (réponse de &BC11), `UpperRomEnabled` (masque de la ROM haute en lecture, coupée par &B903, remise par &B90C), et la pile placée à &BF00 (elle était à &F000, c'est-à-dire dans l'écran).
+- **Tests :** nouveau fichier `tests\CpcBasic.Tests\BoxTests.cs`, 28 cas (module `Pixel` et `Box` sur le mini-Z80 ; analyse, messages d'erreur et octets de BOX). Total attendu : 351.
+- **Essayé à la main par l'utilisateur :** 351 tests réussis ; `examples\boite.bas` conforme dans WinAPE : MODE 0 et MODE 1, trois cadres (jaune, cyan, rouge) dont le jaune touche les quatre bords ; MODE 1, deux lignes rouges pleine largeur (coins à l'envers et hors écran) ; MODE 2, trois cadres jaunes et le texte centré. La ROM haute et les trois adresses du firmware (&BC11, &B903, &B90C) sont donc confirmées.
+- **Pas encore fait :** BOX rempli, CIRCLE, ELLIPSE, PAINT, STAR, POLYGON (ils s'appuieront sur `Pixel`) ; mode XOR pour ces commandes ; tenir compte du défilement matériel (SCR DOT POSITION) ; ligne verticale dans l'éditeur à la largeur du MODE (idée adoptée dans D045).
+
+## D049 : PAUSE et CLIC, réservés pour plus tard (Annulé, 12 nov. 2026)
+- **Ce qui s'est passé :** j'avais créé de ma propre initiative une commande `PAUSE` (attendre une touche). L'utilisateur ne l'avait pas demandée, et elle ne fonctionnait pas. Elle est **retirée** (analyseur, générateur, coloration, tests) ; `examples\boite.bas` retrouve ses boucles de temps. Total de tests attendu : retour à 351.
+- **Règle :** ne pas ajouter de commande ni de mot réservé sans que l'utilisateur l'ait demandé.
+- **`PAUSE` est réservé à la gestion du temps :** `PAUSE [heure,][minute,] seconde`. À faire plus tard, avec la gestion de l'heure.
+- **Idée notée, pas à faire maintenant :** `CLIC code_ascii` (code à partir de 31) : attend l'appui sur la touche de code ASCII donné. À reprendre quand l'utilisateur le décidera.
+- **Pour les captures d'écran en attendant :** le bouton pause (II) de WinAPE.
+
+---
+
+## D050 : rappel « fermez l'émulateur » (Décidé, 12 nov. 2026)
+- **Problème :** si l'émulateur a déjà le `.dsk` ouvert, Windows refuse l'écriture et le programme lancé est l'ancien (cause de l'échec apparent de `PAUSE`). Le message d'erreur était en anglais, coupé et sans conseil.
+- **Choix (idée de l'utilisateur) :** pas de détection d'émulateur (il y en a trop). L'éditeur écrit un message en français sur plusieurs lignes, et rappelle après chaque compilation réussie de fermer l'émulateur avant de recompiler. Même phrase dans `packaging\LISEZMOI.txt`.
+- **Fichiers :** `src\CpcIde\MainWindow.axaml.cs`, `packaging\LISEZMOI.txt`. Aucun test (interface).
+- **Validé par l'utilisateur (13 nov.) :** le message d'erreur en français s'affiche avec WinAPE ouvert, et la 4e ligne de rappel s'affiche après une compilation réussie.
+
+---
+
+## D051 : BOX, contour et remplissage (Décidé, 12 nov. 2026)
+- **Choix (demande de l'utilisateur) :** `BOX x1, y1, x2, y2 [, stylo [, remplissage]]`.
+  - 4 valeurs : contour seul, avec le **stylo courant du tracé** (celui de PLOT et DRAW), lu par `GRA GET PEN` (&BBE1, A = stylo).
+  - 5 valeurs : contour seul avec le stylo donné.
+  - 6 valeurs : contour avec le 5e nombre, intérieur rempli avec le 6e (de 0 à 15). Aucun nouveau mot réservé.
+- **Pourquoi :** ce sont des commandes nouvelles, elles doivent être très rapides et efficaces.
+- **Réalisation :** le programme range les coins, le stylo du contour (`rt_box_pen`), le stylo de l'intérieur (`rt_box_fillpen`) et l'indicateur `rt_box_dofill`. L'intérieur est rempli d'abord (strictement entre les côtés, découpé à l'écran, une ligne horizontale par ligne par octets entiers), puis le contour par-dessus : **aucun point n'est écrit deux fois**. Les coins sont ramenés dans [-1, max + 1] avant tout calcul, donc aucun dépassement même vers ±32767. Même coupure de la ROM haute que le contour seul.
+- **Validé par l'utilisateur :** 357 tests réussis ; `examples\plein.bas` conforme dans WinAPE (3 MODES), y compris BOX à 4 valeurs : le contour prend bien le stylo réglé par `MOVE 0, 0, 2` (cyan). L'adresse &BBE1 (GRA GET PEN, documentation cpcwiki) est donc confirmée.
+- **Vérifié par simulation (hors .NET) :** 480 rectangles (contour seul et avec remplissage, MODE 0, 1, 2, coins inversés, hors écran, très fins, aux limites ±32768) : aucun écart avec la référence. Plein écran MODE 2 : environ 83 000 instructions Z80 (contour seul : 5 700).
+- **Tests :** `tests\CpcBasic.Tests\BoxTests.cs`. Total attendu : 357 (351 + 6).
+- **Exemple :** `examples\plein.bas`.
+- **Limites :** même hypothèse d'écran à &C000 ; pas de mode XOR.
+
+## D052 : règle pour toutes les futures formes (Décidé, 12 nov. 2026)
+- Les nouvelles commandes de dessin (CIRCLE, ELLIPSE, STAR, POLYGON, et celles qui suivront) suivent le modèle de BOX : sans stylo, contour au stylo courant ; avec un stylo, contour dans ce stylo ; avec un second stylo, contour et remplissage.
+- Elles doivent être très rapides (écriture directe, octets entiers quand c'est possible, aucun point écrit deux fois) et exactes (découpe à l'écran, aucun dépassement).
+- Chaque forme est vérifiée contre une référence écrite à part, dans les trois MODES.
+
 ---
 
 ## Notes de fin de session (modèle)

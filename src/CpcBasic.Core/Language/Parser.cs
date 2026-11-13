@@ -22,7 +22,7 @@ public static class Parser
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
-        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN"];
+        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX"];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
 
@@ -53,7 +53,9 @@ public static class Parser
         ["INK"] = new("INK stylo, couleur [, couleur2]", 2, [0, 0, 0], [15, 26, 26]),
         ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26]),
         ["CLG"] = new("CLG [stylo]", 0, [0], [15]),
-        ["ORIGIN"] = new("ORIGIN x, y", 2, [-32768, -32768], [32767, 32767])
+        ["ORIGIN"] = new("ORIGIN x, y", 2, [-32768, -32768], [32767, 32767]),
+        // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
+        ["BOX"] = new("BOX x1, y1, x2, y2 [, stylo [, remplissage]]", 4, [-32768, -32768, -32768, -32768, 0, 0], [32767, 32767, 32767, 32767, 15, 15])
     };
 
     // Tracé (D047) : écriture à montrer dans les messages. Le stylo va de 0 à 15, le mode de 0 à 3.
@@ -212,7 +214,7 @@ public static class Parser
             case "CONTINUE":
                 return ParseLoopControl(tokens, pos, statements, isExit: false);
 
-            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN":
+            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
