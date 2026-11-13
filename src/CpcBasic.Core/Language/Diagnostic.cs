@@ -47,7 +47,8 @@ public enum DiagnosticCode
     ExpectedLineNumber,
     LineNotFound,
     DuplicateLineNumber,
-    ExpectedGoto
+    ExpectedGoto,
+    ProgramTooLarge
 }
 
 /// <summary>
@@ -150,6 +151,8 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"le numéro de ligne {Argument} est déjà utilisé plus haut dans le programme.",
         DiagnosticCode.ExpectedGoto =>
             $"ON attend GOTO ou GOSUB après la valeur.{Why}",
+        DiagnosticCode.ProgramTooLarge =>
+            $"MEMORY : le programme compilé occupe de &4000 à &{Argument.Split('|')[0]}, ce qui dépasse la limite &{Argument.Split('|')[1]} demandée. Mettez une limite plus haute, ou raccourcissez le programme.",
         _ => $"problème inconnu ({Code})."
     };
 

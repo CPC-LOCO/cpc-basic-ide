@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 attendus avec le lot B).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 attendus avec le lot C (parties 1 et MEMORY)).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -17,7 +17,7 @@ Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État rel
 
 ## Résumé
 
-Sur **157 entrées** du Locomotive BASIC : **24** faites, **17** partielles, **2** écarts voulus, **107** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
+Sur **157 entrées** du Locomotive BASIC : **28** faites, **19** partielles, **2** écarts voulus, **101** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
 
 Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER ») : ces nombres comptent des lignes du tableau, pas des mots du dictionnaire.
 
@@ -47,7 +47,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `RETURN` | retour d'un sous-programme | Partielle | Un RETURN sans GOSUB n'est pas détecté (le CPC afficherait « Unexpected RETURN »). |
 | `ON x GOTO` | saut selon une valeur | Partielle | Valeur hors de 1 à N : le programme continue (pas d'erreur pour une valeur négative). |
 | `ON x GOSUB` | appel selon une valeur | Partielle | Comme ON x GOTO. |
-| `CALL` | appelle un programme en langage machine | À faire |  |
+| `CALL` | appelle un programme en langage machine | Partielle | Adresse seule, sans paramètres. |
 | `CHAIN` | charge et lance un autre programme | À faire |  |
 | `CHAIN MERGE` | charge un autre programme en gardant les variables | À faire |  |
 | `RUN` | lance un programme (aussi RUN "fichier") | À faire | À décider : RUN dans un programme compilé. |
@@ -80,13 +80,13 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `RESTORE` | relit les données depuis une ligne | À faire |  |
 | `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
 | `SWAP` | échange deux variables | À faire |  |
-| `MEMORY` | limite la mémoire du BASIC | À faire |  |
+| `MEMORY` | limite la mémoire du BASIC | Partielle | Protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous (si l'adresse est un nombre écrit). D057. |
 | `HIMEM` | haut de la mémoire du BASIC | À faire |  |
 | `FRE` | mémoire libre | À faire |  |
-| `PEEK` | lit un octet en mémoire | À faire |  |
-| `POKE` | écrit un octet en mémoire | À faire |  |
-| `INP` | lit un port | À faire |  |
-| `OUT` | écrit sur un port | À faire |  |
+| `PEEK` | lit un octet en mémoire | Faite | Adresse de 0 à 65535. |
+| `POKE` | écrit un octet en mémoire | Faite | Valeur de 0 à 255 ; adresse de 0 à 65535. |
+| `INP` | lit un port | Faite | Port de 0 à 65535. |
+| `OUT` | écrit sur un port | Faite | Valeur de 0 à 255. |
 | `WAIT` | attend un état sur un port | À faire |  |
 | `UNT` | convertit une adresse en entier signé | À faire |  |
 | `| (commandes RSX)` | appelle une extension | À faire |  |

@@ -172,6 +172,9 @@ public sealed class Z80Emitter
     public void JpCLabel(string label) { code.Add(0xDA); AddAbsolute(label); }     // JP C,étiquette
     public void JpZLabel(string label) { code.Add(0xCA); AddAbsolute(label); }     // JP Z,étiquette
     public void JpNzLabel(string label) { code.Add(0xC2); AddAbsolute(label); }    // JP NZ,étiquette
+    public void JpHl() => code.Add(0xE9);                                          // JP (HL)
+    public void InAC() { code.Add(0xED); code.Add(0x78); }                         // IN A,(C)
+    public void OutCA() { code.Add(0xED); code.Add(0x79); }                        // OUT (C),A
     public void JpPeLabel(string label) { code.Add(0xEA); AddAbsolute(label); }    // JP PE,étiquette
 
     /// <summary>JR étiquette : saut relatif, de -128 à +127 octets.</summary>

@@ -8,7 +8,11 @@ using CpcBasic.Core.Language;
 namespace CpcBasic.Core.Codegen;
 
 /// <summary>Le binaire produit et la liste des modules de la bibliothèque qui y ont été liés.</summary>
-public sealed record GeneratedProgram(byte[] Code, IReadOnlyList<string> Modules);
+/// <summary>
+/// Le programme compilé. MemoryLimit : la plus basse adresse écrite après MEMORY (un nombre écrit dans le programme), ou -1
+/// s'il n'y en a pas ; MemoryLine : la ligne de ce MEMORY. Le compilateur vérifie que le programme tient en dessous (D057).
+/// </summary>
+public sealed record GeneratedProgram(byte[] Code, IReadOnlyList<string> Modules, int MemoryLimit = -1, int MemoryLine = 0);
 
 /// <summary>
 /// Transforme un programme analysé en code Z80. Organisation du binaire :
@@ -60,6 +64,8 @@ public static class CodeGenerator
         var ifs = new Stack<IfInfo>();         // IF ouverts, le plus récent en premier
         int ifCount = 0;
         int labelCount = 0;
+        int memoryLimit = -1;
+        int memoryLine = 0;
 
         // Affiche un texte (rien si le texte est vide)
         void EmitText(string text)
@@ -268,6 +274,44 @@ public static class CodeGenerator
                             emitter.LdHZero();
                             break;
                         }
+
+                        case "PEEK":                        // PEEK(adresse) : l'octet à cette adresse, de 0 à 255
+                        {
+                            // À partir de &C000, le Z80 lirait la ROM haute du BASIC au lieu de la mémoire (écran) : on la coupe un instant
+                            string low = $"peek_{labelCount++}";
+                            string end = $"peek_{labelCount++}";
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdAH();
+                            emitter.CpImm(0xC0);
+                            emitter.JrCLabel(low);
+                            emitter.PushHl();
+                            emitter.CallAddress(0xB903);    // KL U ROM DISABLE : A = état précédent
+                            emitter.PopHl();
+                            emitter.PushAf();
+                            emitter.LdAHl();
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            emitter.PopAf();
+                            emitter.PushHl();               // la valeur lue attend pendant que la ROM est remise
+                            emitter.CallAddress(0xB90C);    // KL ROM RESTORE
+                            emitter.PopHl();
+                            emitter.JrLabel(end);
+                            emitter.Label(low);
+                            emitter.LdAHl();
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            emitter.Label(end);
+                            break;
+                        }
+
+                        case "INP":                         // INP(port) : l'octet lu sur ce port, de 0 à 255
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdBH();
+                            emitter.LdCL();
+                            emitter.InAC();
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            break;
 
                         case "TIME":                        // temps écoulé : 16 bits de poids faible
                             emitter.CallAddress(RuntimeLibrary.KlTimePlease);   // le firmware rend DEHL ; HL est le bas
@@ -480,6 +524,43 @@ public static class CodeGenerator
                 case "CLS":
                     emitter.CallAddress(TxtClearWindow);
                     break;
+
+                case "MEMORY":                      // MEMORY adresse : réserve le haut de la mémoire ; rien à faire à l'exécution,
+                {                                   // le compilateur vérifie que le programme tient en dessous
+                    if (a[0] is NumberExpression limit && (memoryLimit < 0 || (limit.Value & 0xFFFF) < memoryLimit))
+                    {
+                        memoryLimit = limit.Value & 0xFFFF;
+                        memoryLine = screen.SourceLine;
+                    }
+                    break;
+                }
+
+                case "POKE":                        // POKE adresse, valeur : seul l'octet de poids faible de la valeur est écrit
+                    EmitPair(a[0], a[1]);
+                    emitter.LdAE();
+                    emitter.LdHlA();
+                    break;
+
+                case "OUT":                         // OUT port, valeur : le port est dans BC
+                    EmitPair(a[0], a[1]);
+                    emitter.LdBH();
+                    emitter.LdCL();
+                    emitter.LdAE();
+                    emitter.OutCA();
+                    break;
+
+                case "CALL":                        // CALL adresse : le sous-programme rend la main avec RET
+                {
+                    string target = $"call_{labelCount++}";
+                    string after = $"call_{labelCount++}";
+                    EmitExpression(a[0]);
+                    emitter.CallLabel(target);
+                    emitter.JpLabel(after);
+                    emitter.Label(target);
+                    emitter.JpHl();
+                    emitter.Label(after);
+                    break;
+                }
 
                 case "MODE":
                     EmitCallWithA(a[0], ScrSetMode);
@@ -921,7 +1002,7 @@ public static class CodeGenerator
             emitter.Reserve(slot.Type == VarType.Byte ? 1 : 2);
         }
 
-        return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList());
+        return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine);
     }
 
     // Routines du firmware appelées par les commandes d'écran (décision D046)

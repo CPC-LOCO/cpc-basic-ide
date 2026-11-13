@@ -23,9 +23,9 @@ public static class Parser
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
-        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT"];
+        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY"];
 
-    sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
+    sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments, bool FirstIsAddress = false);
 
     // Fonctions disponibles : nom, écriture à montrer dans les messages, nombre de valeurs
     static readonly Dictionary<string, FunctionInfo> Functions = new()
@@ -39,11 +39,14 @@ public static class Parser
         ["CLAMP"] = new("CLAMP(valeur, min, max)", 3, 3),
         ["RANDOM"] = new("RANDOM(min, max)", 2, 2),
         ["INKEY"] = new("INKEY(numéro de touche)", 1, 1),
-        ["JOY"] = new("JOY(0 ou 1)", 1, 1)
+        ["JOY"] = new("JOY(0 ou 1)", 1, 1),
+        // D056 : accès à la machine ; l'adresse ou le port peut s'écrire de 0 à 65535 (comme sur le CPC) ou de -32768 à 32767
+        ["PEEK"] = new("PEEK(adresse)", 1, 1, true),
+        ["INP"] = new("INP(port)", 1, 1, true)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
-    sealed record ScreenCommandInfo(string Signature, int MinArguments, int[] Min, int[] Max);
+    sealed record ScreenCommandInfo(string Signature, int MinArguments, int[] Min, int[] Max, bool FirstIsAddress = false);
 
     // Commandes d'écran (D046) : les valeurs écrites en nombres sont vérifiées à la compilation
     static readonly Dictionary<string, ScreenCommandInfo> ScreenCommands = new()
@@ -57,6 +60,11 @@ public static class Parser
         ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26]),
         ["CLG"] = new("CLG [stylo]", 0, [0], [15]),
         ["ORIGIN"] = new("ORIGIN x, y", 2, [-32768, -32768], [32767, 32767]),
+        // D056 : accès à la machine
+        ["POKE"] = new("POKE adresse, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
+        ["OUT"] = new("OUT port, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
+        ["CALL"] = new("CALL adresse", 1, [-32768], [32767], true),
+        ["MEMORY"] = new("MEMORY adresse", 1, [-32768], [32767], true),
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
         ["BOX"] = new("BOX x1, y1, x2, y2 [, stylo [, remplissage]]", 4, [-32768, -32768, -32768, -32768, 0, 0], [32767, 32767, 32767, 32767, 15, 15])
     };
@@ -234,7 +242,7 @@ public static class Parser
             case "CONTINUE":
                 return ParseLoopControl(tokens, pos, statements, isExit: false);
 
-            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX":
+            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -445,7 +453,9 @@ public static class Parser
         {
             while (true)
             {
-                Expression? argument = ParseExpression(tokens, ref pos, diagnostics);
+                Expression? argument = info.FirstIsAddress && arguments.Count == 0
+                    ? ParseAddressArgument(tokens, ref pos, diagnostics)
+                    : ParseExpression(tokens, ref pos, diagnostics);
                 if (argument is null)
                     return SkipToStatementEnd(tokens, pos);
                 arguments.Add(argument);
@@ -1464,7 +1474,9 @@ public static class Parser
         {
             while (true)
             {
-                Expression? argument = ParseExpression(tokens, ref pos, diagnostics);
+                Expression? argument = function.FirstIsAddress && arguments.Count == 0
+                    ? ParseAddressArgument(tokens, ref pos, diagnostics)
+                    : ParseExpression(tokens, ref pos, diagnostics);
                 if (argument is null)
                     return null;
                 arguments.Add(argument);
@@ -1498,6 +1510,22 @@ public static class Parser
         }
 
         return new CallExpression(nameToken.Text, arguments);
+    }
+
+    // Adresse ou port : un nombre seul de 32768 à 65535 est accepté et vaut le même mot de 16 bits que sur le CPC
+    // (49152 = -16384). Dans un calcul (49152 + 1), un nombre au-dessus de 32767 reste refusé.
+    static Expression? ParseAddressArgument(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Token t = tokens[pos];
+        TokenKind next = tokens[pos + 1].Kind;
+        bool alone = next is TokenKind.Comma or TokenKind.RightParen || IsStatementEnd(tokens[pos + 1]) || IsElse(tokens[pos + 1]);
+
+        if (t.Kind == TokenKind.Number && alone && long.TryParse(t.Text, out long value) && value is >= 32768 and <= 65535)
+        {
+            pos++;
+            return new NumberExpression((int)(value - 65536));
+        }
+        return ParseExpression(tokens, ref pos, diagnostics);
     }
 
     static Expression? ParseNumber(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics, bool negative)

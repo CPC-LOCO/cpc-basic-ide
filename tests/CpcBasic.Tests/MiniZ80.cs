@@ -29,6 +29,10 @@ internal sealed class MiniZ80
     /// <summary>Touches appuyées : numéro de touche -> état de Shift (bit 5) et Ctrl (bit 7) rendu dans C.</summary>
     public readonly Dictionary<byte, byte> Keys = new();
     public byte Joystick0, Joystick1;
+
+    /// <summary>Valeurs lues par IN A,(C) (port -> valeur), et écritures faites par OUT (C),A (port, valeur).</summary>
+    public readonly Dictionary<ushort, byte> Ports = new();
+    public readonly List<(ushort Port, byte Value)> PortWrites = new();
     public readonly Queue<byte> KeyQueue = new();
 
     /// <summary>
@@ -382,6 +386,7 @@ internal sealed class MiniZ80
                 StepCb(opcodeAddress);
                 break;
 
+            case 0xE9: pc = HL; break;                                 // JP (HL)
             case 0xED:
                 StepEd(opcodeAddress);
                 break;
@@ -423,6 +428,8 @@ internal sealed class MiniZ80
         byte op = Fetch();
         switch (op)
         {
+            case 0x78: A = Ports.TryGetValue(BC, out byte read) ? read : (byte)0xFF; break;   // IN A,(C)
+            case 0x79: PortWrites.Add((BC, A)); break;                                       // OUT (C),A
             case 0x5B:                                                 // LD DE,(nn)
             {
                 int at = Fetch16();

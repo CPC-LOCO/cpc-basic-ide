@@ -36,6 +36,15 @@ public static class Compiler
 
         GeneratedProgram generated = CodeGenerator.Generate(analysis.Program, LoadAddress);
 
+        // MEMORY adresse : le programme (code, textes et variables) doit finir au plus tard à cette adresse
+        int lastAddress = LoadAddress + generated.Code.Length - 1;
+        if (generated.MemoryLimit >= 0 && lastAddress > generated.MemoryLimit)
+        {
+            var tooLarge = new Diagnostic(DiagnosticCode.ProgramTooLarge, generated.MemoryLine,
+                                          $"{lastAddress:X4}|{generated.MemoryLimit:X4}");
+            return new CompileResult([tooLarge], null, generated.Code.Length, generated.Modules);
+        }
+
         string name = programName.Trim().ToUpperInvariant();
         byte[] loader = BasicLoader.Build($"{name}.BIN", LoadAddress - 1, LoadAddress);
 
