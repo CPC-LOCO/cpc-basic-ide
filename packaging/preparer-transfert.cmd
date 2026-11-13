@@ -12,6 +12,8 @@ for %%F in (
     "docs\REPRISE.md"
     "docs\ARCHITECTURE.md"
     "docs\JOURNAL-DECISIONS.md"
+    "docs\COMPATIBILITE-LOCOMOTIVE.md"
+    "docs\PROGRAMME-DE-REFERENCE-RSX.md"
     "docs\IDEES.md"
     "src\CpcBasic.Core\Language\Lexer.cs"
     "src\CpcBasic.Core\Language\Parser.cs"
@@ -25,6 +27,8 @@ for %%F in (
     "src\CpcIde\MainWindow.axaml"
     "src\CpcIde\MainWindow.axaml.cs"
     "src\CpcIde\BasicColorizer.cs"
+    "src\CpcIde\EditorSettings.cs"
+    "src\CpcIde\SaveChangesDialog.cs"
     "tests\CpcBasic.Tests\MiniZ80.cs"
 ) do (
     copy "%RACINE%\%%~F" "%DEST%\" >nul

@@ -340,7 +340,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Limites :** `JOY` avec une valeur autre que 0 ou 1 lit la manette 1 (le Locomotive donnerait « Improper argument »). Mots maintenant réservés : INKEY, JOY, CLEAR.
 - **Fichiers :** Ast.cs, Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (adresses), `tests\CpcBasic.Tests\MiniZ80.cs` (touches, manettes, LD H,n), `tests\CpcBasic.Tests\KeyboardTests.cs` (18 tests), `examples\clavier.bas`, et pour INPUT : `tests\CpcBasic.Tests\InputTests.cs` (36 tests), `examples\saisie.bas`.
 
-## D056 : lot C, première partie : accès à la machine (À valider, 13 nov. 2026)
+## D056 : lot C, première partie : accès à la machine (Décidé, validé le 13 nov. 2026)
 - **Fait :** `POKE adresse, valeur`, `PEEK(adresse)`, `CALL adresse`, `OUT port, valeur`, `INP(port)`. Mots réservés ajoutés : POKE, PEEK, CALL, OUT, INP.
 - **Adresses et ports :** de 0 à 65535 comme sur le CPC (un nombre seul de 32768 à 65535 vaut le même mot de 16 bits : 49152 = -16384), ou de -32768 à 32767. Dans un calcul, un nombre au-dessus de 32767 reste refusé (nos entiers vont de -32768 à 32767) : écrire `-16384 + I` et non `49152 + I`. Cela change avec les nombres hexadécimaux et les réels (lots D et F).
 - **Valeur de POKE et OUT :** de 0 à 255, contrôlée à la compilation si c'est un nombre écrit ; si elle est calculée, seul l'octet de poids faible est écrit (le Locomotive donnerait « Improper argument »).
@@ -349,10 +349,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Pas encore fait dans le lot C :** `DIM` (tableaux), `DATA` / `READ` / `RESTORE` (`MEMORY` : voir D057).
 - **Fichiers :** Z80Emitter.cs (JP (HL), IN, OUT), Parser.cs, CodeGenerator.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (JP (HL), ports), `tests\CpcBasic.Tests\MachineTests.cs` (21 tests), `examples\machine.bas`.
 
-## D057 : MEMORY, et programme de référence RSX (À valider, 13 nov. 2026)
+## D057 : MEMORY, et programme de référence RSX (Décidé, validé le 13 nov. 2026)
 - **Demande de l'utilisateur :** MEMORY doit être acceptée et exécutée, car un programme BASIC peut contenir du binaire (exemple : programme en deux lignes qui crée des commandes RSX avec `MEMORY p-1` puis POKE et CALL). Objectif : « compatibilité maximale ». Le programme est gardé dans `docs\PROGRAMME-DE-REFERENCE-RSX.md` avec la liste de ce qui lui manque.
 - **Choix :** un programme compilé n'a pas de mémoire BASIC à régler (le BASIC ne tourne plus après le chargement). L'effet utile de MEMORY est donc de **protéger le haut de la mémoire** : `MEMORY adresse` est accepté (adresse de 0 à 65535, comme POKE) et le compilateur **vérifie** que le programme compilé (code, textes, variables, qui commence en &4000) finit au plus tard à cette adresse ; sinon : « MEMORY : le programme compilé occupe de &4000 à &xxxx, ce qui dépasse la limite &yyyy demandée ». La vérification n'est possible que si l'adresse est un nombre écrit ; avec un calcul (`MEMORY p-1`), la commande est acceptée sans contrôle. Avec plusieurs MEMORY, la limite la plus basse compte. Aucun octet n'est ajouté au programme.
 - **À décider plus tard (question à l'utilisateur) :** la fonction `HIMEM` (valeur de départ ? la relire après MEMORY ?) ; les commandes RSX `|NOM,params` et le paramètre `@variable` : ce sont des mots du Locomotive (mécanisme d'extension), pas des inventions, mais leur fonctionnement dans un programme compilé demande un choix.
+- **Validé par l'utilisateur le 13 nov. 2026** (D056 et D057 : tests réussis, `examples\machine.bas` conforme, commit « Lot C : POKE, PEEK, CALL, OUT, INP, MEMORY »).
 - **Fichiers :** Diagnostic.cs (ProgramTooLarge), Parser.cs, CodeGenerator.cs (GeneratedProgram.MemoryLimit), Compiler.cs, `tests\CpcBasic.Tests\MemoryTests.cs` (10 tests), `docs\PROGRAMME-DE-REFERENCE-RSX.md`.
 
 ---
