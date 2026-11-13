@@ -92,6 +92,46 @@ public static class CodeGenerator
             return slot;
         }
 
+        // Tableaux (D058) : un descripteur par tableau, dans l'ordre de première apparition dans le programme.
+        // Le parser a vérifié qu'un tableau garde toujours le même nombre de dimensions.
+        var arrays = new Dictionary<string, (string Label, int Dimensions)>();
+        foreach (Statement s in program.Statements)
+        {
+            IEnumerable<(string Name, int Count)> found = AstWalker.All(s)
+                .OfType<ArrayElementExpression>().Select(x => (x.Name, x.Indexes.Count));
+            if (s is DimStatement dim)
+                found = dim.Arrays.Select(x => (x.Name, x.Sizes.Count)).Concat(found);
+            if (s is ArrayAssignStatement assign)
+                found = found.Append((assign.Name, assign.Indexes.Count));
+            foreach ((string name, int count) in found)
+                arrays.TryAdd(name, ($"arr_{arrays.Count}", count));
+        }
+
+        string SizeLabel(string array, int dimension) => $"{array}_s{dimension}";
+
+        // HL = adresse de la case A(i [, j ...])
+        void EmitElementAddress(string name, IReadOnlyList<Expression> indexes)
+        {
+            (string label, int dimensions) = arrays[name];
+            if (dimensions == 1)
+            {
+                EmitExpression(indexes[0]);
+                emitter.LdDeLabel(label);
+                emitter.CallLabel(RuntimeLibrary.ArrayElem1Label);
+            }
+            else
+            {
+                foreach (Expression index in indexes)
+                {
+                    EmitExpression(index);
+                    emitter.PushHl();
+                }
+                emitter.LdDeLabel(label);
+                emitter.LdBImm(dimensions);
+                emitter.CallLabel(RuntimeLibrary.ArrayElemLabel);
+            }
+        }
+
         // Variable -> HL (un octet est étendu à 16 bits)
         void EmitLoad(VariableSlot slot)
         {
@@ -334,6 +374,14 @@ public static class CodeGenerator
                     }
                     break;
 
+                case ArrayElementExpression element:
+                    EmitElementAddress(element.Name, element.Indexes);
+                    emitter.LdAHl();                                // HL = contenu de la case
+                    emitter.IncHl();
+                    emitter.LoadHFromHl();
+                    emitter.LdLA();
+                    break;
+
                 default:
                     throw new NotSupportedException($"Expression non gérée : {expression.GetType().Name}");
             }
@@ -532,6 +580,11 @@ public static class CodeGenerator
                         memoryLimit = limit.Value & 0xFFFF;
                         memoryLine = screen.SourceLine;
                     }
+                    if (arrays.Count > 0)
+                    {
+                        EmitExpression(a[0]);                       // les tableaux doivent rester sous cette adresse (D058)
+                        emitter.CallLabel(RuntimeLibrary.ArrayMemoryLabel);
+                    }
                     break;
                 }
 
@@ -695,10 +748,30 @@ public static class CodeGenerator
                     emitter.Label(LineLabel(number));
         }
 
+        // Tableaux : la mémoire libre commence juste après le programme (D058)
+        if (arrays.Count > 0)
+        {
+            required.Add(RuntimeLibrary.ArrayName);
+            emitter.LdHlLabel(RuntimeLibrary.ArrayHeapStartLabel);
+            emitter.LdMemHl(RuntimeLibrary.ArrayHeapLabel);
+        }
+
         int statementIndex = 0;
+        int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
         foreach (Statement statement in program.Statements)
         {
+            if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
+                basicLine = numbersHere.Max();
             EmitLineLabels(statementIndex++);
+
+            // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
+            // sans numéros de ligne, c'est la ligne de l'éditeur.
+            if (AstWalker.UsesArrays(statement)
+                || (arrays.Count > 0 && statement is ScreenStatement { Command: "MEMORY" }))
+            {
+                emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
+                emitter.LdMemHl(RuntimeLibrary.ArrayLineLabel);
+            }
 
             switch (statement)
             {
@@ -813,6 +886,48 @@ public static class CodeGenerator
                 case AssignStatement assign:
                     EmitExpression(assign.Value);
                     EmitStore(Slot(assign.Variable));
+                    break;
+
+                case ArrayAssignStatement arrayAssign:
+                    if (arrayAssign.Value is NumberExpression constant)
+                    {
+                        EmitElementAddress(arrayAssign.Name, arrayAssign.Indexes);
+                        emitter.StoreHlImm(constant.Value & 0xFF);
+                        emitter.IncHl();
+                        emitter.StoreHlImm((constant.Value >> 8) & 0xFF);
+                    }
+                    else
+                    {
+                        EmitExpression(arrayAssign.Value);
+                        emitter.PushHl();
+                        EmitElementAddress(arrayAssign.Name, arrayAssign.Indexes);
+                        emitter.PopDe();
+                        emitter.StoreHlE();
+                        emitter.IncHl();
+                        emitter.StoreHlD();
+                    }
+                    break;
+
+                case DimStatement dim:
+                    foreach (ArrayDeclaration array in dim.Arrays)
+                    {
+                        string label = arrays[array.Name].Label;
+                        for (int k = 0; k < array.Sizes.Count; k++)
+                        {
+                            EmitExpression(array.Sizes[k]);
+                            emitter.CallLabel(RuntimeLibrary.ArrayDimSizeLabel);   // HL = nombre de cases
+                            emitter.LdMemHl(SizeLabel(label, k + 1));
+                            if (k > 0)
+                            {
+                                emitter.PopDe();
+                                emitter.CallLabel(RuntimeLibrary.ArrayMulLabel);   // HL = total jusqu'ici
+                            }
+                            emitter.PushHl();
+                        }
+                        emitter.PopHl();
+                        emitter.LdDeLabel(label);
+                        emitter.CallLabel(RuntimeLibrary.ArrayDimLabel);
+                    }
                     break;
 
                 case DeclareStatement declare:
@@ -1001,6 +1116,20 @@ public static class CodeGenerator
             emitter.Label(slot.Label);
             emitter.Reserve(slot.Type == VarType.Byte ? 1 : 2);
         }
+
+        // Descripteurs des tableaux : adresse des cases (0 = pas encore créé), puis nombre de cases de chaque dimension
+        foreach ((string label, int dimensions) in arrays.Values)
+        {
+            emitter.Label(label);
+            emitter.Reserve(2);
+            for (int k = 1; k <= dimensions; k++)
+            {
+                emitter.Label(SizeLabel(label, k));
+                emitter.Reserve(2);
+            }
+        }
+        if (arrays.Count > 0)
+            emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);   // la mémoire libre commence ici
 
         return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine);
     }

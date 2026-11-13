@@ -23,7 +23,28 @@ public static class Parser
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
-        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY"];
+        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM"];
+
+    // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
+    // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
+    static readonly HashSet<string> LocomotiveWords =
+    [
+        "ABS", "AFTER", "AND", "ASC", "ATN", "AUTO", "BIN$", "BORDER", "CALL", "CAT", "CHAIN",
+        "CHR$", "CINT", "CLEAR", "CLG", "CLOSEIN", "CLOSEOUT", "CLS", "CONT", "COPYCHR$", "COS",
+        "CREAL", "CURSOR", "DATA", "DEF", "DEFINT", "DEFREAL", "DEFSTR", "DEG", "DELETE", "DERR",
+        "DI", "DIM", "DRAW", "DRAWR", "EDIT", "EI", "ELSE", "END", "ENT", "ENV", "EOF", "ERASE",
+        "ERL", "ERR", "ERROR", "EVERY", "EXP", "FILL", "FIX", "FN", "FOR", "FRAME", "FRE", "GOSUB",
+        "GOTO", "GRAPHICS", "HEX$", "HIMEM", "IF", "INK", "INKEY", "INKEY$", "INP", "INPUT",
+        "INSTR", "INT", "JOY", "KEY", "LEFT$", "LEN", "LET", "LINE", "LIST", "LOAD", "LOCATE",
+        "LOG", "LOG10", "LOWER$", "MASK", "MAX", "MEMORY", "MERGE", "MID$", "MIN", "MOD", "MODE",
+        "MOVE", "MOVER", "NEW", "NEXT", "NOT", "ON", "OPENIN", "OPENOUT", "OR", "ORIGIN", "OUT",
+        "PAPER", "PEEK", "PEN", "PI", "PLOT", "PLOTR", "POKE", "POS", "PRINT", "RAD", "RANDOMIZE",
+        "READ", "RELEASE", "REMAIN", "RENUM", "RESTORE", "RESUME", "RETURN", "RIGHT$", "RND",
+        "ROUND", "RUN", "SAVE", "SGN", "SIN", "SOUND", "SPACE$", "SPC", "SPEED", "SQ", "SQR",
+        "STEP", "STOP", "STR$", "STRING$", "SWAP", "SYMBOL", "TAB", "TAG", "TAGOFF", "TAN", "TEST",
+        "TESTR", "THEN", "TIME", "TO", "TROFF", "TRON", "UNT", "UPPER$", "USING", "VAL", "VPOS",
+        "WAIT", "WEND", "WHILE", "WIDTH", "WINDOW", "WRITE", "XOR", "XPOS", "YPOS", "ZONE"
+    ];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments, bool FirstIsAddress = false);
 
@@ -90,6 +111,7 @@ public static class Parser
             pos = ParseLine(tokens, pos, statements, diagnostics, lines);
 
         CheckDeclarations(statements, diagnostics);
+        CheckArrays(statements, diagnostics);
         CheckBlocks(statements, diagnostics);
         CheckLineTargets(statements, lines, diagnostics);
         return new BasicProgram(statements, lines);
@@ -251,6 +273,9 @@ public static class Parser
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
 
+            case "DIM":
+                return ParseDim(tokens, pos, statements, diagnostics);
+
             case "GOTO":
                 return ParseJump(tokens, pos, 1, false, statements, diagnostics);
 
@@ -283,8 +308,8 @@ public static class Parser
                 return ParseAssignment(tokens, pos + 1, t.Line, statements, diagnostics);
 
             default:
-                // Un mot suivi de « = » est une affectation sans LET
-                if (tokens[pos + 1].Kind == TokenKind.Equals)
+                // Un mot suivi de « = » est une affectation sans LET ; suivi de « ( », c'est une case de tableau : A(3) = 5 (D058)
+                if (tokens[pos + 1].Kind is TokenKind.Equals or TokenKind.LeftParen)
                     return ParseAssignment(tokens, pos, t.Line, statements, diagnostics);
 
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, t.Line, t.Text));
@@ -374,6 +399,15 @@ public static class Parser
         }
 
         pos++;
+
+        // A(3) = valeur : case de tableau (D058)
+        List<Expression>? indexes = null;
+        if (tokens[pos].Kind == TokenKind.LeftParen)
+        {
+            if (!CheckArrayName(name, diagnostics) || !TryParseIndexes(tokens, ref pos, diagnostics, out indexes))
+                return SkipToStatementEnd(tokens, pos);
+        }
+
         if (tokens[pos].Kind != TokenKind.Equals)
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedEquals, tokens[pos].Line, tokens[pos].Text));
@@ -385,8 +419,139 @@ public static class Parser
         if (value is null)
             return SkipToStatementEnd(tokens, pos);
 
-        statements.Add(new AssignStatement(line, name.Text, value));
+        statements.Add(indexes is null
+            ? new AssignStatement(line, name.Text, value)
+            : (Statement)new ArrayAssignStatement(line, name.Text, indexes, value));
         return pos;
+    }
+
+    // ----- Tableaux (lot C, D058) -----
+
+    // Un nom de tableau ne peut pas être un mot du Locomotive BASIC
+    static bool CheckArrayName(Token name, List<Diagnostic> diagnostics)
+    {
+        if (LocomotiveWords.Contains(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.NotYetAvailable, name.Line, name.Text));
+            return false;
+        }
+        return true;
+    }
+
+    // « ( valeur [, valeur ...] ) » : les numéros de case (ou les tailles pour DIM). pos est sur « ( ».
+    static bool TryParseIndexes(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
+                                out List<Expression> indexes)
+    {
+        indexes = [];
+        int line = tokens[pos].Line;
+        pos++;
+
+        while (true)
+        {
+            Expression? index = ParseExpression(tokens, ref pos, diagnostics);
+            if (index is null)
+                return false;
+            indexes.Add(index);
+
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        if (tokens[pos].Kind != TokenKind.RightParen)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, line));
+            return false;
+        }
+        pos++;
+        return true;
+    }
+
+    // DIM A(10) [, B(5, 5) ...] : la plus grande case de chaque dimension, de 0 à 32766
+    static int ParseDim(IReadOnlyList<Token> tokens, int pos,
+                        List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        var arrays = new List<ArrayDeclaration>();
+        while (true)
+        {
+            Token name = tokens[pos];
+            bool isName = name.Kind == TokenKind.Word && !Commands.Contains(name.Text) && !Functions.ContainsKey(name.Text);
+
+            if (!isName || tokens[pos + 1].Kind != TokenKind.LeftParen)
+            {
+                Token wrong = isName ? tokens[pos + 1] : name;
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedArrayName, wrong.Line, wrong.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+
+            if (!VariableNames.IsSupported(name.Text))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+
+            if (!CheckArrayName(name, diagnostics))
+                return SkipToStatementEnd(tokens, pos);
+
+            pos++;
+            if (!TryParseIndexes(tokens, ref pos, diagnostics, out List<Expression> sizes))
+                return SkipToStatementEnd(tokens, pos);
+
+            foreach (Expression size in sizes)
+                CheckConstantRange(size, 0, MaxArrayIndex, line, diagnostics);
+
+            arrays.Add(new ArrayDeclaration(name.Text, sizes));
+
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        statements.Add(new DimStatement(line, arrays));
+        return pos;
+    }
+
+    const int MaxArrayIndex = 32766;   // plus grande case possible : un tableau a au plus 32767 cases
+
+    // Un même tableau garde toujours le même nombre de numéros de case (DIM compris), et un nom déclaré BYTE
+    // ne peut pas encore être un tableau (les tableaux d'octets viendront plus tard).
+    static void CheckArrays(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        var bytes = statements.OfType<DeclareStatement>().SelectMany(d => d.Names).ToHashSet();
+        var dimensions = new Dictionary<string, int>();
+        var reported = new HashSet<string>();
+
+        void Use(string name, int count, int line)
+        {
+            if (bytes.Contains(name))
+            {
+                if (reported.Add(name))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ByteArrayNotYet, line, name));
+                return;
+            }
+
+            if (!dimensions.TryGetValue(name, out int known))
+                dimensions[name] = count;
+            else if (known != count)
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ArrayDimensionMismatch, line, $"{name}|{count}|{known}"));
+        }
+
+        foreach (Statement statement in statements)
+        {
+            if (statement is DimStatement dim)
+                foreach (ArrayDeclaration array in dim.Arrays)
+                    Use(array.Name, array.Sizes.Count, dim.SourceLine);
+
+            if (statement is ArrayAssignStatement assign)
+                Use(assign.Name, assign.Indexes.Count, assign.SourceLine);
+
+            foreach (Expression expression in AstWalker.All(statement))
+                if (expression is ArrayElementExpression element)
+                    Use(element.Name, element.Indexes.Count, statement.SourceLine);
+        }
     }
 
     static int ParsePrint(IReadOnlyList<Token> tokens, int pos,
@@ -1218,6 +1383,10 @@ public static class Parser
                     foreach (Expression argument in call.Arguments)
                         Uses(argument);
                     break;
+                case ArrayElementExpression element:
+                    foreach (Expression index in element.Indexes)
+                        Uses(index);
+                    break;
             }
         }
 
@@ -1265,6 +1434,11 @@ public static class Parser
 
                 case RandomizeStatement randomize when randomize.Seed is not null:
                     Uses(randomize.Seed);
+                    break;
+
+                case DimStatement or ArrayAssignStatement:
+                    foreach (Expression expression in AstWalker.TopLevel(statement))
+                        Uses(expression);
                     break;
 
                 case IfStatement ifStatement:
@@ -1432,6 +1606,16 @@ public static class Parser
                 {
                     diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, t.Line, t.Text));
                     return null;
+                }
+                if (tokens[pos + 1].Kind == TokenKind.LeftParen)
+                {
+                    // A(3) : case de tableau (D058)
+                    if (!CheckArrayName(t, diagnostics))
+                        return null;
+                    pos++;
+                    return TryParseIndexes(tokens, ref pos, diagnostics, out List<Expression> indexes)
+                        ? new ArrayElementExpression(t.Text, indexes)
+                        : null;
                 }
                 pos++;
                 return new VariableExpression(t.Text);

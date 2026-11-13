@@ -160,6 +160,31 @@ public sealed class Z80Emitter
     public void PopAf() => code.Add(0xF1);                                                              // POP AF
     public void AddAL() => code.Add(0x85);                                                              // ADD A,L
     public void AdcAImm(int value) { code.Add(0xCE); code.Add((byte)value); }                           // ADC A,n
+    // Tableaux (D058)
+    public void LdDeLabel(string label) { code.Add(0x11); AddAbsolute(label); }                 // LD DE,étiquette
+    public void LdBcImm(int value) { code.Add(0x01); AddWord(value); }                           // LD BC,nombre
+    public void LdEImm(int value) { code.Add(0x1E); code.Add((byte)value); }                     // LD E,n
+    public void CallZLabel(string label) { code.Add(0xCC); AddAbsolute(label); }                 // CALL Z,étiquette
+    public void IncDe() => code.Add(0x13);                                                       // INC DE
+    public void DecDe() => code.Add(0x1B);                                                       // DEC DE
+    public void DecBc() => code.Add(0x0B);                                                       // DEC BC
+    public void DecHl() => code.Add(0x2B);                                                       // DEC HL
+    public void LdADe() => code.Add(0x1A);                                                       // LD A,(DE)
+    public void StoreHlImm(int value) { code.Add(0x36); code.Add((byte)value); }                 // LD (HL),n
+    public void StoreHlD() => code.Add(0x72);                                                    // LD (HL),D
+    public void StoreHlE() => code.Add(0x73);                                                    // LD (HL),E
+    public void LoadBFromHl() => code.Add(0x46);                                                 // LD B,(HL)
+    public void LoadCFromHl() => code.Add(0x4E);                                                 // LD C,(HL)
+    public void LoadHFromHl() => code.Add(0x66);                                                 // LD H,(HL)
+    public void LoadLFromHl() => code.Add(0x6E);                                                 // LD L,(HL)
+    public void LdDH() => code.Add(0x54);                                                        // LD D,H
+    public void LdEL() => code.Add(0x5D);                                                        // LD E,L
+    public void OrMemHl() => code.Add(0xB6);                                                     // OR (HL)
+    public void OrB() => code.Add(0xB0);                                                         // OR B
+    public void OrC() => code.Add(0xB1);                                                         // OR C
+    public void SbcHlBc() { code.Add(0xED); code.Add(0x42); }                                    // SBC HL,BC
+    public void Ldir() { code.Add(0xED); code.Add(0xB0); }                                       // LDIR
+
     public void LdDeMem(string label) { code.Add(0xED); code.Add(0x5B); AddAbsolute(label); }           // LD DE,(étiquette)
 
     public void Ret() => code.Add(0xC9);                                           // RET

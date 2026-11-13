@@ -17,6 +17,9 @@ internal sealed class MiniZ80
 {
     public byte A, B, C, D, E, H, L;
     public bool CarryFlag, ZeroFlag;
+
+    /// <summary>Indicateur de débordement signé (P/V), mis à jour par ADC HL,DE ; lu par JP PE (boucles FOR, D058).</summary>
+    public bool OverflowFlag;
     public readonly byte[] Memory = new byte[65536];
     public readonly StringBuilder Output = new();
 
@@ -356,6 +359,12 @@ internal sealed class MiniZ80
                     if (CarryFlag)
                         A = KeyQueue.Dequeue();
                 }
+                else if (address == 0xBB78)
+                {
+                    string shown = Output.ToString();                  // TXT GET CURSOR : H = colonne, L = ligne
+                    H = (byte)(shown.Length - shown.LastIndexOf('\n'));
+                    L = 1;
+                }
                 else if (address == 0xBD0D)
                 {
                     DE = (ushort)(Clock >> 16);                        // KL TIME PLEASE : temps dans DEHL
@@ -387,6 +396,38 @@ internal sealed class MiniZ80
                 break;
 
             case 0xE9: pc = HL; break;                                 // JP (HL)
+            case 0xEA: { ushort jumpTo = Fetch16(); if (OverflowFlag) pc = jumpTo; break; }  // JP PE,nn (débordement)
+
+            // Tableaux (D058)
+            case 0x01: BC = Fetch16(); break;                          // LD BC,nn
+            case 0x1E: E = Fetch(); break;                             // LD E,n
+            case 0x13: DE = (ushort)(DE + 1); break;                   // INC DE
+            case 0x1B: DE = (ushort)(DE - 1); break;                   // DEC DE
+            case 0x0B: BC = (ushort)(BC - 1); break;                   // DEC BC
+            case 0x2B: HL = (ushort)(HL - 1); break;                   // DEC HL
+            case 0x1A: A = ReadMemory(DE); break;                      // LD A,(DE)
+            case 0x36: Memory[HL] = Fetch(); break;                    // LD (HL),n
+            case 0x72: Memory[HL] = D; break;                          // LD (HL),D
+            case 0x73: Memory[HL] = E; break;                          // LD (HL),E
+            case 0x46: B = ReadMemory(HL); break;                      // LD B,(HL)
+            case 0x4E: C = ReadMemory(HL); break;                      // LD C,(HL)
+            case 0x66: H = ReadMemory(HL); break;                      // LD H,(HL)
+            case 0x6E: L = ReadMemory(HL); break;                      // LD L,(HL)
+            case 0x54: D = H; break;                                   // LD D,H
+            case 0x5D: E = L; break;                                   // LD E,L
+            case 0xB6: A |= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // OR (HL)
+            case 0xB0: A |= B; ZeroFlag = A == 0; CarryFlag = false; break;   // OR B
+            case 0xB1: A |= C; ZeroFlag = A == 0; CarryFlag = false; break;   // OR C
+            case 0xCC:                                                 // CALL Z,nn
+            {
+                ushort target = Fetch16();
+                if (ZeroFlag)
+                {
+                    Push((ushort)pc);
+                    pc = target;
+                }
+                break;
+            }
             case 0xED:
                 StepEd(opcodeAddress);
                 break;
@@ -440,6 +481,34 @@ internal sealed class MiniZ80
             {
                 int result = HL - DE - (CarryFlag ? 1 : 0);
                 CarryFlag = result < 0;
+                HL = (ushort)result;
+                ZeroFlag = HL == 0;
+                break;
+            }
+            case 0x42:                                                 // SBC HL,BC
+            {
+                int result = HL - BC - (CarryFlag ? 1 : 0);
+                CarryFlag = result < 0;
+                HL = (ushort)result;
+                ZeroFlag = HL == 0;
+                break;
+            }
+            case 0xB0:                                                 // LDIR
+                do
+                {
+                    Memory[DE] = ReadMemory(HL);
+                    HL = (ushort)(HL + 1);
+                    DE = (ushort)(DE + 1);
+                    BC = (ushort)(BC - 1);
+                }
+                while (BC != 0);
+                break;
+            case 0x5A:                                                 // ADC HL,DE
+            {
+                int result = HL + DE + (CarryFlag ? 1 : 0);
+                int signed = (short)HL + (short)DE + (CarryFlag ? 1 : 0);
+                CarryFlag = result > 0xFFFF;
+                OverflowFlag = signed is < -32768 or > 32767;
                 HL = (ushort)result;
                 ZeroFlag = HL == 0;
                 break;

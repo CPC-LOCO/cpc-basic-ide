@@ -92,8 +92,344 @@ public static class RuntimeLibrary
     public const string BoxFillPenLabel = "rt_box_fillpen";
     public const string BoxDoFillLabel = "rt_box_dofill";
 
+    // Tableaux (DIM, lot C, D058)
+    /// <summary>TXT GET CURSOR : H = colonne, L = ligne du curseur de texte.</summary>
+    public const int TxtGetCursor = 0xBB78;
+
+    /// <summary>Haut de la mémoire libre par défaut, non compris (HIMEM du BASIC avec la disquette = &amp;A67B).</summary>
+    public const int DefaultHeapLimit = 0xA67C;
+
+    public const string ArrayName = "Array";
+    public const string ArrayLineLabel = "rt_arr_line";         // numéro de la ligne en cours, pour les messages d'erreur
+    public const string ArrayHeapLabel = "rt_arr_heap";         // début de la mémoire libre (les tableaux sont pris ici)
+    public const string ArrayHeapLimitLabel = "rt_arr_limit";   // fin de la mémoire libre (non comprise), changée par MEMORY
+    public const string ArrayHeapStartLabel = "rt_heap_start";  // placée par le générateur après les variables
+    public const string ArrayDimSizeLabel = "rt_arr_dimsize";
+    public const string ArrayMulLabel = "rt_arr_mul";
+    public const string ArrayDimLabel = "rt_arr_dim";
+    public const string ArrayElem1Label = "rt_arr_elem1";
+    public const string ArrayElemLabel = "rt_arr_elem";
+    public const string ArrayMemoryLabel = "rt_arr_memory";
+    const string ArrayAllocLabel = "rt_arr_alloc";
+    const string ArrayAutoDimLabel = "rt_arr_autodim";
+    const string ErrSubscript = "rt_arr_err_sub";
+    const string ErrMemory = "rt_arr_err_mem";
+    const string ErrRedim = "rt_arr_err_redim";
+
+    static byte[] Ascii(string text) => [.. System.Text.Encoding.ASCII.GetBytes(text), 0];
+
     static readonly Dictionary<string, RuntimeModule> Modules = new()
     {
+        // Tableaux d'entiers (DIM, lot C, D058). Un tableau a un descripteur dans les variables :
+        //   2 octets = adresse de ses cases (0 = pas encore créé), puis 2 octets par dimension = nombre de cases.
+        // Les cases (2 octets chacune, à 0 au départ) sont prises dans la mémoire libre, après le programme,
+        // jusqu'à rt_arr_limit (&A67C, ou l'adresse donnée par MEMORY + 1).
+        //  rt_arr_dimsize : HL = plus grande case écrite dans DIM -> HL = nombre de cases (erreur si négatif).
+        //  rt_arr_mul     : HL = HL * DE sans signe ; « Memory full » si le résultat dépasse 65535. Garde BC.
+        //  rt_arr_dim     : DIM. HL = nombre total de cases, DE = descripteur (tailles déjà rangées).
+        //  rt_arr_elem1   : tableau à une dimension. HL = numéro de case, DE = descripteur -> HL = adresse de la case.
+        //  rt_arr_elem    : plusieurs dimensions. Numéros empilés (le dernier en haut), DE = descripteur, B = dimensions.
+        //  rt_arr_memory  : MEMORY. HL = adresse : la mémoire libre s'arrête là.
+        // Un tableau utilisé sans DIM est créé avec les cases 0 à 10 dans chaque dimension, comme le Locomotive.
+        // Les erreurs affichent le message du Locomotive (« Subscript out of range in 30 »), attendent une touche,
+        // puis redémarrent la machine, comme la fin du programme.
+        [ArrayName] = new RuntimeModule(ArrayName, [PrintStringName], e =>
+        {
+            e.Label(ArrayDimSizeLabel);
+            e.IncHl();                               // nombre de cases = plus grande case + 1
+            e.LdAH();
+            e.OrL();
+            e.JpZLabel(ErrSubscript);                // DIM A(-1)
+            e.Bit7H();
+            e.RetZ();                                // 1 à 32767 : bon
+            e.JpLabel(ErrSubscript);
+
+            e.Label(ArrayMulLabel);
+            e.PushBc();
+            e.LdBH();                                // BC = multiplicande
+            e.LdCL();
+            e.LdHlImm(0);
+            e.LdAImm(16);
+            e.Label("rt_arr_mul_loop");
+            e.AddHlHl();
+            e.JpCLabel(ErrMemory);
+            e.SlaE();                                // bit de poids fort du multiplicateur -> retenue
+            e.RlD();
+            e.JrNcLabel("rt_arr_mul_skip");
+            e.AddHlBc();
+            e.JpCLabel(ErrMemory);
+            e.Label("rt_arr_mul_skip");
+            e.DecA();
+            e.JrNzLabel("rt_arr_mul_loop");
+            e.PopBc();
+            e.Ret();
+
+            e.Label(ArrayDimLabel);
+            e.LdADe();                               // le tableau existe déjà ?
+            e.LdBA();
+            e.IncDe();
+            e.LdADe();
+            e.DecDe();
+            e.OrB();
+            e.JpNzLabel(ErrRedim);
+
+            // Réserve HL cases pour le descripteur DE, et les met à 0
+            e.Label(ArrayAllocLabel);
+            e.AddHlHl();                             // 2 octets par case
+            e.JpCLabel(ErrMemory);
+            e.LdBH();                                // BC = octets
+            e.LdCL();
+            e.LdHlMem(ArrayHeapLabel);
+            e.PushHl();                              // début des cases
+            e.AddHlBc();
+            e.JpCLabel(ErrMemory);
+            e.PushDe();
+            e.LdDeMem(ArrayHeapLimitLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();                             // retenue : fin < limite ; Z : fin = limite
+            e.JrCLabel("rt_arr_alloc_ok");
+            e.JpNzLabel(ErrMemory);
+            e.Label("rt_arr_alloc_ok");
+            e.LdMemHl(ArrayHeapLabel);
+            e.PopHl();                               // HL = descripteur
+            e.PopDe();                               // DE = début des cases
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.ExDeHl();
+            e.StoreHlImm(0);                         // cases à 0
+            e.DecBc();
+            e.LdDH();
+            e.LdEL();
+            e.IncDe();
+            e.Ldir();
+            e.Ret();
+
+            // Tableau utilisé sans DIM : HL = descripteur, B = dimensions ; cases 0 à 10. Garde BC, DE, HL.
+            e.Label(ArrayAutoDimLabel);
+            e.PushHl();
+            e.PushDe();
+            e.PushBc();
+            e.PushHl();
+            e.IncHl();
+            e.IncHl();
+            e.LdDeImm(1);                            // DE = nombre total de cases
+            e.Label("rt_arr_auto_loop");
+            e.StoreHlImm(11);
+            e.IncHl();
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.PushHl();
+            e.ExDeHl();
+            e.LdDeImm(11);
+            e.CallLabel(ArrayMulLabel);
+            e.ExDeHl();
+            e.PopHl();
+            e.DjnzLabel("rt_arr_auto_loop");
+            e.ExDeHl();
+            e.PopDe();
+            e.CallLabel(ArrayAllocLabel);
+            e.PopBc();
+            e.PopDe();
+            e.PopHl();
+            e.Ret();
+
+            e.Label(ArrayElem1Label);
+            e.ExDeHl();                              // HL = descripteur, DE = numéro
+            e.LdAHl();
+            e.IncHl();
+            e.OrMemHl();
+            e.JrNzLabel("rt_arr_e1_ok");
+            e.DecHl();
+            e.LdBImm(1);
+            e.CallLabel(ArrayAutoDimLabel);
+            e.IncHl();
+            e.Label("rt_arr_e1_ok");
+            e.IncHl();
+            e.LoadCFromHl();
+            e.IncHl();
+            e.LoadBFromHl();                         // BC = nombre de cases
+            e.ExDeHl();                              // HL = numéro, DE = descripteur + 3
+            e.OrA();
+            e.SbcHlBc();
+            e.AddHlBc();                             // sans signe : un numéro négatif est très grand
+            e.JpNcLabel(ErrSubscript);
+            e.AddHlHl();                             // écart en octets
+            e.ExDeHl();
+            e.DecHl();
+            e.DecHl();
+            e.LdAHl();
+            e.DecHl();
+            e.LoadLFromHl();
+            e.LdHA();                                // HL = début des cases
+            e.AddHlDe();
+            e.Ret();
+
+            e.Label(ArrayElemLabel);
+            e.PopHl();
+            e.LdMemHl("rt_arr_ret");
+            e.ExDeHl();
+            e.LdMemHl("rt_arr_desc");
+            e.LdAHl();
+            e.IncHl();
+            e.OrMemHl();
+            e.DecHl();
+            e.CallZLabel(ArrayAutoDimLabel);
+            e.LdAB();                                // taille de la dernière dimension : descripteur + 2 * B
+            e.AddAA();
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();
+            e.LdMemHl("rt_arr_size");
+            e.LdHlImm(0);
+            e.LdMemHl("rt_arr_off");
+            e.LdHlImm(1);
+            e.LdMemHl("rt_arr_stride");
+            e.Label("rt_arr_e_loop");                // de la dernière dimension à la première
+            e.PopDe();                               // DE = numéro
+            e.LdHlMem("rt_arr_size");
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();                                // HL = nombre de cases de cette dimension
+            e.PushHl();
+            e.ExDeHl();
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JpNcLabel(ErrSubscript);
+            e.LdDeMem("rt_arr_stride");
+            e.CallLabel(ArrayMulLabel);              // numéro * pas
+            e.LdDeMem("rt_arr_off");
+            e.AddHlDe();
+            e.LdMemHl("rt_arr_off");
+            e.PopDe();
+            e.LdHlMem("rt_arr_stride");
+            e.CallLabel(ArrayMulLabel);              // pas suivant = pas * nombre de cases
+            e.LdMemHl("rt_arr_stride");
+            e.LdHlMem("rt_arr_size");
+            e.DecHl();
+            e.DecHl();
+            e.LdMemHl("rt_arr_size");
+            e.DjnzLabel("rt_arr_e_loop");
+            e.LdHlMem("rt_arr_off");
+            e.AddHlHl();
+            e.ExDeHl();
+            e.LdHlMem("rt_arr_desc");
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.AddHlDe();
+            e.LdDeMem("rt_arr_ret");
+            e.PushDe();
+            e.Ret();
+
+            e.Label(ArrayMemoryLabel);
+            e.IncHl();                               // limite = adresse + 1
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_arr_mem_default");        // MEMORY 65535
+            e.LdDeImm(DefaultHeapLimit);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrCLabel("rt_arr_mem_set");
+            e.Label("rt_arr_mem_default");
+            e.LdHlImm(DefaultHeapLimit);
+            e.Label("rt_arr_mem_set");
+            e.LdDeMem(ArrayHeapLabel);               // les tableaux déjà créés doivent rester dessous
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JpCLabel(ErrMemory);
+            e.LdMemHl(ArrayHeapLimitLabel);
+            e.Ret();
+
+            // Erreurs : message du Locomotive, « in », numéro de ligne, puis fin du programme
+            e.Label(ErrSubscript);
+            e.LdHlLabel("rt_arr_msg_sub");
+            e.JrLabel("rt_arr_error");
+            e.Label(ErrMemory);
+            e.LdHlLabel("rt_arr_msg_mem");
+            e.JrLabel("rt_arr_error");
+            e.Label(ErrRedim);
+            e.LdHlLabel("rt_arr_msg_redim");
+            e.Label("rt_arr_error");
+            e.PushHl();
+            e.CallAddress(TxtGetCursor);             // pas en début de ligne : on passe à la ligne
+            e.LdAH();
+            e.CpImm(1);
+            e.JrZLabel("rt_arr_err_col1");
+            e.LdHlLabel("rt_arr_msg_crlf");
+            e.CallLabel(PrintStringLabel);
+            e.Label("rt_arr_err_col1");
+            e.PopHl();
+            e.CallLabel(PrintStringLabel);
+            e.LdHlLabel("rt_arr_msg_in");
+            e.CallLabel(PrintStringLabel);
+            e.LdHlMem(ArrayLineLabel);
+            e.CallLabel("rt_arr_dec");
+            e.LdHlLabel("rt_arr_msg_crlf");
+            e.CallLabel(PrintStringLabel);
+            e.CallAddress(KmWaitKey);
+            e.JpAddress(0);
+
+            // Affiche HL de 0 à 65535, sans espace
+            e.Label("rt_arr_dec");
+            e.LdEImm(0);                             // E = 1 dès qu'un chiffre est affiché
+            foreach (int power in new[] { 10000, 1000, 100, 10 })
+            {
+                e.LdBcImm(-power & 0xFFFF);
+                e.CallLabel("rt_arr_digit");
+            }
+            e.LdAL();
+            e.AddAImm('0');
+            e.CallAddress(TxtOutput);
+            e.Ret();
+            e.Label("rt_arr_digit");
+            e.LdAImm('0' - 1);
+            e.Label("rt_arr_digit_loop");
+            e.IncA();
+            e.AddHlBc();
+            e.JrCLabel("rt_arr_digit_loop");
+            e.SbcHlBc();                             // retenue à 0 : on rajoute ce qui a été retiré de trop
+            e.CpImm('0');
+            e.JrNzLabel("rt_arr_digit_show");
+            e.LdDA();                                // un 0 avant le premier chiffre n'est pas affiché
+            e.LdAE();
+            e.OrA();
+            e.LdAD();
+            e.RetZ();
+            e.Label("rt_arr_digit_show");
+            e.LdEImm(1);
+            e.CallAddress(TxtOutput);
+            e.Ret();
+
+            e.Label(ArrayLineLabel);
+            e.Reserve(2);
+            e.Label(ArrayHeapLabel);
+            e.Reserve(2);
+            e.Label(ArrayHeapLimitLabel);
+            e.Bytes((byte)(DefaultHeapLimit & 0xFF), (byte)(DefaultHeapLimit >> 8));
+            foreach (string scratch in new[] { "rt_arr_ret", "rt_arr_desc", "rt_arr_off", "rt_arr_stride", "rt_arr_size" })
+            {
+                e.Label(scratch);
+                e.Reserve(2);
+            }
+            e.Label("rt_arr_msg_sub");
+            e.Data(Ascii("Subscript out of range"));
+            e.Label("rt_arr_msg_mem");
+            e.Data(Ascii("Memory full"));
+            e.Label("rt_arr_msg_redim");
+            e.Data(Ascii("Array already dimensioned"));
+            e.Label("rt_arr_msg_in");
+            e.Data(Ascii(" in "));
+            e.Label("rt_arr_msg_crlf");
+            e.Data(Ascii("\r\n"));
+        }),
+
         // HL = nombre aléatoire de 16 bits. Registre à décalage de 16 bits (polynôme &B400, période 65535),
         // avancé de 16 pas à chaque appel : chaque résultat est fait de bits entièrement nouveaux.
         // L'état est rangé juste après le code. État à 0 = pas encore initialisé : le départ est alors

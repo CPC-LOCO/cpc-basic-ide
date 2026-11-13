@@ -176,3 +176,72 @@ public sealed record ClearInputStatement(int SourceLine) : Statement(SourceLine)
 /// </summary>
 public sealed record InputStatement(int SourceLine, string? Prompt, bool Question, bool NoNewline,
                                     IReadOnlyList<string> Variables) : Statement(SourceLine);
+
+/// <summary>Un tableau déclaré par DIM : son nom et la plus grande case de chaque dimension (DIM A(10, 5)) (lot C, D058).</summary>
+public sealed record ArrayDeclaration(string Name, IReadOnlyList<Expression> Sizes);
+
+/// <summary>DIM A(10) [, B(5, 5) ...] : crée des tableaux d'entiers, cases de 0 à la valeur écrite (lot C, D058).</summary>
+public sealed record DimStatement(int SourceLine, IReadOnlyList<ArrayDeclaration> Arrays) : Statement(SourceLine);
+
+/// <summary>Une case de tableau lue dans un calcul : A(3), T(I, J) (lot C, D058). Name est le nom sans parenthèses.</summary>
+public sealed record ArrayElementExpression(string Name, IReadOnlyList<Expression> Indexes) : Expression;
+
+/// <summary>A(3) = valeur : écrit dans une case de tableau (lot C, D058).</summary>
+public sealed record ArrayAssignStatement(int SourceLine, string Name, IReadOnlyList<Expression> Indexes, Expression Value)
+    : Statement(SourceLine);
+
+/// <summary>Parcourt les expressions d'une instruction (pour les vérifications sur les tableaux, D058).</summary>
+public static class AstWalker
+{
+    /// <summary>L'expression et toutes celles qu'elle contient.</summary>
+    public static IEnumerable<Expression> Flatten(Expression expression)
+    {
+        yield return expression;
+        IEnumerable<Expression> inner = expression switch
+        {
+            BinaryExpression binary => [binary.Left, binary.Right],
+            CallExpression call => call.Arguments,
+            ArrayElementExpression element => element.Indexes,
+            _ => []
+        };
+        foreach (Expression child in inner)
+            foreach (Expression e in Flatten(child))
+                yield return e;
+    }
+
+    /// <summary>Les expressions d'une condition.</summary>
+    public static IEnumerable<Expression> Of(Condition? condition) => condition switch
+    {
+        ComparisonCondition c => [c.Left, c.Right],
+        AndCondition a => Of(a.Left).Concat(Of(a.Right)),
+        OrCondition o => Of(o.Left).Concat(Of(o.Right)),
+        _ => []
+    };
+
+    /// <summary>Les expressions écrites directement dans l'instruction (sans descendre dedans).</summary>
+    public static IEnumerable<Expression> TopLevel(Statement statement) => statement switch
+    {
+        PrintValueStatement p => [p.Value],
+        AssignStatement a => [a.Value],
+        ArrayAssignStatement a => a.Indexes.Append(a.Value),
+        DimStatement d => d.Arrays.SelectMany(x => x.Sizes),
+        ForStatement f => [f.Start],
+        WhileStatement w => Of(w.Condition),
+        UntilStatement u => Of(u.Condition),
+        DoStatement d => Of(d.Condition),
+        LoopStatement l => Of(l.Condition),
+        IfStatement i => Of(i.Condition),
+        RandomizeStatement r when r.Seed is not null => [r.Seed],
+        ScreenStatement s => s.Arguments,
+        DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
+        OnStatement o => [o.Selector],
+        _ => []
+    };
+
+    /// <summary>Toutes les expressions de l'instruction, y compris celles qui sont à l'intérieur d'autres.</summary>
+    public static IEnumerable<Expression> All(Statement statement) => TopLevel(statement).SelectMany(Flatten);
+
+    /// <summary>Vrai si l'instruction crée, lit ou écrit un tableau.</summary>
+    public static bool UsesArrays(Statement statement) =>
+        statement is DimStatement or ArrayAssignStatement || All(statement).Any(e => e is ArrayElementExpression);
+}

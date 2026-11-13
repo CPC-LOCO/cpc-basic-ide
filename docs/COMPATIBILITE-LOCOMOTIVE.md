@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 attendus avec le lot C (parties 1 et MEMORY)).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -73,7 +73,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `Nombres hexadécimaux et binaires (&H, &X)` | constantes écrites en base 16 ou 2 | À faire | Je n'en ai pas trouvé trace dans l'analyseur. |
 | `Nombres réels (3.14, 1E5)` | constantes à virgule | À faire |  |
 | `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | À faire | À décider : DEFINT a peu de sens si tout est entier. |
-| `DIM` | tableaux | À faire |  |
+| `DIM` | tableaux | Faite | Tableaux d'entiers, une ou plusieurs dimensions, taille écrite ou calculée, création automatique (0 à 10) sans DIM, vérification des cases (« Subscript out of range »). Textes et réels avec les lots E et F. D058. |
 | `ERASE` | efface un tableau | À faire |  |
 | `DATA` | données dans le programme | À faire |  |
 | `READ` | lit les données | À faire |  |

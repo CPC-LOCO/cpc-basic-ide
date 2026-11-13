@@ -48,7 +48,11 @@ public enum DiagnosticCode
     LineNotFound,
     DuplicateLineNumber,
     ExpectedGoto,
-    ProgramTooLarge
+    ProgramTooLarge,
+    ExpectedArrayName,
+    ArrayDimensionMismatch,
+    ByteArrayNotYet,
+    NotYetAvailable
 }
 
 /// <summary>
@@ -153,6 +157,14 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"ON attend GOTO ou GOSUB après la valeur.{Why}",
         DiagnosticCode.ProgramTooLarge =>
             $"MEMORY : le programme compilé occupe de &4000 à &{Argument.Split('|')[0]}, ce qui dépasse la limite &{Argument.Split('|')[1]} demandée. Mettez une limite plus haute, ou raccourcissez le programme.",
+        DiagnosticCode.ExpectedArrayName =>
+            $"DIM attend un nom de tableau suivi de sa taille entre parenthèses, par exemple DIM A(10).{Why}",
+        DiagnosticCode.ArrayDimensionMismatch =>
+            $"le tableau {Argument.Split('|')[0]}() est utilisé ici avec {Argument.Split('|')[1]} numéro(s) de case, mais avec {Argument.Split('|')[2]} plus haut. Utilisez toujours le même nombre, par exemple {Argument.Split('|')[0]}(I) partout ou {Argument.Split('|')[0]}(I, J) partout.",
+        DiagnosticCode.ByteArrayNotYet =>
+            $"« {Argument} » est déclaré BYTE : les tableaux d'octets ne sont pas encore possibles. Donnez un autre nom au tableau.",
+        DiagnosticCode.NotYetAvailable =>
+            $"« {Argument} » est un mot du Locomotive BASIC qui n'est pas encore disponible ici : il ne peut pas servir de nom de tableau. Voyez la liste dans docs\\COMPATIBILITE-LOCOMOTIVE.md.",
         _ => $"problème inconnu ({Code})."
     };
 

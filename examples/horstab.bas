@@ -1,0 +1,10 @@
+10 REM Erreur voulue : une case qui n'existe pas
+20 MODE 1
+30 DIM A(5)
+40 FOR I = 0 TO 5 : A(I) = I * 2 : NEXT
+50 PRINT "A(5) = "; A(5)
+60 PRINT "ON ECRIT DANS A(6), QUI N'EXISTE PAS :"
+70 FOR J = 1 TO 1 : FOR I = 1 TO 30000 : NEXT : NEXT
+80 A(6) = 1
+90 PRINT "CETTE LIGNE NE DOIT PAS S'AFFICHER"
+100 END
