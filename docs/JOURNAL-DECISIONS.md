@@ -330,13 +330,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fichiers :** Ast.cs, Diagnostic.cs, Parser.cs, CodeGenerator.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (4 sauts conditionnels ajoutés), `tests\CpcBasic.Tests\JumpTests.cs` (39 tests), `examples\sauts.bas`.
 - **Validé par l'utilisateur le 13 nov. 2026** (396 tests ; `examples\sauts.bas` dans WinAPE).
 
-## D055 : lot B, clavier et manettes (À valider, 13 nov. 2026)
+## D055 : lot B, clavier et manettes (INKEY, JOY, CLEAR INPUT validés ; INPUT à valider, 13 nov. 2026)
 - **Demande :** terminer tous les lots de l'inventaire avant d'ajouter d'autres commandes. Lot B = INKEY, INKEY$, JOY, INPUT.
 - **Fait dans cette étape :** `INKEY(n)` (-1 si la touche n'est pas appuyée, sinon 0, 32 Shift, 128 Ctrl, 160 les deux), `JOY(0)` / `JOY(1)` (bits : 1 haut, 2 bas, 4 gauche, 8 droite, 16 tir 2, 32 tir 1), `CLEAR INPUT`. Appels au firmware : KM TEST KEY &BB1E, KM GET JOYSTICK &BB24, KM READ CHAR &BB09 (aucun module de bibliothèque : le code est écrit sur place).
 - **Confirmé dans WinAPE (13 nov. 2026) :** INKEY(47) = -1 sans appui, 0 avec appui ; JOY(0) = 0 sans appui. Hypothèse de départ : KM TEST KEY rend Z = touche non appuyée, et C = Shift (bit 5) / Ctrl (bit 7) ; KM GET JOYSTICK rend H = manette 0, L = manette 1. Je n'ai pas pu relire la documentation du firmware (accès refusé) : c'est de mémoire. `examples\clavier.bas` sert à le vérifier.
-- **Reste du lot B :** `INPUT` (nombres) à faire ensuite ; `INKEY$` attend les chaînes (lot E) car il rend du texte.
+- **INPUT (nombres entiers, à valider) :** `INPUT [;] ["texte" ; ou ,] var [, var ...]`. Texte suivi de `;` : « ? » après le texte ; suivi de `,` : pas de « ? » ; sans texte : « ? ». Écho des touches, Suppr efface, Entrée valide, 80 caractères au plus. Entiers de -32768 à 32767, avec signe et espaces permis. Plusieurs nombres séparés par des virgules ; s'il en manque, « ?? » demande la suite. Texte faux ou trop grand : « ?Redo from start » et on recommence. Reste de ligne non lu : « ?Extra ignored ». Variable BYTE : refus au-dessus de 255. Un `;` juste après INPUT garde le curseur sur la ligne. Module `Input` de la bibliothèque (KM WAIT CHAR &BB06).
+- **Limites d'INPUT :** pas de nombres à virgule (lot F) ni de chaînes (lot E) ; une ligne vide donne « ?Redo from start » (je ne sais pas ce que fait exactement le Locomotive dans ce cas : à comparer sur un vrai CPC si possible).
+- **Reste du lot B :** `INKEY$` attend les chaînes (lot E) car il rend du texte ; `LINE INPUT` aussi.
 - **Limites :** `JOY` avec une valeur autre que 0 ou 1 lit la manette 1 (le Locomotive donnerait « Improper argument »). Mots maintenant réservés : INKEY, JOY, CLEAR.
-- **Fichiers :** Ast.cs, Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (adresses), `tests\CpcBasic.Tests\MiniZ80.cs` (touches, manettes, LD H,n), `tests\CpcBasic.Tests\KeyboardTests.cs` (18 tests), `examples\clavier.bas`.
+- **Fichiers :** Ast.cs, Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (adresses), `tests\CpcBasic.Tests\MiniZ80.cs` (touches, manettes, LD H,n), `tests\CpcBasic.Tests\KeyboardTests.cs` (18 tests), `examples\clavier.bas`, et pour INPUT : `tests\CpcBasic.Tests\InputTests.cs` (36 tests), `examples\saisie.bas`.
 
 ---
 

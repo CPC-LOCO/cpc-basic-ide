@@ -169,3 +169,10 @@ public sealed record OnStatement(int SourceLine, Expression Selector, IReadOnlyL
 
 /// <summary>CLEAR INPUT : vide les touches déjà tapées mais pas encore lues (lot B, D055).</summary>
 public sealed record ClearInputStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>
+/// INPUT [;] ["texte" ; ou ,] variable [, variable ...] : saisie de nombres entiers au clavier (lot B, D055).
+/// Question : afficher « ? » après le texte (point-virgule, ou pas de texte). NoNewline : le « ; » juste après INPUT.
+/// </summary>
+public sealed record InputStatement(int SourceLine, string? Prompt, bool Question, bool NoNewline,
+                                    IReadOnlyList<string> Variables) : Statement(SourceLine);

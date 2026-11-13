@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 414 attendus avec le début du lot B).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 attendus avec le lot B).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -17,7 +17,7 @@ Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État rel
 
 ## Résumé
 
-Sur **157 entrées** du Locomotive BASIC : **24** faites, **16** partielles, **2** écarts voulus, **108** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
+Sur **157 entrées** du Locomotive BASIC : **24** faites, **17** partielles, **2** écarts voulus, **107** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
 
 Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER ») : ces nombres comptent des lignes du tableau, pas des mots du dictionnaire.
 
@@ -161,7 +161,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
-| `INPUT` | saisie d'une valeur au clavier | À faire |  |
+| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers seulement (pas de réels ni de chaînes pour l'instant). |
 | `LINE INPUT` | saisie d'une ligne de texte | À faire |  |
 
 ## 7. Disquette et cassette
@@ -282,7 +282,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 Ce n'est pas une décision : c'est ma proposition, à discuter.
 
 1. **Lot A : sauts et sous-programmes (fait, validé).** GOTO, GOSUB, RETURN, ON … GOTO / GOSUB, STOP.
-2. **Lot B : clavier et manettes (INKEY, JOY, CLEAR INPUT faits ; INPUT à faire ; INKEY$ après les chaînes).** INKEY, INKEY$, JOY, puis INPUT pour les nombres.
+2. **Lot B : clavier et manettes (INKEY, JOY, CLEAR INPUT, INPUT (entiers) faits ; INKEY$ après les chaînes).** INKEY, INKEY$, JOY, puis INPUT pour les nombres.
 3. **Lot C : données et mémoire.** DIM, DATA / READ / RESTORE, PEEK, POKE, CALL, INP, OUT, MEMORY.
 4. **Lot D : nombres hexadécimaux, XOR, NOT, ^, comparaisons comme valeurs.**
 5. **Lot E : chaînes de caractères.**

@@ -23,7 +23,7 @@ public static class Parser
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
-        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR"];
+        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT"];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
 
@@ -264,6 +264,9 @@ public static class Parser
             case "ON":
                 return ParseOn(tokens, pos, statements, diagnostics);
 
+            case "INPUT":
+                return ParseInput(tokens, pos, statements, diagnostics);
+
             case "CLEAR" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
                 statements.Add(new ClearInputStatement(t.Line));
                 return pos + 2;
@@ -279,6 +282,69 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, t.Line, t.Text));
                 return SkipToStatementEnd(tokens, pos);
         }
+    }
+
+    // INPUT [;] ["texte" ; ou ,] variable [, variable ...]
+    static int ParseInput(IReadOnlyList<Token> tokens, int pos,
+                          List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        bool noNewline = false;
+        string? prompt = null;
+        bool question = true;
+
+        if (tokens[pos].Kind == TokenKind.Semicolon)
+        {
+            noNewline = true;
+            pos++;
+        }
+
+        if (tokens[pos].Kind == TokenKind.String)
+        {
+            prompt = tokens[pos].Text;
+            pos++;
+            if (tokens[pos].Kind == TokenKind.Semicolon)
+            {
+                pos++;                                  // texte ; variable : le « ? » suit le texte
+            }
+            else if (tokens[pos].Kind == TokenKind.Comma)
+            {
+                question = false;                       // texte , variable : pas de « ? »
+                pos++;
+            }
+            else
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, tokens[pos].Line, tokens[pos].Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+        }
+
+        var variables = new List<string>();
+        while (true)
+        {
+            Token name = tokens[pos];
+            if (name.Kind != TokenKind.Word || Commands.Contains(name.Text))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedVariableName, name.Line, name.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            if (!VariableNames.IsSupported(name.Text))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            variables.Add(name.Text);
+            pos++;
+
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        statements.Add(new InputStatement(line, prompt, question, noNewline, variables));
+        return pos;
     }
 
     // pos désigne le nom de la variable
@@ -1231,6 +1297,11 @@ public static class Parser
 
                 case OnStatement on:
                     Uses(on.Selector);
+                    break;
+
+                case InputStatement input:
+                    foreach (string variable in input.Variables)
+                        used.Add(variable);
                     break;
 
                 case ScreenStatement screen:

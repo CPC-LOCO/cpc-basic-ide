@@ -34,6 +34,16 @@ public static class RuntimeLibrary
     /// <summary>KM READ CHAR : lit une touche en attente sans attendre ; retenue à 1 si un caractère a été lu (dans A).</summary>
     public const int KmReadChar = 0xBB09;
 
+    /// <summary>KM WAIT CHAR : attend une touche ; le caractère est rendu dans A.</summary>
+    public const int KmWaitChar = 0xBB06;
+
+    // Saisie de nombres (INPUT, D055)
+    public const string InputName = "Input";
+    public const string InputLineLabel = "rt_input_line";
+    public const string InputMoreLabel = "rt_input_more";
+    public const string InputNumLabel = "rt_input_num";
+    public const string InputEndLabel = "rt_input_end";
+
     public const string PrintStringName = "PrintString";
     public const string PrintStringLabel = "rt_print_string";
 
@@ -897,6 +907,211 @@ public static class RuntimeLibrary
             e.CallAddress(TxtOutput);        // CALL &BB5A : affiche le caractère
             e.IncHl();                       // INC HL
             e.JrLabel(PrintStringLabel);     // JR début
+        }),
+
+        // INPUT : saisie d'une ligne au clavier puis lecture de nombres entiers dans cette ligne (D055).
+        //  rt_input_line : lit une ligne (Entrée la termine, Suppr efface, 80 caractères au plus), avec écho.
+        //  rt_input_more : si la ligne est épuisée, affiche « ?? » et lit une nouvelle ligne (INPUT A, B avec un seul nombre).
+        //  rt_input_num  : lit le nombre suivant : HL = valeur, retenue à 0 ; retenue à 1 si ce qui est tapé n'est pas un
+        //                  nombre entier de -32768 à 32767 (ou n'est pas suivi d'une virgule ou de la fin de la ligne).
+        //  rt_input_end  : affiche « ?Extra ignored » s'il reste du texte non lu.
+        [InputName] = new RuntimeModule(InputName, [], e =>
+        {
+            e.Label(InputLineLabel);
+            e.XorA();
+            e.LdMemA("rt_inp_len");
+            e.Label("rt_in_key");
+            e.CallAddress(KmWaitChar);
+            e.CpImm(13);
+            e.JrZLabel("rt_in_done");
+            e.CpImm(127);
+            e.JrZLabel("rt_in_back");
+            e.CpImm(32);
+            e.JrCLabel("rt_in_key");             // caractère de commande : ignoré
+            e.CpImm(128);
+            e.JrNcLabel("rt_in_key");            // caractère étendu : ignoré
+            e.LdCA();
+            e.LdAMem("rt_inp_len");
+            e.CpImm(80);
+            e.JrNcLabel("rt_in_key");            // ligne pleine
+            e.LdEA();
+            e.LdDZero();
+            e.LdHlLabel("rt_inp_buf");
+            e.AddHlDe();
+            e.LdAC();
+            e.LdHlA();
+            e.LdAMem("rt_inp_len");
+            e.IncA();
+            e.LdMemA("rt_inp_len");
+            e.LdAC();
+            e.CallAddress(TxtOutput);
+            e.JrLabel("rt_in_key");
+
+            e.Label("rt_in_back");
+            e.LdAMem("rt_inp_len");
+            e.OrA();
+            e.JrZLabel("rt_in_key");             // rien à effacer
+            e.DecA();
+            e.LdMemA("rt_inp_len");
+            e.LdAImm(127);
+            e.CallAddress(TxtOutput);
+            e.JrLabel("rt_in_key");
+
+            e.Label("rt_in_done");
+            e.LdAMem("rt_inp_len");
+            e.LdEA();
+            e.LdDZero();
+            e.LdHlLabel("rt_inp_buf");
+            e.AddHlDe();
+            e.XorA();
+            e.LdHlA();                           // fin du texte : un octet à 0
+            e.LdHlLabel("rt_inp_buf");
+            e.LdMemHl("rt_inp_ptr");
+            e.Ret();
+
+            e.Label(InputMoreLabel);
+            e.LdHlMem("rt_inp_ptr");
+            e.LdAHl();
+            e.OrA();
+            e.RetNz();                           // il reste du texte
+            e.LdAImm('?');
+            e.CallAddress(TxtOutput);
+            e.LdAImm('?');
+            e.CallAddress(TxtOutput);
+            e.LdAImm(' ');
+            e.CallAddress(TxtOutput);
+            e.CallLabel(InputLineLabel);
+            e.LdAImm(13);
+            e.CallAddress(TxtOutput);
+            e.LdAImm(10);
+            e.CallAddress(TxtOutput);
+            e.Ret();
+
+            e.Label(InputNumLabel);
+            e.LdHlMem("rt_inp_ptr");
+            e.Label("rt_in_sp1");
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_in_sign");
+            e.IncHl();
+            e.JrLabel("rt_in_sp1");
+            e.Label("rt_in_sign");
+            e.LdBImm(0);                         // B = 1 si le nombre est négatif
+            e.CpImm('-');
+            e.JrNzLabel("rt_in_plus");
+            e.LdBImm(1);
+            e.IncHl();
+            e.JrLabel("rt_in_first");
+            e.Label("rt_in_plus");
+            e.CpImm('+');
+            e.JrNzLabel("rt_in_first");
+            e.IncHl();
+            e.Label("rt_in_first");
+            e.PushHl();
+            e.LdHlImm(0);
+            e.LdMemHl("rt_inp_acc");
+            e.PopHl();
+            e.LdAHl();
+            e.AddAImm(-'0' & 0xFF);
+            e.CpImm(10);
+            e.JrNcLabel("rt_in_err");            // il faut au moins un chiffre
+            e.Label("rt_in_digit");              // A = chiffre, HL = sa place dans le texte
+            e.LdCA();
+            e.IncHl();
+            e.LdMemHl("rt_inp_ptr");
+            e.LdHlMem("rt_inp_acc");
+            e.LdDeImm(3277);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_in_err");            // le nombre dépasserait 32767 une fois multiplié par 10
+            e.AddHlDe();
+            e.AddHlHl();                         // x2
+            e.PushHl();
+            e.AddHlHl();                         // x4
+            e.AddHlHl();                         // x8
+            e.PopDe();
+            e.AddHlDe();                         // x10
+            e.LdAC();
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();                         // + chiffre
+            e.LdMemHl("rt_inp_acc");
+            e.LdHlMem("rt_inp_ptr");
+            e.LdAHl();
+            e.AddAImm(-'0' & 0xFF);
+            e.CpImm(10);
+            e.JrCLabel("rt_in_digit");
+
+            e.Label("rt_in_sp2");                // après les chiffres : espaces, puis virgule ou fin
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_in_after");
+            e.IncHl();
+            e.JrLabel("rt_in_sp2");
+            e.Label("rt_in_after");
+            e.OrA();
+            e.JrZLabel("rt_in_end");
+            e.CpImm(',');
+            e.JrNzLabel("rt_in_err");
+            e.IncHl();
+            e.Label("rt_in_end");
+            e.LdMemHl("rt_inp_ptr");
+            e.LdHlMem("rt_inp_acc");
+            e.LdAB();
+            e.OrA();
+            e.JrNzLabel("rt_in_neg");
+            e.Bit7H();
+            e.JrNzLabel("rt_in_err");            // 32768 ou plus : trop grand
+            e.OrA();
+            e.Ret();
+            e.Label("rt_in_neg");
+            e.Bit7H();
+            e.JrZLabel("rt_in_negate");
+            e.LdAH();                            // seul -32768 (&8000) est permis ici
+            e.CpImm(0x80);
+            e.JrNzLabel("rt_in_err");
+            e.LdAL();
+            e.OrA();
+            e.JrNzLabel("rt_in_err");
+            e.Ret();                             // la retenue est déjà à 0 (OR A)
+            e.Label("rt_in_negate");
+            e.XorA();                            // HL = 0 - HL
+            e.SubL();
+            e.LdLA();
+            e.SbcAA();
+            e.SubH();
+            e.LdHA();
+            e.OrA();
+            e.Ret();
+            e.Label("rt_in_err");
+            e.Scf();
+            e.Ret();
+
+            e.Label(InputEndLabel);
+            e.LdHlMem("rt_inp_ptr");
+            e.LdAHl();
+            e.OrA();
+            e.RetZ();
+            e.LdHlLabel("rt_inp_extra");
+            e.Label("rt_in_extra_loop");
+            e.LdAHl();
+            e.OrA();
+            e.RetZ();
+            e.PushHl();
+            e.CallAddress(TxtOutput);
+            e.PopHl();
+            e.IncHl();
+            e.JrLabel("rt_in_extra_loop");
+            e.Label("rt_inp_extra");
+            e.Data(System.Text.Encoding.ASCII.GetBytes("?Extra ignored\r\n\0"));
+            e.Label("rt_inp_len");
+            e.Reserve(1);
+            e.Label("rt_inp_ptr");
+            e.Reserve(2);
+            e.Label("rt_inp_acc");
+            e.Reserve(2);
+            e.Label("rt_inp_buf");
+            e.Reserve(82);
         }),
 
         // Affiche l'entier signé contenu dans HL, comme le BASIC : un espace devant s'il est positif

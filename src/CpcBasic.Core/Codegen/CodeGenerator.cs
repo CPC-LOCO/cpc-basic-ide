@@ -665,6 +665,48 @@ public static class CodeGenerator
                     break;
                 }
 
+                case InputStatement input:
+                {
+                    // Texte et « ? », lecture de la ligne, puis un nombre par variable. Un nombre faux (ou trop grand pour
+                    // une variable BYTE) donne « ?Redo from start » et on recommence tout l'INPUT.
+                    string retry = $"in_{labelCount++}";
+                    string redo = $"in_{labelCount++}";
+                    string done = $"in_{labelCount++}";
+                    required.Add(RuntimeLibrary.InputName);
+
+                    emitter.Label(retry);
+                    if (input.Prompt is not null)
+                        EmitText(input.Prompt);
+                    if (input.Question)
+                        EmitText("? ");
+                    emitter.CallLabel(RuntimeLibrary.InputLineLabel);
+                    if (!input.NoNewline)
+                        EmitText("\r\n");
+
+                    for (int i = 0; i < input.Variables.Count; i++)
+                    {
+                        if (i > 0)
+                            emitter.CallLabel(RuntimeLibrary.InputMoreLabel);
+                        emitter.CallLabel(RuntimeLibrary.InputNumLabel);
+                        emitter.JpCLabel(redo);
+                        VariableSlot slot = Slot(input.Variables[i]);
+                        if (slot.Type != VarType.Integer)
+                        {
+                            emitter.LdAH();                 // variable BYTE : la valeur doit tenir sur un octet
+                            emitter.OrA();
+                            emitter.JpNzLabel(redo);
+                        }
+                        EmitStore(slot);
+                    }
+                    emitter.CallLabel(RuntimeLibrary.InputEndLabel);
+                    emitter.JpLabel(done);
+                    emitter.Label(redo);
+                    EmitText("?Redo from start\r\n");
+                    emitter.JpLabel(retry);
+                    emitter.Label(done);
+                    break;
+                }
+
                 case ClearInputStatement:
                 {
                     // On lit les touches en attente (KM READ CHAR) tant qu'il y en a : la retenue dit « un caractère a été lu »

@@ -340,6 +340,12 @@ internal sealed class MiniZ80
                     H = Joystick0;                                     // KM GET JOYSTICK
                     L = Joystick1;
                 }
+                else if (address == 0xBB06)
+                {
+                    if (KeyQueue.Count == 0)
+                        throw new InvalidOperationException("Le programme attend une touche, mais il n'y en a plus de prévues.");
+                    A = KeyQueue.Dequeue();                            // KM WAIT CHAR
+                }
                 else if (address == 0xBB09)
                 {
                     CarryFlag = KeyQueue.Count > 0;                    // KM READ CHAR
