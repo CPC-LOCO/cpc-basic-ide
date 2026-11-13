@@ -8,7 +8,7 @@ Un éditeur et un compilateur pour un BASIC évolué, dérivé du Locomotive BAS
 
 Dépôt : https://github.com/CPC-LOCO/cpc-basic-ide
 Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
-Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D052), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
+Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JOURNAL-DECISIONS.md` (toutes les décisions, D001 à D053), `docs\IDEES.md` (idées en attente), `TESTEURS.md` (aide pour les testeurs, à la racine).
 
 ## 2. Comment travailler avec l'utilisateur (important)
 
@@ -43,7 +43,7 @@ Documents de référence : `docs\ARCHITECTURE.md` (comment c'est fait), `docs\JO
   - **Script `packaging\commit.cmd` (D044) :** double-clic = tests, liste des fichiers, commit, push. Dossier `essais\` (ignoré par git) pour les programmes d'essai.
   - **Messages d'erreur qui nomment la commande (D042) :** « ERREUR en ligne N : PRINT attend ici une valeur... La ligne est incomplète. » Champ `Context` dans `Diagnostic`, rempli par `ParseStatement` dans `Parser.cs`.
 - **Journal :** `docs\JOURNAL-DECISIONS.md` doit contenir D001 à D052 ; il est en UTF-8 (les accents avaient été réparés le 11 novembre).
-- **D051 (VALIDÉ, 357 tests) :** `BOX x1,y1,x2,y2 [,stylo [,remplissage]]` : 4 valeurs = contour au stylo courant (GRA GET PEN &BBE1), 5 = contour, 6 = contour + intérieur. `examples\plein.bas` (validé le 12 nov., y compris le cas à 4 valeurs : GRA GET PEN &BBE1 confirmé). **Exemples : une attente avant chaque changement d'écran ET avant le texte final, de plus en plus longue à chaque fois (boucles 6, 10, 14).** **D052 :** toutes les futures formes (CIRCLE, ELLIPSE, STAR, POLYGON...) suivent ce modèle contour + remplissage, très rapides. **Prochaine étape :**  `CIRCLE`, `PAINT`, BOX rempli sur le module `Pixel` (toute commande à écriture directe doit couper la ROM haute comme `rt_box`, voir D048), ou le calcul 3D. Le tracé Locomotive (D047) est fait.
+- **D051 (VALIDÉ, 357 tests) :** `BOX x1,y1,x2,y2 [,stylo [,remplissage]]` : 4 valeurs = contour au stylo courant (GRA GET PEN &BBE1), 5 = contour, 6 = contour + intérieur. `examples\plein.bas` (validé le 12 nov., y compris le cas à 4 valeurs : GRA GET PEN &BBE1 confirmé). **Exemples : une attente avant chaque changement d'écran ET avant le texte final, de plus en plus longue à chaque fois (boucles 6, 10, 14).** **D052 :** toutes les futures formes (CIRCLE, ELLIPSE, STAR, POLYGON...) suivent ce modèle contour + remplissage, très rapides. **D053 (À VALIDER) :** `docs\COMPATIBILITE-LOCOMOTIVE.md` = inventaire de tous les mots du Locomotive et de leur état ; à mettre à jour à chaque nouvelle commande ; ordre de travail proposé par lots A à J. **CIRCLE est en attente de la validation de l'inventaire** (vrai rond corrigé en largeur : rayon en lignes, largeur ×2,4 en MODE 2, ×1,2 en MODE 1, ×0,6 en MODE 0). **Règle : après chaque commit, dire à l'utilisateur de faire `git push origin main` (mon environnement ne peut pas joindre GitHub).** **Prochaine étape :**  `CIRCLE`, `PAINT`, BOX rempli sur le module `Pixel` (toute commande à écriture directe doit couper la ROM haute comme `rt_box`, voir D048), ou le calcul 3D. Le tracé Locomotive (D047) est fait.
 
 ## 4. Suite prévue
 

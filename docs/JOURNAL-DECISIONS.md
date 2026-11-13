@@ -315,6 +315,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Elles doivent être très rapides (écriture directe, octets entiers quand c'est possible, aucun point écrit deux fois) et exactes (découpe à l'écran, aucun dépassement).
 - Chaque forme est vérifiée contre une référence écrite à part, dans les trois MODES.
 
+## D053 : inventaire de compatibilité avec le Locomotive BASIC (À valider, 13 nov. 2026)
+- **Problème (question de l'utilisateur) :** on ajoute des commandes nouvelles (BOX, bientôt CIRCLE…) avant d'avoir toutes celles du Locomotive BASIC. Risque de s'embrouiller, et de réserver des mots qui gênent des programmes Locomotive.
+- **Choix :** créer `docs\COMPATIBILITE-LOCOMOTIVE.md` : toutes les instructions, fonctions et opérateurs du Locomotive (liste de cpcwiki), avec leur état relevé dans le code : faite, partielle, écart voulu, à faire, mode direct. Ajouts du projet et mots réservés dans une section à part. Ordre de travail **proposé** (lots A à J), à valider.
+- **Règles proposées :** un nom de commande nouvelle ne peut pas être un mot du Locomotive ; chaque nouvelle commande est ajoutée à la section « Ajouts du projet » du fichier, qui est mis à jour au même moment.
+- **Résultat de l'inventaire :** 157 entrées du Locomotive : 19 faites, 12 partielles, 2 écarts voulus, 117 à faire, 7 en mode direct (proposées « sans objet »). Les blocages principaux : GOTO/GOSUB, chaînes, réels, tableaux et données, accès machine, clavier et manettes.
+- **Réponse à la question :** pas de danger à ajouter CIRCLE avant, tant que ces règles sont suivies ; les commandes de dessin prennent des entiers qui resteront valables avec les réels.
+
 ---
 
 ## Notes de fin de session (modèle)

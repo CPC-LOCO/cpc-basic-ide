@@ -149,7 +149,7 @@ Prévu : tous les textes visibles (menus, messages d'erreur, aide) dans des fich
 1. Format de déclaration des modules de la bibliothèque sous forme de fichiers (D028).
 2. Assembleur Z80 : celui du projet suffit-il pour les modules complexes, ou faut-il un outil externe (D015) ?
 3. Formats cassette et cartouche GX4000 : à étudier dans la documentation existante.
-4. Compatibilité avec le Locomotive BASIC : compléter le tableau de la section 8 (flottants, chaînes, mémoire, abréviations de commandes).
+4. Compatibilité avec le Locomotive BASIC : compléter le tableau de la section 8 (flottants, chaînes, mémoire, abréviations de commandes). L'inventaire complet des instructions est dans `docs\COMPATIBILITE-LOCOMOTIVE.md` (D053).
 5. ROM et dispositions de clavier : comment les fournir sans les redistribuer (D016).
 6. Jeu de caractères du CPC : correspondance avec les accents.
 7. Relecture juridique de l'exception de liaison de la bibliothèque (D017), à faire avant la prochaine publication.
