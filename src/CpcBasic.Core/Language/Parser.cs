@@ -22,7 +22,8 @@ public static class Parser
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
-        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX"];
+        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
+        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR"];
 
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments);
 
@@ -36,7 +37,9 @@ public static class Parser
         ["MIN"] = new("MIN(a, b)", 2, int.MaxValue),
         ["MAX"] = new("MAX(a, b)", 2, int.MaxValue),
         ["CLAMP"] = new("CLAMP(valeur, min, max)", 3, 3),
-        ["RANDOM"] = new("RANDOM(min, max)", 2, 2)
+        ["RANDOM"] = new("RANDOM(min, max)", 2, 2),
+        ["INKEY"] = new("INKEY(numéro de touche)", 1, 1),
+        ["JOY"] = new("JOY(0 ou 1)", 1, 1)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
@@ -72,15 +75,19 @@ public static class Parser
     public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
     {
         var statements = new List<Statement>();
+        var lines = new Dictionary<int, int>();   // numéro de ligne -> rang de l'instruction qui la suit
         int pos = 0;
 
         while (tokens[pos].Kind != TokenKind.EndOfFile)
-            pos = ParseLine(tokens, pos, statements, diagnostics);
+            pos = ParseLine(tokens, pos, statements, diagnostics, lines);
 
         CheckDeclarations(statements, diagnostics);
         CheckBlocks(statements, diagnostics);
-        return new BasicProgram(statements);
+        CheckLineTargets(statements, lines, diagnostics);
+        return new BasicProgram(statements, lines);
     }
+
+    const int MaxLineNumber = 65529;   // plus grand numéro de ligne du Locomotive BASIC
 
     static bool IsLineEnd(Token t) => t.Kind == TokenKind.EndOfLine || t.Kind == TokenKind.EndOfFile;
 
@@ -89,10 +96,23 @@ public static class Parser
     static bool IsElse(Token t) => t.Kind == TokenKind.Word && t.Text == "ELSE";
 
     static int ParseLine(IReadOnlyList<Token> tokens, int pos,
-                         List<Statement> statements, List<Diagnostic> diagnostics)
+                         List<Statement> statements, List<Diagnostic> diagnostics,
+                         Dictionary<int, int> lines)
     {
         if (tokens[pos].Kind == TokenKind.LineNumber)
+        {
+            // Le numéro de ligne devient une cible possible pour GOTO, GOSUB et ON (D054)
+            if (int.TryParse(tokens[pos].Text, out int number) && number is >= 1 and <= MaxLineNumber)
+            {
+                if (!lines.TryAdd(number, statements.Count))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.DuplicateLineNumber, tokens[pos].Line, tokens[pos].Text));
+            }
+            else
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, tokens[pos].Line, tokens[pos].Text));
+            }
             pos++;
+        }
 
         while (!IsLineEnd(tokens[pos]))
         {
@@ -222,6 +242,31 @@ public static class Parser
 
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
+
+            case "GOTO":
+                return ParseJump(tokens, pos, 1, false, statements, diagnostics);
+
+            case "GOSUB":
+                return ParseJump(tokens, pos, 1, true, statements, diagnostics);
+
+            // « GO TO » et « GO SUB » s'écrivent aussi en deux mots ; « GO » seul reste un nom de variable possible
+            case "GO" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "TO" or "SUB":
+                return ParseJump(tokens, pos, 2, tokens[pos + 1].Text == "SUB", statements, diagnostics);
+
+            case "RETURN":
+                statements.Add(new ReturnStatement(t.Line));
+                return pos + 1;
+
+            case "STOP":
+                statements.Add(new StopStatement(t.Line));
+                return pos + 1;
+
+            case "ON":
+                return ParseOn(tokens, pos, statements, diagnostics);
+
+            case "CLEAR" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
+                statements.Add(new ClearInputStatement(t.Line));
+                return pos + 2;
 
             case "LET":
                 return ParseAssignment(tokens, pos + 1, t.Line, statements, diagnostics);
@@ -636,6 +681,120 @@ public static class Parser
         return pos;
     }
 
+    // Lit un numéro de ligne (nombre entier de 1 à 65529) ; renvoie faux et signale l'erreur sinon
+    static bool TryParseTarget(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics, out int target)
+    {
+        target = 0;
+        Token t = tokens[pos];
+        if (t.Kind != TokenKind.Number)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedLineNumber, t.Line, IsLineEnd(t) ? "" : t.Text));
+            return false;
+        }
+
+        if (!int.TryParse(t.Text, out target) || target < 1 || target > MaxLineNumber)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, t.Line, t.Text));
+            return false;
+        }
+
+        pos++;
+        return true;
+    }
+
+    // GOTO ligne | GOSUB ligne | GO TO ligne | GO SUB ligne (wordCount = 1 ou 2 mots avant le numéro)
+    static int ParseJump(IReadOnlyList<Token> tokens, int pos, int wordCount, bool isGosub,
+                         List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos += wordCount;
+
+        if (!TryParseTarget(tokens, ref pos, diagnostics, out int target))
+            return SkipToStatementEnd(tokens, pos);
+
+        statements.Add(isGosub ? new GosubStatement(line, target) : new GotoStatement(line, target));
+        return pos;
+    }
+
+    // ON valeur GOTO ligne1, ligne2... | ON valeur GOSUB ligne1, ligne2...
+    static int ParseOn(IReadOnlyList<Token> tokens, int pos,
+                       List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+
+        // ON BREAK, ON ERROR et ON SQ ne sont pas encore gérés
+        if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "BREAK" or "ERROR" or "SQ")
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, line, "ON " + tokens[pos + 1].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        pos++;
+        Expression? selector = ParseExpression(tokens, ref pos, diagnostics);
+        if (selector is null)
+            return SkipToStatementEnd(tokens, pos);
+
+        bool isGosub;
+        if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text is "GOTO" or "GOSUB")
+        {
+            isGosub = tokens[pos].Text == "GOSUB";
+            pos++;
+        }
+        else if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "GO"
+                 && tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "TO" or "SUB")
+        {
+            isGosub = tokens[pos + 1].Text == "SUB";
+            pos += 2;
+        }
+        else
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, tokens[pos].Line, IsLineEnd(tokens[pos]) ? "" : tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        var targets = new List<int>();
+        while (true)
+        {
+            if (!TryParseTarget(tokens, ref pos, diagnostics, out int target))
+                return SkipToStatementEnd(tokens, pos);
+            targets.Add(target);
+
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        statements.Add(new OnStatement(line, selector, targets, isGosub));
+        return pos;
+    }
+
+    // Chaque GOTO, GOSUB et ON doit viser une ligne qui existe
+    static void CheckLineTargets(IReadOnlyList<Statement> statements, Dictionary<int, int> lines, List<Diagnostic> diagnostics)
+    {
+        void Check(int sourceLine, int target, string name)
+        {
+            if (!lines.ContainsKey(target))
+                diagnostics.Add(new Diagnostic(DiagnosticCode.LineNotFound, sourceLine, target.ToString(), name));
+        }
+
+        foreach (Statement statement in statements)
+        {
+            switch (statement)
+            {
+                case GotoStatement jump:
+                    Check(jump.SourceLine, jump.Target, "GOTO");
+                    break;
+                case GosubStatement call:
+                    Check(call.SourceLine, call.Target, "GOSUB");
+                    break;
+                case OnStatement on:
+                    foreach (int target in on.Targets)
+                        Check(on.SourceLine, target, on.IsGosub ? "ON … GOSUB" : "ON … GOTO");
+                    break;
+            }
+        }
+    }
+
     // IF sur une ligne ou en bloc (fermé par END IF) :
     //   IF condition THEN instructions [ELSE instructions]
     //   IF condition THEN  (fin de ligne) ... [ELSE ...] END IF
@@ -696,7 +855,20 @@ public static class Parser
                 continue;
             }
 
-            pos = ParseStatement(tokens, pos, statements, diagnostics);
+            if (tokens[pos].Kind == TokenKind.Number && tokens[pos - 1].Kind == TokenKind.Word
+                && tokens[pos - 1].Text is "THEN" or "ELSE")
+            {
+                // IF condition THEN 100 ELSE 200 : un numéro de ligne seul veut dire GOTO
+                int gotoLine = tokens[pos].Line;
+                if (TryParseTarget(tokens, ref pos, diagnostics, out int gotoTarget))
+                    statements.Add(new GotoStatement(gotoLine, gotoTarget));
+                else
+                    pos = SkipToStatementEnd(tokens, pos);
+            }
+            else
+            {
+                pos = ParseStatement(tokens, pos, statements, diagnostics);
+            }
 
             if (tokens[pos].Kind == TokenKind.Colon)
             {
@@ -1055,6 +1227,10 @@ public static class Parser
 
                 case PrintValueStatement print:
                     Uses(print.Value);
+                    break;
+
+                case OnStatement on:
+                    Uses(on.Selector);
                     break;
 
                 case ScreenStatement screen:

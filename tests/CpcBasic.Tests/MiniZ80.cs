@@ -26,6 +26,11 @@ internal sealed class MiniZ80
     /// <summary>Mode d'écran rendu par SCR GET MODE (&BC11) dans A : 0, 1 ou 2.</summary>
     public byte ScreenMode = 1;
 
+    /// <summary>Touches appuyées : numéro de touche -> état de Shift (bit 5) et Ctrl (bit 7) rendu dans C.</summary>
+    public readonly Dictionary<byte, byte> Keys = new();
+    public byte Joystick0, Joystick1;
+    public readonly Queue<byte> KeyQueue = new();
+
     /// <summary>
     /// Vrai si la ROM haute (celle du BASIC) est active : le Z80 lit alors la ROM de &C000 à &FFFF au lieu de l'écran,
     /// comme sur un vrai CPC (les écritures vont toujours dans la RAM). KL U ROM DISABLE (&B903) la coupe.
@@ -171,6 +176,7 @@ internal sealed class MiniZ80
             // Chargements
             case 0x06: B = Fetch(); break;                             // LD B,n
             case 0x16: D = Fetch(); break;                             // LD D,n
+            case 0x26: H = Fetch(); break;                             // LD H,n
             case 0x2E: L = Fetch(); break;                             // LD L,n
             case 0x3A: A = Memory[Fetch16()]; break;                   // LD A,(nn)
             case 0x32: Memory[Fetch16()] = A; break;                   // LD (nn),A
@@ -223,6 +229,10 @@ internal sealed class MiniZ80
             case 0x0D: C--; ZeroFlag = C == 0; break;                  // DEC C
             case 0xB7: ZeroFlag = A == 0; CarryFlag = false; break;    // OR A
             case 0x2F: A ^= 0xFF; break;                               // CPL
+            case 0xC2: { ushort jumpTo = Fetch16(); if (!ZeroFlag) pc = jumpTo; break; }    // JP NZ,nn
+            case 0xCA: { ushort jumpTo = Fetch16(); if (ZeroFlag) pc = jumpTo; break; }     // JP Z,nn
+            case 0xD2: { ushort jumpTo = Fetch16(); if (!CarryFlag) pc = jumpTo; break; }   // JP NC,nn
+            case 0xDA: { ushort jumpTo = Fetch16(); if (CarryFlag) pc = jumpTo; break; }    // JP C,nn
             case 0x80: Add(B); break;                                  // ADD A,B
             case 0x81: Add(C); break;                                  // ADD A,C
             case 0x85: Add(L); break;                                  // ADD A,L
@@ -319,6 +329,22 @@ internal sealed class MiniZ80
                 else if (address == 0xB90C)
                 {
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE
+                }
+                else if (address == 0xBB1E)
+                {
+                    ZeroFlag = !Keys.TryGetValue(A, out byte state);   // KM TEST KEY
+                    C = state;
+                }
+                else if (address == 0xBB24)
+                {
+                    H = Joystick0;                                     // KM GET JOYSTICK
+                    L = Joystick1;
+                }
+                else if (address == 0xBB09)
+                {
+                    CarryFlag = KeyQueue.Count > 0;                    // KM READ CHAR
+                    if (CarryFlag)
+                        A = KeyQueue.Dequeue();
                 }
                 else if (address == 0xBD0D)
                 {

@@ -43,7 +43,11 @@ public enum DiagnosticCode
     DivisionByZero,
     ExpectedOpenParenthesis,
     WrongArgumentCount,
-    ValueOutOfRange
+    ValueOutOfRange,
+    ExpectedLineNumber,
+    LineNotFound,
+    DuplicateLineNumber,
+    ExpectedGoto
 }
 
 /// <summary>
@@ -138,6 +142,14 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"le nombre de valeurs est incorrect. Écrivez {Argument}.",
         DiagnosticCode.ValueOutOfRange =>
             $"{(Context.Length == 0 ? "" : Context + " : ")}la valeur {Argument.Split('|')[0]} n'est pas permise. Valeurs possibles : {Argument.Split('|')[1]}.",
+        DiagnosticCode.ExpectedLineNumber =>
+            $"{(Context.Length == 0 ? "une instruction de saut" : Context)} attend ici un numéro de ligne (un nombre entier de 1 à 65529).{Why}",
+        DiagnosticCode.LineNotFound =>
+            $"{Context} : la ligne {Argument} n'existe pas. Vérifiez le numéro de ligne.",
+        DiagnosticCode.DuplicateLineNumber =>
+            $"le numéro de ligne {Argument} est déjà utilisé plus haut dans le programme.",
+        DiagnosticCode.ExpectedGoto =>
+            $"ON attend GOTO ou GOSUB après la valeur.{Why}",
         _ => $"problème inconnu ({Code})."
     };
 

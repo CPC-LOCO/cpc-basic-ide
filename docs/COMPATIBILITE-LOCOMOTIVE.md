@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026. État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis.
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 414 attendus avec le début du lot B).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -17,13 +17,13 @@ Date de l'inventaire : 13 novembre 2026. État relevé dans le code (`Parser.cs`
 
 ## Résumé
 
-Sur **157 entrées** du Locomotive BASIC : **19** faites, **12** partielles, **2** écarts voulus, **117** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
+Sur **157 entrées** du Locomotive BASIC : **24** faites, **16** partielles, **2** écarts voulus, **108** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
 
 Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER ») : ces nombres comptent des lignes du tableau, pas des mots du dictionnaire.
 
 ## Ce qui bloque le plus de choses
 
-1. **Les étiquettes de saut** : GOTO, GOSUB, RETURN, ON … GOTO / GOSUB. Presque tous les programmes en ont besoin.
+1. **Les étiquettes de saut** : GOTO, GOSUB, RETURN, ON … GOTO / GOSUB : faites (lot A, à valider).
 2. **Les chaînes de caractères** : toute la section 8, INPUT, DATA/READ avec du texte, TAG, etc.
 3. **Les réels** : fonctions mathématiques, nombres à virgule.
 4. **Les tableaux et les données** : DIM, DATA, READ, RESTORE.
@@ -38,21 +38,21 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `:` | sépare deux instructions sur une ligne | Faite |  |
 | `LET (et affectation sans LET)` | donne une valeur à une variable | Faite | Entiers 16 bits seulement. |
 | `END` | termine le programme | Faite | Le programme attend une touche puis redémarre. |
-| `STOP` | arrête le programme | À faire |  |
+| `STOP` | arrête le programme | Partielle | Se comporte comme END : pas de message « Break in … ». |
 | `FOR … TO … STEP … NEXT` | boucle comptée | Partielle | Limite et pas : nombres écrits dans le programme. La variable garde sa dernière valeur dans la boucle (le Locomotive : la valeur suivante). |
 | `WHILE … WEND` | boucle tant que | Partielle | Condition : comparaison, avec AND et OR. |
-| `IF … THEN … ELSE` | condition | Partielle | Condition : une comparaison, avec AND et OR. Le bloc sur plusieurs lignes avec END IF est un ajout du projet. |
-| `GOTO / GO TO` | saut à une ligne | À faire | Les numéros de ligne ne servent aujourd'hui qu'aux messages d'erreur. |
-| `GOSUB / GO SUB` | appel d'un sous-programme | À faire |  |
-| `RETURN` | retour d'un sous-programme | À faire |  |
-| `ON x GOTO` | saut selon une valeur | À faire |  |
-| `ON x GOSUB` | appel selon une valeur | À faire |  |
+| `IF … THEN … ELSE` | condition | Partielle | Condition : une comparaison, avec AND et OR. `THEN 100` et `ELSE 200` (numéro de ligne seul) sont acceptés. Le bloc sur plusieurs lignes avec END IF est un ajout du projet. |
+| `GOTO / GO TO` | saut à une ligne | Faite | Numéro de ligne écrit en chiffres (1 à 65529) ; ligne inexistante refusée à la compilation. |
+| `GOSUB / GO SUB` | appel d'un sous-programme | Faite | Comme GOTO. |
+| `RETURN` | retour d'un sous-programme | Partielle | Un RETURN sans GOSUB n'est pas détecté (le CPC afficherait « Unexpected RETURN »). |
+| `ON x GOTO` | saut selon une valeur | Partielle | Valeur hors de 1 à N : le programme continue (pas d'erreur pour une valeur négative). |
+| `ON x GOSUB` | appel selon une valeur | Partielle | Comme ON x GOTO. |
 | `CALL` | appelle un programme en langage machine | À faire |  |
 | `CHAIN` | charge et lance un autre programme | À faire |  |
 | `CHAIN MERGE` | charge un autre programme en gardant les variables | À faire |  |
 | `RUN` | lance un programme (aussi RUN "fichier") | À faire | À décider : RUN dans un programme compilé. |
 | `CLEAR` | efface les variables | À faire |  |
-| `CLEAR INPUT` | vide le tampon du clavier | À faire |  |
+| `CLEAR INPUT` | vide le tampon du clavier | Faite |  |
 | `TRON / TROFF` | suivi des lignes (débogage) | À faire | Utilité à décider. |
 | `ON BREAK CONT / GOSUB / STOP` | réaction à la touche ESC | À faire |  |
 | `ON ERROR GOTO` | réaction à une erreur | À faire |  |
@@ -155,9 +155,9 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `INKEY` | état d'une touche | À faire |  |
+| `INKEY` | état d'une touche | Faite | À confirmer dans WinAPE (`examples\clavier.bas`). |
 | `INKEY$` | touche appuyée | À faire |  |
-| `JOY` | état de la manette | À faire |  |
+| `JOY` | état de la manette | Faite | JOY avec une valeur autre que 0 ou 1 lit la manette 1. |
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
@@ -281,8 +281,8 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 
 Ce n'est pas une décision : c'est ma proposition, à discuter.
 
-1. **Lot A : sauts et sous-programmes.** GOTO, GOSUB, RETURN, ON … GOTO / GOSUB, STOP.
-2. **Lot B : clavier et manettes.** INKEY, INKEY$, JOY, puis INPUT pour les nombres.
+1. **Lot A : sauts et sous-programmes (fait, validé).** GOTO, GOSUB, RETURN, ON … GOTO / GOSUB, STOP.
+2. **Lot B : clavier et manettes (INKEY, JOY, CLEAR INPUT faits ; INPUT à faire ; INKEY$ après les chaînes).** INKEY, INKEY$, JOY, puis INPUT pour les nombres.
 3. **Lot C : données et mémoire.** DIM, DATA / READ / RESTORE, PEEK, POKE, CALL, INP, OUT, MEMORY.
 4. **Lot D : nombres hexadécimaux, XOR, NOT, ^, comparaisons comme valeurs.**
 5. **Lot E : chaînes de caractères.**

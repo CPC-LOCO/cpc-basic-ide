@@ -322,6 +322,22 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Résultat de l'inventaire :** 157 entrées du Locomotive : 19 faites, 12 partielles, 2 écarts voulus, 117 à faire, 7 en mode direct (proposées « sans objet »). Les blocages principaux : GOTO/GOSUB, chaînes, réels, tableaux et données, accès machine, clavier et manettes.
 - **Réponse à la question :** pas de danger à ajouter CIRCLE avant, tant que ces règles sont suivies ; les commandes de dessin prennent des entiers qui resteront valables avec les réels.
 
+## D054 : lot A, sauts et sous-programmes (Décidé, validé le 13 nov. 2026)
+- **Demande :** « Les lots en priorité » : GOTO, GOSUB, RETURN, ON … GOTO / GOSUB, STOP avant CIRCLE. Rien d'inventé : tous ces mots existent dans le Locomotive BASIC.
+- **Choix :** chaque ligne numérotée reçoit une étiquette `line_N` dans le code produit (zéro octet). `GOTO n` = JP, `GOSUB n` = CALL, `RETURN` = RET, `STOP` = comme END. `ON x GOTO/GOSUB a,b,c` : chaîne de comparaisons de x avec 1, 2, 3… (sauts absolus, donc aucune limite sur le nombre de lignes).
+- **Règles :** `GO TO` et `GO SUB` en deux mots acceptés ; `IF … THEN 100 ELSE 200` accepté ; numéro entre 1 et 65529 ; deux lignes de même numéro, ou un saut vers une ligne absente, sont refusés avec un message en français (ex. « ERREUR en ligne 1 : GOTO : la ligne 500 n'existe pas. Vérifiez le numéro de ligne. »).
+- **Limites connues :** cible = nombre écrit en chiffres (pas de GOTO calculé, qui n'existe pas non plus en Locomotive) ; RETURN sans GOSUB non détecté ; ON avec valeur hors de 1 à N : le programme continue ; STOP sans message « Break » ; ON BREAK / ON ERROR / ON SQ refusés (lots G et I).
+- **Fichiers :** Ast.cs, Diagnostic.cs, Parser.cs, CodeGenerator.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (4 sauts conditionnels ajoutés), `tests\CpcBasic.Tests\JumpTests.cs` (39 tests), `examples\sauts.bas`.
+- **Validé par l'utilisateur le 13 nov. 2026** (396 tests ; `examples\sauts.bas` dans WinAPE).
+
+## D055 : lot B, clavier et manettes (À valider, 13 nov. 2026)
+- **Demande :** terminer tous les lots de l'inventaire avant d'ajouter d'autres commandes. Lot B = INKEY, INKEY$, JOY, INPUT.
+- **Fait dans cette étape :** `INKEY(n)` (-1 si la touche n'est pas appuyée, sinon 0, 32 Shift, 128 Ctrl, 160 les deux), `JOY(0)` / `JOY(1)` (bits : 1 haut, 2 bas, 4 gauche, 8 droite, 16 tir 2, 32 tir 1), `CLEAR INPUT`. Appels au firmware : KM TEST KEY &BB1E, KM GET JOYSTICK &BB24, KM READ CHAR &BB09 (aucun module de bibliothèque : le code est écrit sur place).
+- **Confirmé dans WinAPE (13 nov. 2026) :** INKEY(47) = -1 sans appui, 0 avec appui ; JOY(0) = 0 sans appui. Hypothèse de départ : KM TEST KEY rend Z = touche non appuyée, et C = Shift (bit 5) / Ctrl (bit 7) ; KM GET JOYSTICK rend H = manette 0, L = manette 1. Je n'ai pas pu relire la documentation du firmware (accès refusé) : c'est de mémoire. `examples\clavier.bas` sert à le vérifier.
+- **Reste du lot B :** `INPUT` (nombres) à faire ensuite ; `INKEY$` attend les chaînes (lot E) car il rend du texte.
+- **Limites :** `JOY` avec une valeur autre que 0 ou 1 lit la manette 1 (le Locomotive donnerait « Improper argument »). Mots maintenant réservés : INKEY, JOY, CLEAR.
+- **Fichiers :** Ast.cs, Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (adresses), `tests\CpcBasic.Tests\MiniZ80.cs` (touches, manettes, LD H,n), `tests\CpcBasic.Tests\KeyboardTests.cs` (18 tests), `examples\clavier.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

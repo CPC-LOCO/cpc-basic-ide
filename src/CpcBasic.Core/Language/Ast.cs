@@ -142,4 +142,30 @@ public enum BinaryOperator { Add, Subtract, Multiply, Divide, Modulo }
 public sealed record BinaryExpression(BinaryOperator Operator, Expression Left, Expression Right) : Expression;
 
 /// <summary>Le programme complet : la suite de ses instructions.</summary>
-public sealed record BasicProgram(IReadOnlyList<Statement> Statements);
+/// <summary>
+/// Le programme complet : la suite de ses instructions, et la table des lignes numérotées (numéro de ligne BASIC
+/// -> rang de la première instruction qui la suit), utile pour GOTO, GOSUB et ON (D054).
+/// </summary>
+public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnlyDictionary<int, int>? Lines = null)
+{
+    /// <summary>Les lignes numérotées du programme (vide si aucune).</summary>
+    public IReadOnlyDictionary<int, int> LineTable => Lines ?? new Dictionary<int, int>();
+}
+
+/// <summary>GOTO ligne : saut à une ligne numérotée. Target est le numéro de ligne BASIC (D054).</summary>
+public sealed record GotoStatement(int SourceLine, int Target) : Statement(SourceLine);
+
+/// <summary>GOSUB ligne : appel d'un sous-programme qui commence à une ligne numérotée (D054).</summary>
+public sealed record GosubStatement(int SourceLine, int Target) : Statement(SourceLine);
+
+/// <summary>RETURN : fin d'un sous-programme appelé par GOSUB (D054).</summary>
+public sealed record ReturnStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>STOP : arrête le programme, comme END (D054).</summary>
+public sealed record StopStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>ON valeur GOTO / GOSUB ligne1, ligne2... : saut ou appel selon la valeur (1 = première ligne). Hors de 1 à N, on continue (D054).</summary>
+public sealed record OnStatement(int SourceLine, Expression Selector, IReadOnlyList<int> Targets, bool IsGosub) : Statement(SourceLine);
+
+/// <summary>CLEAR INPUT : vide les touches déjà tapées mais pas encore lues (lot B, D055).</summary>
+public sealed record ClearInputStatement(int SourceLine) : Statement(SourceLine);

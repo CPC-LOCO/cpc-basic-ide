@@ -233,6 +233,42 @@ public static class CodeGenerator
                                        call.Arguments[0], call.Arguments[1]);
                             break;
 
+                        case "INKEY":                       // INKEY(n) : -1 si la touche n'est pas appuyée, sinon 0, 32 (Shift), 128 (Ctrl) ou 160 (les deux)
+                        {
+                            string no = $"ik_{labelCount++}";
+                            string end = $"ik_{labelCount++}";
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdAL();                 // A = numéro de touche
+                            emitter.CallAddress(RuntimeLibrary.KmTestKey);   // Z = touche non appuyée ; C = état de Shift (bit 5) et Ctrl (bit 7)
+                            emitter.JrZLabel(no);
+                            emitter.LdAC();
+                            emitter.AndImm(0xA0);
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            emitter.JrLabel(end);
+                            emitter.Label(no);
+                            emitter.LdHlImm(0xFFFF);
+                            emitter.Label(end);
+                            break;
+                        }
+
+                        case "JOY":                         // JOY(0) ou JOY(1) : bits 0 haut, 1 bas, 2 gauche, 3 droite, 4 tir 2, 5 tir 1
+                        {
+                            string second = $"joy_{labelCount++}";
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdAL();
+                            emitter.PushAf();
+                            emitter.CallAddress(RuntimeLibrary.KmGetJoystick);   // H = manette 0, L = manette 1
+                            emitter.PopAf();
+                            emitter.OrA();
+                            emitter.JrNzLabel(second);
+                            emitter.LdAH();                 // manette 0 : on la met dans L
+                            emitter.LdLA();
+                            emitter.Label(second);
+                            emitter.LdHZero();
+                            break;
+                        }
+
                         case "TIME":                        // temps écoulé : 16 bits de poids faible
                             emitter.CallAddress(RuntimeLibrary.KlTimePlease);   // le firmware rend DEHL ; HL est le bas
                             break;
@@ -565,10 +601,80 @@ public static class CodeGenerator
             emitter.CallAddress(address);
         }
 
+        // Étiquettes des lignes numérotées, placées juste avant l'instruction qui les suit (GOTO, GOSUB, ON ; D054)
+        string LineLabel(int number) => $"line_{number}";
+        var linesAt = program.LineTable
+            .GroupBy(pair => pair.Value)
+            .ToDictionary(group => group.Key, group => group.Select(pair => pair.Key).ToList());
+
+        void EmitLineLabels(int statementIndex)
+        {
+            if (linesAt.TryGetValue(statementIndex, out List<int>? numbers))
+                foreach (int number in numbers)
+                    emitter.Label(LineLabel(number));
+        }
+
+        int statementIndex = 0;
         foreach (Statement statement in program.Statements)
         {
+            EmitLineLabels(statementIndex++);
+
             switch (statement)
             {
+                case GotoStatement jump:
+                    emitter.JpLabel(LineLabel(jump.Target));
+                    break;
+
+                case GosubStatement call:
+                    emitter.CallLabel(LineLabel(call.Target));
+                    break;
+
+                case ReturnStatement:
+                    emitter.Ret();
+                    break;
+
+                case StopStatement:
+                    emitter.JpLabel(EndLabel);
+                    break;
+
+                case OnStatement on:
+                {
+                    // HL = valeur. Pour chaque ligne k (de 1 à N) : si la valeur vaut k, on saute ou on appelle ; sinon on continue.
+                    EmitExpression(on.Selector);
+                    string done = $"on_{labelCount++}";
+                    for (int k = 0; k < on.Targets.Count; k++)
+                    {
+                        emitter.LdDeImm(k + 1);
+                        emitter.OrA();
+                        emitter.SbcHlDe();              // HL = valeur - k ; l'indicateur Z dit « égal »
+                        emitter.AddHlDe();              // remet HL ; ADD HL,DE ne touche pas à Z
+                        if (on.IsGosub)
+                        {
+                            string next = $"on_{labelCount++}";
+                            emitter.JrNzLabel(next);
+                            emitter.CallLabel(LineLabel(on.Targets[k]));
+                            emitter.JpLabel(done);
+                            emitter.Label(next);
+                        }
+                        else
+                        {
+                            emitter.JpZLabel(LineLabel(on.Targets[k]));
+                        }
+                    }
+                    emitter.Label(done);
+                    break;
+                }
+
+                case ClearInputStatement:
+                {
+                    // On lit les touches en attente (KM READ CHAR) tant qu'il y en a : la retenue dit « un caractère a été lu »
+                    string again = $"ci_{labelCount++}";
+                    emitter.Label(again);
+                    emitter.CallAddress(RuntimeLibrary.KmReadChar);
+                    emitter.JrCLabel(again);
+                    break;
+                }
+
                 case PrintStatement print:
                     EmitText(print.NewLine ? print.Text + "\r\n" : print.Text);
                     break;
@@ -746,6 +852,8 @@ public static class CodeGenerator
                     throw new NotSupportedException($"Instruction non gérée : {statement.GetType().Name}");
             }
         }
+
+        EmitLineLabels(statementIndex);   // lignes numérotées placées après la dernière instruction
 
         // Fin de programme : attendre une touche, puis redémarrer la machine
         emitter.Label(EndLabel);

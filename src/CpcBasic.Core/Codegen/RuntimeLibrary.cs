@@ -25,6 +25,15 @@ public static class RuntimeLibrary
     /// <summary>Routine du firmware CPC qui donne le temps écoulé dans DEHL (KL TIME PLEASE).</summary>
     public const int KlTimePlease = 0xBD0D;
 
+    /// <summary>KM TEST KEY : A = numéro de touche ; Z si elle n'est pas appuyée ; C = état de Shift (bit 5) et Ctrl (bit 7).</summary>
+    public const int KmTestKey = 0xBB1E;
+
+    /// <summary>KM GET JOYSTICK : H = état de la manette 0, L = état de la manette 1.</summary>
+    public const int KmGetJoystick = 0xBB24;
+
+    /// <summary>KM READ CHAR : lit une touche en attente sans attendre ; retenue à 1 si un caractère a été lu (dans A).</summary>
+    public const int KmReadChar = 0xBB09;
+
     public const string PrintStringName = "PrintString";
     public const string PrintStringLabel = "rt_print_string";
 
