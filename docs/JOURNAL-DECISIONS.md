@@ -376,6 +376,19 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Validé par l'utilisateur le 14 nov. 2026 :** 568 tests ; `examples\donnees.bas` conforme dans WinAPE. (Un test de D058 utilisait READ comme exemple de mot pas encore disponible : remplacé par SOUND.)
 - **Fichiers :** Ast.cs (DataStatement, ReadStatement, RestoreStatement, InputStatement.Indexes), Diagnostic.cs (3 messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules RunError et Data), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (LD D,(HL), LD E,(HL)), `tests\CpcBasic.Tests\DataTests.cs` (34 tests), `examples\donnees.bas`.
 
+## D060 : lot D, nombres &, AND, OR, XOR, NOT, ^, comparaisons comme valeurs (Décidé, validé le 14 nov. 2026)
+- **Validé par l'utilisateur le 14 nov. 2026 :** 609 tests ; `examples\logique.bas` conforme dans WinAPE (le ^ s'affiche en flèche vers le haut : c'est la police du CPC).
+- **Fait, comme le Locomotive BASIC :**
+  - nombres `&C9`, `&HC9` (hexadécimal) et `&X1010` (binaire), de &0 à &FFFF, partout où un nombre est permis (calculs, FOR, DATA, commandes d'écran). De &8000 à &FFFF, ils valent le même mot de 16 bits qu'un entier négatif : `&FFFF` = -1, comme sur le CPC. Cela règle aussi les adresses au-dessus de 32767 dans un calcul : `P = &A400 : POKE P + 1, 9` fonctionne ;
+  - `AND`, `OR`, `XOR` bit à bit sur 16 bits, et `NOT` (inverse tous les bits : NOT 0 = -1) ;
+  - les comparaisons sont des valeurs : -1 si vraie, 0 sinon (`A = B > 3`, `PRINT 5 > 3`) ;
+  - une valeur seule est une condition, vraie si elle n'est pas 0 : `IF A THEN`, `WHILE A`, `IF A AND 1 THEN` (avant, « IF A THEN » était refusé ; le test correspondant a été adapté) ;
+  - `^` : puissance entière, de gauche à droite (`2^3^2` = 64), et avant le signe moins (`-2^2` = -4).
+- **Ordre des opérations (du plus fort au plus faible) :** `^`, signe moins, `*` `/` `\` `MOD`, `+` `-`, comparaisons, `NOT`, `AND`, `OR`, `XOR`.
+- **Rapidité des conditions :** des comparaisons reliées par AND, OR et NOT restent des sauts directs (NOT est retourné : NOT (A=1 OR A=3) devient A<>1 AND A<>3) ; une autre valeur est testée « différente de 0 ». `IF 1 AND 2 THEN` est faux, comme le Locomotive (1 AND 2 = 0).
+- **Limites (jusqu'aux réels, lot F) :** `^` donne un entier sur 16 bits sans erreur s'il déborde (comme `*`) ; un exposant négatif donne 0 (sauf 1 et -1). Mots réservés ajoutés : XOR, NOT.
+- **Fichiers :** Lexer.cs (HexNumber, Caret, HexValue), Ast.cs (BinaryOperator And/Or/Xor/Power, CompareExpression, NotExpression), Diagnostic.cs (2 messages), Parser.cs (niveaux d'expression, ToCondition), CodeGenerator.cs, RuntimeLibrary.cs (module Pow16), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (OR D, BIT 0,E), `tests\CpcBasic.Tests\LotDTests.cs` (41 tests), `tests\CpcBasic.Tests\ConditionsTests.cs` (1 test adapté), `examples\logique.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -420,6 +420,7 @@ internal sealed class MiniZ80
             case 0xB6: A |= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // OR (HL)
             case 0xB0: A |= B; ZeroFlag = A == 0; CarryFlag = false; break;   // OR B
             case 0xB1: A |= C; ZeroFlag = A == 0; CarryFlag = false; break;   // OR C
+            case 0xB2: A |= D; ZeroFlag = A == 0; CarryFlag = false; break;   // OR D (D060)
             case 0xCC:                                                 // CALL Z,nn
             {
                 ushort target = Fetch16();
@@ -458,6 +459,7 @@ internal sealed class MiniZ80
             case 0x3C: CarryFlag = (H & 0x01) != 0; H = (byte)(H >> 1); ZeroFlag = H == 0; break;   // SRL H
             case 0xBC: H = (byte)(H & 0x7F); break;                    // RES 7,H
             case 0x40: ZeroFlag = (B & 0x01) == 0; break;              // BIT 0,B
+            case 0x43: ZeroFlag = (E & 0x01) == 0; break;              // BIT 0,E (D060)
             case 0x48: ZeroFlag = (B & 0x02) == 0; break;              // BIT 1,B
             case 0x7A: ZeroFlag = (D & 0x80) == 0; break;              // BIT 7,D
             case 0x7C: ZeroFlag = (H & 0x80) == 0; break;              // BIT 7,H

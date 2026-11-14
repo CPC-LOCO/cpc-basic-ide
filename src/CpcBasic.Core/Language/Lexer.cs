@@ -11,6 +11,8 @@ public enum TokenKind
     Word,         // mot (commande ou variable), toujours en majuscules
     String,       // texte entre guillemets (sans les guillemets)
     Number,
+    HexNumber,    // &C9, &HC9 (hexadécimal) ou &X1010 (binaire), de 0 à &FFFF ; Text garde l'écriture d'origine (lot D, D060)
+    Caret,        // ^ : puissance (lot D, D060)
     Colon,
     Semicolon,
     Comma,
@@ -100,6 +102,42 @@ public static class Lexer
                 continue;
             }
 
+            // Nombre hexadécimal (&C9, &HC9) ou binaire (&X1010), comme le Locomotive BASIC (lot D, D060)
+            if (c == '&')
+            {
+                int start = i;
+                i++;
+                int radix = 16;
+                if (i < text.Length && char.ToUpperInvariant(text[i]) == 'H')
+                {
+                    i++;
+                }
+                else if (i < text.Length && char.ToUpperInvariant(text[i]) == 'X')
+                {
+                    radix = 2;
+                    i++;
+                }
+
+                int digits = i;
+                while (i < text.Length && (radix == 2 ? (text[i] is '0' or '1') : Uri.IsHexDigit(text[i])))
+                    i++;
+
+                string written = text[start..i].ToUpperInvariant();
+                first = false;
+                if (i == digits)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedHexDigits, line, written));
+                    continue;
+                }
+                if (HexValue(written) is null)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.HexNumberOutOfRange, line, written));
+                    continue;
+                }
+                tokens.Add(new Token(TokenKind.HexNumber, written, line, column));
+                continue;
+            }
+
             // Mot : commande ou variable. Suffixes : $ chaîne, % entier, ! réel.
             if (char.IsLetter(c))
             {
@@ -159,6 +197,7 @@ public static class Lexer
                 '/' => TokenKind.Slash,
                 '\\' => TokenKind.Slash,   // « \ » : division entière du Locomotive BASIC
                 '=' => TokenKind.Equals,
+                '^' => TokenKind.Caret,
                 '(' => TokenKind.LeftParen,
                 ')' => TokenKind.RightParen,
                 _ => null
@@ -172,5 +211,33 @@ public static class Lexer
             i++;
             first = false;
         }
+    }
+
+    /// <summary>
+    /// Valeur d'un nombre écrit &amp;C9, &amp;HC9 ou &amp;X1010 : de 0 à 65535, ou null s'il est trop grand (D060).
+    /// Comme sur le CPC, de &amp;8000 à &amp;FFFF il vaut le même mot de 16 bits qu'un entier négatif (&amp;FFFF = -1).
+    /// </summary>
+    public static int? HexValue(string written)
+    {
+        string digits = written.TrimStart('&');
+        int radix = 16;
+        if (digits.StartsWith('H'))
+        {
+            digits = digits[1..];
+        }
+        else if (digits.StartsWith('X'))
+        {
+            digits = digits[1..];
+            radix = 2;
+        }
+
+        long value = 0;
+        foreach (char d in digits)
+        {
+            value = value * radix + Convert.ToInt32(d.ToString(), 16);
+            if (value > 0xFFFF)
+                return null;
+        }
+        return (int)value;
     }
 }

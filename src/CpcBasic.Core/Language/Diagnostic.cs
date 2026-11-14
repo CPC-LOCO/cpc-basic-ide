@@ -55,7 +55,9 @@ public enum DiagnosticCode
     NotYetAvailable,
     ExpectedDataValue,
     DataTextNotYet,
-    ExpectedTarget
+    ExpectedTarget,
+    ExpectedHexDigits,
+    HexNumberOutOfRange
 }
 
 /// <summary>
@@ -174,6 +176,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"« {Argument} » : les textes dans DATA ne sont pas encore possibles ; ils viendront avec les chaînes de caractères. Pour l'instant, DATA ne contient que des nombres entiers.",
         DiagnosticCode.ExpectedTarget =>
             $"{(Context.Length == 0 ? "READ" : Context)} attend ici un nom de variable ou une case de tableau, par exemple A ou T(I).{Why}",
+        DiagnosticCode.ExpectedHexDigits =>
+            $"« {Argument} » : après « & », il faut des chiffres hexadécimaux (0 à 9 et A à F, par exemple &C9 ou &HC9) ou, après « &X », des chiffres binaires (0 et 1, par exemple &X1010).",
+        DiagnosticCode.HexNumberOutOfRange =>
+            $"le nombre {Argument} est trop grand : un nombre écrit avec « & » va de &0 à &FFFF.",
         _ => $"problème inconnu ({Code})."
     };
 

@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -40,8 +40,8 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `END` | termine le programme | Faite | Le programme attend une touche puis redémarre. |
 | `STOP` | arrête le programme | Partielle | Se comporte comme END : pas de message « Break in … ». |
 | `FOR … TO … STEP … NEXT` | boucle comptée | Partielle | Limite et pas : nombres écrits dans le programme. La variable garde sa dernière valeur dans la boucle (le Locomotive : la valeur suivante). |
-| `WHILE … WEND` | boucle tant que | Partielle | Condition : comparaison, avec AND et OR. |
-| `IF … THEN … ELSE` | condition | Partielle | Condition : une comparaison, avec AND et OR. `THEN 100` et `ELSE 200` (numéro de ligne seul) sont acceptés. Le bloc sur plusieurs lignes avec END IF est un ajout du projet. |
+| `WHILE … WEND` | boucle tant que | Faite | Condition : toute valeur (vraie si elle n'est pas 0), comme le Locomotive. D060. |
+| `IF … THEN … ELSE` | condition | Faite | Condition : toute valeur (vraie si elle n'est pas 0), D060. `THEN 100` et `ELSE 200` (numéro de ligne seul) sont acceptés. Le bloc sur plusieurs lignes avec END IF est un ajout du projet. |
 | `GOTO / GO TO` | saut à une ligne | Faite | Numéro de ligne écrit en chiffres (1 à 65529) ; ligne inexistante refusée à la compilation. |
 | `GOSUB / GO SUB` | appel d'un sous-programme | Faite | Comme GOTO. |
 | `RETURN` | retour d'un sous-programme | Partielle | Un RETURN sans GOSUB n'est pas détecté (le CPC afficherait « Unexpected RETURN »). |
@@ -70,12 +70,12 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `Variables réelles (A!)` | nombre à virgule | À faire | Refusé à la compilation pour l'instant. |
 | `Variables chaînes (A$)` | texte | À faire | Refusé à la compilation pour l'instant. |
 | `Nombres décimaux entiers` | constantes 0 à 32767 (et négatifs) | Faite |  |
-| `Nombres hexadécimaux et binaires (&H, &X)` | constantes écrites en base 16 ou 2 | À faire | Je n'en ai pas trouvé trace dans l'analyseur. |
+| `Nombres hexadécimaux et binaires (&H, &X)` | constantes écrites en base 16 ou 2 | Faite | &C9, &HC9, &X1010, de &0 à &FFFF (&FFFF = -1). D060. |
 | `Nombres réels (3.14, 1E5)` | constantes à virgule | À faire |  |
 | `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | À faire | À décider : DEFINT a peu de sens si tout est entier. |
 | `DIM` | tableaux | Faite | Tableaux d'entiers, une ou plusieurs dimensions, taille écrite ou calculée, création automatique (0 à 10) sans DIM, vérification des cases (« Subscript out of range »). Textes et réels avec les lots E et F. D058. |
 | `ERASE` | efface un tableau | À faire |  |
-| `DATA` | données dans le programme | Partielle | Nombres entiers (-32768 à 65535). Textes avec le lot E, hexadécimal avec le lot D. D059. |
+| `DATA` | données dans le programme | Partielle | Nombres entiers (-32768 à 65535), aussi en hexadécimal (&C9, D060). Textes avec le lot E. D059. |
 | `READ` | lit les données | Faite | Dans une variable ou une case de tableau ; « DATA exhausted » s'il n'y a plus rien. D059. |
 | `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |
 | `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
@@ -224,11 +224,11 @@ Tout cela attend les variables chaînes (A$).
 | `/` | division | Écart voulu | Le Locomotive donne un réel. Ici la division est entière. |
 | `\` | division entière | Faite |  |
 | `MOD` | reste de la division | Faite |  |
-| `^` | puissance | À faire |  |
-| `=  <>  <  >  <=  >=` | comparaisons | Partielle | Seulement dans les conditions (IF, WHILE, UNTIL), pas comme valeur. |
-| `AND / OR` | et / ou | Partielle | Seulement dans les conditions, pas bit à bit. |
-| `XOR` | ou exclusif | À faire |  |
-| `NOT` | contraire | À faire |  |
+| `^` | puissance | Partielle | Entière (sur 16 bits) ; exposant négatif : 0 sauf pour 1 et -1. Réels avec le lot F. D060. |
+| `=  <>  <  >  <=  >=` | comparaisons | Faite | Aussi comme valeur : -1 si vraie, 0 sinon. D060. |
+| `AND / OR` | et / ou | Faite | Bit à bit, comme le Locomotive. D060. |
+| `XOR` | ou exclusif | Faite | Bit à bit. D060. |
+| `NOT` | contraire | Faite | Inverse tous les bits. D060. |
 
 ## 11. Temps et interruptions
 
@@ -284,7 +284,7 @@ Ce n'est pas une décision : c'est ma proposition, à discuter.
 1. **Lot A : sauts et sous-programmes (fait, validé).** GOTO, GOSUB, RETURN, ON … GOTO / GOSUB, STOP.
 2. **Lot B : clavier et manettes (INKEY, JOY, CLEAR INPUT, INPUT (entiers) faits ; INKEY$ après les chaînes).** INKEY, INKEY$, JOY, puis INPUT pour les nombres.
 3. **Lot C : données et mémoire.** DIM, DATA / READ / RESTORE, PEEK, POKE, CALL, INP, OUT, MEMORY.
-4. **Lot D : nombres hexadécimaux, XOR, NOT, ^, comparaisons comme valeurs.**
+4. **Lot D : nombres hexadécimaux, XOR, NOT, ^, comparaisons comme valeurs (fait, validé, D060).**
 5. **Lot E : chaînes de caractères.**
 6. **Lot F : réels et fonctions mathématiques.**
 7. **Lot G : son.** SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB.

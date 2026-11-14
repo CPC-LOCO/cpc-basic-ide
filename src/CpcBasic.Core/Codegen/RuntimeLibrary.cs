@@ -111,6 +111,10 @@ public static class RuntimeLibrary
     public const string DataTableLabel = "data_table";          // placée par le générateur : les nombres des DATA
     public const string DataEndLabel = "data_end";              // placée par le générateur : fin des nombres
 
+    // Puissance entière (^, D060)
+    public const string Pow16Name = "Pow16";
+    public const string Pow16Label = "rt_pow16";
+
     public const string ArrayName = "Array";
     public const string ArrayHeapLabel = "rt_arr_heap";         // début de la mémoire libre (les tableaux sont pris ici)
     public const string ArrayHeapLimitLabel = "rt_arr_limit";   // fin de la mémoire libre (non comprise), changée par MEMORY
@@ -232,6 +236,76 @@ public static class RuntimeLibrary
             e.Word(DataTableLabel);                  // au départ : le premier nombre
             e.Label("rt_read_msg");
             e.Data(Ascii("DATA exhausted"));
+        }),
+
+        // Puissance entière : HL = HL ^ DE (D060). Méthode rapide : on élève au carré et on multiplie quand le bit
+        // de l'exposant est à 1 (au plus 15 tours). Résultat sur 16 bits (comme * : pas d'erreur s'il déborde).
+        // Exposant négatif : 1 pour 1, 1 ou -1 pour -1 (selon que l'exposant est pair ou impair), 0 sinon
+        // (le vrai résultat est un nombre à virgule : il viendra avec les réels, lot F). 0 ^ 0 = 1, comme le Locomotive.
+        [Pow16Name] = new RuntimeModule(Pow16Name, [Mul16Name], e =>
+        {
+            e.Label(Pow16Label);
+            e.Bit7D();
+            e.JrNzLabel("rt_pow_neg");
+            e.LdMemHl("rt_pow_base");
+            e.ExDeHl();
+            e.LdMemHl("rt_pow_exp");
+            e.LdHlImm(1);
+            e.LdMemHl("rt_pow_res");
+            e.Label("rt_pow_loop");
+            e.LdHlMem("rt_pow_exp");
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_pow_done");
+            e.SrlH();                                // bit de poids faible de l'exposant -> retenue
+            e.RrL();
+            e.LdMemHl("rt_pow_exp");
+            e.JrNcLabel("rt_pow_square");
+            e.LdHlMem("rt_pow_res");
+            e.LdDeMem("rt_pow_base");
+            e.CallLabel(Mul16Label);
+            e.LdMemHl("rt_pow_res");
+            e.Label("rt_pow_square");
+            e.LdHlMem("rt_pow_base");
+            e.LdDH();
+            e.LdEL();
+            e.CallLabel(Mul16Label);
+            e.LdMemHl("rt_pow_base");
+            e.JrLabel("rt_pow_loop");
+            e.Label("rt_pow_done");
+            e.LdHlMem("rt_pow_res");
+            e.Ret();
+
+            e.Label("rt_pow_neg");                   // exposant négatif
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_pow_minus1");
+            e.LdAL();
+            e.CpImm(1);
+            e.RetZ();                                // 1 ^ n = 1
+            e.LdHlImm(0);
+            e.Ret();
+            e.Label("rt_pow_minus1");                // HL = -1 (&FFFF) ?
+            e.LdAH();
+            e.IncA();
+            e.JrNzLabel("rt_pow_zero");
+            e.LdAL();
+            e.IncA();
+            e.JrNzLabel("rt_pow_zero");
+            e.Bit0E();
+            e.RetNz();                               // exposant impair : -1
+            e.LdHlImm(1);
+            e.Ret();
+            e.Label("rt_pow_zero");
+            e.LdHlImm(0);
+            e.Ret();
+
+            e.Label("rt_pow_base");
+            e.Reserve(2);
+            e.Label("rt_pow_exp");
+            e.Reserve(2);
+            e.Label("rt_pow_res");
+            e.Reserve(2);
         }),
 
         [ArrayName] = new RuntimeModule(ArrayName, [ErrorName], e =>

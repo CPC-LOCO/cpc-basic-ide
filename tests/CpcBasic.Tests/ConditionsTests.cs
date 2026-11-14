@@ -171,11 +171,13 @@ public class ConditionsParserTests
         Assert.Equal(DiagnosticCode.ExpectedThen, SingleError("10 IF a = 1 PRINT 1\n20 END IF"));
     }
 
+    // Lot D (D060) : comme le Locomotive, une valeur seule est une condition (vraie si elle n'est pas 0).
+    // Avant le lot D, « IF a THEN » était refusé (ExpectedComparison).
     [Fact]
-    public void Condition_without_comparison_is_reported_once()
+    public void Condition_without_comparison_is_accepted_like_Locomotive()
     {
-        Assert.Equal(DiagnosticCode.ExpectedComparison, SingleError("10 IF a THEN\n20 END IF"));
-        Assert.Equal(DiagnosticCode.ExpectedComparison, SingleError("10 IF a THEN PRINT 1"));
+        Assert.Empty(BasicAnalyzer.Analyze("10 IF a THEN\n20 END IF").Diagnostics);
+        Assert.Empty(BasicAnalyzer.Analyze("10 IF a THEN PRINT 1").Diagnostics);
     }
 
     [Fact]

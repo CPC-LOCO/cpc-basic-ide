@@ -137,7 +137,20 @@ public sealed record VariableExpression(string Name) : Expression;
 /// </summary>
 public sealed record CallExpression(string Function, IReadOnlyList<Expression> Arguments) : Expression;
 
-public enum BinaryOperator { Add, Subtract, Multiply, Divide, Modulo }
+public enum BinaryOperator
+{
+    Add, Subtract, Multiply, Divide, Modulo,
+    /// <summary>AND, OR, XOR : bit à bit sur 16 bits, comme le Locomotive BASIC (lot D, D060).</summary>
+    And, Or, Xor,
+    /// <summary>^ : puissance entière (lot D, D060).</summary>
+    Power
+}
+
+/// <summary>Comparaison utilisée comme valeur : -1 si elle est vraie, 0 sinon, comme le Locomotive (A = B > 3) (lot D, D060).</summary>
+public sealed record CompareExpression(CompareOperator Operator, Expression Left, Expression Right) : Expression;
+
+/// <summary>NOT valeur : inverse tous les bits (NOT 0 = -1, NOT -1 = 0), comme le Locomotive (lot D, D060).</summary>
+public sealed record NotExpression(Expression Operand) : Expression;
 
 public sealed record BinaryExpression(BinaryOperator Operator, Expression Left, Expression Right) : Expression;
 
@@ -223,6 +236,8 @@ public static class AstWalker
             BinaryExpression binary => [binary.Left, binary.Right],
             CallExpression call => call.Arguments,
             ArrayElementExpression element => element.Indexes,
+            CompareExpression compare => [compare.Left, compare.Right],
+            NotExpression negation => [negation.Operand],
             _ => []
         };
         foreach (Expression child in inner)

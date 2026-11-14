@@ -235,12 +235,72 @@ public static class CodeGenerator
                             emitter.CallLabel(RuntimeLibrary.Div16Label);          // HL = quotient
                             break;
 
+                        case BinaryOperator.And:                                   // bit à bit, octet par octet (D060)
+                            emitter.LdAH();
+                            emitter.AndD();
+                            emitter.LdHA();
+                            emitter.LdAL();
+                            emitter.AndE();
+                            emitter.LdLA();
+                            break;
+
+                        case BinaryOperator.Or:
+                            emitter.LdAH();
+                            emitter.OrD();
+                            emitter.LdHA();
+                            emitter.LdAL();
+                            emitter.OrE();
+                            emitter.LdLA();
+                            break;
+
+                        case BinaryOperator.Xor:
+                            emitter.LdAH();
+                            emitter.XorD();
+                            emitter.LdHA();
+                            emitter.LdAL();
+                            emitter.XorE();
+                            emitter.LdLA();
+                            break;
+
+                        case BinaryOperator.Power:
+                            required.Add(RuntimeLibrary.Pow16Name);
+                            emitter.CallLabel(RuntimeLibrary.Pow16Label);          // HL = HL ^ DE
+                            break;
+
                         default:
                             required.Add(RuntimeLibrary.Div16Name);
                             emitter.CallLabel(RuntimeLibrary.Div16Label);
                             emitter.ExDeHl();                                      // HL = reste
                             break;
                     }
+                    break;
+
+                case CompareExpression compare:
+                {
+                    // Comparaison utilisée comme valeur : HL = -1 si vraie, 0 sinon (D060)
+                    Flag flag = EmitCompare(new ComparisonCondition(compare.Operator, compare.Left, compare.Right));
+                    string skip = $"cmp_{labelCount++}";
+                    emitter.LdHlImm(0);                             // LD ne change pas les indicateurs
+                    switch (Invert(flag))
+                    {
+                        case Flag.Z: emitter.JrZLabel(skip); break;
+                        case Flag.NZ: emitter.JrNzLabel(skip); break;
+                        case Flag.C: emitter.JrCLabel(skip); break;
+                        default: emitter.JrNcLabel(skip); break;
+                    }
+                    emitter.DecHl();                                // vraie : -1
+                    emitter.Label(skip);
+                    break;
+                }
+
+                case NotExpression negation:
+                    EmitExpression(negation.Operand);               // NOT : tous les bits inversés (D060)
+                    emitter.LdAH();
+                    emitter.Cpl();
+                    emitter.LdHA();
+                    emitter.LdAL();
+                    emitter.Cpl();
+                    emitter.LdLA();
                     break;
 
                 case CallExpression call:

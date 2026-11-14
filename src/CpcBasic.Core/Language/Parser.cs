@@ -24,7 +24,7 @@ public static class Parser
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
-        "DATA", "READ", "RESTORE"];
+        "DATA", "READ", "RESTORE", "XOR", "NOT"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -469,6 +469,16 @@ public static class Parser
             }
 
             Token t = tokens[pos];
+            if (t.Kind == TokenKind.HexNumber)
+            {
+                int hex = Signed16(Lexer.HexValue(t.Text) ?? 0);
+                values.Add(negative ? Signed16(-hex & 0xFFFF) : hex);
+                pos++;
+                if (tokens[pos].Kind != TokenKind.Comma)
+                    break;
+                pos++;
+                continue;
+            }
             if (t.Kind == TokenKind.String || (t.Kind == TokenKind.Word && !negative))
             {
                 diagnostics.Add(new Diagnostic(DiagnosticCode.DataTextNotYet, t.Line, t.Text));
@@ -654,6 +664,9 @@ public static class Parser
         statements.Add(new DimStatement(line, arrays));
         return pos;
     }
+
+    /// <summary>Un mot de 16 bits (0 à 65535) vu comme un entier signé (-32768 à 32767) : &amp;FFFF = -1.</summary>
+    static int Signed16(int value) => value > 32767 ? value - 65536 : value;
 
     const int MaxArrayIndex = 32766;   // plus grande case possible : un tableau a au plus 32767 cases
 
@@ -958,6 +971,12 @@ public static class Parser
         }
 
         Token t = tokens[pos];
+        if (t.Kind == TokenKind.HexNumber)
+        {
+            pos++;
+            int value = Signed16(Lexer.HexValue(t.Text) ?? 0);
+            return negative ? -value : value;
+        }
         if (t.Kind != TokenKind.Number)
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedNumber, t.Line, t.Text));
@@ -1275,65 +1294,54 @@ public static class Parser
     }
 
     // condition := et { OR et }      et := comparaison { AND comparaison }
+    // Une condition est une expression comme une autre (lot D, D060) : IF A THEN, IF A AND 4 THEN, IF A > 1 AND B < 2 THEN.
+    // Les comparaisons reliées par AND, OR et NOT deviennent des sauts rapides ; le reste est testé « différent de 0 »,
+    // comme le Locomotive (vrai = tout sauf 0).
     static Condition? ParseCondition(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
     {
-        Condition? left = ParseAndCondition(tokens, ref pos, diagnostics);
-
-        while (left is not null && tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "OR")
-        {
-            pos++;
-            Condition? right = ParseAndCondition(tokens, ref pos, diagnostics);
-            if (right is null)
-                return null;
-            left = new OrCondition(left, right);
-        }
-
-        return left;
+        Expression? expression = ParseExpression(tokens, ref pos, diagnostics);
+        return expression is null ? null : ToCondition(expression);
     }
 
-    static Condition? ParseAndCondition(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    // Vrai si l'expression vaut toujours -1 ou 0 (une comparaison, ou des comparaisons reliées par AND, OR, NOT) :
+    // alors AND et OR bit à bit donnent le même résultat que « et » et « ou ».
+    static bool IsTruthValue(Expression expression) => expression switch
     {
-        Condition? left = ParseComparison(tokens, ref pos, diagnostics);
+        CompareExpression => true,
+        BinaryExpression { Operator: BinaryOperator.And or BinaryOperator.Or } both => IsTruthValue(both.Left) && IsTruthValue(both.Right),
+        NotExpression negation => IsTruthValue(negation.Operand),
+        _ => false
+    };
 
-        while (left is not null && tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "AND")
-        {
-            pos++;
-            Condition? right = ParseComparison(tokens, ref pos, diagnostics);
-            if (right is null)
-                return null;
-            left = new AndCondition(left, right);
-        }
-
-        return left;
-    }
-
-    static Condition? ParseComparison(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    static Condition ToCondition(Expression expression) => expression switch
     {
-        Expression? left = ParseExpression(tokens, ref pos, diagnostics);
-        if (left is null)
-            return null;
+        CompareExpression compare => new ComparisonCondition(compare.Operator, compare.Left, compare.Right),
+        BinaryExpression { Operator: BinaryOperator.And } both when IsTruthValue(both) =>
+            new AndCondition(ToCondition(both.Left), ToCondition(both.Right)),
+        BinaryExpression { Operator: BinaryOperator.Or } either when IsTruthValue(either) =>
+            new OrCondition(ToCondition(either.Left), ToCondition(either.Right)),
+        NotExpression negation when IsTruthValue(negation.Operand) => Negate(ToCondition(negation.Operand)),
+        _ => new ComparisonCondition(CompareOperator.NotEqual, expression, new NumberExpression(0))
+    };
 
-        CompareOperator? op = tokens[pos].Kind switch
+    static Condition Negate(Condition condition) => condition switch
+    {
+        ComparisonCondition c => c with
         {
-            TokenKind.Equals => CompareOperator.Equal,
-            TokenKind.NotEqual => CompareOperator.NotEqual,
-            TokenKind.Less => CompareOperator.Less,
-            TokenKind.LessEqual => CompareOperator.LessOrEqual,
-            TokenKind.Greater => CompareOperator.Greater,
-            TokenKind.GreaterEqual => CompareOperator.GreaterOrEqual,
-            _ => null
-        };
-
-        if (op is null)
-        {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedComparison, tokens[pos].Line, tokens[pos].Text));
-            return null;
-        }
-        pos++;
-
-        Expression? right = ParseExpression(tokens, ref pos, diagnostics);
-        return right is null ? null : new ComparisonCondition(op.Value, left, right);
-    }
+            Operator = c.Operator switch
+            {
+                CompareOperator.Equal => CompareOperator.NotEqual,
+                CompareOperator.NotEqual => CompareOperator.Equal,
+                CompareOperator.Less => CompareOperator.GreaterOrEqual,
+                CompareOperator.GreaterOrEqual => CompareOperator.Less,
+                CompareOperator.Greater => CompareOperator.LessOrEqual,
+                _ => CompareOperator.Greater
+            }
+        },
+        AndCondition a => new OrCondition(Negate(a.Left), Negate(a.Right)),
+        OrCondition o => new AndCondition(Negate(o.Left), Negate(o.Right)),
+        _ => throw new NotSupportedException()
+    };
 
     sealed class OpenBlock(Statement node)
     {
@@ -1531,6 +1539,13 @@ public static class Parser
                     foreach (Expression index in element.Indexes)
                         Uses(index);
                     break;
+                case CompareExpression compare:
+                    Uses(compare.Left);
+                    Uses(compare.Right);
+                    break;
+                case NotExpression negation:
+                    Uses(negation.Operand);
+                    break;
             }
         }
 
@@ -1656,7 +1671,81 @@ public static class Parser
 
     // ----- Expressions : renvoient null (après avoir noté l'erreur) si l'expression est incorrecte -----
 
+    // expression := ou { XOR ou } ; ou := et { OR et } ; et := non { AND non } ; non := NOT non | comparaison ;
+    // comparaison := somme { (= <> < > <= >=) somme } : l'ordre des opérations du Locomotive BASIC (lot D, D060).
+    static bool IsWord(Token t, string word) => t.Kind == TokenKind.Word && t.Text == word;
+
     static Expression? ParseExpression(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParseOrLevel(tokens, ref pos, diagnostics);
+        while (left is not null && IsWord(tokens[pos], "XOR"))
+        {
+            pos++;
+            Expression? right = ParseOrLevel(tokens, ref pos, diagnostics);
+            left = right is null ? null : new BinaryExpression(BinaryOperator.Xor, left, right);
+        }
+        return left;
+    }
+
+    static Expression? ParseOrLevel(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParseAndLevel(tokens, ref pos, diagnostics);
+        while (left is not null && IsWord(tokens[pos], "OR"))
+        {
+            pos++;
+            Expression? right = ParseAndLevel(tokens, ref pos, diagnostics);
+            left = right is null ? null : new BinaryExpression(BinaryOperator.Or, left, right);
+        }
+        return left;
+    }
+
+    static Expression? ParseAndLevel(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParseNotLevel(tokens, ref pos, diagnostics);
+        while (left is not null && IsWord(tokens[pos], "AND"))
+        {
+            pos++;
+            Expression? right = ParseNotLevel(tokens, ref pos, diagnostics);
+            left = right is null ? null : new BinaryExpression(BinaryOperator.And, left, right);
+        }
+        return left;
+    }
+
+    static Expression? ParseNotLevel(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        if (!IsWord(tokens[pos], "NOT"))
+            return ParseRelational(tokens, ref pos, diagnostics);
+
+        pos++;
+        Expression? operand = ParseNotLevel(tokens, ref pos, diagnostics);
+        return operand is null ? null : new NotExpression(operand);
+    }
+
+    static CompareOperator? CompareOf(Token t) => t.Kind switch
+    {
+        TokenKind.Equals => CompareOperator.Equal,
+        TokenKind.NotEqual => CompareOperator.NotEqual,
+        TokenKind.Less => CompareOperator.Less,
+        TokenKind.LessEqual => CompareOperator.LessOrEqual,
+        TokenKind.Greater => CompareOperator.Greater,
+        TokenKind.GreaterEqual => CompareOperator.GreaterOrEqual,
+        _ => null
+    };
+
+    static Expression? ParseRelational(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParseSum(tokens, ref pos, diagnostics);
+        while (left is not null && CompareOf(tokens[pos]) is CompareOperator op)
+        {
+            pos++;
+            Expression? right = ParseSum(tokens, ref pos, diagnostics);
+            left = right is null ? null : new CompareExpression(op, left, right);
+        }
+        return left;
+    }
+
+    // somme := terme { ("+" | "-") terme }
+    static Expression? ParseSum(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
     {
         Expression? left = ParseTerm(tokens, ref pos, diagnostics);
 
@@ -1706,27 +1795,54 @@ public static class Parser
         return left;
     }
 
+    // opérande := ["+" | "-"] puissance ; puissance := primaire { "^" ["+" | "-"] primaire }.
+    // Le ^ passe avant le signe moins, comme le Locomotive : -2^2 = -4 (D060).
     static Expression? ParseOperand(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
     {
         if (tokens[pos].Kind == TokenKind.Plus)
         {
             pos++;
-            return ParsePrimary(tokens, ref pos, diagnostics);
+            return ParsePower(tokens, ref pos, diagnostics);
         }
 
         if (tokens[pos].Kind == TokenKind.Minus)
         {
             pos++;
 
-            // -32768 est valide : le nombre est lu avec son signe
-            if (tokens[pos].Kind == TokenKind.Number)
+            // -32768 est valide : le nombre est lu avec son signe (sauf s'il est suivi de ^)
+            if (tokens[pos].Kind == TokenKind.Number && tokens[pos + 1].Kind != TokenKind.Caret)
                 return ParseNumber(tokens, ref pos, diagnostics, negative: true);
 
-            Expression? operand = ParsePrimary(tokens, ref pos, diagnostics);
+            Expression? operand = ParsePower(tokens, ref pos, diagnostics);
             return operand is null ? null : new BinaryExpression(BinaryOperator.Subtract, new NumberExpression(0), operand);
         }
 
-        return ParsePrimary(tokens, ref pos, diagnostics);
+        return ParsePower(tokens, ref pos, diagnostics);
+    }
+
+    static Expression? ParsePower(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Expression? left = ParsePrimary(tokens, ref pos, diagnostics);
+        while (left is not null && tokens[pos].Kind == TokenKind.Caret)
+        {
+            pos++;
+            Expression? right;
+            if (tokens[pos].Kind == TokenKind.Minus)
+            {
+                pos++;
+                right = tokens[pos].Kind == TokenKind.Number
+                    ? ParseNumber(tokens, ref pos, diagnostics, negative: true)
+                    : ParsePrimary(tokens, ref pos, diagnostics) is Expression e ? new BinaryExpression(BinaryOperator.Subtract, new NumberExpression(0), e) : null;
+            }
+            else
+            {
+                if (tokens[pos].Kind == TokenKind.Plus)
+                    pos++;
+                right = ParsePrimary(tokens, ref pos, diagnostics);
+            }
+            left = right is null ? null : new BinaryExpression(BinaryOperator.Power, left, right);
+        }
+        return left;
     }
 
     static Expression? ParsePrimary(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
@@ -1737,6 +1853,10 @@ public static class Parser
         {
             case TokenKind.Number:
                 return ParseNumber(tokens, ref pos, diagnostics, negative: false);
+
+            case TokenKind.HexNumber:
+                pos++;
+                return new NumberExpression(Signed16(Lexer.HexValue(t.Text) ?? 0));
 
             case TokenKind.Word:
                 if (t.Text == "TIME")

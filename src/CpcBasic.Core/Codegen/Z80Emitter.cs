@@ -189,6 +189,9 @@ public sealed class Z80Emitter
     public void LoadEFromHl() => code.Add(0x5E);                                                 // LD E,(HL)
     public void Word(string label) => AddAbsolute(label);                                        // DW étiquette
     public void Word(int value) => AddWord(value);                                               // DW nombre
+    // Lot D (D060)
+    public void OrD() => code.Add(0xB2);                                                         // OR D
+    public void Bit0E() { code.Add(0xCB); code.Add(0x43); }                                      // BIT 0,E
 
     public void LdDeMem(string label) { code.Add(0xED); code.Add(0x5B); AddAbsolute(label); }           // LD DE,(étiquette)
 
