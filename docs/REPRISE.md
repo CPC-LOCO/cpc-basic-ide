@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D060 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D061 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -45,6 +45,7 @@ Documents de référence :
 - **DIM (D058) validé dans WinAPE le 13 nov. 2026** : 534 tests. Commit « Lot C : DIM, tableaux d'entiers ».
 - **DATA, READ, RESTORE, INPUT T(I) (D059) validés le 14 nov. 2026** : 568 tests, `examples\donnees.bas` conforme. **Le lot C est terminé** (sauf ERASE, gardé pour plus tard).
 - **Lot D (D060) validé le 14 nov. 2026** : &C9, &X1010, AND/OR/XOR bit à bit, NOT, ^, comparaisons comme valeurs, `IF A THEN`. 609 tests, `examples\logique.bas` conforme.
+- **`@` (D061) validé le 14 nov. 2026** : adresse d'une variable ou d'une case de tableau. 622 tests, `examples\adresse.bas` conforme.
 - **Règle de l'utilisateur :** le projet doit être 100 % compatible avec le Locomotive BASIC. **Finir tous les lots de l'inventaire (A à J) avant toute commande nouvelle** (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent). On avance lot par lot.
 
 ### Fait et validé
@@ -62,8 +63,7 @@ Documents de référence :
 
 ### Prochaine étape : fin du lot C
 
-1. `@variable` (adresse d'une variable ou d'une case de tableau ; demandé par l'utilisateur, petite étape D061) ;
-2. lot E : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
+1. lot E : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
 
 Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, comparaisons comme valeurs), lot E (chaînes), F (réels et fonctions mathématiques), G (son), H (fenêtres et mise en forme), I (interruptions et erreurs), J (disquette et cassette).
 

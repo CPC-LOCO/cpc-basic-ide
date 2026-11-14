@@ -87,11 +87,12 @@ public class LexerTests
     [Fact]
     public void Unexpected_character_is_reported()
     {
-        _ = Lex("10 PRINT @", out var diagnostics);
+        // « @ » servait d'exemple avant D061 (il donne maintenant l'adresse d'une variable) : « { » n'existe pas en Locomotive
+        _ = Lex("10 PRINT {", out var diagnostics);
 
         Diagnostic d = Assert.Single(diagnostics);
         Assert.Equal(DiagnosticCode.UnexpectedCharacter, d.Code);
-        Assert.Equal("@", d.Argument);
+        Assert.Equal("{", d.Argument);
     }
 
     [Fact]

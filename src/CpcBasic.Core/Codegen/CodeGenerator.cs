@@ -293,6 +293,14 @@ public static class CodeGenerator
                     break;
                 }
 
+                case AddressOfExpression address:
+                    // @A : adresse de la variable (fixe dans le programme compilé) ; @T(3) : adresse de la case (D061)
+                    if (address.Target is ArrayElementExpression cell)
+                        EmitElementAddress(cell.Name, cell.Indexes);
+                    else
+                        emitter.LdHlLabel(Slot(((VariableExpression)address.Target).Name).Label);
+                    break;
+
                 case NotExpression negation:
                     EmitExpression(negation.Operand);               // NOT : tous les bits inversés (D060)
                     emitter.LdAH();

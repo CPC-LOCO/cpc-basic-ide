@@ -1546,6 +1546,9 @@ public static class Parser
                 case NotExpression negation:
                     Uses(negation.Operand);
                     break;
+                case AddressOfExpression address:
+                    Uses(address.Target);
+                    break;
             }
         }
 
@@ -1853,6 +1856,18 @@ public static class Parser
         {
             case TokenKind.Number:
                 return ParseNumber(tokens, ref pos, diagnostics, negative: false);
+
+            case TokenKind.At:
+            {
+                // @A ou @T(3) : adresse de la variable ou de la case (D061)
+                pos++;
+                int before = diagnostics.Count;
+                Expression? target = ParseTarget(tokens, ref pos, diagnostics);
+                for (int i = before; i < diagnostics.Count; i++)
+                    if (diagnostics[i].Code == DiagnosticCode.ExpectedTarget)
+                        diagnostics[i] = diagnostics[i] with { Context = "@" };
+                return target is null ? null : new AddressOfExpression(target);
+            }
 
             case TokenKind.HexNumber:
                 pos++;

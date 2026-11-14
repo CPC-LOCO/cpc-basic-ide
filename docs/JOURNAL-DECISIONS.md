@@ -389,6 +389,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Limites (jusqu'aux réels, lot F) :** `^` donne un entier sur 16 bits sans erreur s'il déborde (comme `*`) ; un exposant négatif donne 0 (sauf 1 et -1). Mots réservés ajoutés : XOR, NOT.
 - **Fichiers :** Lexer.cs (HexNumber, Caret, HexValue), Ast.cs (BinaryOperator And/Or/Xor/Power, CompareExpression, NotExpression), Diagnostic.cs (2 messages), Parser.cs (niveaux d'expression, ToCondition), CodeGenerator.cs, RuntimeLibrary.cs (module Pow16), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (OR D, BIT 0,E), `tests\CpcBasic.Tests\LotDTests.cs` (41 tests), `tests\CpcBasic.Tests\ConditionsTests.cs` (1 test adapté), `examples\logique.bas`.
 
+## D061 : @variable, adresse d'une variable (Décidé, validé le 14 nov. 2026)
+- **Demande de l'utilisateur :** le caractère « @ » du Locomotive (adresse d'une variable), après le lot D.
+- **Fait :** `@A`, `@A%` : adresse où la variable est rangée dans le programme compilé (elle ne change jamais, contrairement au BASIC où les variables peuvent bouger) ; `@T(3)` : adresse d'une case de tableau (la case est vérifiée, et le tableau créé s'il n'existe pas encore, comme pour une lecture). `@` s'utilise dans tout calcul : `PEEK(@A)`, `POKE @A + 1, 0`.
+- **Taille :** une variable entière occupe 2 octets (octet bas, puis octet haut), comme A% dans le Locomotive ; une variable BYTE, 1 octet ; les cases d'un tableau se suivent de 2 octets, la dernière dimension changeant le plus vite (comme T%() dans le Locomotive). Différence avec le Locomotive : A (sans %) y est un nombre à virgule de 5 octets ; ici A est un entier de 2 octets (écart voulu, D026).
+- **Pas encore :** `@a$` (chaînes, lot E) ; donner `@A` à une routine en langage machine (`CALL adresse, @A`, `|NOM, @A`) : paramètres de CALL et RSX, à venir.
+- **Validé par l'utilisateur le 14 nov. 2026 :** 622 tests ; `examples\adresse.bas` conforme dans WinAPE (« @ » s'affiche « à » : jeu de caractères français du CPC, caractère 64). Un ancien test (LanguageTests) utilisait « @ » comme caractère inconnu : remplacé par « { ».
+- **Fichiers :** Lexer.cs (At), Ast.cs (AddressOfExpression), Parser.cs, CodeGenerator.cs, `tests\CpcBasic.Tests\AddressTests.cs` (13 tests), `tests\CpcBasic.Tests\LanguageTests.cs` (1 test adapté), `examples\adresse.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

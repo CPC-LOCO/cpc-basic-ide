@@ -13,6 +13,7 @@ public enum TokenKind
     Number,
     HexNumber,    // &C9, &HC9 (hexadécimal) ou &X1010 (binaire), de 0 à &FFFF ; Text garde l'écriture d'origine (lot D, D060)
     Caret,        // ^ : puissance (lot D, D060)
+    At,           // @ : adresse d'une variable (D061)
     Colon,
     Semicolon,
     Comma,
@@ -198,6 +199,7 @@ public static class Lexer
                 '\\' => TokenKind.Slash,   // « \ » : division entière du Locomotive BASIC
                 '=' => TokenKind.Equals,
                 '^' => TokenKind.Caret,
+                '@' => TokenKind.At,
                 '(' => TokenKind.LeftParen,
                 ')' => TokenKind.RightParen,
                 _ => null

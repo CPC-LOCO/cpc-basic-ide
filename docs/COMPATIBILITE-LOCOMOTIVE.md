@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -90,6 +90,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `WAIT` | attend un état sur un port | À faire |  |
 | `UNT` | convertit une adresse en entier signé | À faire |  |
 | `| (commandes RSX)` | appelle une extension | À faire |  |
+| `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061). `@a$` avec le lot E ; passage à CALL et aux RSX à venir. |
 | `DI / EI` | coupe / remet les interruptions | À faire |  |
 | `SYMBOL` | redéfinit un caractère | À faire |  |
 | `SYMBOL AFTER` | réserve les caractères redéfinissables | À faire |  |

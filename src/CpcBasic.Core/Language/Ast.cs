@@ -149,6 +149,12 @@ public enum BinaryOperator
 /// <summary>Comparaison utilisée comme valeur : -1 si elle est vraie, 0 sinon, comme le Locomotive (A = B > 3) (lot D, D060).</summary>
 public sealed record CompareExpression(CompareOperator Operator, Expression Left, Expression Right) : Expression;
 
+/// <summary>
+/// @A, @T(3) : adresse en mémoire où la variable (ou la case de tableau) est rangée, comme le Locomotive (D061).
+/// Target est une VariableExpression ou une ArrayElementExpression.
+/// </summary>
+public sealed record AddressOfExpression(Expression Target) : Expression;
+
 /// <summary>NOT valeur : inverse tous les bits (NOT 0 = -1, NOT -1 = 0), comme le Locomotive (lot D, D060).</summary>
 public sealed record NotExpression(Expression Operand) : Expression;
 
@@ -238,6 +244,7 @@ public static class AstWalker
             ArrayElementExpression element => element.Indexes,
             CompareExpression compare => [compare.Left, compare.Right],
             NotExpression negation => [negation.Operand],
+            AddressOfExpression address => [address.Target],
             _ => []
         };
         foreach (Expression child in inner)
