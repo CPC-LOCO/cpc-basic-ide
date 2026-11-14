@@ -11,13 +11,18 @@ public enum VarType
     /// <summary>Entier signé 16 bits : A ou A%. Type par défaut, sans déclaration.</summary>
     Integer,
     /// <summary>Octet non signé 8 bits : variable déclarée avec BYTE.</summary>
-    Byte
+    Byte,
+    /// <summary>Texte : A$ (lot E, D062). Fiche de 3 octets comme le Locomotive : longueur, puis adresse des lettres.</summary>
+    String
 }
 
 public static class VariableNames
 {
-    /// <summary>Les suffixes $ (texte) et ! (réel) n'existent pas encore.</summary>
-    public static bool IsSupported(string name) => name[^1] is not ('$' or '!');
+    /// <summary>Le suffixe ! (réel) n'existe pas encore ; $ (texte) existe depuis le lot E (D062).</summary>
+    public static bool IsSupported(string name) => name[^1] is not '!';
+
+    /// <summary>Vrai pour une variable texte (A$).</summary>
+    public static bool IsString(string name) => name[^1] == '$';
 
     /// <summary>Vrai si le nom se termine par un suffixe de type ($, % ou !).</summary>
     public static bool HasSuffix(string name) => name[^1] is '$' or '%' or '!';
@@ -155,6 +160,25 @@ public sealed record CompareExpression(CompareOperator Operator, Expression Left
 /// </summary>
 public sealed record AddressOfExpression(Expression Target) : Expression;
 
+/// <summary>"BONJOUR" dans un calcul : un texte écrit dans le programme (lot E, D062).</summary>
+public sealed record StringLiteralExpression(string Text) : Expression;
+
+/// <summary>A$ + B$ : les deux textes mis bout à bout (lot E, D062).</summary>
+public sealed record ConcatExpression(Expression Left, Expression Right) : Expression;
+
+/// <summary>Le type d'une expression : texte ou nombre (lot E, D062).</summary>
+public static class Types
+{
+    /// <summary>Vrai si l'expression donne un texte.</summary>
+    public static bool IsString(Expression expression) => expression switch
+    {
+        StringLiteralExpression or ConcatExpression => true,
+        VariableExpression variable => VariableNames.IsString(variable.Name),
+        ArrayElementExpression element => VariableNames.IsString(element.Name),
+        _ => false
+    };
+}
+
 /// <summary>NOT valeur : inverse tous les bits (NOT 0 = -1, NOT -1 = 0), comme le Locomotive (lot D, D060).</summary>
 public sealed record NotExpression(Expression Operand) : Expression;
 
@@ -245,6 +269,7 @@ public static class AstWalker
             CompareExpression compare => [compare.Left, compare.Right],
             NotExpression negation => [negation.Operand],
             AddressOfExpression address => [address.Target],
+            ConcatExpression concat => [concat.Left, concat.Right],
             _ => []
         };
         foreach (Expression child in inner)

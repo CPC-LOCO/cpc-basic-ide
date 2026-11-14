@@ -115,6 +115,21 @@ public static class RuntimeLibrary
     public const string Pow16Name = "Pow16";
     public const string Pow16Label = "rt_pow16";
 
+    public const string HeapName = "Heap";
+    public const string StringPointerLabel = "rt_str_ptr";      // bas des textes rangés (ils descendent depuis la limite)
+
+    // Textes (lot E, D062)
+    public const string StringsName = "Strings";
+    public const string StrResetLabel = "rt_str_reset";      // libère les textes temporaires de l'instruction précédente
+    public const string StrAllocLabel = "rt_str_alloc";
+    public const string StrGcLabel = "rt_str_gc";
+    public const string StrConcatLabel = "rt_str_concat";
+    public const string StrAssignLabel = "rt_str_assign";
+    public const string StrPrintLabel = "rt_str_print";
+    public const string StrCmpLabel = "rt_str_cmp";
+    public const string InputStringName = "InputString";
+    public const string InputStrLabel = "rt_input_str";
+
     public const string ArrayName = "Array";
     public const string ArrayHeapLabel = "rt_arr_heap";         // début de la mémoire libre (les tableaux sont pris ici)
     public const string ArrayHeapLimitLabel = "rt_arr_limit";   // fin de la mémoire libre (non comprise), changée par MEMORY
@@ -128,7 +143,7 @@ public static class RuntimeLibrary
     const string ArrayAllocLabel = "rt_arr_alloc";
     const string ArrayAutoDimLabel = "rt_arr_autodim";
     const string ErrSubscript = "rt_arr_err_sub";
-    const string ErrMemory = "rt_arr_err_mem";
+    public const string ErrMemory = "rt_heap_err_mem";
     const string ErrRedim = "rt_arr_err_redim";
 
     static byte[] Ascii(string text) => [.. System.Text.Encoding.ASCII.GetBytes(text), 0];
@@ -308,7 +323,520 @@ public static class RuntimeLibrary
             e.Reserve(2);
         }),
 
-        [ArrayName] = new RuntimeModule(ArrayName, [ErrorName], e =>
+        // Mémoire libre (D058, D062) : les tableaux montent depuis la fin du programme (rt_arr_heap), les textes descendent
+        // depuis la limite (rt_str_ptr). rt_arr_limit : &A67C, ou l'adresse donnée par MEMORY + 1.
+        //  rt_arr_memory : MEMORY. HL = adresse : la mémoire libre s'arrête là.
+        [HeapName] = new RuntimeModule(HeapName, [ErrorName], e =>
+        {
+            e.Label(ArrayMemoryLabel);
+            e.IncHl();                               // limite = adresse + 1
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_arr_mem_default");        // MEMORY 65535
+            e.LdDeImm(DefaultHeapLimit);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrCLabel("rt_arr_mem_set");
+            e.Label("rt_arr_mem_default");
+            e.LdHlImm(DefaultHeapLimit);
+            e.Label("rt_arr_mem_set");
+            e.LdDeMem(ArrayHeapLabel);               // les tableaux déjà créés doivent rester dessous
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JpCLabel(ErrMemory);
+            e.ExDeHl();                              // DE = nouvelle limite
+            e.LdHlMem(ArrayHeapLimitLabel);          // des textes sont déjà rangés sous l'ancienne limite ?
+            e.PushDe();
+            e.LdDeMem(StringPointerLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.PopDe();
+            e.JpNzLabel(ErrMemory);                  // oui : on ne peut pas les déplacer (pas encore)
+            e.ExDeHl();
+            e.LdMemHl(ArrayHeapLimitLabel);
+            e.LdMemHl(StringPointerLabel);           // les textes partiront de la nouvelle limite
+            e.Ret();
+
+            e.Label(ErrMemory);
+            e.LdHlLabel("rt_heap_msg_mem");
+            e.JpLabel(ErrorLabel);
+
+            e.Label(ArrayHeapLabel);
+            e.Reserve(2);
+            e.Label(ArrayHeapLimitLabel);
+            e.Word(DefaultHeapLimit);
+            e.Label(StringPointerLabel);
+            e.Word(DefaultHeapLimit);
+            e.Label("rt_heap_msg_mem");
+            e.Data(Ascii("Memory full"));
+        }),
+
+        // Textes (lot E, D062), rangés comme le Locomotive : chaque texte a une fiche de 3 octets (longueur 0 à 255, puis
+        // adresse des lettres). Un texte écrit dans le programme reste où il est (la fiche pointe dessus). Les autres sont
+        // rangés en haut de la mémoire libre, en descendant depuis rt_arr_limit : chaque bloc = les lettres, puis la
+        // longueur et l'adresse de la fiche qui le possède (3 octets). Une valeur texte, pendant un calcul, est l'adresse
+        // d'une fiche (HL) : celle d'une variable, d'un texte du programme, ou une fiche temporaire (16 au plus par
+        // instruction, rendues par rt_str_reset au début de l'instruction suivante).
+        // Ménage (rt_str_gc) : quand la place manque, on parcourt les blocs de haut en bas ; un bloc dont la fiche pointe
+        // encore sur lui est gardé et remonté, les autres sont oubliés. Les fiches sont mises à jour.
+        //  rt_str_alloc  : C = longueur (1 à 255), DE = fiche propriétaire -> HL = adresse des lettres. Garde C et DE.
+        //  rt_str_concat : DE = fiche gauche, HL = fiche droite -> HL = fiche temporaire de A$ + B$.
+        //  rt_str_assign : HL = fiche source, DE = fiche de la variable : la variable reçoit le texte.
+        //  rt_str_print  : HL = fiche : affiche le texte.
+        //  rt_str_cmp    : DE = fiche gauche, HL = fiche droite -> HL = -1, 0 ou 1 (ordre des codes des caractères).
+        [StringsName] = new RuntimeModule(StringsName, [ErrorName, HeapName], e =>
+        {
+            e.Label(StrResetLabel);
+            e.LdHlMem("rt_str_tmpptr");
+            e.LdDeLabel("rt_str_tmp");
+            e.OrA();
+            e.SbcHlDe();
+            e.RetZ();                                // aucune fiche temporaire utilisée
+            e.LdBH();
+            e.LdCL();                                // BC = octets utilisés
+            e.ExDeHl();
+            e.LdMemHl("rt_str_tmpptr");
+            e.Label("rt_str_reset_loop");            // les fiches remises à 0 : leurs blocs seront oubliés au ménage
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.DecBc();
+            e.LdAB();
+            e.OrC();
+            e.JrNzLabel("rt_str_reset_loop");
+            e.Ret();
+
+            e.Label("rt_str_newtmp");                // HL = nouvelle fiche temporaire (vide). Garde C.
+            e.LdHlMem("rt_str_tmpptr");
+            e.PushHl();
+            e.IncHl();
+            e.IncHl();
+            e.IncHl();
+            e.LdDeLabel("rt_str_tmp_end");
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrCLabel("rt_str_newtmp_ok");
+            e.JpNzLabel("rt_str_err_complex");       // plus de 16 textes intermédiaires dans une instruction
+            e.Label("rt_str_newtmp_ok");
+            e.LdMemHl("rt_str_tmpptr");
+            e.PopHl();
+            e.Ret();
+
+            e.Label(StrAllocLabel);
+            e.CallLabel("rt_str_try");
+            e.RetNc();
+            e.PushBc();
+            e.PushDe();
+            e.CallLabel(StrGcLabel);                 // pas de place : ménage, puis on réessaie
+            e.PopDe();
+            e.PopBc();
+            e.CallLabel("rt_str_try");
+            e.RetNc();
+            e.JpLabel(ErrMemory);
+
+            e.Label("rt_str_try");                   // retenue à 1 s'il n'y a pas la place
+            e.PushDe();
+            e.LdHZero();
+            e.LdLC();
+            e.IncHl();
+            e.IncHl();
+            e.IncHl();
+            e.ExDeHl();                              // DE = longueur + 3
+            e.LdHlMem(StringPointerLabel);
+            e.OrA();
+            e.SbcHlDe();                             // HL = début du nouveau bloc
+            e.JrCLabel("rt_str_try_fail");
+            e.LdDeMem(ArrayHeapLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrCLabel("rt_str_try_fail");           // il descendrait sur les tableaux
+            e.LdMemHl(StringPointerLabel);
+            e.PopDe();
+            e.PushHl();
+            e.LdAL();
+            e.AddAC();
+            e.LdLA();
+            e.LdAH();
+            e.AdcAImm(0);
+            e.LdHA();                                // HL = juste après les lettres
+            e.StoreHlC();                            // longueur, puis adresse de la fiche propriétaire
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.PopHl();
+            e.OrA();
+            e.Ret();
+            e.Label("rt_str_try_fail");
+            e.PopDe();
+            e.Scf();
+            e.Ret();
+
+            e.Label(StrGcLabel);
+            e.LdHlMem(ArrayHeapLimitLabel);
+            e.LdMemHl("rt_gc_dest");                 // les blocs gardés sont remontés à partir d'ici
+            e.LdMemHl("rt_gc_cur");                  // bloc examiné (on descend)
+            e.Label("rt_gc_loop");
+            e.LdHlMem("rt_gc_cur");
+            e.LdDeMem(StringPointerLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrZLabel("rt_gc_done");
+            e.LdHlMem("rt_gc_cur");
+            e.DecHl();
+            e.LoadDFromHl();
+            e.DecHl();
+            e.LoadEFromHl();                         // DE = fiche propriétaire
+            e.DecHl();
+            e.LoadCFromHl();                         // C = longueur
+            e.LdBImm(0);
+            e.OrA();
+            e.SbcHlBc();                             // HL = début du bloc
+            e.LdMemHl("rt_gc_start");
+            e.ExDeHl();                              // HL = fiche, DE = début du bloc
+            e.LdAHl();                               // la fiche pointe-t-elle encore sur ce bloc ?
+            e.SubC();
+            e.JrNzLabel("rt_gc_dead");
+            e.IncHl();
+            e.LdAHl();
+            e.SubE();
+            e.JrNzLabel("rt_gc_dead");
+            e.IncHl();
+            e.LdAHl();
+            e.SubD();
+            e.JrNzLabel("rt_gc_dead");
+            e.PushHl();                              // fiche + 2
+            e.LdHZero();
+            e.LdLC();
+            e.IncHl();
+            e.IncHl();
+            e.IncHl();
+            e.LdBH();
+            e.LdCL();                                // BC = taille du bloc
+            e.LdHlMem("rt_gc_dest");
+            e.DecHl();
+            e.ExDeHl();                              // DE = dernier octet de la place d'arrivée
+            e.LdHlMem("rt_gc_cur");
+            e.DecHl();                               // HL = dernier octet du bloc
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrZLabel("rt_gc_same");                // déjà à sa place
+            e.Lddr();
+            e.IncDe();                               // DE = nouveau début
+            e.JrLabel("rt_gc_moved");
+            e.Label("rt_gc_same");
+            e.LdDeMem("rt_gc_start");
+            e.Label("rt_gc_moved");
+            e.PopHl();
+            e.StoreHlD();                            // la fiche suit son texte
+            e.DecHl();
+            e.StoreHlE();
+            e.LdMemDe("rt_gc_dest");
+            e.Label("rt_gc_dead");
+            e.LdHlMem("rt_gc_start");
+            e.LdMemHl("rt_gc_cur");
+            e.JrLabel("rt_gc_loop");
+            e.Label("rt_gc_done");
+            e.LdHlMem("rt_gc_dest");
+            e.LdMemHl(StringPointerLabel);
+            e.Ret();
+
+            e.Label(StrConcatLabel);
+            e.LdMemDe("rt_str_a");
+            e.LdMemHl("rt_str_b");
+            e.LdADe();
+            e.AddAMemHl();                           // A = longueur totale
+            e.JpCLabel("rt_str_err_long");           // plus de 255 caractères
+            e.LdCA();
+            e.CallLabel("rt_str_newtmp");
+            e.LdMemHl("rt_str_dst");
+            e.LdAC();
+            e.OrA();
+            e.RetZ();                                // deux textes vides
+            e.ExDeHl();
+            e.CallLabel(StrAllocLabel);              // le ménage a pu déplacer les deux textes : on relit leurs fiches
+            e.ExDeHl();
+            e.LdHlMem("rt_str_dst");
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.LdHlMem("rt_str_a");
+            e.CallLabel("rt_str_copy");
+            e.LdHlMem("rt_str_b");
+            e.CallLabel("rt_str_copy");
+            e.LdHlMem("rt_str_dst");
+            e.Ret();
+
+            e.Label("rt_str_copy");                  // HL = fiche, DE = destination : copie les lettres, DE avance
+            e.LoadCFromHl();
+            e.LdBImm(0);
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.LdAC();
+            e.OrA();
+            e.RetZ();
+            e.Ldir();
+            e.Ret();
+
+            e.Label(StrAssignLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.RetZ();                                // A$ = A$
+            e.LdMemHl("rt_str_a");
+            e.LdMemDe("rt_str_dst");
+            e.LdAHl();
+            e.OrA();
+            e.JrNzLabel("rt_str_as_full");
+            e.ExDeHl();                              // texte vide
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.StoreHlImm(0);
+            e.Ret();
+            e.Label("rt_str_as_full");
+            e.LdCA();
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();                         // DE = lettres de la source
+            e.LdHlMem("rt_str_a");                   // fiche temporaire ? la variable prend son bloc tel quel
+            e.PushDe();
+            e.LdDeLabel("rt_str_tmp");
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrCLabel("rt_str_as_nottmp");
+            e.LdDeLabel("rt_str_tmp_end");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_str_as_nottmp");
+            e.PopHl();
+            e.PushHl();                              // HL = lettres
+            e.LdBImm(0);
+            e.AddHlBc();
+            e.IncHl();                               // HL = adresse de la fiche propriétaire, dans le bloc
+            e.LdDeMem("rt_str_dst");
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.PopDe();
+            e.JrLabel("rt_str_as_set");
+            e.Label("rt_str_as_nottmp");
+            e.PopDe();
+            e.LdHlMem(StringPointerLabel);           // lettres sous la zone des textes : texte écrit dans le programme
+            e.ExDeHl();
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.ExDeHl();
+            e.JrCLabel("rt_str_as_set");             // la fiche pointe directement dessus, comme le Locomotive
+            e.LdDeMem("rt_str_dst");
+            e.CallLabel(StrAllocLabel);              // texte d'une autre variable : on le copie
+            e.PushHl();
+            e.ExDeHl();
+            e.LdHlMem("rt_str_a");                   // relue après un éventuel ménage
+            e.CallLabel("rt_str_copy");
+            e.PopDe();
+            e.LdHlMem("rt_str_a");
+            e.LoadCFromHl();
+            e.Label("rt_str_as_set");                // fiche de la variable = longueur C, lettres DE
+            e.LdHlMem("rt_str_dst");
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.Ret();
+
+            e.Label(StrPrintLabel);
+            e.LoadBFromHl();
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.LdAB();
+            e.OrA();
+            e.RetZ();
+            e.Label("rt_str_print_loop");
+            e.LdAHl();
+            e.CallAddress(TxtOutput);
+            e.IncHl();
+            e.DjnzLabel("rt_str_print_loop");
+            e.Ret();
+
+            e.Label(StrCmpLabel);
+            e.LoadCFromHl();
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();                                // HL = lettres de droite, C = leur nombre
+            e.PushHl();
+            e.ExDeHl();
+            e.LoadBFromHl();
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();                         // DE = lettres de gauche, B = leur nombre
+            e.PopHl();
+            e.Label("rt_str_cmp_loop");
+            e.LdAB();
+            e.OrA();
+            e.JrZLabel("rt_str_cmp_lend");
+            e.LdAC();
+            e.OrA();
+            e.JrZLabel("rt_str_cmp_gt");             // la droite est finie : la gauche est plus grande
+            e.LdADe();
+            e.CpMemHl();
+            e.JrCLabel("rt_str_cmp_lt");
+            e.JrNzLabel("rt_str_cmp_gt");
+            e.IncDe();
+            e.IncHl();
+            e.DecB();
+            e.DecC();
+            e.JrLabel("rt_str_cmp_loop");
+            e.Label("rt_str_cmp_lend");
+            e.LdAC();
+            e.OrA();
+            e.JrZLabel("rt_str_cmp_eq");
+            e.Label("rt_str_cmp_lt");
+            e.LdHlImm(0xFFFF);
+            e.Ret();
+            e.Label("rt_str_cmp_gt");
+            e.LdHlImm(1);
+            e.Ret();
+            e.Label("rt_str_cmp_eq");
+            e.LdHlImm(0);
+            e.Ret();
+
+            e.Label("rt_str_err_long");
+            e.LdHlLabel("rt_str_msg_long");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_str_err_complex");
+            e.LdHlLabel("rt_str_msg_complex");
+            e.JpLabel(ErrorLabel);
+
+            e.Label("rt_str_tmpptr");
+            e.Word("rt_str_tmp");
+            foreach (string scratch in new[] { "rt_str_a", "rt_str_b", "rt_str_dst", "rt_gc_dest", "rt_gc_cur", "rt_gc_start" })
+            {
+                e.Label(scratch);
+                e.Reserve(2);
+            }
+            e.Label("rt_str_tmp");
+            e.Reserve(16 * 3);
+            e.Label("rt_str_tmp_end");
+            e.Label("rt_str_msg_long");
+            e.Data(Ascii("String too long"));
+            e.Label("rt_str_msg_complex");
+            e.Data(Ascii("String expression too complex"));
+        }),
+
+        // INPUT A$ (D062) : lit le texte suivant de la ligne tapée. Entre guillemets, il peut contenir des virgules ;
+        // sinon il s'arrête à la virgule ou à la fin. Les espaces du début sont sautés.
+        // DE = fiche de la variable ; retenue à 1 si ce qui suit le texte n'est ni une virgule ni la fin.
+        [InputStringName] = new RuntimeModule(InputStringName, [InputName, StringsName], e =>
+        {
+            e.Label(InputStrLabel);
+            e.LdMemDe("rt_str_dst");
+            e.LdHlMem("rt_inp_ptr");
+            e.Label("rt_is_sp");
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_is_start");
+            e.IncHl();
+            e.JrLabel("rt_is_sp");
+            e.Label("rt_is_start");
+            e.LdCImm(0);                             // C = nombre de lettres
+            e.CpImm('"');
+            e.JrNzLabel("rt_is_plain");
+            e.IncHl();
+            e.LdMemHl("rt_str_a");                   // début des lettres
+            e.Label("rt_is_q");
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_is_after");               // guillemet jamais refermé : on prend jusqu'à la fin
+            e.CpImm('"');
+            e.JrZLabel("rt_is_qend");
+            e.IncHl();
+            e.IncC();
+            e.JrLabel("rt_is_q");
+            e.Label("rt_is_qend");
+            e.IncHl();
+            e.Label("rt_is_sp2");
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_is_after");
+            e.IncHl();
+            e.JrLabel("rt_is_sp2");
+            e.Label("rt_is_plain");
+            e.LdMemHl("rt_str_a");
+            e.Label("rt_is_p");
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_is_after");
+            e.CpImm(',');
+            e.JrZLabel("rt_is_after");
+            e.IncHl();
+            e.IncC();
+            e.JrLabel("rt_is_p");
+            e.Label("rt_is_after");                  // HL sur la virgule, la fin, ou autre chose
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_is_ok");
+            e.CpImm(',');
+            e.JrNzLabel("rt_is_err");
+            e.IncHl();
+            e.Label("rt_is_ok");
+            e.LdMemHl("rt_inp_ptr");
+            e.LdAC();
+            e.OrA();
+            e.JrNzLabel("rt_is_copy");
+            e.LdHlMem("rt_str_dst");                 // texte vide
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.StoreHlImm(0);
+            e.OrA();
+            e.Ret();
+            e.Label("rt_is_copy");
+            e.LdDeMem("rt_str_dst");
+            e.CallLabel(StrAllocLabel);              // HL = lettres (la ligne tapée n'est pas dans la zone des textes)
+            e.PushHl();
+            e.PushBc();
+            e.ExDeHl();
+            e.LdHlMem("rt_str_a");
+            e.LdBImm(0);
+            e.Ldir();
+            e.PopBc();
+            e.PopDe();
+            e.LdHlMem("rt_str_dst");
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.OrA();
+            e.Ret();
+            e.Label("rt_is_err");
+            e.Scf();
+            e.Ret();
+        }),
+
+        [ArrayName] = new RuntimeModule(ArrayName, [ErrorName, HeapName], e =>
         {
             e.Label(ArrayDimSizeLabel);
             e.IncHl();                               // nombre de cases = plus grande case + 1
@@ -359,7 +887,7 @@ public static class RuntimeLibrary
             e.AddHlBc();
             e.JpCLabel(ErrMemory);
             e.PushDe();
-            e.LdDeMem(ArrayHeapLimitLabel);
+            e.LdDeMem(StringPointerLabel);           // les textes occupent le haut : on s'arrête sous eux (D062)
             e.OrA();
             e.SbcHlDe();
             e.AddHlDe();                             // retenue : fin < limite ; Z : fin = limite
@@ -501,42 +1029,14 @@ public static class RuntimeLibrary
             e.PushDe();
             e.Ret();
 
-            e.Label(ArrayMemoryLabel);
-            e.IncHl();                               // limite = adresse + 1
-            e.LdAH();
-            e.OrL();
-            e.JrZLabel("rt_arr_mem_default");        // MEMORY 65535
-            e.LdDeImm(DefaultHeapLimit);
-            e.OrA();
-            e.SbcHlDe();
-            e.AddHlDe();
-            e.JrCLabel("rt_arr_mem_set");
-            e.Label("rt_arr_mem_default");
-            e.LdHlImm(DefaultHeapLimit);
-            e.Label("rt_arr_mem_set");
-            e.LdDeMem(ArrayHeapLabel);               // les tableaux déjà créés doivent rester dessous
-            e.OrA();
-            e.SbcHlDe();
-            e.AddHlDe();
-            e.JpCLabel(ErrMemory);
-            e.LdMemHl(ArrayHeapLimitLabel);
-            e.Ret();
-
             // Erreurs : message du Locomotive, puis module RunError
             e.Label(ErrSubscript);
             e.LdHlLabel("rt_arr_msg_sub");
-            e.JpLabel(ErrorLabel);
-            e.Label(ErrMemory);
-            e.LdHlLabel("rt_arr_msg_mem");
             e.JpLabel(ErrorLabel);
             e.Label(ErrRedim);
             e.LdHlLabel("rt_arr_msg_redim");
             e.JpLabel(ErrorLabel);
 
-            e.Label(ArrayHeapLabel);
-            e.Reserve(2);
-            e.Label(ArrayHeapLimitLabel);
-            e.Bytes((byte)(DefaultHeapLimit & 0xFF), (byte)(DefaultHeapLimit >> 8));
             foreach (string scratch in new[] { "rt_arr_ret", "rt_arr_desc", "rt_arr_off", "rt_arr_stride", "rt_arr_size" })
             {
                 e.Label(scratch);
@@ -544,8 +1044,6 @@ public static class RuntimeLibrary
             }
             e.Label("rt_arr_msg_sub");
             e.Data(Ascii("Subscript out of range"));
-            e.Label("rt_arr_msg_mem");
-            e.Data(Ascii("Memory full"));
             e.Label("rt_arr_msg_redim");
             e.Data(Ascii("Array already dimensioned"));
         }),

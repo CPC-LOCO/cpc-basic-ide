@@ -192,6 +192,15 @@ public sealed class Z80Emitter
     // Lot D (D060)
     public void OrD() => code.Add(0xB2);                                                         // OR D
     public void Bit0E() { code.Add(0xCB); code.Add(0x43); }                                      // BIT 0,E
+    // Textes (lot E, D062)
+    public void StoreHlC() => code.Add(0x71);                                                    // LD (HL),C
+    public void AddAMemHl() => code.Add(0x86);                                                   // ADD A,(HL)
+    public void CpMemHl() => code.Add(0xBE);                                                     // CP (HL)
+    public void DecB() => code.Add(0x05);                                                        // DEC B
+    public void IncC() => code.Add(0x0C);                                                        // INC C
+    public void LdCImm(int value) { code.Add(0x0E); code.Add((byte)value); }                     // LD C,n
+    public void Lddr() { code.Add(0xED); code.Add(0xB8); }                                       // LDDR
+    public void LdMemDe(string label) { code.Add(0xED); code.Add(0x53); AddAbsolute(label); }    // LD (étiquette),DE
 
     public void LdDeMem(string label) { code.Add(0xED); code.Add(0x5B); AddAbsolute(label); }           // LD DE,(étiquette)
 

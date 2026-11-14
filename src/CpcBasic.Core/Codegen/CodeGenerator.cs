@@ -84,7 +84,8 @@ public static class CodeGenerator
         {
             if (!variables.TryGetValue(name, out VariableSlot? slot))
             {
-                VarType type = declared.TryGetValue(name, out VarType declaredType) ? declaredType : VarType.Integer;
+                VarType type = declared.TryGetValue(name, out VarType declaredType) ? declaredType
+                    : VariableNames.IsString(name) ? VarType.String : VarType.Integer;
                 slot = new VariableSlot($"var_{slots.Count}", type);
                 variables[name] = slot;
                 slots.Add(slot);
@@ -129,6 +130,37 @@ public static class CodeGenerator
                 emitter.LdDeLabel(label);
                 emitter.LdBImm(dimensions);
                 emitter.CallLabel(RuntimeLibrary.ArrayElemLabel);
+            }
+        }
+
+        // Textes (lot E, D062). Un texte écrit dans le programme a sa fiche (longueur, adresse) à la fin du binaire.
+        var literals = new List<string>();
+        bool usesStrings = program.Statements.Any(StatementUsesStrings);
+
+        // HL = adresse de la fiche du texte
+        void EmitString(Expression expression)
+        {
+            switch (expression)
+            {
+                case StringLiteralExpression literal:
+                    emitter.LdHlLabel($"lit_{literals.Count}");
+                    literals.Add(literal.Text);
+                    break;
+
+                case VariableExpression variable:
+                    emitter.LdHlLabel(Slot(variable.Name).Label);
+                    break;
+
+                case ConcatExpression concat:
+                    EmitString(concat.Left);
+                    emitter.PushHl();
+                    EmitString(concat.Right);
+                    emitter.PopDe();
+                    emitter.CallLabel(RuntimeLibrary.StrConcatLabel);
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Texte non géré : {expression.GetType().Name}");
             }
         }
 
@@ -314,6 +346,12 @@ public static class CodeGenerator
                 case CallExpression call:
                     switch (call.Function)
                     {
+                        case "LEN":                                 // LEN(texte) : la longueur est le premier octet de la fiche (D062)
+                            EmitString(call.Arguments[0]);
+                            emitter.LoadLFromHl();
+                            emitter.LdHZero();
+                            break;
+
                         case "ABS":
                             EmitExpression(call.Arguments[0]);
                             required.Add(RuntimeLibrary.Abs16Name);
@@ -503,8 +541,22 @@ public static class CodeGenerator
             bool equality = comparison.Operator is CompareOperator.Equal or CompareOperator.NotEqual;
             bool swap = comparison.Operator is CompareOperator.Greater or CompareOperator.LessOrEqual;
 
-            EmitExpression(comparison.Left);
-            if (comparison.Right is NumberExpression right)
+            Expression rightSide = comparison.Right;
+            if (Types.IsString(comparison.Left))
+            {
+                // Deux textes (D062) : HL = -1, 0 ou 1, puis on compare HL avec 0
+                EmitString(comparison.Left);
+                emitter.PushHl();
+                EmitString(comparison.Right);
+                emitter.PopDe();
+                emitter.CallLabel(RuntimeLibrary.StrCmpLabel);
+                rightSide = new NumberExpression(0);
+            }
+            else
+            {
+                EmitExpression(comparison.Left);
+            }
+            if (rightSide is NumberExpression right)
             {
                 if (!equality)
                 {
@@ -648,9 +700,9 @@ public static class CodeGenerator
                         memoryLimit = limit.Value & 0xFFFF;
                         memoryLine = screen.SourceLine;
                     }
-                    if (arrays.Count > 0)
+                    if (arrays.Count > 0 || usesStrings)
                     {
-                        EmitExpression(a[0]);                       // les tableaux doivent rester sous cette adresse (D058)
+                        EmitExpression(a[0]);                       // tableaux et textes restent sous cette adresse (D058, D062)
                         emitter.CallLabel(RuntimeLibrary.ArrayMemoryLabel);
                     }
                     break;
@@ -847,9 +899,12 @@ public static class CodeGenerator
             required.Add(RuntimeLibrary.DataName);
 
         // Tableaux : la mémoire libre commence juste après le programme (D058)
-        if (arrays.Count > 0)
+        if (arrays.Count > 0 || usesStrings)
         {
-            required.Add(RuntimeLibrary.ArrayName);
+            if (arrays.Count > 0)
+                required.Add(RuntimeLibrary.ArrayName);
+            if (usesStrings)
+                required.Add(RuntimeLibrary.StringsName);           // textes (D062)
             emitter.LdHlLabel(RuntimeLibrary.ArrayHeapStartLabel);
             emitter.LdMemHl(RuntimeLibrary.ArrayHeapLabel);
         }
@@ -864,8 +919,12 @@ public static class CodeGenerator
 
             // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
             // sans numéros de ligne, c'est la ligne de l'éditeur.
-            if (AstWalker.UsesArrays(statement) || statement is ReadStatement
-                || (arrays.Count > 0 && statement is ScreenStatement { Command: "MEMORY" }))
+            // Textes : les fiches temporaires de l'instruction précédente sont rendues (D062)
+            if (usesStrings && AstWalker.All(statement).Any(e => e is ConcatExpression))
+                emitter.CallLabel(RuntimeLibrary.StrResetLabel);
+
+            if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
+                || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" }))
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
                 emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
@@ -939,6 +998,14 @@ public static class CodeGenerator
                     {
                         if (i > 0)
                             emitter.CallLabel(RuntimeLibrary.InputMoreLabel);
+                        if (VariableNames.IsString(input.Variables[i]) && input.Indexes?[i] is null)
+                        {
+                            required.Add(RuntimeLibrary.InputStringName);   // INPUT A$ (D062)
+                            emitter.LdDeLabel(Slot(input.Variables[i]).Label);
+                            emitter.CallLabel(RuntimeLibrary.InputStrLabel);
+                            emitter.JpCLabel(redo);
+                            continue;
+                        }
                         emitter.CallLabel(RuntimeLibrary.InputNumLabel);
                         emitter.JpCLabel(redo);
                         if (input.Indexes?[i] is { } cellIndexes)
@@ -983,12 +1050,25 @@ public static class CodeGenerator
                     EmitText(print.NewLine ? print.Text + "\r\n" : print.Text);
                     break;
 
+                case PrintValueStatement printValue when Types.IsString(printValue.Value):
+                    EmitString(printValue.Value);                   // PRINT A$ (D062)
+                    emitter.CallLabel(RuntimeLibrary.StrPrintLabel);
+                    if (printValue.NewLine)
+                        EmitText("\r\n");
+                    break;
+
                 case PrintValueStatement printValue:
                     EmitExpression(printValue.Value);
                     required.Add(RuntimeLibrary.PrintIntName);
                     emitter.CallLabel(RuntimeLibrary.PrintIntLabel);
                     if (printValue.NewLine)
                         EmitText("\r\n");
+                    break;
+
+                case AssignStatement assign when VariableNames.IsString(assign.Variable):
+                    EmitString(assign.Value);                       // A$ = texte (D062)
+                    emitter.LdDeLabel(Slot(assign.Variable).Label);
+                    emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
                     break;
 
                 case AssignStatement assign:
@@ -1246,6 +1326,17 @@ public static class CodeGenerator
             emitter.Data(strings[i]);
         }
 
+        // Textes écrits dans le programme (D062) : fiche (longueur, adresse), puis les lettres
+        for (int k = 0; k < literals.Count; k++)
+        {
+            byte[] letters = Encode(literals[k]);
+            emitter.Label($"lit_{k}");
+            emitter.Bytes((byte)(letters.Length - 1));
+            emitter.Word($"lit_{k}_c");
+            emitter.Label($"lit_{k}_c");
+            emitter.Data(letters);
+        }
+
         // Nombres des DATA (D059), avec les points de départ de RESTORE
         if (usesData)
         {
@@ -1264,7 +1355,7 @@ public static class CodeGenerator
         foreach (VariableSlot slot in slots)
         {
             emitter.Label(slot.Label);
-            emitter.Reserve(slot.Type == VarType.Byte ? 1 : 2);
+            emitter.Reserve(slot.Type switch { VarType.Byte => 1, VarType.String => 3, _ => 2 });
         }
 
         // Descripteurs des tableaux : adresse des cases (0 = pas encore créé), puis nombre de cases de chaque dimension
@@ -1278,7 +1369,7 @@ public static class CodeGenerator
                 emitter.Reserve(2);
             }
         }
-        if (arrays.Count > 0)
+        if (arrays.Count > 0 || usesStrings)
             emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);   // la mémoire libre commence ici
 
         return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine);
@@ -1308,6 +1399,12 @@ public static class CodeGenerator
     const int ScrAccess = 0xBC59;       // SCR ACCESS : A = mode d'écriture (0 normal, 1 XOR, 2 AND, 3 OR)
 
     static string StringLabel(int index) => $"str_{index}";
+
+    /// <summary>Vrai si l'instruction utilise un texte (variable A$, texte entre guillemets dans un calcul...) (D062).</summary>
+    static bool StatementUsesStrings(Statement statement) =>
+        AstWalker.All(statement).Any(Types.IsString)
+        || (statement is AssignStatement assign && VariableNames.IsString(assign.Variable))
+        || (statement is InputStatement input && input.Variables.Any(VariableNames.IsString));
 
     // Texte en octets, avec 0 à la fin. Les caractères hors ASCII sont remplacés par « ? » pour
     // l'instant : la table des caractères du CPC n'est pas encore gérée.

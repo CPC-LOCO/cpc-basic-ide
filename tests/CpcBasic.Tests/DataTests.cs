@@ -94,7 +94,7 @@ public class DataTests
     [Fact]
     public void READ_dans_une_variable_texte_n_est_pas_encore_possible()
     {
-        Assert.Contains(Errors("10 READ A$"), e => e.Code == DiagnosticCode.UnsupportedVariableType);
+        Assert.Contains(Errors("10 READ A$"), e => e.Code == DiagnosticCode.StringNotYetHere);   // étape E3 (D062)
     }
 
     [Fact]

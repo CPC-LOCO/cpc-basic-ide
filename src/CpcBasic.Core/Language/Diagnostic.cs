@@ -57,7 +57,10 @@ public enum DiagnosticCode
     DataTextNotYet,
     ExpectedTarget,
     ExpectedHexDigits,
-    HexNumberOutOfRange
+    HexNumberOutOfRange,
+    TypeMismatch,
+    StringTooLong,
+    StringNotYetHere
 }
 
 /// <summary>
@@ -180,6 +183,12 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"« {Argument} » : après « & », il faut des chiffres hexadécimaux (0 à 9 et A à F, par exemple &C9 ou &HC9) ou, après « &X », des chiffres binaires (0 et 1, par exemple &X1010).",
         DiagnosticCode.HexNumberOutOfRange =>
             $"le nombre {Argument} est trop grand : un nombre écrit avec « & » va de &0 à &FFFF.",
+        DiagnosticCode.TypeMismatch =>
+            $"{(Context.Length == 0 ? "" : Context + " : ")}un texte et un nombre ne se mélangent pas ici ({Argument}). Un texte s'écrit entre guillemets ou dans une variable qui finit par $, comme A$.",
+        DiagnosticCode.StringTooLong =>
+            $"ce texte a {Argument} caractères : un texte en a 255 au plus.",
+        DiagnosticCode.StringNotYetHere =>
+            $"« {Argument} » : les textes ne sont pas encore possibles ici (tableaux de textes, READ, @ et fonctions comme MID$ viendront dans les étapes suivantes).",
         _ => $"problème inconnu ({Code})."
     };
 

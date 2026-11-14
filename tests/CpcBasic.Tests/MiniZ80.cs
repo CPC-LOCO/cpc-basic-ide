@@ -421,6 +421,13 @@ internal sealed class MiniZ80
             case 0xB0: A |= B; ZeroFlag = A == 0; CarryFlag = false; break;   // OR B
             case 0xB1: A |= C; ZeroFlag = A == 0; CarryFlag = false; break;   // OR C
             case 0xB2: A |= D; ZeroFlag = A == 0; CarryFlag = false; break;   // OR D (D060)
+            // Textes (lot E, D062)
+            case 0x71: Memory[HL] = C; break;                          // LD (HL),C
+            case 0x86: Add(ReadMemory(HL)); break;                     // ADD A,(HL)
+            case 0xBE: Compare(ReadMemory(HL)); break;                 // CP (HL)
+            case 0x05: B--; ZeroFlag = B == 0; break;                  // DEC B
+            case 0x0C: C++; ZeroFlag = C == 0; break;                  // INC C
+            case 0x0E: C = Fetch(); break;                             // LD C,n
             case 0xCC:                                                 // CALL Z,nn
             {
                 ushort target = Fetch16();
@@ -517,6 +524,23 @@ internal sealed class MiniZ80
                 ZeroFlag = HL == 0;
                 break;
             }
+            case 0x53:                                                 // LD (nn),DE (D062)
+            {
+                int at = Fetch16();
+                Memory[at] = E;
+                Memory[(at + 1) & 0xFFFF] = D;
+                break;
+            }
+            case 0xB8:                                                 // LDDR (D062)
+                do
+                {
+                    Memory[DE] = ReadMemory(HL);
+                    HL = (ushort)(HL - 1);
+                    DE = (ushort)(DE - 1);
+                    BC = (ushort)(BC - 1);
+                }
+                while (BC != 0);
+                break;
             case 0x6A:                                                 // ADC HL,HL
             {
                 int result = HL + HL + (CarryFlag ? 1 : 0);

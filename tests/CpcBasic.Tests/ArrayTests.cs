@@ -113,11 +113,11 @@ public class ArrayTests
     }
 
     [Theory]
-    [InlineData("10 DIM A$(5)")]
-    [InlineData("10 B!(2) = 1")]
-    public void Les_tableaux_de_textes_et_de_reels_n_existent_pas_encore(string source)
+    [InlineData("10 DIM A$(5)", DiagnosticCode.StringNotYetHere)]      // tableaux de textes : étape E3 (D062)
+    [InlineData("10 B!(2) = 1", DiagnosticCode.UnsupportedVariableType)]
+    public void Les_tableaux_de_textes_et_de_reels_n_existent_pas_encore(string source, DiagnosticCode code)
     {
-        Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.UnsupportedVariableType);
+        Assert.Contains(Errors(source), e => e.Code == code);
     }
 
     [Theory]

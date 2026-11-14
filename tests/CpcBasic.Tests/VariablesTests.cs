@@ -220,7 +220,8 @@ public class VariablesParserTests
     [Fact]
     public void String_and_real_variables_are_not_available_yet()
     {
-        Assert.Equal(DiagnosticCode.UnsupportedVariableType, SingleError("10 A$ = 1"));
+        // Depuis le lot E (D062), A$ existe : lui donner un nombre est une erreur de type, comme le Locomotive
+        Assert.Equal(DiagnosticCode.TypeMismatch, SingleError("10 A$ = 1"));
         Assert.Equal(DiagnosticCode.UnsupportedVariableType, SingleError("10 PRINT B!"));
     }
 

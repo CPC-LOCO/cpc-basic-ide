@@ -24,7 +24,7 @@ public static class Parser
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
-        "DATA", "READ", "RESTORE", "XOR", "NOT"];
+        "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -47,7 +47,8 @@ public static class Parser
         "WAIT", "WEND", "WHILE", "WIDTH", "WINDOW", "WRITE", "XOR", "XPOS", "YPOS", "ZONE"
     ];
 
-    sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments, bool FirstIsAddress = false);
+    sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments, bool FirstIsAddress = false,
+                               bool StringArgument = false);
 
     // Fonctions disponibles : nom, écriture à montrer dans les messages, nombre de valeurs
     static readonly Dictionary<string, FunctionInfo> Functions = new()
@@ -64,6 +65,8 @@ public static class Parser
         ["JOY"] = new("JOY(0 ou 1)", 1, 1),
         // D056 : accès à la machine ; l'adresse ou le port peut s'écrire de 0 à 65535 (comme sur le CPC) ou de -32768 à 32767
         ["PEEK"] = new("PEEK(adresse)", 1, 1, true),
+        // Lot E (D062) : fonctions sur les textes
+        ["LEN"] = new("LEN(texte)", 1, 1, StringArgument: true),
         ["INP"] = new("INP(port)", 1, 1, true)
     };
 
@@ -439,9 +442,20 @@ public static class Parser
         }
         pos++;
 
-        Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+        Token valueStart = tokens[pos];
+        Expression? value = indexes is null
+            ? ParseAnyExpression(tokens, ref pos, diagnostics)
+            : ParseExpression(tokens, ref pos, diagnostics);
         if (value is null)
             return SkipToStatementEnd(tokens, pos);
+
+        // A$ reçoit un texte, A reçoit un nombre (D062)
+        if (indexes is null && VariableNames.IsString(name.Text) != Types.IsString(value))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, valueStart.Line,
+                                           VariableNames.IsString(name.Text) ? "un texte est attendu" : "un nombre est attendu"));
+            return SkipToStatementEnd(tokens, pos);
+        }
 
         statements.Add(indexes is null
             ? new AssignStatement(line, name.Text, value)
@@ -522,6 +536,11 @@ public static class Parser
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
             return null;
         }
+        if (VariableNames.IsString(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.StringNotYetHere, name.Line, name.Text));   // READ A$, @A$ : étape E3
+            return null;
+        }
         pos++;
 
         if (tokens[pos].Kind != TokenKind.LeftParen)
@@ -581,6 +600,11 @@ public static class Parser
     // Un nom de tableau ne peut pas être un mot du Locomotive BASIC
     static bool CheckArrayName(Token name, List<Diagnostic> diagnostics)
     {
+        if (VariableNames.IsString(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.StringNotYetHere, name.Line, name.Text));   // tableaux de textes : étape E3
+            return false;
+        }
         if (LocomotiveWords.Contains(name.Text))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.NotYetAvailable, name.Line, name.Text));
@@ -719,14 +743,16 @@ public static class Parser
 
         while (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
         {
-            if (tokens[pos].Kind == TokenKind.String)
+            Token after = tokens[pos + 1];
+            if (tokens[pos].Kind == TokenKind.String
+                && (after.Kind == TokenKind.Semicolon || IsStatementEnd(after) || IsElse(after) || after.Kind == TokenKind.String))
             {
                 items.Add(tokens[pos].Text);
                 pos++;
             }
             else
             {
-                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);   // nombre ou texte (A$, "A" + B$)
                 if (value is null)
                     return SkipToStatementEnd(tokens, pos);
                 items.Add(value);
@@ -899,6 +925,11 @@ public static class Parser
         if (!VariableNames.IsSupported(name.Text))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (VariableNames.IsString(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, name.Line, name.Text));   // FOR A$ : impossible
             return SkipToStatementEnd(tokens, pos);
         }
         pos++;
@@ -1549,6 +1580,10 @@ public static class Parser
                 case AddressOfExpression address:
                     Uses(address.Target);
                     break;
+                case ConcatExpression concat:
+                    Uses(concat.Left);
+                    Uses(concat.Right);
+                    break;
             }
         }
 
@@ -1678,14 +1713,38 @@ public static class Parser
     // comparaison := somme { (= <> < > <= >=) somme } : l'ordre des opérations du Locomotive BASIC (lot D, D060).
     static bool IsWord(Token t, string word) => t.Kind == TokenKind.Word && t.Text == word;
 
+    // Une valeur qui doit être un nombre (presque partout). Un texte donne « un texte et un nombre ne se mélangent pas ».
     static Expression? ParseExpression(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Token at = tokens[pos];
+        Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+        if (value is not null && Types.IsString(value))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, at.Line, "un nombre est attendu"));
+            return null;
+        }
+        return value;
+    }
+
+    // Les deux côtés d'une opération sur les nombres (AND, *, ^...) doivent être des nombres (lot E, D062)
+    static bool BothNumbers(Expression left, Expression right, Token op, List<Diagnostic> diagnostics)
+    {
+        if (!Types.IsString(left) && !Types.IsString(right))
+            return true;
+        diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, op.Line, op.Text));
+        return false;
+    }
+
+    // Une valeur texte ou nombre (PRINT, affectation, comparaison, LEN...).
+    static Expression? ParseAnyExpression(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
     {
         Expression? left = ParseOrLevel(tokens, ref pos, diagnostics);
         while (left is not null && IsWord(tokens[pos], "XOR"))
         {
+            Token op = tokens[pos];
             pos++;
             Expression? right = ParseOrLevel(tokens, ref pos, diagnostics);
-            left = right is null ? null : new BinaryExpression(BinaryOperator.Xor, left, right);
+            left = right is null || !BothNumbers(left, right, op, diagnostics) ? null : new BinaryExpression(BinaryOperator.Xor, left, right);
         }
         return left;
     }
@@ -1695,9 +1754,10 @@ public static class Parser
         Expression? left = ParseAndLevel(tokens, ref pos, diagnostics);
         while (left is not null && IsWord(tokens[pos], "OR"))
         {
+            Token op = tokens[pos];
             pos++;
             Expression? right = ParseAndLevel(tokens, ref pos, diagnostics);
-            left = right is null ? null : new BinaryExpression(BinaryOperator.Or, left, right);
+            left = right is null || !BothNumbers(left, right, op, diagnostics) ? null : new BinaryExpression(BinaryOperator.Or, left, right);
         }
         return left;
     }
@@ -1707,9 +1767,10 @@ public static class Parser
         Expression? left = ParseNotLevel(tokens, ref pos, diagnostics);
         while (left is not null && IsWord(tokens[pos], "AND"))
         {
+            Token op = tokens[pos];
             pos++;
             Expression? right = ParseNotLevel(tokens, ref pos, diagnostics);
-            left = right is null ? null : new BinaryExpression(BinaryOperator.And, left, right);
+            left = right is null || !BothNumbers(left, right, op, diagnostics) ? null : new BinaryExpression(BinaryOperator.And, left, right);
         }
         return left;
     }
@@ -1719,9 +1780,10 @@ public static class Parser
         if (!IsWord(tokens[pos], "NOT"))
             return ParseRelational(tokens, ref pos, diagnostics);
 
+        Token op = tokens[pos];
         pos++;
         Expression? operand = ParseNotLevel(tokens, ref pos, diagnostics);
-        return operand is null ? null : new NotExpression(operand);
+        return operand is null || !BothNumbers(operand, new NumberExpression(0), op, diagnostics) ? null : new NotExpression(operand);
     }
 
     static CompareOperator? CompareOf(Token t) => t.Kind switch
@@ -1740,8 +1802,15 @@ public static class Parser
         Expression? left = ParseSum(tokens, ref pos, diagnostics);
         while (left is not null && CompareOf(tokens[pos]) is CompareOperator op)
         {
+            Token opToken = tokens[pos];
             pos++;
             Expression? right = ParseSum(tokens, ref pos, diagnostics);
+            if (right is not null && Types.IsString(left) != Types.IsString(right))
+            {
+                // on compare deux nombres, ou deux textes (dans l'ordre des codes des caractères, D062)
+                diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, opToken.Line, opToken.Text));
+                return null;
+            }
             left = right is null ? null : new CompareExpression(op, left, right);
         }
         return left;
@@ -1754,11 +1823,21 @@ public static class Parser
 
         while (left is not null && (tokens[pos].Kind == TokenKind.Plus || tokens[pos].Kind == TokenKind.Minus))
         {
-            BinaryOperator op = tokens[pos].Kind == TokenKind.Plus ? BinaryOperator.Add : BinaryOperator.Subtract;
+            Token opToken = tokens[pos];
+            BinaryOperator op = opToken.Kind == TokenKind.Plus ? BinaryOperator.Add : BinaryOperator.Subtract;
             pos++;
 
             Expression? right = ParseTerm(tokens, ref pos, diagnostics);
             if (right is null)
+                return null;
+
+            // A$ + B$ : les deux textes bout à bout (D062)
+            if (op == BinaryOperator.Add && Types.IsString(left) && Types.IsString(right))
+            {
+                left = new ConcatExpression(left, right);
+                continue;
+            }
+            if (!BothNumbers(left, right, opToken, diagnostics))
                 return null;
             left = new BinaryExpression(op, left, right);
         }
@@ -1786,7 +1865,7 @@ public static class Parser
             pos++;
 
             Expression? right = ParseOperand(tokens, ref pos, diagnostics);
-            if (right is null)
+            if (right is null || !BothNumbers(left, right, opToken, diagnostics))
                 return null;
 
             if (op != BinaryOperator.Multiply && right is NumberExpression { Value: 0 })
@@ -1816,8 +1895,10 @@ public static class Parser
             if (tokens[pos].Kind == TokenKind.Number && tokens[pos + 1].Kind != TokenKind.Caret)
                 return ParseNumber(tokens, ref pos, diagnostics, negative: true);
 
+            Token minus = tokens[pos - 1];
             Expression? operand = ParsePower(tokens, ref pos, diagnostics);
-            return operand is null ? null : new BinaryExpression(BinaryOperator.Subtract, new NumberExpression(0), operand);
+            return operand is null || !BothNumbers(operand, new NumberExpression(0), minus, diagnostics)
+                ? null : new BinaryExpression(BinaryOperator.Subtract, new NumberExpression(0), operand);
         }
 
         return ParsePower(tokens, ref pos, diagnostics);
@@ -1828,6 +1909,7 @@ public static class Parser
         Expression? left = ParsePrimary(tokens, ref pos, diagnostics);
         while (left is not null && tokens[pos].Kind == TokenKind.Caret)
         {
+            Token caret = tokens[pos];
             pos++;
             Expression? right;
             if (tokens[pos].Kind == TokenKind.Minus)
@@ -1843,7 +1925,7 @@ public static class Parser
                     pos++;
                 right = ParsePrimary(tokens, ref pos, diagnostics);
             }
-            left = right is null ? null : new BinaryExpression(BinaryOperator.Power, left, right);
+            left = right is null || !BothNumbers(left, right, caret, diagnostics) ? null : new BinaryExpression(BinaryOperator.Power, left, right);
         }
         return left;
     }
@@ -1856,6 +1938,15 @@ public static class Parser
         {
             case TokenKind.Number:
                 return ParseNumber(tokens, ref pos, diagnostics, negative: false);
+
+            case TokenKind.String:
+            {
+                // "BONJOUR" dans un calcul (D062) ; 255 caractères au plus, comme le Locomotive
+                pos++;
+                if (t.Text.Length > 255)
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.StringTooLong, t.Line, t.Text.Length.ToString()));
+                return new StringLiteralExpression(t.Text);
+            }
 
             case TokenKind.At:
             {
@@ -1906,7 +1997,7 @@ public static class Parser
 
             case TokenKind.LeftParen:
                 pos++;
-                Expression? inner = ParseExpression(tokens, ref pos, diagnostics);
+                Expression? inner = ParseAnyExpression(tokens, ref pos, diagnostics);
                 if (inner is null)
                     return null;
                 if (tokens[pos].Kind != TokenKind.RightParen)
@@ -1942,11 +2033,20 @@ public static class Parser
         {
             while (true)
             {
+                Token argumentStart = tokens[pos];
                 Expression? argument = function.FirstIsAddress && arguments.Count == 0
                     ? ParseAddressArgument(tokens, ref pos, diagnostics)
-                    : ParseExpression(tokens, ref pos, diagnostics);
+                    : function.StringArgument && arguments.Count == 0
+                        ? ParseAnyExpression(tokens, ref pos, diagnostics)
+                        : ParseExpression(tokens, ref pos, diagnostics);
                 if (argument is null)
                     return null;
+                if (function.StringArgument && arguments.Count == 0 && !Types.IsString(argument))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, argumentStart.Line, "un texte est attendu",
+                                                   nameToken.Text));
+                    return null;
+                }
                 arguments.Add(argument);
 
                 if (tokens[pos].Kind != TokenKind.Comma)
