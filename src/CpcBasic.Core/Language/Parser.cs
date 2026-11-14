@@ -332,6 +332,9 @@ public static class Parser
             case "INPUT":
                 return ParseInput(tokens, pos, statements, diagnostics);
 
+            case "MID$" when tokens[pos + 1].Kind == TokenKind.LeftParen:
+                return ParseMidAssign(tokens, pos, statements, diagnostics);
+
             case "LINE" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
                 return ParseLineInput(tokens, pos, statements, diagnostics);
 
@@ -465,14 +468,12 @@ public static class Parser
         pos++;
 
         Token valueStart = tokens[pos];
-        Expression? value = indexes is null
-            ? ParseAnyExpression(tokens, ref pos, diagnostics)
-            : ParseExpression(tokens, ref pos, diagnostics);
+        Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
         if (value is null)
             return SkipToStatementEnd(tokens, pos);
 
-        // A$ reçoit un texte, A reçoit un nombre (D062)
-        if (indexes is null && VariableNames.IsString(name.Text) != Types.IsString(value))
+        // A$ et N$(I) reçoivent un texte, A et T(I) reçoivent un nombre (D062, D065)
+        if (VariableNames.IsString(name.Text) != Types.IsString(value))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, valueStart.Line,
                                            VariableNames.IsString(name.Text) ? "un texte est attendu" : "un nombre est attendu"));
@@ -524,13 +525,73 @@ public static class Parser
             return SkipToStatementEnd(tokens, pos);
         }
         pos++;
-        if (tokens[pos].Kind == TokenKind.LeftParen)
+        List<Expression>? cells = null;
+        if (tokens[pos].Kind == TokenKind.LeftParen
+            && (!CheckArrayName(name, diagnostics) || !TryParseIndexes(tokens, ref pos, diagnostics, out cells)))
+            return SkipToStatementEnd(tokens, pos);   // LINE INPUT N$(I) : une case d'un tableau de textes (D065)
+
+        statements.Add(new LineInputStatement(line, prompt, noNewline, name.Text, cells));
+        return pos;
+    }
+
+    // MID$(A$, début [, longueur]) = texte (D065)
+    static int ParseMidAssign(IReadOnlyList<Token> tokens, int pos,
+                              List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos += 2;                                       // MID$ (
+
+        Token targetStart = tokens[pos];
+        Expression? target = ParseTarget(tokens, ref pos, diagnostics);
+        if (target is null)
+            return SkipToStatementEnd(tokens, pos);
+        if (!Types.IsString(target))
         {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.StringNotYetHere, name.Line, name.Text));   // tableaux de textes : E3b
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, targetStart.Line, "MID$ change une variable texte, comme A$"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (tokens[pos].Kind != TokenKind.Comma)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, tokens[pos].Line, "MID$(texte, début [, longueur]) = texte"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+
+        Expression? start = ParseExpression(tokens, ref pos, diagnostics);
+        if (start is null)
+            return SkipToStatementEnd(tokens, pos);
+        Expression? length = null;
+        if (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            length = ParseExpression(tokens, ref pos, diagnostics);
+            if (length is null)
+                return SkipToStatementEnd(tokens, pos);
+        }
+        if (tokens[pos].Kind != TokenKind.RightParen)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, tokens[pos].Line));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+        if (tokens[pos].Kind != TokenKind.Equals)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedEquals, tokens[pos].Line, tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+
+        Token valueStart = tokens[pos];
+        Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+        if (value is null)
+            return SkipToStatementEnd(tokens, pos);
+        if (!Types.IsString(value))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, valueStart.Line, "un texte est attendu"));
             return SkipToStatementEnd(tokens, pos);
         }
 
-        statements.Add(new LineInputStatement(line, prompt, noNewline, name.Text));
+        statements.Add(new MidAssignStatement(line, target, start, length, value));
         return pos;
     }
 
@@ -691,11 +752,6 @@ public static class Parser
     // Un nom de tableau ne peut pas être un mot du Locomotive BASIC
     static bool CheckArrayName(Token name, List<Diagnostic> diagnostics)
     {
-        if (VariableNames.IsString(name.Text))
-        {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.StringNotYetHere, name.Line, name.Text));   // tableaux de textes : étape E3
-            return false;
-        }
         if (LocomotiveWords.Contains(name.Text))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.NotYetAvailable, name.Line, name.Text));
@@ -1724,7 +1780,7 @@ public static class Parser
                     Uses(randomize.Seed);
                     break;
 
-                case DimStatement or ArrayAssignStatement:
+                case DimStatement or ArrayAssignStatement or MidAssignStatement:
                     foreach (Expression expression in AstWalker.TopLevel(statement))
                         Uses(expression);
                     break;

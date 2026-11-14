@@ -244,7 +244,19 @@ public sealed record DataStatement(int SourceLine, IReadOnlyList<DataItem> Items
 }
 
 /// <summary>LINE INPUT [;] ["texte" ;] A$ : toute la ligne tapée va dans A$, virgules comprises (D064).</summary>
-public sealed record LineInputStatement(int SourceLine, string? Prompt, bool NoNewline, string Variable) : Statement(SourceLine);
+public sealed record LineInputStatement(int SourceLine, string? Prompt, bool NoNewline, string Variable,
+                                        IReadOnlyList<Expression>? Indexes = null) : Statement(SourceLine)
+{
+    /// <summary>La variable A$, ou la case N$(I) (D065).</summary>
+    public Expression Target => Indexes is null ? new VariableExpression(Variable) : new ArrayElementExpression(Variable, Indexes);
+}
+
+/// <summary>
+/// MID$(A$, début [, longueur]) = B$ : remplace des lettres de A$ sans changer sa longueur (D065).
+/// Target est une variable texte ou une case d'un tableau de textes. Length est null s'il est omis.
+/// </summary>
+public sealed record MidAssignStatement(int SourceLine, Expression Target, Expression Start, Expression? Length, Expression Value)
+    : Statement(SourceLine);
 
 /// <summary>
 /// READ A, T(I) : lit les nombres suivants des DATA (lot C, D059). Chaque cible est une VariableExpression
@@ -319,6 +331,8 @@ public static class AstWalker
         OnStatement o => [o.Selector],
         ReadStatement r => r.Targets,
         InputStatement i => i.Targets,
+        LineInputStatement l => [l.Target],
+        MidAssignStatement m => new[] { m.Target, m.Start, m.Length, m.Value }.OfType<Expression>(),
         _ => []
     };
 

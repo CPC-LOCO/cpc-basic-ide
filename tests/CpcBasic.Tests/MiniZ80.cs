@@ -434,6 +434,7 @@ internal sealed class MiniZ80
             case 0xD6: Sub(Fetch()); break;                            // SUB n (D063)
             case 0x41: B = C; break;                                   // LD B,C (D063)
             case 0x60: H = B; break;                                   // LD H,B (D063)
+            case 0x68: L = B; break;                                   // LD L,B (D065)
             case 0xCC:                                                 // CALL Z,nn
             {
                 ushort target = Fetch16();

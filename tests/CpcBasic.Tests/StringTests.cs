@@ -78,9 +78,9 @@ public class StringTests
     }
 
     [Fact]
-    public void Les_tableaux_de_textes_viendront_plus_tard()
+    public void Les_tableaux_de_textes_existent_depuis_D065()
     {
-        Assert.Contains(Errors("10 A$(1) = \"X\""), e => e.Code == DiagnosticCode.StringNotYetHere);
+        Assert.Empty(Errors("10 A$(1) = \"X\""));
     }
 
     // ---------- Exécution ----------

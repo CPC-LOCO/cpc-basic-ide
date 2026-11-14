@@ -208,6 +208,7 @@ public sealed class Z80Emitter
     public void SubImm(int value) { code.Add(0xD6); code.Add((byte)value); }                     // SUB n
     public void LdBC() => code.Add(0x41);                                                        // LD B,C
     public void LdHB() => code.Add(0x60);                                                        // LD H,B
+    public void LdLB() => code.Add(0x68);                                                        // LD L,B (D065)
 
     public void LdDeMem(string label) { code.Add(0xED); code.Add(0x5B); AddAbsolute(label); }           // LD DE,(étiquette)
 

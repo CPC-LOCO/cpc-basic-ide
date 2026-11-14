@@ -110,6 +110,17 @@ public static class CodeGenerator
 
         string SizeLabel(string array, int dimension) => $"{array}_s{dimension}";
 
+        // Tableaux de textes (D065) : leurs cases sont des fiches de 3 octets. S'il y en a, chaque accès à un tableau
+        // indique d'abord la taille de ses cases (2 ou 3) ; sinon rien n'est ajouté.
+        bool hasStringArrays = arrays.Keys.Any(VariableNames.IsString);
+        void EmitElementSize(string name)
+        {
+            if (!hasStringArrays)
+                return;
+            emitter.LdAImm(VariableNames.IsString(name) ? 3 : 2);
+            emitter.LdMemA(RuntimeLibrary.ArrayElementSizeLabel);
+        }
+
         // HL = adresse de la case A(i [, j ...])
         void EmitElementAddress(string name, IReadOnlyList<Expression> indexes)
         {
@@ -117,6 +128,7 @@ public static class CodeGenerator
             if (dimensions == 1)
             {
                 EmitExpression(indexes[0]);
+                EmitElementSize(name);
                 emitter.LdDeLabel(label);
                 emitter.CallLabel(RuntimeLibrary.ArrayElem1Label);
             }
@@ -127,6 +139,7 @@ public static class CodeGenerator
                     EmitExpression(index);
                     emitter.PushHl();
                 }
+                EmitElementSize(name);
                 emitter.LdDeLabel(label);
                 emitter.LdBImm(dimensions);
                 emitter.CallLabel(RuntimeLibrary.ArrayElemLabel);
@@ -149,6 +162,10 @@ public static class CodeGenerator
 
                 case VariableExpression variable:
                     emitter.LdHlLabel(Slot(variable.Name).Label);
+                    break;
+
+                case ArrayElementExpression element:
+                    EmitElementAddress(element.Name, element.Indexes);   // la case est la fiche du texte (D065)
                     break;
 
                 case ConcatExpression concat:
@@ -1103,10 +1120,19 @@ public static class CodeGenerator
                     {
                         if (i > 0)
                             emitter.CallLabel(RuntimeLibrary.InputMoreLabel);
-                        if (VariableNames.IsString(input.Variables[i]) && input.Indexes?[i] is null)
+                        if (VariableNames.IsString(input.Variables[i]))
                         {
-                            required.Add(RuntimeLibrary.InputStringName);   // INPUT A$ (D062)
-                            emitter.LdDeLabel(Slot(input.Variables[i]).Label);
+                            // INPUT A$ (D062) ou INPUT N$(I) (D065) : DE = fiche qui reçoit le texte, avant toute lecture
+                            required.Add(RuntimeLibrary.InputStringName);
+                            if (input.Indexes?[i] is { } textIndexes)
+                            {
+                                EmitElementAddress(input.Variables[i], textIndexes);
+                                emitter.ExDeHl();
+                            }
+                            else
+                            {
+                                emitter.LdDeLabel(Slot(input.Variables[i]).Label);
+                            }
                             emitter.CallLabel(RuntimeLibrary.InputStrLabel);
                             emitter.JpCLabel(redo);
                             continue;
@@ -1150,9 +1176,42 @@ public static class CodeGenerator
                     emitter.CallLabel(RuntimeLibrary.InputLineLabel);
                     if (!lineInput.NoNewline)
                         EmitText("\r\n");
-                    emitter.LdDeLabel(Slot(lineInput.Variable).Label);
+                    if (lineInput.Indexes is not null)
+                    {
+                        EmitElementAddress(lineInput.Variable, lineInput.Indexes);   // LINE INPUT N$(I) (D065)
+                        emitter.ExDeHl();
+                    }
+                    else
+                    {
+                        emitter.LdDeLabel(Slot(lineInput.Variable).Label);
+                    }
                     emitter.CallLabel("rt_input_all");
                     break;
+
+                case MidAssignStatement midAssign:
+                {
+                    // MID$(A$, début [, longueur]) = texte (D065)
+                    required.Add(RuntimeLibrary.StrFunctionsName);
+                    EmitString(midAssign.Target);                   // fiche de A$ (variable ou case)
+                    emitter.PushHl();
+                    EmitString(midAssign.Value);
+                    emitter.PushHl();
+                    EmitExpression(midAssign.Start);
+                    emitter.PushHl();
+                    if (midAssign.Length is not null)
+                        EmitExpression(midAssign.Length);
+                    else
+                        emitter.LdHlImm(255);
+                    emitter.CallLabel("rt_sf_byte");                // longueur de 0 à 255
+                    emitter.LdCA();
+                    emitter.PopHl();
+                    emitter.CallLabel("rt_sf_byte");                // début de 0 à 255 (0 : refusé par rt_midset)
+                    emitter.LdBA();
+                    emitter.PopHl();
+                    emitter.PopDe();
+                    emitter.CallLabel("rt_midset");
+                    break;
+                }
 
                 case ClearInputStatement:
                 {
@@ -1194,6 +1253,15 @@ public static class CodeGenerator
                     EmitStore(Slot(assign.Variable));
                     break;
 
+                case ArrayAssignStatement arrayAssign when VariableNames.IsString(arrayAssign.Name):
+                    EmitString(arrayAssign.Value);                  // N$(I) = texte (D065)
+                    emitter.PushHl();
+                    EmitElementAddress(arrayAssign.Name, arrayAssign.Indexes);
+                    emitter.ExDeHl();
+                    emitter.PopHl();
+                    emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                    break;
+
                 case ArrayAssignStatement arrayAssign:
                     if (arrayAssign.Value is NumberExpression constant)
                     {
@@ -1224,7 +1292,17 @@ public static class CodeGenerator
                         {
                             required.Add(RuntimeLibrary.DataStringName);   // READ A$ (D064)
                             emitter.CallLabel(RuntimeLibrary.ReadStringLabel);
-                            emitter.LdDeLabel(Slot(((VariableExpression)target).Name).Label);
+                            if (target is ArrayElementExpression textCell)
+                            {
+                                emitter.PushHl();                   // READ N$(I) (D065)
+                                EmitElementAddress(textCell.Name, textCell.Indexes);
+                                emitter.ExDeHl();
+                                emitter.PopHl();
+                            }
+                            else
+                            {
+                                emitter.LdDeLabel(Slot(((VariableExpression)target).Name).Label);
+                            }
                             emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
                             continue;
                         }
@@ -1267,6 +1345,7 @@ public static class CodeGenerator
                             emitter.PushHl();
                         }
                         emitter.PopHl();
+                        EmitElementSize(array.Name);
                         emitter.LdDeLabel(label);
                         emitter.CallLabel(RuntimeLibrary.ArrayDimLabel);
                     }

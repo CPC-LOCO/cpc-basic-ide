@@ -431,6 +431,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Programme RSX de référence :** le chemin `READ a$` puis `POKE p+a, VAL("&"+MID$(a$, a*2+1, 2))` fonctionne (test dédié). Restent : nombres au-dessus de 32767 pour MEMORY p-1 avec p=&A400 (déjà possible avec &), `SAVE` (lot J), commandes RSX `|…` et `CALL` avec paramètres.
 - **Fichiers :** Lexer.cs (DataItem), Ast.cs (DataItem, LineInputStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules Data, DataString, Strings, StrFunctions, InputString), `tests\CpcBasic.Tests\StringDataTests.cs` (16 tests), DataTests et AddressTests adaptés, `examples\textes3.bas`.
 
+## D065 : lot E, étape E3b : tableaux de textes et MID$(...) = (Décidé, validé le 14 nov. 2026)
+- **Validé par l'utilisateur le 14 nov. 2026 :** 721 tests ; `examples\tabtexte.bas` conforme dans WinAPE. **Le lot E est terminé** (sauf DEC$, BASIC 1.1).
+- **Fait, comme le Locomotive :** tableaux de textes (`DIM NOM$(10)`, plusieurs dimensions, création automatique 0 à 10 sans DIM) ; lecture et écriture des cases dans tous les calculs ; `READ N$(I)`, `INPUT N$(I)`, `LINE INPUT N$(I)`, `@N$(I)` (adresse de la fiche de 3 octets). `MID$(A$, début [, longueur]) = texte` (variable ou case de tableau) : remplace des lettres sans changer la longueur ; « Improper argument » si le début est 0 ou après la fin.
+- **Rangement :** une case d'un tableau de textes est une fiche de 3 octets (longueur, adresse des lettres), à 0 au départ (texte vide). Les routines des tableaux connaissent la taille d'une case (`rt_arr_esize` : 2 ou 3) ; si le programme a des tableaux de textes, chaque accès indique d'abord cette taille (5 octets), sinon rien ne change. Le ménage des textes suit les fiches des cases comme celles des variables.
+- **MID$ = :** si le texte de A$ est encore celui écrit dans le programme (ou dans les DATA), il est d'abord recopié dans la zone des textes : le programme n'est jamais modifié, et une autre variable qui pointait sur le même texte n'est pas touchée.
+- **Correction trouvée par les tests :** `INPUT N$(I)` essayait d'abord de lire un nombre ; la saisie d'un texte dans une case est maintenant traitée avant, comme `INPUT A$`.
+- **Limite :** `MID$(A$, 2) = A$` (un texte qui se recopie sur lui-même en se décalant) peut donner un résultat différent du Locomotive.
+- **Fichiers :** Ast.cs (MidAssignStatement, LineInputStatement.Indexes), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (Array : taille des cases ; StrFunctions : rt_midset), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (LD L,B), `tests\CpcBasic.Tests\StringArrayTests.cs` (23 tests), ArrayTests et StringTests adaptés, `examples\tabtexte.bas`.
+- **Le lot E (chaînes) est terminé** une fois cette étape validée (DEC$ du BASIC 1.1 reste à faire).
+
 ---
 
 ## Notes de fin de session (modèle)

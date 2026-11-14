@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @, 657 avec les textes E1, 685 avec E2, 700 avec E3a).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @, 657 avec les textes E1, 685 avec E2, 700 avec E3a, 721 avec E3b : lot E terminé).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -68,7 +68,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 |---|---|---|---|
 | `Variables entières (A, A%)` | nombre entier | Écart voulu | Le Locomotive : A est un réel. Ici A et A% sont deux variables entières 16 bits distinctes. |
 | `Variables réelles (A!)` | nombre à virgule | À faire | Refusé à la compilation pour l'instant. |
-| `Variables chaînes (A$)` | texte | Partielle | Variables, +, comparaisons, PRINT, INPUT (D062). Tableaux de textes avec l'étape E3. |
+| `Variables chaînes (A$)` | texte | Faite | Variables, +, comparaisons, PRINT, INPUT (D062), tableaux de textes (D065). |
 | `Nombres décimaux entiers` | constantes 0 à 32767 (et négatifs) | Faite |  |
 | `Nombres hexadécimaux et binaires (&H, &X)` | constantes écrites en base 16 ou 2 | Faite | &C9, &HC9, &X1010, de &0 à &FFFF (&FFFF = -1). D060. |
 | `Nombres réels (3.14, 1E5)` | constantes à virgule | À faire |  |
@@ -163,7 +163,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
 | `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). |
-| `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte (pas encore de tableau de textes). D064. |
+| `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. |
 
 ## 7. Disquette et cassette
 
@@ -189,7 +189,7 @@ Tout cela attend les variables chaînes (A$).
 | `CHR$` | caractère d'un code | Faite | D063. |
 | `LEFT$` | début d'un texte | Faite | D063. |
 | `RIGHT$` | fin d'un texte | Faite | D063. |
-| `MID$ (fonction et instruction)` | milieu d'un texte, remplacement | Partielle | Fonction faite (D063) ; `MID$(A$,2,1) = ...` avec l'étape E3. |
+| `MID$ (fonction et instruction)` | milieu d'un texte, remplacement | Faite | Fonction (D063) et `MID$(A$, début [, longueur]) = texte` (D065). |
 | `LEN` | longueur | Faite | D062. |
 | `INSTR` | cherche un texte dans un autre | Faite | D063. |
 | `LOWER$ / UPPER$` | minuscules / majuscules | Faite | Lettres de A à Z. D063. |
@@ -286,7 +286,7 @@ Ce n'est pas une décision : c'est ma proposition, à discuter.
 2. **Lot B : clavier et manettes (INKEY, JOY, CLEAR INPUT, INPUT (entiers) faits ; INKEY$ après les chaînes).** INKEY, INKEY$, JOY, puis INPUT pour les nombres.
 3. **Lot C : données et mémoire.** DIM, DATA / READ / RESTORE, PEEK, POKE, CALL, INP, OUT, MEMORY.
 4. **Lot D : nombres hexadécimaux, XOR, NOT, ^, comparaisons comme valeurs (fait, validé, D060).**
-5. **Lot E : chaînes de caractères.**
+5. **Lot E : chaînes de caractères (fait, D062 à D065 ; reste DEC$).**
 6. **Lot F : réels et fonctions mathématiques.**
 7. **Lot G : son.** SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB.
 8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #.

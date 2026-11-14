@@ -141,6 +141,7 @@ public static class RuntimeLibrary
     public const string ArrayMulLabel = "rt_arr_mul";
     public const string ArrayDimLabel = "rt_arr_dim";
     public const string ArrayElem1Label = "rt_arr_elem1";
+    public const string ArrayElementSizeLabel = "rt_arr_esize";  // taille d'une case : 2 (entier) ou 3 (texte, D065)
     public const string ArrayElemLabel = "rt_arr_elem";
     public const string ArrayMemoryLabel = "rt_arr_memory";
     const string ArrayAllocLabel = "rt_arr_alloc";
@@ -1380,16 +1381,99 @@ public static class RuntimeLibrary
             e.LdHlImm(0);
             e.Ret();
 
+            // MID$(A$, début [, longueur]) = B$ (D065) : DE = fiche de A$, HL = fiche de B$, B = début, C = longueur (255 si
+            // omise). Les lettres de B$ remplacent celles de A$ à partir du début, sans changer la longueur de A$.
+            e.Label("rt_midset");
+            e.LdMemDe("rt_ms_dst");
+            e.LdMemHl("rt_ms_src");
+            e.LdAC();
+            e.LdMemA("rt_ms_n");
+            e.LdAB();
+            e.LdMemA("rt_ms_p");
+            e.OrA();
+            e.JpZLabel("rt_sf_improper");            // début 0
+            e.LdBA();
+            e.LdADe();
+            e.CpB();
+            e.JpCLabel("rt_sf_improper");            // début après la fin de A$
+            e.LdHlMem("rt_ms_dst");
+            e.LoadCFromHl();                         // C = longueur de A$
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();                         // DE = lettres de A$
+            e.PushDe();
+            e.LdHlMem(StringPointerLabel);
+            e.ExDeHl();
+            e.OrA();
+            e.SbcHlDe();
+            e.PopDe();
+            e.JrNcLabel("rt_ms_own");                // déjà dans la zone des textes : A$ a son propre exemplaire
+            e.PushDe();                              // texte du programme ou des DATA : on le recopie d'abord
+            e.LdDeMem("rt_ms_dst");
+            e.CallLabel(StrAllocLabel);
+            e.ExDeHl();
+            e.PopHl();
+            e.PushDe();
+            e.LdBImm(0);
+            e.Ldir();
+            e.PopDe();
+            e.LdHlMem("rt_ms_dst");
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.Label("rt_ms_own");
+            e.LdAMem("rt_ms_p");
+            e.DecA();
+            e.LdBA();                                // B = écart du début
+            e.LdHlMem("rt_ms_dst");
+            e.LdAHl();
+            e.SubB();
+            e.LdCA();                                // C = lettres disponibles dans A$
+            e.LdAMem("rt_ms_n");
+            e.CpC();
+            e.JrNcLabel("rt_ms_n_ok");
+            e.LdCA();
+            e.Label("rt_ms_n_ok");
+            e.LdHlMem("rt_ms_src");
+            e.LdAHl();
+            e.CpC();
+            e.JrNcLabel("rt_ms_src_ok");
+            e.LdCA();                                // pas plus que la longueur de B$
+            e.Label("rt_ms_src_ok");
+            e.LdAC();
+            e.OrA();
+            e.RetZ();
+            e.LdHlMem("rt_ms_dst");
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.LdLB();
+            e.LdHZero();
+            e.AddHlDe();
+            e.ExDeHl();                              // DE = où écrire dans A$
+            e.LdHlMem("rt_ms_src");
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();                                // HL = lettres de B$
+            e.LdBImm(0);
+            e.Ldir();
+            e.Ret();
+
             e.Label("rt_sf_improper");
             e.LdHlLabel("rt_sf_msg_improper");
             e.JpLabel(ErrorLabel);
 
-            foreach (string scratch in new[] { "rt_sf_src", "rt_sf_dst", "rt_sf_find", "rt_sf_acc" })
+            foreach (string scratch in new[] { "rt_sf_src", "rt_sf_dst", "rt_sf_find", "rt_sf_acc", "rt_ms_dst", "rt_ms_src" })
             {
                 e.Label(scratch);
                 e.Reserve(2);
             }
-            foreach (string scratch in new[] { "rt_sf_off", "rt_sf_char", "rt_sf_started", "rt_sf_width", "rt_sf_start", "rt_sf_slen", "rt_sf_flen" })
+            foreach (string scratch in new[] { "rt_sf_off", "rt_sf_char", "rt_sf_started", "rt_sf_width", "rt_sf_start", "rt_sf_slen", "rt_sf_flen", "rt_ms_p", "rt_ms_n" })
             {
                 e.Label(scratch);
                 e.Reserve(1);
@@ -1551,8 +1635,16 @@ public static class RuntimeLibrary
 
             // Réserve HL cases pour le descripteur DE, et les met à 0
             e.Label(ArrayAllocLabel);
-            e.AddHlHl();                             // 2 octets par case
+            e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
+            e.LdCL();
+            e.AddHlHl();
             e.JpCLabel(ErrMemory);
+            e.LdAMem(ArrayElementSizeLabel);
+            e.CpImm(3);
+            e.JrNzLabel("rt_arr_alloc_two");
+            e.AddHlBc();
+            e.JpCLabel(ErrMemory);
+            e.Label("rt_arr_alloc_two");
             e.LdBH();                                // BC = octets
             e.LdCL();
             e.LdHlMem(ArrayHeapLabel);
@@ -1631,7 +1723,14 @@ public static class RuntimeLibrary
             e.SbcHlBc();
             e.AddHlBc();                             // sans signe : un numéro négatif est très grand
             e.JpNcLabel(ErrSubscript);
-            e.AddHlHl();                             // écart en octets
+            e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
+            e.LdCL();
+            e.AddHlHl();
+            e.LdAMem(ArrayElementSizeLabel);         // écart en octets
+            e.CpImm(3);
+            e.JrNzLabel("rt_arr_e1_two");
+            e.AddHlBc();
+            e.Label("rt_arr_e1_two");
             e.ExDeHl();
             e.DecHl();
             e.DecHl();
@@ -1690,7 +1789,14 @@ public static class RuntimeLibrary
             e.LdMemHl("rt_arr_size");
             e.DjnzLabel("rt_arr_e_loop");
             e.LdHlMem("rt_arr_off");
+            e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
+            e.LdCL();
             e.AddHlHl();
+            e.LdAMem(ArrayElementSizeLabel);
+            e.CpImm(3);
+            e.JrNzLabel("rt_arr_e_two");
+            e.AddHlBc();
+            e.Label("rt_arr_e_two");
             e.ExDeHl();
             e.LdHlMem("rt_arr_desc");
             e.LdAHl();
@@ -1710,6 +1816,8 @@ public static class RuntimeLibrary
             e.LdHlLabel("rt_arr_msg_redim");
             e.JpLabel(ErrorLabel);
 
+            e.Label(ArrayElementSizeLabel);          // 2 ; mis à 3 avant chaque accès à un tableau de textes (D065)
+            e.Bytes(2);
             foreach (string scratch in new[] { "rt_arr_ret", "rt_arr_desc", "rt_arr_off", "rt_arr_stride", "rt_arr_size" })
             {
                 e.Label(scratch);

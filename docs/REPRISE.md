@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D064 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D065 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -48,7 +48,8 @@ Documents de référence :
 - **`@` (D061) validé le 14 nov. 2026** : adresse d'une variable ou d'une case de tableau. 622 tests, `examples\adresse.bas` conforme.
 - **Lot E, étape E1 (D062) validée le 14 nov. 2026** : textes rangés comme le Locomotive (fiche de 3 octets, ménage), A$, +, comparaisons, LEN, PRINT, INPUT A$. 657 tests, `examples\textes.bas` conforme.
 - **Lot E, étape E2 (D063) validée le 14 nov. 2026** : LEFT$, RIGHT$, MID$, CHR$, ASC, STR$, VAL, STRING$, SPACE$, UPPER$, LOWER$, INSTR, HEX$, BIN$. 685 tests, `examples\textes2.bas` conforme.
-- **Lot E, étape E3a (D064) validée le 14 nov. 2026** : textes dans DATA, READ A$, INKEY$, LINE INPUT, @A$ ; DEL efface maintenant à l'écran pendant INPUT. 700 tests, `examples\textes3.bas` conforme. Ensuite E3b : tableaux de textes et MID$(A$, …) = . Ensuite E2 (fonctions de textes) puis E3 (DATA texte, READ A$, tableaux de textes, INKEY$, LINE INPUT, @a$).
+- **Lot E, étape E3a (D064) validée le 14 nov. 2026** : textes dans DATA, READ A$, INKEY$, LINE INPUT, @A$ ; DEL efface maintenant à l'écran pendant INPUT. 700 tests, `examples\textes3.bas` conforme.
+- **Lot E, étape E3b (D065) validée le 14 nov. 2026** : tableaux de textes, MID$(A$, …) = . 721 tests, `examples\tabtexte.bas` conforme. **Le lot E (chaînes) est terminé** (reste DEC$, BASIC 1.1).
 - **Règle de l'utilisateur :** le projet doit être 100 % compatible avec le Locomotive BASIC. **Finir tous les lots de l'inventaire (A à J) avant toute commande nouvelle** (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent). On avance lot par lot.
 
 ### Fait et validé
@@ -66,7 +67,7 @@ Documents de référence :
 
 ### Prochaine étape : fin du lot C
 
-1. lot E : E1, E2, E3a faits ; E3b (tableaux de textes, MID$(A$,…) = ) à faire : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
+1. lot F : nombres à virgule (réels) et fonctions mathématiques (SIN, COS, SQR, INT...) : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
 
 Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, comparaisons comme valeurs), lot E (chaînes), F (réels et fonctions mathématiques), G (son), H (fenêtres et mise en forme), I (interruptions et erreurs), J (disquette et cassette).
 
