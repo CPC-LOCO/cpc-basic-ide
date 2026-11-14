@@ -184,6 +184,11 @@ public sealed class Z80Emitter
     public void OrC() => code.Add(0xB1);                                                         // OR C
     public void SbcHlBc() { code.Add(0xED); code.Add(0x42); }                                    // SBC HL,BC
     public void Ldir() { code.Add(0xED); code.Add(0xB0); }                                       // LDIR
+    // DATA, READ (D059)
+    public void LoadDFromHl() => code.Add(0x56);                                                 // LD D,(HL)
+    public void LoadEFromHl() => code.Add(0x5E);                                                 // LD E,(HL)
+    public void Word(string label) => AddAbsolute(label);                                        // DW étiquette
+    public void Word(int value) => AddWord(value);                                               // DW nombre
 
     public void LdDeMem(string label) { code.Add(0xED); code.Add(0x5B); AddAbsolute(label); }           // LD DE,(étiquette)
 

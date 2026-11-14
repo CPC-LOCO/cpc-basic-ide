@@ -175,7 +175,28 @@ public sealed record ClearInputStatement(int SourceLine) : Statement(SourceLine)
 /// Question : afficher « ? » après le texte (point-virgule, ou pas de texte). NoNewline : le « ; » juste après INPUT.
 /// </summary>
 public sealed record InputStatement(int SourceLine, string? Prompt, bool Question, bool NoNewline,
-                                    IReadOnlyList<string> Variables) : Statement(SourceLine);
+                                    IReadOnlyList<string> Variables,
+                                    IReadOnlyList<IReadOnlyList<Expression>?>? Indexes = null) : Statement(SourceLine)
+{
+    /// <summary>
+    /// Ce que reçoit chaque nombre tapé : une variable, ou une case de tableau (INPUT T(I), D059).
+    /// Indexes[i] donne les numéros de case quand la i-ème cible est un tableau, sinon null.
+    /// </summary>
+    public IEnumerable<Expression> Targets => Variables.Select((name, i) =>
+        Indexes?[i] is { } indexes ? new ArrayElementExpression(name, indexes) : (Expression)new VariableExpression(name));
+}
+
+/// <summary>DATA 10, -5, 300 : nombres rangés dans le programme, lus par READ (lot C, D059). Valeurs sur 16 bits.</summary>
+public sealed record DataStatement(int SourceLine, IReadOnlyList<int> Values) : Statement(SourceLine);
+
+/// <summary>
+/// READ A, T(I) : lit les nombres suivants des DATA (lot C, D059). Chaque cible est une VariableExpression
+/// ou une ArrayElementExpression.
+/// </summary>
+public sealed record ReadStatement(int SourceLine, IReadOnlyList<Expression> Targets) : Statement(SourceLine);
+
+/// <summary>RESTORE [ligne] : la lecture repart au premier DATA (ou au premier DATA de cette ligne ou après) (D059).</summary>
+public sealed record RestoreStatement(int SourceLine, int? Line) : Statement(SourceLine);
 
 /// <summary>Un tableau déclaré par DIM : son nom et la plus grande case de chaque dimension (DIM A(10, 5)) (lot C, D058).</summary>
 public sealed record ArrayDeclaration(string Name, IReadOnlyList<Expression> Sizes);
@@ -235,6 +256,8 @@ public static class AstWalker
         ScreenStatement s => s.Arguments,
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
         OnStatement o => [o.Selector],
+        ReadStatement r => r.Targets,
+        InputStatement i => i.Targets,
         _ => []
     };
 

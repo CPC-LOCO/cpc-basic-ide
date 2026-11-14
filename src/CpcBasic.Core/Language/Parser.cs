@@ -23,7 +23,8 @@ public static class Parser
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
-        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM"];
+        "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
+        "DATA", "READ", "RESTORE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -276,6 +277,15 @@ public static class Parser
             case "DIM":
                 return ParseDim(tokens, pos, statements, diagnostics);
 
+            case "DATA":
+                return ParseData(tokens, pos, statements, diagnostics);
+
+            case "READ":
+                return ParseRead(tokens, pos, statements, diagnostics);
+
+            case "RESTORE":
+                return ParseRestore(tokens, pos, statements, diagnostics);
+
             case "GOTO":
                 return ParseJump(tokens, pos, 1, false, statements, diagnostics);
 
@@ -355,6 +365,7 @@ public static class Parser
         }
 
         var variables = new List<string>();
+        var indexes = new List<IReadOnlyList<Expression>?>();
         while (true)
         {
             Token name = tokens[pos];
@@ -371,12 +382,25 @@ public static class Parser
             variables.Add(name.Text);
             pos++;
 
+            // INPUT T(I) : le nombre tapé va dans une case de tableau (D059)
+            if (tokens[pos].Kind == TokenKind.LeftParen)
+            {
+                if (!CheckArrayName(name, diagnostics) || !TryParseIndexes(tokens, ref pos, diagnostics, out List<Expression> cases))
+                    return SkipToStatementEnd(tokens, pos);
+                indexes.Add(cases);
+            }
+            else
+            {
+                indexes.Add(null);
+            }
+
             if (tokens[pos].Kind != TokenKind.Comma)
                 break;
             pos++;
         }
 
-        statements.Add(new InputStatement(line, prompt, question, noNewline, variables));
+        statements.Add(new InputStatement(line, prompt, question, noNewline, variables,
+                                          indexes.Any(i => i is not null) ? indexes : null));
         return pos;
     }
 
@@ -422,6 +446,123 @@ public static class Parser
         statements.Add(indexes is null
             ? new AssignStatement(line, name.Text, value)
             : (Statement)new ArrayAssignStatement(line, name.Text, indexes, value));
+        return pos;
+    }
+
+    // ----- DATA, READ, RESTORE (lot C, D059) -----
+
+    // DATA nombre [, nombre ...] : entiers de -32768 à 65535 (de 32768 à 65535, même mot de 16 bits que sur le CPC)
+    static int ParseData(IReadOnlyList<Token> tokens, int pos,
+                         List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        var values = new List<int>();
+        while (true)
+        {
+            bool negative = false;
+            if (tokens[pos].Kind is TokenKind.Plus or TokenKind.Minus)
+            {
+                negative = tokens[pos].Kind == TokenKind.Minus;
+                pos++;
+            }
+
+            Token t = tokens[pos];
+            if (t.Kind == TokenKind.String || (t.Kind == TokenKind.Word && !negative))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.DataTextNotYet, t.Line, t.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            if (t.Kind != TokenKind.Number)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDataValue, t.Line, IsStatementEnd(t) ? "" : t.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            if (!long.TryParse(t.Text, out long value) || value > (negative ? 32768 : 65535))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, t.Line, (negative ? "-" : "") + t.Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+
+            int word = (int)(negative ? -value : value);
+            values.Add(word > 32767 ? word - 65536 : word);
+            pos++;
+
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        statements.Add(new DataStatement(line, values));
+        return pos;
+    }
+
+    // Ce qui reçoit une valeur lue : une variable (A, A%) ou une case de tableau (T(I))
+    static Expression? ParseTarget(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        if (name.Kind != TokenKind.Word || Commands.Contains(name.Text) || Functions.ContainsKey(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedTarget, name.Line, IsStatementEnd(name) ? "" : name.Text));
+            return null;
+        }
+        if (!VariableNames.IsSupported(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
+            return null;
+        }
+        pos++;
+
+        if (tokens[pos].Kind != TokenKind.LeftParen)
+            return new VariableExpression(name.Text);
+
+        if (!CheckArrayName(name, diagnostics) || !TryParseIndexes(tokens, ref pos, diagnostics, out List<Expression> indexes))
+            return null;
+        return new ArrayElementExpression(name.Text, indexes);
+    }
+
+    // READ cible [, cible ...]
+    static int ParseRead(IReadOnlyList<Token> tokens, int pos,
+                         List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        var targets = new List<Expression>();
+        while (true)
+        {
+            Expression? target = ParseTarget(tokens, ref pos, diagnostics);
+            if (target is null)
+                return SkipToStatementEnd(tokens, pos);
+            targets.Add(target);
+
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        statements.Add(new ReadStatement(line, targets));
+        return pos;
+    }
+
+    // RESTORE [numéro de ligne]
+    static int ParseRestore(IReadOnlyList<Token> tokens, int pos,
+                            List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+
+        if (IsStatementEnd(tokens[pos]) || IsElse(tokens[pos]))
+        {
+            statements.Add(new RestoreStatement(line, null));
+            return pos;
+        }
+
+        if (!TryParseTarget(tokens, ref pos, diagnostics, out int target))
+            return SkipToStatementEnd(tokens, pos);
+
+        statements.Add(new RestoreStatement(line, target));
         return pos;
     }
 
@@ -1032,6 +1173,9 @@ public static class Parser
                     foreach (int target in on.Targets)
                         Check(on.SourceLine, target, on.IsGosub ? "ON … GOSUB" : "ON … GOTO");
                     break;
+                case RestoreStatement { Line: int restoreLine } restore:
+                    Check(restore.SourceLine, restoreLine, "RESTORE");
+                    break;
             }
         }
     }
@@ -1483,9 +1627,14 @@ public static class Parser
                     Uses(on.Selector);
                     break;
 
-                case InputStatement input:
-                    foreach (string variable in input.Variables)
-                        used.Add(variable);
+                case InputStatement or ReadStatement:
+                    foreach (Expression target in AstWalker.TopLevel(statement))
+                    {
+                        if (target is VariableExpression variable)
+                            used.Add(variable.Name);
+                        else
+                            Uses(target);
+                    }
                     break;
 
                 case ScreenStatement screen:

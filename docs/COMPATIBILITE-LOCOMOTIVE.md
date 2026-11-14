@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -75,9 +75,9 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | À faire | À décider : DEFINT a peu de sens si tout est entier. |
 | `DIM` | tableaux | Faite | Tableaux d'entiers, une ou plusieurs dimensions, taille écrite ou calculée, création automatique (0 à 10) sans DIM, vérification des cases (« Subscript out of range »). Textes et réels avec les lots E et F. D058. |
 | `ERASE` | efface un tableau | À faire |  |
-| `DATA` | données dans le programme | À faire |  |
-| `READ` | lit les données | À faire |  |
-| `RESTORE` | relit les données depuis une ligne | À faire |  |
+| `DATA` | données dans le programme | Partielle | Nombres entiers (-32768 à 65535). Textes avec le lot E, hexadécimal avec le lot D. D059. |
+| `READ` | lit les données | Faite | Dans une variable ou une case de tableau ; « DATA exhausted » s'il n'y a plus rien. D059. |
+| `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |
 | `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
 | `SWAP` | échange deux variables | À faire |  |
 | `MEMORY` | limite la mémoire du BASIC | Partielle | Protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous (si l'adresse est un nombre écrit). D057. |
@@ -161,7 +161,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
-| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers seulement (pas de réels ni de chaînes pour l'instant). |
+| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers seulement (pas de réels ni de chaînes pour l'instant), dans une variable ou une case de tableau. |
 | `LINE INPUT` | saisie d'une ligne de texte | À faire |  |
 
 ## 7. Disquette et cassette

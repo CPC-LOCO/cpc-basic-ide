@@ -52,7 +52,10 @@ public enum DiagnosticCode
     ExpectedArrayName,
     ArrayDimensionMismatch,
     ByteArrayNotYet,
-    NotYetAvailable
+    NotYetAvailable,
+    ExpectedDataValue,
+    DataTextNotYet,
+    ExpectedTarget
 }
 
 /// <summary>
@@ -165,6 +168,12 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"« {Argument} » est déclaré BYTE : les tableaux d'octets ne sont pas encore possibles. Donnez un autre nom au tableau.",
         DiagnosticCode.NotYetAvailable =>
             $"« {Argument} » est un mot du Locomotive BASIC qui n'est pas encore disponible ici : il ne peut pas servir de nom de tableau. Voyez la liste dans docs\\COMPATIBILITE-LOCOMOTIVE.md.",
+        DiagnosticCode.ExpectedDataValue =>
+            $"DATA attend des nombres entiers séparés par des virgules, par exemple DATA 10, -5, 300 (de -32768 à 65535).{Why}",
+        DiagnosticCode.DataTextNotYet =>
+            $"« {Argument} » : les textes dans DATA ne sont pas encore possibles ; ils viendront avec les chaînes de caractères. Pour l'instant, DATA ne contient que des nombres entiers.",
+        DiagnosticCode.ExpectedTarget =>
+            $"{(Context.Length == 0 ? "READ" : Context)} attend ici un nom de variable ou une case de tableau, par exemple A ou T(I).{Why}",
         _ => $"problème inconnu ({Code})."
     };
 

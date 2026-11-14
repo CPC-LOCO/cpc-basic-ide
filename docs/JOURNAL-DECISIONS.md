@@ -367,6 +367,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Validé par l'utilisateur le 13 nov. 2026 :** `examples\tableaux.bas` et `examples\horstab.bas` conformes dans WinAPE (« Subscript out of range in 80 », la ligne 90 ne s'affiche pas). Le mini-Z80 des tests a reçu ADC HL,DE et JP PE (utilisés par NEXT, jamais simulés avant) : 534 tests.
 - **Fichiers :** Ast.cs (DimStatement, ArrayElementExpression, ArrayAssignStatement, AstWalker), Diagnostic.cs (4 messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module Array), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (instructions et TXT GET CURSOR &BB78), `tests\CpcBasic.Tests\ArrayTests.cs` (53 tests), `examples\tableaux.bas`, `examples\horstab.bas` (erreur voulue).
 
+## D059 : lot C, DATA, READ, RESTORE (Décidé, validé le 14 nov. 2026)
+- **Fait :** `DATA nombre [, nombre ...]`, `READ cible [, cible ...]`, `RESTORE [ligne]`, et `INPUT` dans une case de tableau (`INPUT T(I)`). Une cible est une variable ou une case de tableau (`READ A, T(I)`). Mots réservés ajoutés : DATA, READ, RESTORE.
+- **Comme le Locomotive :** les DATA peuvent être n'importe où dans le programme (même après END) et sont lus dans l'ordre des lignes ; `RESTORE` repart au premier DATA ; `RESTORE 200` repart au premier DATA de la ligne 200 ou après (une ligne absente est signalée à la compilation, comme pour GOTO) ; plus rien à lire : « DATA exhausted in 50 », puis attente d'une touche et redémarrage.
+- **Nombres :** entiers de -32768 à 65535 ; de 32768 à 65535, le même mot de 16 bits que sur le CPC (comme POKE, D056) : `DATA 40000` relu dans A donne -25536, et `POKE A, …` vise bien l'adresse 40000. Dans une variable BYTE, READ garde l'octet de poids faible.
+- **Pas encore :** textes dans DATA (`DATA "ABC"` ou `DATA BONJOUR` : message clair ; viendront avec les chaînes, lot E, nécessaires au programme RSX de référence) ; nombres hexadécimaux `&C9` (lot D) ; réels (lot F).
+- **Réalisation :** tous les nombres des DATA forment une table de mots de 16 bits à la fin du programme (seulement si le programme contient READ ou RESTORE) ; le module `Data` (`rt_read`) lit le mot suivant. L'affichage des erreurs pendant l'exécution est devenu un module commun `RunError` (utilisé par Array et Data), avec la ligne en cours dans `rt_err_line`.
+- **Validé par l'utilisateur le 14 nov. 2026 :** 568 tests ; `examples\donnees.bas` conforme dans WinAPE. (Un test de D058 utilisait READ comme exemple de mot pas encore disponible : remplacé par SOUND.)
+- **Fichiers :** Ast.cs (DataStatement, ReadStatement, RestoreStatement, InputStatement.Indexes), Diagnostic.cs (3 messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules RunError et Data), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs` (LD D,(HL), LD E,(HL)), `tests\CpcBasic.Tests\DataTests.cs` (34 tests), `examples\donnees.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

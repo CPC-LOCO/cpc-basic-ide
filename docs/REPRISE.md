@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D058 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D059 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -43,6 +43,7 @@ Documents de référence :
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
 - **Dernier commit sur GitHub :** « Reprise a jour apres lot C partie 1 » (13 nov. 2026, 481 tests).
 - **DIM (D058) validé dans WinAPE le 13 nov. 2026** : 534 tests. Commit « Lot C : DIM, tableaux d'entiers ».
+- **DATA, READ, RESTORE, INPUT T(I) (D059) validés le 14 nov. 2026** : 568 tests, `examples\donnees.bas` conforme. **Le lot C est terminé** (sauf ERASE, gardé pour plus tard).
 - **Règle de l'utilisateur :** le projet doit être 100 % compatible avec le Locomotive BASIC. **Finir tous les lots de l'inventaire (A à J) avant toute commande nouvelle** (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent). On avance lot par lot.
 
 ### Fait et validé
@@ -60,7 +61,7 @@ Documents de référence :
 
 ### Prochaine étape : fin du lot C
 
-1. `DATA`, `READ`, `RESTORE` (avec `READ A(I)` et `INPUT A(I)` dans une case de tableau) ; `ERASE` plus tard.
+1. lot D : nombres hexadécimaux et binaires (`&C9`, `&X1010`), `XOR`, `NOT`, `^`, comparaisons comme valeurs.
 
 Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, comparaisons comme valeurs), lot E (chaînes), F (réels et fonctions mathématiques), G (son), H (fenêtres et mise en forme), I (interruptions et erreurs), J (disquette et cassette).
 
@@ -87,8 +88,8 @@ Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, compa
 ## 5. Points techniques à connaître
 
 - Chaîne du compilateur : `Lexer` (mots et symboles) -> `Parser` (instructions, expressions, vérifications) -> `CodeGenerator` (octets Z80 avec `Z80Emitter`) -> `Compiler` (enchaîne tout, vérifie la limite de `MEMORY`, écrit la disquette).
-- Les modules Z80 sont écrits en C# dans `RuntimeLibrary.cs` ; chacun déclare ses dépendances, seuls les modules utilisés sont liés (liaison sélective). Modules actuels : PrintString, PrintInt, Input, Mul16, Div16, Abs16, Sgn16, Min16, Max16, Rand16, Randomize, RandomRange, Pixel, Box, Array (D058).
-- Tableaux (D058) : un descripteur par tableau à la fin du binaire (adresse des cases, puis nombre de cases par dimension) ; les cases sont prises au lancement après le programme (`rt_heap_start`), jusqu'à &A67B ou MEMORY. Erreurs à l'exécution : textes du Locomotive + numéro de ligne (`rt_arr_line`), puis attente d'une touche et redémarrage. `AstWalker` (dans `Ast.cs`) parcourt les expressions d'une instruction.
+- Les modules Z80 sont écrits en C# dans `RuntimeLibrary.cs` ; chacun déclare ses dépendances, seuls les modules utilisés sont liés (liaison sélective). Modules actuels : PrintString, PrintInt, Input, Mul16, Div16, Abs16, Sgn16, Min16, Max16, Rand16, Randomize, RandomRange, Pixel, Box, Array (D058), RunError et Data (D059).
+- Tableaux (D058) : un descripteur par tableau à la fin du binaire (adresse des cases, puis nombre de cases par dimension) ; les cases sont prises au lancement après le programme (`rt_heap_start`), jusqu'à &A67B ou MEMORY. Erreurs à l'exécution : module commun `RunError` (texte du Locomotive + « in » + numéro de ligne rangé dans `rt_err_line`), puis attente d'une touche et redémarrage (D059). `AstWalker` (dans `Ast.cs`) parcourt les expressions d'une instruction.
 - Le programme compilé commence en &4000. Expressions sur 16 bits, résultat dans `HL`. Variables réservées à la fin du binaire. Les octets (`BYTE`) sont étendus à 16 bits en lecture. Fonctions : `NOM(valeurs)` (table `Functions` du parser) ; `TIME` sans parenthèses.
 - Nombres : entiers de -32768 à 32767. Une adresse écrite seule (POKE, PEEK, CALL, MEMORY…) peut aller jusqu'à 65535 ; dans un calcul, non (écrire `-16384 + I`). Cela changera avec les lots D et F.
 - Sauts (D054) : chaque ligne numérotée reçoit une étiquette `line_N` (zéro octet) ; GOTO = JP, GOSUB = CALL, RETURN = RET.

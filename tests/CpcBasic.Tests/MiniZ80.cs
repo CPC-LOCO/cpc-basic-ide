@@ -413,6 +413,8 @@ internal sealed class MiniZ80
             case 0x4E: C = ReadMemory(HL); break;                      // LD C,(HL)
             case 0x66: H = ReadMemory(HL); break;                      // LD H,(HL)
             case 0x6E: L = ReadMemory(HL); break;                      // LD L,(HL)
+            case 0x56: D = ReadMemory(HL); break;                      // LD D,(HL) (D059)
+            case 0x5E: E = ReadMemory(HL); break;                      // LD E,(HL) (D059)
             case 0x54: D = H; break;                                   // LD D,H
             case 0x5D: E = L; break;                                   // LD E,L
             case 0xB6: A |= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // OR (HL)

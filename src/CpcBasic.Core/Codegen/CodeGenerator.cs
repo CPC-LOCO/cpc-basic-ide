@@ -748,6 +748,36 @@ public static class CodeGenerator
                     emitter.Label(LineLabel(number));
         }
 
+        // DATA (D059) : tous les nombres, dans l'ordre du programme. dataStart : rang de l'instruction DATA -> rang de son
+        // premier nombre. RESTORE ligne repart au premier DATA de cette ligne ou après (étiquette data_at_N, N = rang du nombre).
+        var dataValues = new List<int>();
+        var dataStart = new SortedDictionary<int, int>();
+        for (int i = 0; i < program.Statements.Count; i++)
+        {
+            if (program.Statements[i] is DataStatement data)
+            {
+                dataStart[i] = dataValues.Count;
+                dataValues.AddRange(data.Values);
+            }
+        }
+        bool usesData = program.Statements.Any(st => st is ReadStatement or RestoreStatement);
+        var restorePoints = new SortedSet<int>();
+
+        string RestoreLabel(int? line)
+        {
+            int offset = 0;
+            if (line is int number)
+            {
+                int firstIndex = program.LineTable[number];
+                offset = dataStart.Where(pair => pair.Key >= firstIndex).Select(pair => pair.Value).DefaultIfEmpty(dataValues.Count).First();
+            }
+            restorePoints.Add(offset);
+            return $"data_at_{offset}";
+        }
+
+        if (usesData)
+            required.Add(RuntimeLibrary.DataName);
+
         // Tableaux : la mémoire libre commence juste après le programme (D058)
         if (arrays.Count > 0)
         {
@@ -766,11 +796,11 @@ public static class CodeGenerator
 
             // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
             // sans numéros de ligne, c'est la ligne de l'éditeur.
-            if (AstWalker.UsesArrays(statement)
+            if (AstWalker.UsesArrays(statement) || statement is ReadStatement
                 || (arrays.Count > 0 && statement is ScreenStatement { Command: "MEMORY" }))
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
-                emitter.LdMemHl(RuntimeLibrary.ArrayLineLabel);
+                emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
             }
 
             switch (statement)
@@ -843,6 +873,16 @@ public static class CodeGenerator
                             emitter.CallLabel(RuntimeLibrary.InputMoreLabel);
                         emitter.CallLabel(RuntimeLibrary.InputNumLabel);
                         emitter.JpCLabel(redo);
+                        if (input.Indexes?[i] is { } cellIndexes)
+                        {
+                            emitter.PushHl();               // INPUT T(I) : le nombre va dans une case de tableau (D059)
+                            EmitElementAddress(input.Variables[i], cellIndexes);
+                            emitter.PopDe();
+                            emitter.StoreHlE();
+                            emitter.IncHl();
+                            emitter.StoreHlD();
+                            continue;
+                        }
                         VariableSlot slot = Slot(input.Variables[i]);
                         if (slot.Type != VarType.Integer)
                         {
@@ -906,6 +946,34 @@ public static class CodeGenerator
                         emitter.IncHl();
                         emitter.StoreHlD();
                     }
+                    break;
+
+                case DataStatement:
+                    break;                                  // les nombres sont rangés dans la table data_table
+
+                case ReadStatement read:
+                    foreach (Expression target in read.Targets)
+                    {
+                        emitter.CallLabel(RuntimeLibrary.ReadLabel);   // HL = nombre suivant
+                        if (target is ArrayElementExpression cell)
+                        {
+                            emitter.PushHl();
+                            EmitElementAddress(cell.Name, cell.Indexes);
+                            emitter.PopDe();
+                            emitter.StoreHlE();
+                            emitter.IncHl();
+                            emitter.StoreHlD();
+                        }
+                        else
+                        {
+                            EmitStore(Slot(((VariableExpression)target).Name));
+                        }
+                    }
+                    break;
+
+                case RestoreStatement restore:
+                    emitter.LdHlLabel(RestoreLabel(restore.Line));
+                    emitter.LdMemHl(RuntimeLibrary.DataPointerLabel);
                     break;
 
                 case DimStatement dim:
@@ -1108,6 +1176,20 @@ public static class CodeGenerator
         {
             emitter.Label(StringLabel(i));
             emitter.Data(strings[i]);
+        }
+
+        // Nombres des DATA (D059), avec les points de départ de RESTORE
+        if (usesData)
+        {
+            emitter.Label(RuntimeLibrary.DataTableLabel);
+            for (int k = 0; k <= dataValues.Count; k++)
+            {
+                if (restorePoints.Contains(k))
+                    emitter.Label($"data_at_{k}");
+                if (k < dataValues.Count)
+                    emitter.Word(dataValues[k] & 0xFFFF);
+            }
+            emitter.Label(RuntimeLibrary.DataEndLabel);
         }
 
         // Variables, à 0 au départ : 1 octet pour un octet, 2 pour un entier

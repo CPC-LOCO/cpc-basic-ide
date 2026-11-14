@@ -99,8 +99,19 @@ public static class RuntimeLibrary
     /// <summary>Haut de la mémoire libre par défaut, non compris (HIMEM du BASIC avec la disquette = &amp;A67B).</summary>
     public const int DefaultHeapLimit = 0xA67C;
 
+    // Erreurs pendant l'exécution (D058, D059) : message du Locomotive, « in », numéro de ligne, puis fin du programme
+    public const string ErrorName = "RunError";
+    public const string ErrorLabel = "rt_error";                // HL = adresse du message (terminé par 0)
+    public const string ErrorLineLabel = "rt_err_line";         // numéro de la ligne en cours, rangé par le programme
+
+    // DATA, READ, RESTORE (D059)
+    public const string DataName = "Data";
+    public const string ReadLabel = "rt_read";                  // HL = nombre suivant des DATA
+    public const string DataPointerLabel = "rt_data_ptr";       // prochain nombre à lire
+    public const string DataTableLabel = "data_table";          // placée par le générateur : les nombres des DATA
+    public const string DataEndLabel = "data_end";              // placée par le générateur : fin des nombres
+
     public const string ArrayName = "Array";
-    public const string ArrayLineLabel = "rt_arr_line";         // numéro de la ligne en cours, pour les messages d'erreur
     public const string ArrayHeapLabel = "rt_arr_heap";         // début de la mémoire libre (les tableaux sont pris ici)
     public const string ArrayHeapLimitLabel = "rt_arr_limit";   // fin de la mémoire libre (non comprise), changée par MEMORY
     public const string ArrayHeapStartLabel = "rt_heap_start";  // placée par le générateur après les variables
@@ -131,9 +142,99 @@ public static class RuntimeLibrary
         //  rt_arr_elem    : plusieurs dimensions. Numéros empilés (le dernier en haut), DE = descripteur, B = dimensions.
         //  rt_arr_memory  : MEMORY. HL = adresse : la mémoire libre s'arrête là.
         // Un tableau utilisé sans DIM est créé avec les cases 0 à 10 dans chaque dimension, comme le Locomotive.
-        // Les erreurs affichent le message du Locomotive (« Subscript out of range in 30 »), attendent une touche,
-        // puis redémarrent la machine, comme la fin du programme.
-        [ArrayName] = new RuntimeModule(ArrayName, [PrintStringName], e =>
+        // Les erreurs affichent le message du Locomotive (« Subscript out of range in 30 ») par le module RunError.
+        // Erreur pendant l'exécution. HL = message. Affiche (à la ligne si le curseur n'est pas au début)
+        // « message in N », N étant rt_err_line, attend une touche, puis redémarre la machine comme la fin du programme.
+        [ErrorName] = new RuntimeModule(ErrorName, [PrintStringName], e =>
+        {
+            e.Label(ErrorLabel);
+            e.PushHl();
+            e.CallAddress(TxtGetCursor);             // pas en début de ligne : on passe à la ligne
+            e.LdAH();
+            e.CpImm(1);
+            e.JrZLabel("rt_err_col1");
+            e.LdHlLabel("rt_err_crlf");
+            e.CallLabel(PrintStringLabel);
+            e.Label("rt_err_col1");
+            e.PopHl();
+            e.CallLabel(PrintStringLabel);
+            e.LdHlLabel("rt_err_in");
+            e.CallLabel(PrintStringLabel);
+            e.LdHlMem(ErrorLineLabel);
+            e.CallLabel("rt_err_dec");
+            e.LdHlLabel("rt_err_crlf");
+            e.CallLabel(PrintStringLabel);
+            e.CallAddress(KmWaitKey);
+            e.JpAddress(0);
+
+            // Affiche HL de 0 à 65535, sans espace
+            e.Label("rt_err_dec");
+            e.LdEImm(0);                             // E = 1 dès qu'un chiffre est affiché
+            foreach (int power in new[] { 10000, 1000, 100, 10 })
+            {
+                e.LdBcImm(-power & 0xFFFF);
+                e.CallLabel("rt_err_digit");
+            }
+            e.LdAL();
+            e.AddAImm('0');
+            e.CallAddress(TxtOutput);
+            e.Ret();
+            e.Label("rt_err_digit");
+            e.LdAImm('0' - 1);
+            e.Label("rt_err_digit_loop");
+            e.IncA();
+            e.AddHlBc();
+            e.JrCLabel("rt_err_digit_loop");
+            e.SbcHlBc();                             // retenue à 0 : on rajoute ce qui a été retiré de trop
+            e.CpImm('0');
+            e.JrNzLabel("rt_err_digit_show");
+            e.LdDA();                                // un 0 avant le premier chiffre n'est pas affiché
+            e.LdAE();
+            e.OrA();
+            e.LdAD();
+            e.RetZ();
+            e.Label("rt_err_digit_show");
+            e.LdEImm(1);
+            e.CallAddress(TxtOutput);
+            e.Ret();
+
+            e.Label(ErrorLineLabel);
+            e.Reserve(2);
+            e.Label("rt_err_in");
+            e.Data(Ascii(" in "));
+            e.Label("rt_err_crlf");
+            e.Data(Ascii("\r\n"));
+        }),
+
+        // READ : HL = nombre suivant des DATA ; « DATA exhausted » s'il n'y en a plus (D059).
+        // Le générateur place les nombres entre data_table et data_end ; RESTORE change rt_data_ptr.
+        [DataName] = new RuntimeModule(DataName, [ErrorName], e =>
+        {
+            e.Label(ReadLabel);
+            e.LdHlMem(DataPointerLabel);
+            e.LdDeLabel(DataEndLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrNcLabel("rt_read_none");             // plus rien à lire
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.IncHl();
+            e.LdMemHl(DataPointerLabel);
+            e.ExDeHl();
+            e.Ret();
+            e.Label("rt_read_none");
+            e.LdHlLabel("rt_read_msg");
+            e.JpLabel(ErrorLabel);
+
+            e.Label(DataPointerLabel);
+            e.Word(DataTableLabel);                  // au départ : le premier nombre
+            e.Label("rt_read_msg");
+            e.Data(Ascii("DATA exhausted"));
+        }),
+
+        [ArrayName] = new RuntimeModule(ArrayName, [ErrorName], e =>
         {
             e.Label(ArrayDimSizeLabel);
             e.IncHl();                               // nombre de cases = plus grande case + 1
@@ -347,68 +448,17 @@ public static class RuntimeLibrary
             e.LdMemHl(ArrayHeapLimitLabel);
             e.Ret();
 
-            // Erreurs : message du Locomotive, « in », numéro de ligne, puis fin du programme
+            // Erreurs : message du Locomotive, puis module RunError
             e.Label(ErrSubscript);
             e.LdHlLabel("rt_arr_msg_sub");
-            e.JrLabel("rt_arr_error");
+            e.JpLabel(ErrorLabel);
             e.Label(ErrMemory);
             e.LdHlLabel("rt_arr_msg_mem");
-            e.JrLabel("rt_arr_error");
+            e.JpLabel(ErrorLabel);
             e.Label(ErrRedim);
             e.LdHlLabel("rt_arr_msg_redim");
-            e.Label("rt_arr_error");
-            e.PushHl();
-            e.CallAddress(TxtGetCursor);             // pas en début de ligne : on passe à la ligne
-            e.LdAH();
-            e.CpImm(1);
-            e.JrZLabel("rt_arr_err_col1");
-            e.LdHlLabel("rt_arr_msg_crlf");
-            e.CallLabel(PrintStringLabel);
-            e.Label("rt_arr_err_col1");
-            e.PopHl();
-            e.CallLabel(PrintStringLabel);
-            e.LdHlLabel("rt_arr_msg_in");
-            e.CallLabel(PrintStringLabel);
-            e.LdHlMem(ArrayLineLabel);
-            e.CallLabel("rt_arr_dec");
-            e.LdHlLabel("rt_arr_msg_crlf");
-            e.CallLabel(PrintStringLabel);
-            e.CallAddress(KmWaitKey);
-            e.JpAddress(0);
+            e.JpLabel(ErrorLabel);
 
-            // Affiche HL de 0 à 65535, sans espace
-            e.Label("rt_arr_dec");
-            e.LdEImm(0);                             // E = 1 dès qu'un chiffre est affiché
-            foreach (int power in new[] { 10000, 1000, 100, 10 })
-            {
-                e.LdBcImm(-power & 0xFFFF);
-                e.CallLabel("rt_arr_digit");
-            }
-            e.LdAL();
-            e.AddAImm('0');
-            e.CallAddress(TxtOutput);
-            e.Ret();
-            e.Label("rt_arr_digit");
-            e.LdAImm('0' - 1);
-            e.Label("rt_arr_digit_loop");
-            e.IncA();
-            e.AddHlBc();
-            e.JrCLabel("rt_arr_digit_loop");
-            e.SbcHlBc();                             // retenue à 0 : on rajoute ce qui a été retiré de trop
-            e.CpImm('0');
-            e.JrNzLabel("rt_arr_digit_show");
-            e.LdDA();                                // un 0 avant le premier chiffre n'est pas affiché
-            e.LdAE();
-            e.OrA();
-            e.LdAD();
-            e.RetZ();
-            e.Label("rt_arr_digit_show");
-            e.LdEImm(1);
-            e.CallAddress(TxtOutput);
-            e.Ret();
-
-            e.Label(ArrayLineLabel);
-            e.Reserve(2);
             e.Label(ArrayHeapLabel);
             e.Reserve(2);
             e.Label(ArrayHeapLimitLabel);
@@ -424,10 +474,6 @@ public static class RuntimeLibrary
             e.Data(Ascii("Memory full"));
             e.Label("rt_arr_msg_redim");
             e.Data(Ascii("Array already dimensioned"));
-            e.Label("rt_arr_msg_in");
-            e.Data(Ascii(" in "));
-            e.Label("rt_arr_msg_crlf");
-            e.Data(Ascii("\r\n"));
         }),
 
         // HL = nombre aléatoire de 16 bits. Registre à décalage de 16 bits (polynôme &B400, période 65535),
