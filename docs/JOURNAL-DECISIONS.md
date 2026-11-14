@@ -408,6 +408,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Pas encore (E2, E3) :** fonctions de textes, DATA texte et READ A$, tableaux de textes, INKEY$, LINE INPUT, `@a$`. Un DIM qui manque de place ne lance pas le ménage des textes (« Memory full » directement).
 - **Fichiers :** Ast.cs (VarType.String, StringLiteralExpression, ConcatExpression, Types), Diagnostic.cs (3 messages), Parser.cs (types dans les calculs, PRINT, LEN), CodeGenerator.cs, RuntimeLibrary.cs (modules Heap, Strings, InputString), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs`, `tests\CpcBasic.Tests\StringTests.cs` (35 tests), 4 anciens tests adaptés ($ n'est plus refusé partout : VariablesTests, ArrayTests, DataTests, AddressTests), `examples\textes.bas`.
 
+## D063 : lot E, étape E2 : fonctions de textes (Décidé, validé le 14 nov. 2026)
+- **Validé par l'utilisateur le 14 nov. 2026 :** 685 tests ; `examples\textes2.bas` conforme dans WinAPE.
+- **Fait, comme le Locomotive :** `LEFT$`, `RIGHT$`, `MID$` (fonction), `CHR$`, `ASC`, `STR$` (espace ou « - » devant, comme PRINT, sans espace après), `VAL` (décimal, `&` et `&H` hexadécimal, `&X` binaire ; s'arrête au premier caractère qui ne convient pas ; « » donne 0), `STRING$` (le caractère peut être un code ou un texte, dont on prend la première lettre), `SPACE$`, `UPPER$` et `LOWER$` (lettres de A à Z), `INSTR([début,] texte, cherché)` (0 si absent), `HEX$` et `BIN$` (nombre de chiffres facultatif, 0 à 16). Mots réservés ajoutés : ces 14 fonctions.
+- **Erreur pendant l'exécution :** « Improper argument » (comme le Locomotive) pour une valeur hors limites : longueur ou code hors de 0 à 255, `MID$(A$, 0)`, `ASC("")`, `INSTR(0, ...)`, plus de 16 chiffres pour HEX$ et BIN$.
+- **Vérifications à la compilation :** chaque fonction déclare le genre de chacune de ses valeurs (texte, nombre, ou l'un ou l'autre) ; un mauvais genre donne le message « un texte et un nombre ne se mélangent pas ».
+- **Programme RSX de référence :** sa ligne `POKE p+a, VAL("&"+MID$(a$, a*2+1, 2))` fonctionne maintenant (test dédié).
+- **Limites :** VAL donne un entier sur 16 bits (`VAL("40000")` = -25536, réels avec le lot F) ; `INSTR(texte, "")` donne le début s'il est dans le texte, sinon 0 (cas du Locomotive à comparer).
+- **Fichiers :** Parser.cs (modèles de valeurs des fonctions), Ast.cs (Types : une fonction en $ donne un texte), CodeGenerator.cs, RuntimeLibrary.cs (module StrFunctions), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs`, `tests\CpcBasic.Tests\StringFunctionsTests.cs` (28 tests), `examples\textes2.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

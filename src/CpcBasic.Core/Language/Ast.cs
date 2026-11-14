@@ -173,6 +173,7 @@ public static class Types
     public static bool IsString(Expression expression) => expression switch
     {
         StringLiteralExpression or ConcatExpression => true,
+        CallExpression call => call.Function.EndsWith('$'),   // LEFT$, MID$, CHR$... (D063)
         VariableExpression variable => VariableNames.IsString(variable.Name),
         ArrayElementExpression element => VariableNames.IsString(element.Name),
         _ => false

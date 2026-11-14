@@ -188,7 +188,7 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.StringTooLong =>
             $"ce texte a {Argument} caractères : un texte en a 255 au plus.",
         DiagnosticCode.StringNotYetHere =>
-            $"« {Argument} » : les textes ne sont pas encore possibles ici (tableaux de textes, READ, @ et fonctions comme MID$ viendront dans les étapes suivantes).",
+            $"« {Argument} » : les textes ne sont pas encore possibles ici (tableaux de textes, READ A$, @A$ et MID$(...) = viendront dans l'étape suivante).",
         _ => $"problème inconnu ({Code})."
     };
 

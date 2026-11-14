@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @, 657 avec les textes E1).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @, 657 avec les textes E1, 685 avec E2).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -185,20 +185,20 @@ Tout cela attend les variables chaînes (A$).
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `ASC` | code d'un caractère | À faire |  |
-| `CHR$` | caractère d'un code | À faire |  |
-| `LEFT$` | début d'un texte | À faire |  |
-| `RIGHT$` | fin d'un texte | À faire |  |
-| `MID$ (fonction et instruction)` | milieu d'un texte, remplacement | À faire |  |
+| `ASC` | code d'un caractère | Faite | D063. |
+| `CHR$` | caractère d'un code | Faite | D063. |
+| `LEFT$` | début d'un texte | Faite | D063. |
+| `RIGHT$` | fin d'un texte | Faite | D063. |
+| `MID$ (fonction et instruction)` | milieu d'un texte, remplacement | Partielle | Fonction faite (D063) ; `MID$(A$,2,1) = ...` avec l'étape E3. |
 | `LEN` | longueur | Faite | D062. |
-| `INSTR` | cherche un texte dans un autre | À faire |  |
-| `LOWER$ / UPPER$` | minuscules / majuscules | À faire |  |
-| `STR$` | nombre en texte | À faire |  |
-| `VAL` | texte en nombre | À faire |  |
-| `STRING$` | répète un caractère | À faire |  |
-| `SPACE$` | suite d'espaces | À faire |  |
-| `BIN$` | nombre en binaire | À faire |  |
-| `HEX$` | nombre en hexadécimal | À faire |  |
+| `INSTR` | cherche un texte dans un autre | Faite | D063. |
+| `LOWER$ / UPPER$` | minuscules / majuscules | Faite | Lettres de A à Z. D063. |
+| `STR$` | nombre en texte | Faite | D063. |
+| `VAL` | texte en nombre | Faite | Décimal, &hexadécimal, &Xbinaire ; entier sur 16 bits (réels avec le lot F). D063. |
+| `STRING$` | répète un caractère | Faite | D063. |
+| `SPACE$` | suite d'espaces | Faite | D063. |
+| `BIN$` | nombre en binaire | Faite | D063. |
+| `HEX$` | nombre en hexadécimal | Faite | D063. |
 | `DEC$` | nombre formaté | À faire | BASIC 1.1 seulement (664, 6128). |
 
 ## 9. Mathématiques et nombres au hasard

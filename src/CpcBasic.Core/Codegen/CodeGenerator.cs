@@ -159,6 +159,82 @@ public static class CodeGenerator
                     emitter.CallLabel(RuntimeLibrary.StrConcatLabel);
                     break;
 
+                case CallExpression call:
+                {
+                    // Fonctions qui donnent un texte (D063) : le résultat est une fiche temporaire
+                    required.Add(RuntimeLibrary.StrFunctionsName);
+                    IReadOnlyList<Expression> a = call.Arguments;
+                    switch (call.Function)
+                    {
+                        case "LEFT$" or "RIGHT$":
+                            EmitString(a[0]);
+                            emitter.PushHl();
+                            EmitExpression(a[1]);
+                            emitter.PopDe();
+                            emitter.CallLabel(call.Function == "LEFT$" ? "rt_left" : "rt_right");
+                            break;
+
+                        case "MID$":
+                            EmitString(a[0]);
+                            emitter.PushHl();
+                            EmitExpression(a[1]);
+                            emitter.PushHl();
+                            if (a.Count == 3)
+                                EmitExpression(a[2]);
+                            else
+                                emitter.LdHlImm(255);                // longueur omise : jusqu'à la fin
+                            emitter.LdBH();
+                            emitter.LdCL();
+                            emitter.PopHl();
+                            emitter.PopDe();
+                            emitter.CallLabel("rt_mid");
+                            break;
+
+                        case "CHR$" or "SPACE$" or "STR$":
+                            EmitExpression(a[0]);
+                            emitter.CallLabel(call.Function switch { "CHR$" => "rt_chr", "SPACE$" => "rt_space", _ => "rt_strs" });
+                            break;
+
+                        case "STRING$":
+                            EmitExpression(a[0]);
+                            emitter.PushHl();
+                            if (Types.IsString(a[1]))
+                            {
+                                EmitString(a[1]);                    // STRING$(5, "AB") : premier caractère
+                                emitter.CallLabel("rt_asc");
+                            }
+                            else
+                            {
+                                EmitExpression(a[1]);
+                            }
+                            emitter.ExDeHl();
+                            emitter.PopHl();
+                            emitter.CallLabel("rt_string");
+                            break;
+
+                        case "UPPER$" or "LOWER$":
+                            EmitString(a[0]);
+                            emitter.CallLabel(call.Function == "UPPER$" ? "rt_upper" : "rt_lower");
+                            break;
+
+                        case "HEX$" or "BIN$":
+                            EmitExpression(a[0]);
+                            emitter.PushHl();
+                            if (a.Count == 2)
+                                EmitExpression(a[1]);
+                            else
+                                emitter.LdHlImm(0);
+                            emitter.ExDeHl();
+                            emitter.PopHl();
+                            emitter.CallLabel(call.Function == "HEX$" ? "rt_hex" : "rt_bin");
+                            break;
+
+                        default:
+                            throw new NotSupportedException($"Fonction texte non gérée : {call.Function}");
+                    }
+                    break;
+                }
+
                 default:
                     throw new NotSupportedException($"Texte non géré : {expression.GetType().Name}");
             }
@@ -346,6 +422,30 @@ public static class CodeGenerator
                 case CallExpression call:
                     switch (call.Function)
                     {
+                        case "ASC" or "VAL":                        // D063
+                            required.Add(RuntimeLibrary.StrFunctionsName);
+                            EmitString(call.Arguments[0]);
+                            emitter.CallLabel(call.Function == "ASC" ? "rt_asc" : "rt_val");
+                            break;
+
+                        case "INSTR":                               // INSTR([début,] texte, cherché) (D063)
+                            required.Add(RuntimeLibrary.StrFunctionsName);
+                            if (call.Arguments.Count == 3)
+                            {
+                                EmitExpression(call.Arguments[0]);
+                                emitter.PushHl();
+                            }
+                            EmitString(call.Arguments[^2]);
+                            emitter.PushHl();
+                            EmitString(call.Arguments[^1]);
+                            emitter.PopDe();
+                            if (call.Arguments.Count == 3)
+                                emitter.PopBc();
+                            else
+                                emitter.LdBcImm(1);
+                            emitter.CallLabel("rt_instr");
+                            break;
+
                         case "LEN":                                 // LEN(texte) : la longueur est le premier octet de la fiche (D062)
                             EmitString(call.Arguments[0]);
                             emitter.LoadLFromHl();
@@ -920,7 +1020,7 @@ public static class CodeGenerator
             // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
             // sans numéros de ligne, c'est la ligne de l'éditeur.
             // Textes : les fiches temporaires de l'instruction précédente sont rendues (D062)
-            if (usesStrings && AstWalker.All(statement).Any(e => e is ConcatExpression))
+            if (usesStrings && AstWalker.All(statement).Any(e => e is ConcatExpression || (e is CallExpression c && c.Function.EndsWith('$'))))
                 emitter.CallLabel(RuntimeLibrary.StrResetLabel);
 
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)

@@ -127,6 +127,7 @@ public static class RuntimeLibrary
     public const string StrAssignLabel = "rt_str_assign";
     public const string StrPrintLabel = "rt_str_print";
     public const string StrCmpLabel = "rt_str_cmp";
+    public const string StrFunctionsName = "StrFunctions";    // LEFT$, MID$, CHR$, VAL... (D063)
     public const string InputStringName = "InputString";
     public const string InputStrLabel = "rt_input_str";
 
@@ -742,6 +743,603 @@ public static class RuntimeLibrary
             e.Data(Ascii("String too long"));
             e.Label("rt_str_msg_complex");
             e.Data(Ascii("String expression too complex"));
+        }),
+
+        // Fonctions de textes (étape E2, D063), comme le Locomotive. Les résultats texte sont des fiches temporaires.
+        //  rt_left, rt_right : DE = fiche, HL = nombre de caractères (0 à 255).
+        //  rt_mid   : DE = fiche, HL = début (1 à 255), BC = longueur (0 à 255 ; 255 si elle est omise).
+        //  rt_chr, rt_space, rt_strs : HL = nombre.      rt_string : HL = nombre, DE = code du caractère.
+        //  rt_upper, rt_lower : HL = fiche.               rt_hex, rt_bin : HL = nombre, DE = chiffres (0 à 16).
+        //  rt_asc, rt_val : HL = fiche -> HL = nombre.    rt_instr : BC = début, DE = fiche du texte, HL = fiche cherchée.
+        // Une valeur hors limites donne « Improper argument », comme le Locomotive.
+        [StrFunctionsName] = new RuntimeModule(StrFunctionsName, [StringsName, ErrorName], e =>
+        {
+            // A = octet de HL (0 à 255), sinon Improper argument
+            e.Label("rt_sf_byte");
+            e.LdAH();
+            e.OrA();
+            e.JpNzLabel("rt_sf_improper");
+            e.LdAL();
+            e.Ret();
+
+            // Morceau d'un texte : DE = fiche source, B = premier caractère (à partir de 0), C = nombre -> HL = fiche temporaire
+            e.Label("rt_sf_sub");
+            e.LdMemDe("rt_sf_src");
+            e.LdAB();
+            e.LdMemA("rt_sf_off");
+            e.CallLabel("rt_str_newtmp");
+            e.LdMemHl("rt_sf_dst");
+            e.LdAC();
+            e.OrA();
+            e.RetZ();
+            e.ExDeHl();
+            e.CallLabel(StrAllocLabel);              // le ménage a pu déplacer la source : on relit sa fiche ensuite
+            e.PushHl();
+            e.ExDeHl();
+            e.LdHlMem("rt_sf_dst");
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.LdHlMem("rt_sf_src");
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.LdAMem("rt_sf_off");
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();
+            e.PopDe();
+            e.LdBImm(0);
+            e.Ldir();
+            e.LdHlMem("rt_sf_dst");
+            e.Ret();
+
+            // Texte copié depuis la mémoire (hors zone des textes) : DE = lettres, C = nombre -> HL = fiche temporaire
+            e.Label("rt_sf_mem");
+            e.LdMemDe("rt_sf_src");
+            e.CallLabel("rt_str_newtmp");
+            e.LdMemHl("rt_sf_dst");
+            e.LdAC();
+            e.OrA();
+            e.RetZ();
+            e.ExDeHl();
+            e.CallLabel(StrAllocLabel);
+            e.PushHl();
+            e.ExDeHl();
+            e.LdHlMem("rt_sf_dst");
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.PopDe();
+            e.LdHlMem("rt_sf_src");
+            e.LdBImm(0);
+            e.Ldir();
+            e.LdHlMem("rt_sf_dst");
+            e.Ret();
+
+            // C fois le caractère E -> HL = fiche temporaire
+            e.Label("rt_sf_fill");
+            e.LdAE();
+            e.LdMemA("rt_sf_char");
+            e.CallLabel("rt_str_newtmp");
+            e.LdMemHl("rt_sf_dst");
+            e.LdAC();
+            e.OrA();
+            e.RetZ();
+            e.ExDeHl();
+            e.CallLabel(StrAllocLabel);
+            e.PushHl();
+            e.ExDeHl();
+            e.LdHlMem("rt_sf_dst");
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.PopHl();
+            e.LdBC();
+            e.LdAMem("rt_sf_char");
+            e.Label("rt_sf_fill_loop");
+            e.LdHlA();
+            e.IncHl();
+            e.DjnzLabel("rt_sf_fill_loop");
+            e.LdHlMem("rt_sf_dst");
+            e.Ret();
+
+            e.Label("rt_left");
+            e.CallLabel("rt_sf_byte");
+            e.LdCA();
+            e.LdADe();
+            e.CpC();
+            e.JrNcLabel("rt_left_ok");
+            e.LdCA();                                // plus que la longueur : tout le texte
+            e.Label("rt_left_ok");
+            e.LdBImm(0);
+            e.JpLabel("rt_sf_sub");
+
+            e.Label("rt_right");
+            e.CallLabel("rt_sf_byte");
+            e.LdCA();
+            e.LdADe();
+            e.CpC();
+            e.JrNcLabel("rt_right_ok");
+            e.LdCA();
+            e.Label("rt_right_ok");
+            e.LdADe();
+            e.SubC();
+            e.LdBA();                                // départ = longueur - nombre
+            e.JpLabel("rt_sf_sub");
+
+            e.Label("rt_mid");
+            e.CallLabel("rt_sf_byte");
+            e.OrA();
+            e.JpZLabel("rt_sf_improper");            // MID$(A$, 0) : Improper argument
+            e.DecA();
+            e.PushAf();                              // départ (à partir de 0)
+            e.LdHB();
+            e.LdLC();
+            e.CallLabel("rt_sf_byte");
+            e.LdCA();                                // longueur demandée
+            e.PopAf();
+            e.LdBA();
+            e.LdADe();
+            e.SubB();                                // caractères disponibles après le départ
+            e.JrNcLabel("rt_mid_has");
+            e.XorA();                                // départ après la fin : texte vide
+            e.Label("rt_mid_has");
+            e.CpC();
+            e.JrNcLabel("rt_mid_ok");
+            e.LdCA();
+            e.Label("rt_mid_ok");
+            e.JpLabel("rt_sf_sub");
+
+            e.Label("rt_chr");
+            e.CallLabel("rt_sf_byte");
+            e.LdEA();
+            e.LdCImm(1);
+            e.JpLabel("rt_sf_fill");
+
+            e.Label("rt_space");
+            e.CallLabel("rt_sf_byte");
+            e.LdCA();
+            e.LdEImm(' ');
+            e.JpLabel("rt_sf_fill");
+
+            e.Label("rt_string");
+            e.PushDe();
+            e.CallLabel("rt_sf_byte");
+            e.LdCA();
+            e.PopHl();
+            e.CallLabel("rt_sf_byte");               // code du caractère : 0 à 255
+            e.LdEA();
+            e.JpLabel("rt_sf_fill");
+
+            e.Label("rt_asc");
+            e.LdAHl();
+            e.OrA();
+            e.JpZLabel("rt_sf_improper");            // ASC("") : Improper argument
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.LoadLFromHl();
+            e.LdHZero();
+            e.Ret();
+
+            // STR$ : espace (ou « - ») puis les chiffres, comme PRINT mais sans espace à la fin
+            e.Label("rt_strs");
+            e.XorA();
+            e.LdMemA("rt_sf_started");
+            e.LdDeLabel("rt_sf_buf");
+            e.LdAImm(' ');
+            e.Bit7H();
+            e.JrZLabel("rt_strs_pos");
+            e.LdAL();                                // valeur absolue (32768 compris, en non signé)
+            e.Cpl();
+            e.LdLA();
+            e.LdAH();
+            e.Cpl();
+            e.LdHA();
+            e.IncHl();
+            e.LdAImm('-');
+            e.Label("rt_strs_pos");
+            e.StoreDeA();
+            e.IncDe();
+            foreach (int power in new[] { 10000, 1000, 100, 10 })
+            {
+                e.LdBcImm(-power & 0xFFFF);
+                e.CallLabel("rt_sf_digit");
+            }
+            e.LdAL();
+            e.AddAImm('0');
+            e.StoreDeA();
+            e.IncDe();
+            e.ExDeHl();
+            e.LdDeLabel("rt_sf_buf");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdCL();                                // C = nombre de caractères
+            e.JpLabel("rt_sf_mem");
+            e.Label("rt_sf_digit");                  // chiffre de HL pour la puissance -BC, rangé en (DE) sauf zéros du début
+            e.LdAImm('0' - 1);
+            e.Label("rt_sf_digit_loop");
+            e.IncA();
+            e.AddHlBc();
+            e.JrCLabel("rt_sf_digit_loop");
+            e.SbcHlBc();
+            e.CpImm('0');
+            e.JrNzLabel("rt_sf_digit_put");
+            e.PushAf();
+            e.LdAMem("rt_sf_started");
+            e.OrA();
+            e.JrNzLabel("rt_sf_digit_zero");
+            e.PopAf();
+            e.Ret();
+            e.Label("rt_sf_digit_zero");
+            e.PopAf();
+            e.Label("rt_sf_digit_put");
+            e.StoreDeA();
+            e.IncDe();
+            e.LdAImm(1);
+            e.LdMemA("rt_sf_started");
+            e.Ret();
+
+            // HEX$ et BIN$ : chiffres écrits à droite d'une zone de 16 « 0 », puis on garde ce qu'il faut
+            foreach ((string name, int digits, int bits) in new[] { ("rt_hex", 4, 4), ("rt_bin", 16, 1) })
+            {
+                e.Label(name);
+                e.LdAD();
+                e.OrA();
+                e.JpNzLabel("rt_sf_improper");
+                e.LdAE();
+                e.CpImm(17);
+                e.JpNcLabel("rt_sf_improper");       // 16 chiffres au plus
+                e.LdMemA("rt_sf_width");
+                e.CallLabel("rt_sf_zeros");
+                e.LdDeLabel("rt_sf_buf16_end");
+                e.DecDe();
+                e.LdBImm(digits);
+                e.Label(name + "_loop");
+                e.LdAL();
+                e.AndImm((1 << bits) - 1);
+                e.AddAImm('0');
+                if (bits == 4)
+                {
+                    e.CpImm('9' + 1);
+                    e.JrCLabel(name + "_digit");
+                    e.AddAImm(7);                    // A à F
+                    e.Label(name + "_digit");
+                }
+                e.StoreDeA();
+                e.DecDe();
+                for (int k = 0; k < bits; k++)
+                {
+                    e.SrlH();
+                    e.RrL();
+                }
+                e.DjnzLabel(name + "_loop");
+                e.JrLabel("rt_sf_trim");
+            }
+            e.Label("rt_sf_zeros");
+            e.PushHl();
+            e.LdHlLabel("rt_sf_buf16");
+            e.LdBImm(16);
+            e.Label("rt_sf_zeros_loop");
+            e.StoreHlImm('0');
+            e.IncHl();
+            e.DjnzLabel("rt_sf_zeros_loop");
+            e.PopHl();
+            e.Ret();
+            e.Label("rt_sf_trim");                   // C = chiffres utiles (au moins 1), ou plus si on en demande plus
+            e.LdHlLabel("rt_sf_buf16");
+            e.LdCImm(16);
+            e.Label("rt_sf_trim_loop");
+            e.LdAC();
+            e.CpImm(1);
+            e.JrZLabel("rt_sf_trim_found");
+            e.LdAHl();
+            e.CpImm('0');
+            e.JrNzLabel("rt_sf_trim_found");
+            e.IncHl();
+            e.DecC();
+            e.JrLabel("rt_sf_trim_loop");
+            e.Label("rt_sf_trim_found");
+            e.LdAMem("rt_sf_width");
+            e.CpC();
+            e.JrCLabel("rt_sf_trim_keep");
+            e.JrZLabel("rt_sf_trim_keep");
+            e.LdCA();
+            e.LdHlLabel("rt_sf_buf16_end");
+            e.LdBImm(0);
+            e.OrA();
+            e.SbcHlBc();
+            e.Label("rt_sf_trim_keep");
+            e.ExDeHl();
+            e.JpLabel("rt_sf_mem");
+
+            // UPPER$ et LOWER$ : copie, puis on change les lettres de A à Z (ou de a à z)
+            foreach ((string name, char from, int shift) in new[] { ("rt_upper", 'a', -32), ("rt_lower", 'A', 32) })
+            {
+                e.Label(name);
+                e.ExDeHl();
+                e.LdADe();
+                e.LdCA();
+                e.LdBImm(0);
+                e.CallLabel("rt_sf_sub");
+                e.PushHl();
+                e.LoadBFromHl();
+                e.IncHl();
+                e.LdAHl();
+                e.IncHl();
+                e.LoadHFromHl();
+                e.LdLA();
+                e.LdAB();
+                e.OrA();
+                e.JrZLabel(name + "_done");
+                e.Label(name + "_loop");
+                e.LdAHl();
+                e.CpImm(from);
+                e.JrCLabel(name + "_next");
+                e.CpImm(from + 26);
+                e.JrNcLabel(name + "_next");
+                e.AddAImm(shift & 0xFF);
+                e.LdHlA();
+                e.Label(name + "_next");
+                e.IncHl();
+                e.DjnzLabel(name + "_loop");
+                e.Label(name + "_done");
+                e.PopHl();
+                e.Ret();
+            }
+
+            // VAL : espaces, signe, puis chiffres décimaux, ou &hexadécimal, &Hhexadécimal, &Xbinaire ; s'arrête au
+            // premier caractère qui ne convient pas. Résultat sur 16 bits (&FFFF = -1, 40000 = -25536).
+            e.Label("rt_val");
+            e.LoadBFromHl();
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.ExDeHl();                              // DE = lettres, B = nombre
+            e.LdHlImm(0);
+            e.LdMemHl("rt_sf_acc");
+            e.LdCImm(0);                             // C = 1 si négatif
+            e.Label("rt_val_sp");
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_val_done");
+            e.LdADe();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_val_sign");
+            e.IncDe();
+            e.DecB();
+            e.JrLabel("rt_val_sp");
+            e.Label("rt_val_sign");
+            e.CpImm('-');
+            e.JrNzLabel("rt_val_plus");
+            e.LdCImm(1);
+            e.JrLabel("rt_val_skip");
+            e.Label("rt_val_plus");
+            e.CpImm('+');
+            e.JrNzLabel("rt_val_base");
+            e.Label("rt_val_skip");
+            e.IncDe();
+            e.DecB();
+            e.Label("rt_val_base");
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_val_done");
+            e.LdADe();
+            e.CpImm('&');
+            e.JrZLabel("rt_val_amp");
+            e.Label("rt_val_dec");
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_val_done");
+            e.LdADe();
+            e.SubImm('0');
+            e.JpCLabel("rt_val_done");
+            e.CpImm(10);
+            e.JpNcLabel("rt_val_done");
+            e.PushBc();
+            e.PushDe();
+            e.LdHlMem("rt_sf_acc");
+            e.AddHlHl();                             // * 10 = * 2 + * 8
+            e.LdDH();
+            e.LdEL();
+            e.AddHlHl();
+            e.AddHlHl();
+            e.AddHlDe();
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();
+            e.LdMemHl("rt_sf_acc");
+            e.PopDe();
+            e.PopBc();
+            e.IncDe();
+            e.DecB();
+            e.JrLabel("rt_val_dec");
+            e.Label("rt_val_amp");
+            e.IncDe();
+            e.DecB();
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_val_done");
+            e.LdADe();
+            e.AndImm(0xDF);                          // en majuscule
+            e.CpImm('X');
+            e.JrZLabel("rt_val_bin");
+            e.CpImm('H');
+            e.JrNzLabel("rt_val_hex");
+            e.IncDe();
+            e.DecB();
+            e.Label("rt_val_hex");
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_val_done");
+            e.LdADe();
+            e.CpImm('a');
+            e.JrCLabel("rt_val_hex_up");
+            e.SubImm(32);
+            e.Label("rt_val_hex_up");
+            e.SubImm('0');
+            e.JpCLabel("rt_val_done");
+            e.CpImm(10);
+            e.JrCLabel("rt_val_hex_digit");
+            e.SubImm(7);
+            e.CpImm(10);
+            e.JpCLabel("rt_val_done");
+            e.CpImm(16);
+            e.JpNcLabel("rt_val_done");
+            e.Label("rt_val_hex_digit");
+            e.LdHlMem("rt_sf_acc");
+            e.AddHlHl();
+            e.AddHlHl();
+            e.AddHlHl();
+            e.AddHlHl();
+            e.OrL();
+            e.LdLA();
+            e.LdMemHl("rt_sf_acc");
+            e.IncDe();
+            e.DecB();
+            e.JrLabel("rt_val_hex");
+            e.Label("rt_val_bin");
+            e.IncDe();
+            e.DecB();
+            e.Label("rt_val_bin_loop");
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_val_done");
+            e.LdADe();
+            e.SubImm('0');
+            e.JpCLabel("rt_val_done");
+            e.CpImm(2);
+            e.JpNcLabel("rt_val_done");
+            e.LdHlMem("rt_sf_acc");
+            e.AddHlHl();
+            e.OrL();
+            e.LdLA();
+            e.LdMemHl("rt_sf_acc");
+            e.IncDe();
+            e.DecB();
+            e.JrLabel("rt_val_bin_loop");
+            e.Label("rt_val_done");
+            e.LdHlMem("rt_sf_acc");
+            e.LdAC();
+            e.OrA();
+            e.RetZ();
+            e.LdAL();
+            e.Cpl();
+            e.LdLA();
+            e.LdAH();
+            e.Cpl();
+            e.LdHA();
+            e.IncHl();
+            e.Ret();
+
+            // INSTR : position (à partir de 1) du texte cherché, à partir du caractère « début » ; 0 s'il n'y est pas
+            e.Label("rt_instr");
+            e.LdAB();
+            e.OrA();
+            e.JpNzLabel("rt_sf_improper");
+            e.LdAC();
+            e.OrA();
+            e.JpZLabel("rt_sf_improper");            // début de 1 à 255
+            e.LdMemA("rt_sf_start");
+            e.LdMemDe("rt_sf_src");
+            e.LdMemHl("rt_sf_find");
+            e.LdADe();
+            e.LdMemA("rt_sf_slen");
+            e.LdAHl();
+            e.LdMemA("rt_sf_flen");
+            e.OrA();
+            e.JrNzLabel("rt_instr_loop");
+            e.LdAMem("rt_sf_slen");                  // texte cherché vide : le début, s'il est dans le texte
+            e.CpC();
+            e.JpCLabel("rt_instr_zero");
+            e.LdLC();
+            e.LdHZero();
+            e.Ret();
+            e.Label("rt_instr_loop");
+            e.LdAMem("rt_sf_start");                 // assez de place après le début ?
+            e.DecA();
+            e.LdBA();
+            e.LdAMem("rt_sf_flen");
+            e.AddAB();
+            e.JpCLabel("rt_instr_zero");
+            e.LdBA();
+            e.LdAMem("rt_sf_slen");
+            e.CpB();
+            e.JpCLabel("rt_instr_zero");
+            e.LdHlMem("rt_sf_src");
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.LdAMem("rt_sf_start");
+            e.DecA();
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();
+            e.PushHl();
+            e.LdHlMem("rt_sf_find");
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.PopHl();
+            e.LdAMem("rt_sf_flen");
+            e.LdBA();
+            e.Label("rt_instr_cmp");
+            e.LdADe();
+            e.CpMemHl();
+            e.JrNzLabel("rt_instr_next");
+            e.IncHl();
+            e.IncDe();
+            e.DjnzLabel("rt_instr_cmp");
+            e.LdAMem("rt_sf_start");                 // trouvé
+            e.LdLA();
+            e.LdHZero();
+            e.Ret();
+            e.Label("rt_instr_next");
+            e.LdAMem("rt_sf_start");
+            e.IncA();
+            e.LdMemA("rt_sf_start");
+            e.JrLabel("rt_instr_loop");
+            e.Label("rt_instr_zero");
+            e.LdHlImm(0);
+            e.Ret();
+
+            e.Label("rt_sf_improper");
+            e.LdHlLabel("rt_sf_msg_improper");
+            e.JpLabel(ErrorLabel);
+
+            foreach (string scratch in new[] { "rt_sf_src", "rt_sf_dst", "rt_sf_find", "rt_sf_acc" })
+            {
+                e.Label(scratch);
+                e.Reserve(2);
+            }
+            foreach (string scratch in new[] { "rt_sf_off", "rt_sf_char", "rt_sf_started", "rt_sf_width", "rt_sf_start", "rt_sf_slen", "rt_sf_flen" })
+            {
+                e.Label(scratch);
+                e.Reserve(1);
+            }
+            e.Label("rt_sf_buf");
+            e.Reserve(7);
+            e.Label("rt_sf_buf16");
+            e.Reserve(16);
+            e.Label("rt_sf_buf16_end");
+            e.Label("rt_sf_msg_improper");
+            e.Data(Ascii("Improper argument"));
         }),
 
         // INPUT A$ (D062) : lit le texte suivant de la ligne tapée. Entre guillemets, il peut contenir des virgules ;

@@ -428,6 +428,12 @@ internal sealed class MiniZ80
             case 0x05: B--; ZeroFlag = B == 0; break;                  // DEC B
             case 0x0C: C++; ZeroFlag = C == 0; break;                  // INC C
             case 0x0E: C = Fetch(); break;                             // LD C,n
+            case 0xB9: Compare(C); break;                              // CP C (D063)
+            case 0x90: Sub(B); break;                                  // SUB B (D063)
+            case 0x12: Memory[DE] = A; break;                          // LD (DE),A (D063)
+            case 0xD6: Sub(Fetch()); break;                            // SUB n (D063)
+            case 0x41: B = C; break;                                   // LD B,C (D063)
+            case 0x60: H = B; break;                                   // LD H,B (D063)
             case 0xCC:                                                 // CALL Z,nn
             {
                 ushort target = Fetch16();

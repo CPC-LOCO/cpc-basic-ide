@@ -1,0 +1,15 @@
+10 REM Lot E2 : fonctions de textes
+20 MODE 1
+30 A$ = "Bonjour le CPC"
+40 PRINT LEFT$(A$, 7); "/"; RIGHT$(A$, 3); "/"; MID$(A$, 9, 2)
+50 PRINT UPPER$(A$)
+60 PRINT LOWER$(A$)
+70 PRINT "CPC EST A LA PLACE"; INSTR(A$, "CPC")
+80 PRINT "CODE DE A :"; ASC("A"); "  CHR$(66) = "; CHR$(66)
+90 PRINT "STR$(-12) = ["; STR$(-12); "]"
+100 PRINT "VAL DE &FF :"; VAL("&FF")
+110 PRINT "HEX$(255) = "; HEX$(255); "  BIN$(5,8) = "; BIN$(5, 8)
+120 PRINT STRING$(10, "*"); SPACE$(3); STRING$(10, 45)
+130 FOR J = 1 TO 1 : FOR I = 1 TO 30000 : NEXT : NEXT
+140 PRINT "APPUYEZ SUR UNE TOUCHE"
+150 END

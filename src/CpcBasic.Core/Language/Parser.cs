@@ -24,7 +24,8 @@ public static class Parser
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
-        "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN"];
+        "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
+        "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -47,8 +48,10 @@ public static class Parser
         "WAIT", "WEND", "WHILE", "WIDTH", "WINDOW", "WRITE", "XOR", "XPOS", "YPOS", "ZONE"
     ];
 
+    // Patterns (D062, D063) : pour chaque nombre de valeurs permis, le genre de chacune : N nombre, S texte, A l'un ou l'autre.
+    // Sans Patterns, toutes les valeurs sont des nombres.
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments, bool FirstIsAddress = false,
-                               bool StringArgument = false);
+                               string[]? Patterns = null);
 
     // Fonctions disponibles : nom, écriture à montrer dans les messages, nombre de valeurs
     static readonly Dictionary<string, FunctionInfo> Functions = new()
@@ -66,7 +69,22 @@ public static class Parser
         // D056 : accès à la machine ; l'adresse ou le port peut s'écrire de 0 à 65535 (comme sur le CPC) ou de -32768 à 32767
         ["PEEK"] = new("PEEK(adresse)", 1, 1, true),
         // Lot E (D062) : fonctions sur les textes
-        ["LEN"] = new("LEN(texte)", 1, 1, StringArgument: true),
+        ["LEN"] = new("LEN(texte)", 1, 1, Patterns: ["S"]),
+        // Étape E2 (D063)
+        ["LEFT$"] = new("LEFT$(texte, nombre)", 2, 2, Patterns: ["SN"]),
+        ["RIGHT$"] = new("RIGHT$(texte, nombre)", 2, 2, Patterns: ["SN"]),
+        ["MID$"] = new("MID$(texte, début [, longueur])", 2, 3, Patterns: ["SN", "SNN"]),
+        ["CHR$"] = new("CHR$(code)", 1, 1),
+        ["ASC"] = new("ASC(texte)", 1, 1, Patterns: ["S"]),
+        ["STR$"] = new("STR$(nombre)", 1, 1),
+        ["VAL"] = new("VAL(texte)", 1, 1, Patterns: ["S"]),
+        ["STRING$"] = new("STRING$(nombre, caractère)", 2, 2, Patterns: ["NA"]),
+        ["SPACE$"] = new("SPACE$(nombre)", 1, 1),
+        ["UPPER$"] = new("UPPER$(texte)", 1, 1, Patterns: ["S"]),
+        ["LOWER$"] = new("LOWER$(texte)", 1, 1, Patterns: ["S"]),
+        ["INSTR"] = new("INSTR([début,] texte, texte cherché)", 2, 3, Patterns: ["SS", "NSS"]),
+        ["HEX$"] = new("HEX$(nombre [, chiffres])", 1, 2),
+        ["BIN$"] = new("BIN$(nombre [, chiffres])", 1, 2),
         ["INP"] = new("INP(port)", 1, 1, true)
     };
 
@@ -2033,20 +2051,11 @@ public static class Parser
         {
             while (true)
             {
-                Token argumentStart = tokens[pos];
                 Expression? argument = function.FirstIsAddress && arguments.Count == 0
                     ? ParseAddressArgument(tokens, ref pos, diagnostics)
-                    : function.StringArgument && arguments.Count == 0
-                        ? ParseAnyExpression(tokens, ref pos, diagnostics)
-                        : ParseExpression(tokens, ref pos, diagnostics);
+                    : ParseAnyExpression(tokens, ref pos, diagnostics);   // le genre est vérifié plus bas
                 if (argument is null)
                     return null;
-                if (function.StringArgument && arguments.Count == 0 && !Types.IsString(argument))
-                {
-                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, argumentStart.Line, "un texte est attendu",
-                                                   nameToken.Text));
-                    return null;
-                }
                 arguments.Add(argument);
 
                 if (tokens[pos].Kind != TokenKind.Comma)
@@ -2066,6 +2075,19 @@ public static class Parser
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, nameToken.Line, function.Signature));
             return null;
+        }
+
+        // Chaque valeur doit être du bon genre : texte (S), nombre (N) ou l'un ou l'autre (A)
+        string pattern = function.Patterns?.FirstOrDefault(p => p.Length == arguments.Count) ?? new string('N', arguments.Count);
+        for (int i = 0; i < arguments.Count; i++)
+        {
+            bool isText = Types.IsString(arguments[i]);
+            if ((pattern[i] == 'S' && !isText) || (pattern[i] == 'N' && isText))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, nameToken.Line,
+                                               pattern[i] == 'S' ? "un texte est attendu" : "un nombre est attendu", nameToken.Text));
+                return null;
+            }
         }
 
         if (nameToken.Text is "MIN" or "MAX")
