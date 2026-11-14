@@ -4,13 +4,16 @@
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using CpcBasic.Core;
 
 namespace CpcIde;
 
 /// <summary>
-/// Les réglages de l'éditeur qui sont mémorisés d'une fois sur l'autre : taille du texte et contraste élevé.
+/// Les réglages de l'éditeur qui sont mémorisés d'une fois sur l'autre : taille du texte, contraste élevé,
+/// machine cible et programmes dont les variables sans signe sont des nombres à virgule (D066).
 /// Ils sont écrits dans le fichier  %APPDATA%\CpcBasicIde\reglages.json  (dossier de l'utilisateur Windows).
 /// Si le fichier manque ou est abîmé, les valeurs par défaut sont utilisées, sans message d'erreur.
 /// </summary>
@@ -25,6 +28,26 @@ public sealed class EditorSettings
 
     /// <summary>Vrai si le thème à fort contraste (noir et blanc) est choisi.</summary>
     public bool HighContrast { get; set; }
+
+    /// <summary>Machine pour laquelle on compile (D066). Par défaut : tous les CPC.</summary>
+    public TargetMachine Machine { get; set; } = TargetMachine.AllCpc;
+
+    /// <summary>
+    /// Programmes (chemins complets des fichiers .bas) dont les variables sans signe sont des nombres à virgule,
+    /// comme le Locomotive (D066). Les autres gardent des entiers. Rien n'est écrit dans le fichier .bas lui-même.
+    /// </summary>
+    public List<string> RealByDefaultFiles { get; set; } = new();
+
+    static string Key(string path) => Path.GetFullPath(path).ToUpperInvariant();
+
+    public bool IsRealByDefault(string path) => RealByDefaultFiles.Contains(Key(path));
+
+    public void SetRealByDefault(string path, bool real)
+    {
+        RealByDefaultFiles.Remove(Key(path));
+        if (real)
+            RealByDefaultFiles.Add(Key(path));
+    }
 
     static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -41,6 +64,9 @@ public sealed class EditorSettings
                 if (settings is not null)
                 {
                     settings.FontSize = Math.Clamp(settings.FontSize, MinFontSize, MaxFontSize);
+                    settings.RealByDefaultFiles ??= new();
+                    if (!Enum.IsDefined(settings.Machine))
+                        settings.Machine = TargetMachine.AllCpc;
                     return settings;
                 }
             }

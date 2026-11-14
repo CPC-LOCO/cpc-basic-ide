@@ -28,13 +28,15 @@ public static class Compiler
     public const int LoadAddress = 0x4000;
 
     /// <param name="programName">Nom des fichiers sur la disquette, 8 caractères au plus.</param>
-    public static CompileResult CompileToDisk(string source, string programName)
+    /// <param name="options">Réglages choisis dans l'éditeur : machine, variables sans signe (D066).</param>
+    public static CompileResult CompileToDisk(string source, string programName, CompilerOptions? options = null)
     {
-        AnalysisResult analysis = BasicAnalyzer.Analyze(source);
+        options ??= CompilerOptions.Default;
+        AnalysisResult analysis = BasicAnalyzer.Analyze(source, options);
         if (analysis.HasErrors)
             return new CompileResult(analysis.Diagnostics, null, 0, []);
 
-        GeneratedProgram generated = CodeGenerator.Generate(analysis.Program, LoadAddress);
+        GeneratedProgram generated = CodeGenerator.Generate(analysis.Program, LoadAddress, options);
 
         // MEMORY adresse : le programme (code, textes et variables) doit finir au plus tard à cette adresse
         int lastAddress = LoadAddress + generated.Code.Length - 1;

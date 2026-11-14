@@ -51,8 +51,9 @@ public static class CodeGenerator
         _ => Flag.C
     };
 
-    public static GeneratedProgram Generate(BasicProgram program, int origin)
+    public static GeneratedProgram Generate(BasicProgram program, int origin, CompilerOptions? options = null)
     {
+        options ??= CompilerOptions.Default;   // machine cible et nombres à virgule (D066)
         var emitter = new Z80Emitter(origin);
         var required = new HashSet<string>();
         var strings = new List<byte[]>();

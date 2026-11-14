@@ -57,6 +57,7 @@ public partial class MainWindow : Window
     double charWidth;        // largeur d'un caractère de l'éditeur, en points
     int visibleColumns;      // nombre de colonnes de caractères visibles dans la fenêtre d'édition
     bool closeConfirmed;   // vrai quand on a déjà demandé quoi faire des modifications avant de fermer
+    bool realByDefault;    // ce programme : variables sans signe à virgule, comme le Locomotive (D066)
 
     public MainWindow()
     {
@@ -107,6 +108,8 @@ public partial class MainWindow : Window
     void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
     void OnBiggerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(+2);
     void OnContrastClick(object? sender, RoutedEventArgs e) => ToggleContrast();
+    void OnMachineClick(object? sender, RoutedEventArgs e) => NextMachine();
+    void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
 
     async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
@@ -181,6 +184,16 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleContrast();
         }
+        else if (e.Key == Key.F7)
+        {
+            e.Handled = true;
+            NextMachine();
+        }
+        else if (e.Key == Key.F8)
+        {
+            e.Handled = true;
+            ToggleRealByDefault();
+        }
     }
 
     // Ctrl + molette : taille du texte
@@ -209,6 +222,44 @@ public partial class MainWindow : Window
         settings.FontSize = size;
         settings.Save();
         ApplyAppearance();
+    }
+
+    // F7 : machine suivante (Tous les CPC, CPC 464, CPC 664/6128), mémorisée pour tous les programmes (D066)
+    void NextMachine()
+    {
+        settings.Machine = settings.Machine switch
+        {
+            TargetMachine.AllCpc => TargetMachine.Cpc464,
+            TargetMachine.Cpc464 => TargetMachine.Cpc664And6128,
+            _ => TargetMachine.AllCpc
+        };
+        settings.Save();
+        UpdateOptionButtons();
+        ShowMessage(settings.Machine == TargetMachine.AllCpc
+            ? "Machine : tous les CPC. Le programme reconnaîtra la machine au démarrage s'il en a besoin."
+            : $"Machine : {CompilerOptions.MachineName(settings.Machine)} seulement. Sur une autre machine, le programme risque de se bloquer.");
+    }
+
+    // F8 : variables sans signe entières, ou à virgule comme le Locomotive ; mémorisé pour ce programme (D066)
+    void ToggleRealByDefault()
+    {
+        realByDefault = !realByDefault;
+        if (currentPath is not null)
+        {
+            settings.SetRealByDefault(currentPath, realByDefault);
+            settings.Save();
+        }
+        UpdateOptionButtons();
+        ShowMessage(realByDefault
+            ? "Variables sans signe (A, B...) : nombres à virgule, comme le Locomotive BASIC. A% reste un entier."
+            : "Variables sans signe (A, B...) : nombres entiers, plus rapides. A! sera un nombre à virgule.");
+    }
+
+    void UpdateOptionButtons()
+    {
+        MachineButton.Content = $"Machine : {CompilerOptions.MachineName(settings.Machine)} (F7)";
+        RealButton.Content = realByDefault ? "Sans signe : à virgule (F8)" : "Sans signe : entiers (F8)";
+        UpdateStatus();
     }
 
     void ToggleContrast()
@@ -244,6 +295,7 @@ public partial class MainWindow : Window
         ContrastButton.Content = high
             ? "Contraste élevé : oui (Ctrl+H)"
             : "Contraste élevé : non (Ctrl+H)";
+        UpdateOptionButtons();
 
         UpdateColumns();
     }
@@ -331,6 +383,8 @@ public partial class MainWindow : Window
             string text = await File.ReadAllTextAsync(path);
             SetText(text);
             currentPath = path;
+            realByDefault = settings.IsRealByDefault(path);   // réglage mémorisé pour ce programme (D066)
+            UpdateOptionButtons();
             UpdateTitle();
             ShowMessage($"Fichier ouvert : {path}");
         }
@@ -362,6 +416,11 @@ public partial class MainWindow : Window
                 return false;
             }
             currentPath = chosen;
+            if (realByDefault)
+            {
+                settings.SetRealByDefault(chosen, true);       // le réglage suit le programme (D066)
+                settings.Save();
+            }
         }
 
         try
@@ -397,7 +456,7 @@ public partial class MainWindow : Window
         CompileResult result;
         try
         {
-            result = Compiler.CompileToDisk(Editor.Text, name);
+            result = Compiler.CompileToDisk(Editor.Text, name, new CompilerOptions(settings.Machine, realByDefault));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -435,6 +494,8 @@ public partial class MainWindow : Window
         {
             new MessageItem($"Compilation réussie : {dskPath}", 0),
             new MessageItem($"Programme Z80 : {result.BinarySize} octets. Modules liés : {modules}.", 0),
+            new MessageItem($"Machine : {CompilerOptions.MachineName(settings.Machine)}. " +
+                            $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}.", 0),
             new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0),
             new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0)
         });
@@ -508,6 +569,8 @@ public partial class MainWindow : Window
         var caret = Editor.TextArea.Caret;
         string contrast = settings.HighContrast ? "oui" : "non";
         StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   [Larg : {visibleColumns}]   |   " +
-                          $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}";
+                          $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}   |   " +
+                          $"Machine : {CompilerOptions.MachineName(settings.Machine)}   |   " +
+                          $"Sans signe : {(realByDefault ? "à virgule" : "entiers")}";
     }
 }

@@ -14,8 +14,10 @@ public sealed record AnalysisResult(BasicProgram Program, IReadOnlyList<Diagnost
 /// <summary>Analyse un texte BASIC complet (analyse lexicale puis syntaxique).</summary>
 public static class BasicAnalyzer
 {
-    public static AnalysisResult Analyze(string source)
+    /// <param name="options">Réglages de la compilation (D066) ; null : réglages par défaut.</param>
+    public static AnalysisResult Analyze(string source, CompilerOptions? options = null)
     {
+        _ = options ?? CompilerOptions.Default;   // utilisé par les nombres à virgule (étape F1b)
         var diagnostics = new List<Diagnostic>();
         List<Token> tokens = Lexer.Tokenize(source, diagnostics);
         BasicProgram program = Parser.Parse(tokens, diagnostics);

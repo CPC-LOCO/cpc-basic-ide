@@ -59,6 +59,11 @@
             <Button Content="Texte - (Ctrl+-)" Click="OnSmallerClick" />
             <Button Content="Texte + (Ctrl++)" Click="OnBiggerClick" />
             <Button x:Name="ContrastButton" Content="Contraste : non (Ctrl+H)" Click="OnContrastClick" />
+            <!-- Réglages de compilation (D066) : machine cible, et variables sans signe entières ou à virgule -->
+            <Button x:Name="MachineButton" Content="Machine : Tous les CPC (F7)" Click="OnMachineClick"
+                    AutomationProperties.Name="Machine cible" />
+            <Button x:Name="RealButton" Content="Sans signe : entiers (F8)" Click="OnRealClick"
+                    AutomationProperties.Name="Variables sans signe" />
         </WrapPanel>
 
         <!-- Barre d'état tout en bas -->
