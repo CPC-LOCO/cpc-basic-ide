@@ -65,9 +65,9 @@ public class AddressTests
     }
 
     [Fact]
-    public void Arobase_devant_une_variable_texte_n_est_pas_encore_possible()
+    public void Arobase_devant_une_variable_texte_est_possible_depuis_D064()
     {
-        Assert.Contains(Errors("10 A = @B$"), e => e.Code == DiagnosticCode.StringNotYetHere);   // étape E3 (D062)
+        Assert.Empty(Errors("10 A = @B$"));
     }
 
     // ---------- Exécution ----------

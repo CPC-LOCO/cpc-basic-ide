@@ -25,7 +25,8 @@ public static class Parser
         "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
         "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
-        "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$"];
+        "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
+        "INKEY$", "LINE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -331,6 +332,9 @@ public static class Parser
             case "INPUT":
                 return ParseInput(tokens, pos, statements, diagnostics);
 
+            case "LINE" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
+                return ParseLineInput(tokens, pos, statements, diagnostics);
+
             case "CLEAR" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
                 statements.Add(new ClearInputStatement(t.Line));
                 return pos + 2;
@@ -481,54 +485,71 @@ public static class Parser
         return pos;
     }
 
+    // LINE INPUT [;] ["texte" ; ou ,] A$ : toute la ligne tapée, sans « ? » (D064)
+    static int ParseLineInput(IReadOnlyList<Token> tokens, int pos,
+                              List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos += 2;
+
+        bool noNewline = false;
+        if (tokens[pos].Kind == TokenKind.Semicolon)
+        {
+            noNewline = true;
+            pos++;
+        }
+
+        string? prompt = null;
+        if (tokens[pos].Kind == TokenKind.String)
+        {
+            prompt = tokens[pos].Text;
+            pos++;
+            if (tokens[pos].Kind is not (TokenKind.Semicolon or TokenKind.Comma))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, tokens[pos].Line, tokens[pos].Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            pos++;
+        }
+
+        Token name = tokens[pos];
+        if (name.Kind != TokenKind.Word || Commands.Contains(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedVariableName, name.Line, IsStatementEnd(name) ? "" : name.Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (!VariableNames.IsString(name.Text))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, name.Line, "LINE INPUT range un texte dans une variable A$"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+        if (tokens[pos].Kind == TokenKind.LeftParen)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.StringNotYetHere, name.Line, name.Text));   // tableaux de textes : E3b
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        statements.Add(new LineInputStatement(line, prompt, noNewline, name.Text));
+        return pos;
+    }
+
     // ----- DATA, READ, RESTORE (lot C, D059) -----
 
-    // DATA nombre [, nombre ...] : entiers de -32768 à 65535 (de 32768 à 65535, même mot de 16 bits que sur le CPC)
+    // DATA élément [, élément ...] (D059, textes D064) : chaque élément arrive du lexique tel qu'il est écrit (DataItem).
     static int ParseData(IReadOnlyList<Token> tokens, int pos,
                          List<Statement> statements, List<Diagnostic> diagnostics)
     {
         int line = tokens[pos].Line;
         pos++;
 
-        var values = new List<int>();
-        while (true)
+        var items = new List<DataItem>();
+        while (tokens[pos].Kind == TokenKind.DataItem)
         {
-            bool negative = false;
-            if (tokens[pos].Kind is TokenKind.Plus or TokenKind.Minus)
-            {
-                negative = tokens[pos].Kind == TokenKind.Minus;
-                pos++;
-            }
-
-            Token t = tokens[pos];
-            if (t.Kind == TokenKind.HexNumber)
-            {
-                int hex = Signed16(Lexer.HexValue(t.Text) ?? 0);
-                values.Add(negative ? Signed16(-hex & 0xFFFF) : hex);
-                pos++;
-                if (tokens[pos].Kind != TokenKind.Comma)
-                    break;
-                pos++;
-                continue;
-            }
-            if (t.Kind == TokenKind.String || (t.Kind == TokenKind.Word && !negative))
-            {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.DataTextNotYet, t.Line, t.Text));
+            DataItem? item = DataItemOf(tokens[pos], diagnostics);
+            if (item is null)
                 return SkipToStatementEnd(tokens, pos);
-            }
-            if (t.Kind != TokenKind.Number)
-            {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDataValue, t.Line, IsStatementEnd(t) ? "" : t.Text));
-                return SkipToStatementEnd(tokens, pos);
-            }
-            if (!long.TryParse(t.Text, out long value) || value > (negative ? 32768 : 65535))
-            {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, t.Line, (negative ? "-" : "") + t.Text));
-                return SkipToStatementEnd(tokens, pos);
-            }
-
-            int word = (int)(negative ? -value : value);
-            values.Add(word > 32767 ? word - 65536 : word);
+            items.Add(item);
             pos++;
 
             if (tokens[pos].Kind != TokenKind.Comma)
@@ -536,8 +557,65 @@ public static class Parser
             pos++;
         }
 
-        statements.Add(new DataStatement(line, values));
+        statements.Add(new DataStatement(line, items));
         return pos;
+    }
+
+    // Un élément de DATA : un nombre (décimal de -32768 à 65535, ou &hexadécimal, &Xbinaire, avec un signe possible ;
+    // entre guillemets aussi), sinon un texte (entre guillemets, ou tel qu'il est écrit). Vide : le nombre 0.
+    static DataItem? DataItemOf(Token t, List<Diagnostic> diagnostics)
+    {
+        string inner = t.Text;
+        if (inner.StartsWith('"'))
+            inner = inner.Length >= 2 && inner.EndsWith('"') ? inner[1..^1] : inner[1..];
+
+        string number = inner.Trim();
+        if (number.Length == 0)
+            return new DataItem(false, 0, inner);
+
+        bool negative = number[0] == '-';
+        string digits = number[0] is '-' or '+' ? number[1..].TrimStart() : number;
+
+        if (digits.Length > 0 && digits.All(char.IsAsciiDigit))
+        {
+            if (!long.TryParse(digits, out long value) || value > (negative ? 32768 : 65535))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, t.Line, number));
+                return null;
+            }
+            int word = (int)(negative ? -value : value);
+            return new DataItem(false, Signed16(word & 0xFFFF), inner);
+        }
+
+        if (TryHexText(digits, out int hex))
+            return new DataItem(false, Signed16((negative ? -hex : hex) & 0xFFFF), inner);
+
+        if (inner.Length > 255)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.StringTooLong, t.Line, inner.Length.ToString()));
+            return null;
+        }
+        return new DataItem(true, 0, inner);
+    }
+
+    // « &C9 », « &HC9 », « &X1010 » écrit dans un texte (DATA) : vrai si c'est bien un nombre de 0 à &FFFF
+    static bool TryHexText(string text, out int value)
+    {
+        value = 0;
+        string upper = text.ToUpperInvariant();
+        if (!upper.StartsWith('&'))
+            return false;
+        string digits = upper[1..];
+        bool binary = digits.StartsWith('X');
+        if (binary || digits.StartsWith('H'))
+            digits = digits[1..];
+        if (digits.Length == 0 || !digits.All(c => binary ? (c is '0' or '1') : Uri.IsHexDigit(c)))
+            return false;
+        int? parsed = Lexer.HexValue(upper);
+        if (parsed is null)
+            return false;
+        value = parsed.Value;
+        return true;
     }
 
     // Ce qui reçoit une valeur lue : une variable (A, A%) ou une case de tableau (T(I))
@@ -552,11 +630,6 @@ public static class Parser
         if (!VariableNames.IsSupported(name.Text))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
-            return null;
-        }
-        if (VariableNames.IsString(name.Text))
-        {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.StringNotYetHere, name.Line, name.Text));   // READ A$, @A$ : étape E3
             return null;
         }
         pos++;
@@ -1698,6 +1771,10 @@ public static class Parser
                     Uses(on.Selector);
                     break;
 
+                case LineInputStatement lineInput:
+                    used.Add(lineInput.Variable);
+                    break;
+
                 case InputStatement or ReadStatement:
                     foreach (Expression target in AstWalker.TopLevel(statement))
                     {
@@ -1983,6 +2060,11 @@ public static class Parser
                 return new NumberExpression(Signed16(Lexer.HexValue(t.Text) ?? 0));
 
             case TokenKind.Word:
+                if (t.Text == "INKEY$")
+                {
+                    pos++;                              // INKEY$ s'écrit sans parenthèses : touche tapée, ou "" (D064)
+                    return new CallExpression("INKEY$", []);
+                }
                 if (t.Text == "TIME")
                 {
                     pos++;                              // TIME s'écrit sans parenthèses, comme sur le CPC

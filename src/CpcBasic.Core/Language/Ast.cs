@@ -230,8 +230,21 @@ public sealed record InputStatement(int SourceLine, string? Prompt, bool Questio
         Indexes?[i] is { } indexes ? new ArrayElementExpression(name, indexes) : (Expression)new VariableExpression(name));
 }
 
-/// <summary>DATA 10, -5, 300 : nombres rangés dans le programme, lus par READ (lot C, D059). Valeurs sur 16 bits.</summary>
-public sealed record DataStatement(int SourceLine, IReadOnlyList<int> Values) : Statement(SourceLine);
+/// <summary>
+/// Un élément de DATA (D064). Un nombre garde aussi son écriture (READ A$ la rend telle quelle : « 012 ») ; un texte
+/// n'a pas de valeur (READ A sur un texte : « Type mismatch »). Un élément vide est le nombre 0, écrit « ».
+/// </summary>
+public sealed record DataItem(bool IsText, int Value, string Text);
+
+/// <summary>DATA 10, "BONJOUR", -5 : éléments rangés dans le programme, lus par READ (lot C, D059 ; textes : D064).</summary>
+public sealed record DataStatement(int SourceLine, IReadOnlyList<DataItem> Items) : Statement(SourceLine)
+{
+    /// <summary>Les nombres seulement, sur 16 bits.</summary>
+    public IReadOnlyList<int> Values => Items.Where(item => !item.IsText).Select(item => item.Value).ToList();
+}
+
+/// <summary>LINE INPUT [;] ["texte" ;] A$ : toute la ligne tapée va dans A$, virgules comprises (D064).</summary>
+public sealed record LineInputStatement(int SourceLine, string? Prompt, bool NoNewline, string Variable) : Statement(SourceLine);
 
 /// <summary>
 /// READ A, T(I) : lit les nombres suivants des DATA (lot C, D059). Chaque cible est une VariableExpression

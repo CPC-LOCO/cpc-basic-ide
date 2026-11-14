@@ -106,6 +106,8 @@ public static class RuntimeLibrary
 
     // DATA, READ, RESTORE (D059)
     public const string DataName = "Data";
+    public const string DataStringName = "DataString";         // READ A$ (D064)
+    public const string ReadStringLabel = "rt_read_str";
     public const string ReadLabel = "rt_read";                  // HL = nombre suivant des DATA
     public const string DataPointerLabel = "rt_data_ptr";       // prochain nombre à lire
     public const string DataTableLabel = "data_table";          // placée par le générateur : les nombres des DATA
@@ -227,7 +229,8 @@ public static class RuntimeLibrary
         }),
 
         // READ : HL = nombre suivant des DATA ; « DATA exhausted » s'il n'y en a plus (D059).
-        // Le générateur place les nombres entre data_table et data_end ; RESTORE change rt_data_ptr.
+        // Le générateur place les éléments entre data_table et data_end ; RESTORE change rt_data_ptr.
+        // Un élément (D064) : nombre = 0, valeur (2 octets), longueur et lettres de son écriture ; texte = 1, longueur, lettres.
         [DataName] = new RuntimeModule(DataName, [ErrorName], e =>
         {
             e.Label(ReadLabel);
@@ -237,21 +240,70 @@ public static class RuntimeLibrary
             e.SbcHlDe();
             e.AddHlDe();
             e.JrNcLabel("rt_read_none");             // plus rien à lire
+            e.LdAHl();                               // 0 : nombre (valeur, puis son écriture) ; 1 : texte (D064)
+            e.IncHl();
+            e.OrA();
+            e.JrNzLabel("rt_read_text");
             e.LoadEFromHl();
             e.IncHl();
             e.LoadDFromHl();
             e.IncHl();
+            e.LoadCFromHl();                         // on saute l'écriture du nombre
+            e.IncHl();
+            e.LdBImm(0);
+            e.AddHlBc();
             e.LdMemHl(DataPointerLabel);
             e.ExDeHl();
             e.Ret();
+            e.Label("rt_read_text");                 // READ A sur un texte qui n'est pas un nombre
+            e.LdHlLabel("rt_read_msg_type");
+            e.JpLabel(ErrorLabel);
             e.Label("rt_read_none");
             e.LdHlLabel("rt_read_msg");
             e.JpLabel(ErrorLabel);
 
             e.Label(DataPointerLabel);
-            e.Word(DataTableLabel);                  // au départ : le premier nombre
+            e.Word(DataTableLabel);                  // au départ : le premier élément
             e.Label("rt_read_msg");
             e.Data(Ascii("DATA exhausted"));
+            e.Label("rt_read_msg_type");
+            e.Data(Ascii("Type mismatch"));
+        }),
+
+        // READ A$ (D064) : HL = fiche temporaire du texte suivant des DATA (un nombre est rendu tel qu'il est écrit).
+        // La fiche pointe directement dans la table des DATA : rien n'est copié.
+        [DataStringName] = new RuntimeModule(DataStringName, [DataName, StringsName], e =>
+        {
+            e.Label(ReadStringLabel);
+            e.LdHlMem(DataPointerLabel);
+            e.LdDeLabel(DataEndLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JpNcLabel("rt_read_none");
+            e.LdAHl();
+            e.IncHl();
+            e.OrA();
+            e.JrNzLabel("rt_read_str_text");
+            e.IncHl();                               // nombre : on saute sa valeur
+            e.IncHl();
+            e.Label("rt_read_str_text");
+            e.LoadCFromHl();
+            e.IncHl();
+            e.PushHl();                              // lettres
+            e.LdBImm(0);
+            e.AddHlBc();
+            e.LdMemHl(DataPointerLabel);
+            e.CallLabel("rt_str_newtmp");            // garde C
+            e.PopDe();
+            e.StoreHlC();
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.DecHl();
+            e.DecHl();
+            e.Ret();
         }),
 
         // Puissance entière : HL = HL ^ DE (D060). Méthode rapide : on élève au carré et on multiplie quand le bit
@@ -611,6 +663,13 @@ public static class RuntimeLibrary
             e.LoadEFromHl();
             e.IncHl();
             e.LoadDFromHl();                         // DE = lettres de la source
+            e.LdHlMem(StringPointerLabel);           // lettres sous la zone des textes (programme, DATA) : on pointe dessus
+            e.ExDeHl();
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.ExDeHl();
+            e.JrCLabel("rt_str_as_set");
             e.LdHlMem("rt_str_a");                   // fiche temporaire ? la variable prend son bloc tel quel
             e.PushDe();
             e.LdDeLabel("rt_str_tmp");
@@ -635,13 +694,6 @@ public static class RuntimeLibrary
             e.JrLabel("rt_str_as_set");
             e.Label("rt_str_as_nottmp");
             e.PopDe();
-            e.LdHlMem(StringPointerLabel);           // lettres sous la zone des textes : texte écrit dans le programme
-            e.ExDeHl();
-            e.OrA();
-            e.SbcHlDe();
-            e.AddHlDe();
-            e.ExDeHl();
-            e.JrCLabel("rt_str_as_set");             // la fiche pointe directement dessus, comme le Locomotive
             e.LdDeMem("rt_str_dst");
             e.CallLabel(StrAllocLabel);              // texte d'une autre variable : on le copie
             e.PushHl();
@@ -898,6 +950,15 @@ public static class RuntimeLibrary
             e.LdCA();
             e.Label("rt_mid_ok");
             e.JpLabel("rt_sf_sub");
+
+            e.Label("rt_inkey");                     // INKEY$ (D064) : touche tapée (sans attendre), ou ""
+            e.CallAddress(KmReadChar);
+            e.LdCImm(0);
+            e.JrNcLabel("rt_inkey_none");
+            e.LdEA();
+            e.LdCImm(1);
+            e.Label("rt_inkey_none");
+            e.JpLabel("rt_sf_fill");
 
             e.Label("rt_chr");
             e.CallLabel("rt_sf_byte");
@@ -1432,6 +1493,20 @@ public static class RuntimeLibrary
             e.Label("rt_is_err");
             e.Scf();
             e.Ret();
+
+            // LINE INPUT A$ (D064) : toute la ligne tapée, telle quelle. DE = fiche de la variable.
+            e.Label("rt_input_all");
+            e.LdMemDe("rt_str_dst");
+            e.LdHlLabel("rt_inp_buf");
+            e.LdMemHl("rt_str_a");
+            e.LdCImm(0);
+            e.Label("rt_ia_len");
+            e.LdAHl();
+            e.OrA();
+            e.JpZLabel("rt_is_ok");                  // HL = fin de la ligne ; la suite est commune avec INPUT A$
+            e.IncHl();
+            e.IncC();
+            e.JrLabel("rt_ia_len");
         }),
 
         [ArrayName] = new RuntimeModule(ArrayName, [ErrorName, HeapName], e =>
@@ -2505,7 +2580,11 @@ public static class RuntimeLibrary
             e.JrZLabel("rt_in_key");             // rien à effacer
             e.DecA();
             e.LdMemA("rt_inp_len");
-            e.LdAImm(127);
+            e.LdAImm(8);                         // à l'écran : recule, efface avec un espace, recule (D064)
+            e.CallAddress(TxtOutput);
+            e.LdAImm(' ');
+            e.CallAddress(TxtOutput);
+            e.LdAImm(8);
             e.CallAddress(TxtOutput);
             e.JrLabel("rt_in_key");
 

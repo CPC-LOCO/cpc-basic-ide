@@ -417,6 +417,20 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Limites :** VAL donne un entier sur 16 bits (`VAL("40000")` = -25536, réels avec le lot F) ; `INSTR(texte, "")` donne le début s'il est dans le texte, sinon 0 (cas du Locomotive à comparer).
 - **Fichiers :** Parser.cs (modèles de valeurs des fonctions), Ast.cs (Types : une fonction en $ donne un texte), CodeGenerator.cs, RuntimeLibrary.cs (module StrFunctions), Z80Emitter.cs, `tests\CpcBasic.Tests\MiniZ80.cs`, `tests\CpcBasic.Tests\StringFunctionsTests.cs` (28 tests), `examples\textes2.bas`.
 
+## D064 : lot E, étape E3a : textes dans DATA, READ A$, INKEY$, LINE INPUT, @A$ (Décidé, validé le 14 nov. 2026)
+- **Validé par l'utilisateur le 14 nov. 2026 :** `examples\textes3.bas` conforme dans WinAPE (DEL efface bien à l'écran ; INKEY$ après CLEAR INPUT : « TOUCHE : p  CODE 112 »). Rappel de l'utilisateur : la touche COPY du Locomotive (noté dans IDEES.md).
+- **Découpage :** l'étape E3 est coupée en deux : E3a (ici) puis E3b (tableaux de textes et `MID$(A$, …) = `).
+- **DATA, comme le Locomotive :** les éléments sont gardés tels qu'ils sont écrits (le lexique prend la suite de DATA jusqu'à « : » ou la fin de la ligne, en respectant les guillemets). Un élément est un nombre (décimal de -32768 à 65535, &hexadécimal, &Xbinaire, avec un signe possible, entre guillemets ou non) ou un texte (entre guillemets, avec ses virgules, ou tel qu'il est écrit, sans les espaces autour). Un élément vide vaut 0 (ou un texte vide) : `DATA 1,,2` et `DATA` seul sont maintenant acceptés (avant, c'était une erreur ; tests adaptés).
+- **READ :** `READ A$` lit un texte, ou un nombre tel qu'il est écrit (`DATA 012` donne "012", `DATA &FF` donne "&FF") ; la fiche pointe directement dans la table des DATA (rien n'est copié). `READ A` sur un texte qui n'est pas un nombre : « Type mismatch », comme le Locomotive.
+- **Table des DATA :** un nombre = 0, sa valeur (2 octets), puis la longueur et les lettres de son écriture ; un texte = 1, longueur, lettres. Module `DataString` (`rt_read_str`).
+- **INKEY$ :** sans parenthèses, la touche tapée (sans attendre) ou "" (KM READ CHAR).
+- **LINE INPUT [;] ["texte" ; ou ,] A$ :** toute la ligne tapée, virgules et guillemets compris, sans « ? ».
+- **@A$ :** l'adresse de la fiche de 3 octets (longueur, adresse des lettres), comme le Locomotive : c'est ce qu'attend une routine RSX (`|GPRINT,@a$`).
+- **Correction trouvée à l'essai (WinAPE) :** pendant INPUT et LINE INPUT, la touche DEL effaçait bien la lettre dans la mémoire mais affichait le caractère 127 (un damier) ; elle affiche maintenant « recule, espace, recule » comme l'éditeur du Locomotive (le test d'INPUT correspondant est adapté). Dans `examples\textes3.bas`, `CLEAR INPUT` vide le clavier avant d'attendre une touche avec INKEY$ (sinon une touche Entrée répétée peut rester en attente et INKEY$ la lit : « CODE 13 »).
+- **Correction :** une variable qui reçoit un texte situé hors de la zone des textes (programme, DATA) pointe dessus, même s'il passe par une fiche temporaire.
+- **Programme RSX de référence :** le chemin `READ a$` puis `POKE p+a, VAL("&"+MID$(a$, a*2+1, 2))` fonctionne (test dédié). Restent : nombres au-dessus de 32767 pour MEMORY p-1 avec p=&A400 (déjà possible avec &), `SAVE` (lot J), commandes RSX `|…` et `CALL` avec paramètres.
+- **Fichiers :** Lexer.cs (DataItem), Ast.cs (DataItem, LineInputStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules Data, DataString, Strings, StrFunctions, InputString), `tests\CpcBasic.Tests\StringDataTests.cs` (16 tests), DataTests et AddressTests adaptés, `examples\textes3.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

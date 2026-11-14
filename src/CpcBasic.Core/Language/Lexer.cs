@@ -14,6 +14,7 @@ public enum TokenKind
     HexNumber,    // &C9, &HC9 (hexadécimal) ou &X1010 (binaire), de 0 à &FFFF ; Text garde l'écriture d'origine (lot D, D060)
     Caret,        // ^ : puissance (lot D, D060)
     At,           // @ : adresse d'une variable (D061)
+    DataItem,     // un élément de DATA, tel qu'il est écrit (sans les espaces autour ; guillemets gardés) (D064)
     Colon,
     Semicolon,
     Comma,
@@ -154,6 +155,8 @@ public static class Lexer
 
                 tokens.Add(new Token(TokenKind.Word, word, line, column));
                 first = false;
+                if (word == "DATA")
+                    i = TokenizeData(text, i, line, tokens);   // la suite de DATA est gardée telle quelle (D064)
                 continue;
             }
 
@@ -212,6 +215,34 @@ public static class Lexer
 
             i++;
             first = false;
+        }
+    }
+
+    /// <summary>
+    /// Éléments de DATA (D064) : jusqu'à « : » ou la fin de la ligne (hors guillemets), séparés par des virgules. Chaque élément
+    /// devient un jeton DataItem (texte d'origine sans les espaces autour ; un élément entre guillemets garde ses guillemets),
+    /// avec un jeton Comma entre deux éléments. « DATA » seul donne un élément vide. Renvoie la position après les éléments.
+    /// </summary>
+    static int TokenizeData(string text, int i, int line, List<Token> tokens)
+    {
+        while (true)
+        {
+            int start = i;
+            bool quoted = false;
+            while (i < text.Length && (quoted || (text[i] != ',' && text[i] != ':')))
+            {
+                if (text[i] == '"')
+                    quoted = !quoted;
+                i++;
+            }
+            tokens.Add(new Token(TokenKind.DataItem, text[start..i].Trim(), line, start + 1));
+            if (i < text.Length && text[i] == ',')
+            {
+                tokens.Add(new Token(TokenKind.Comma, ",", line, i + 1));
+                i++;
+                continue;
+            }
+            return i;                                   // sur « : » (traité normalement ensuite) ou à la fin
         }
     }
 

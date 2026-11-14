@@ -190,6 +190,10 @@ public static class CodeGenerator
                             emitter.CallLabel("rt_mid");
                             break;
 
+                        case "INKEY$":
+                            emitter.CallLabel("rt_inkey");           // D064
+                            break;
+
                         case "CHR$" or "SPACE$" or "STR$":
                             EmitExpression(a[0]);
                             emitter.CallLabel(call.Function switch { "CHR$" => "rt_chr", "SPACE$" => "rt_space", _ => "rt_strs" });
@@ -970,14 +974,14 @@ public static class CodeGenerator
 
         // DATA (D059) : tous les nombres, dans l'ordre du programme. dataStart : rang de l'instruction DATA -> rang de son
         // premier nombre. RESTORE ligne repart au premier DATA de cette ligne ou après (étiquette data_at_N, N = rang du nombre).
-        var dataValues = new List<int>();
+        var dataValues = new List<DataItem>();
         var dataStart = new SortedDictionary<int, int>();
         for (int i = 0; i < program.Statements.Count; i++)
         {
             if (program.Statements[i] is DataStatement data)
             {
                 dataStart[i] = dataValues.Count;
-                dataValues.AddRange(data.Values);
+                dataValues.AddRange(data.Items);
             }
         }
         bool usesData = program.Statements.Any(st => st is ReadStatement or RestoreStatement);
@@ -1020,7 +1024,8 @@ public static class CodeGenerator
             // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
             // sans numéros de ligne, c'est la ligne de l'éditeur.
             // Textes : les fiches temporaires de l'instruction précédente sont rendues (D062)
-            if (usesStrings && AstWalker.All(statement).Any(e => e is ConcatExpression || (e is CallExpression c && c.Function.EndsWith('$'))))
+            if (usesStrings && (AstWalker.All(statement).Any(e => e is ConcatExpression || (e is CallExpression c && c.Function.EndsWith('$')))
+                                || (statement is ReadStatement r && r.Targets.Any(Types.IsString))))
                 emitter.CallLabel(RuntimeLibrary.StrResetLabel);
 
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
@@ -1136,6 +1141,19 @@ public static class CodeGenerator
                     break;
                 }
 
+                case LineInputStatement lineInput:
+                    // LINE INPUT : texte, lecture de la ligne, puis toute la ligne dans la variable (D064)
+                    required.Add(RuntimeLibrary.InputName);
+                    required.Add(RuntimeLibrary.InputStringName);
+                    if (lineInput.Prompt is not null)
+                        EmitText(lineInput.Prompt);
+                    emitter.CallLabel(RuntimeLibrary.InputLineLabel);
+                    if (!lineInput.NoNewline)
+                        EmitText("\r\n");
+                    emitter.LdDeLabel(Slot(lineInput.Variable).Label);
+                    emitter.CallLabel("rt_input_all");
+                    break;
+
                 case ClearInputStatement:
                 {
                     // On lit les touches en attente (KM READ CHAR) tant qu'il y en a : la retenue dit « un caractère a été lu »
@@ -1202,6 +1220,14 @@ public static class CodeGenerator
                 case ReadStatement read:
                     foreach (Expression target in read.Targets)
                     {
+                        if (Types.IsString(target))
+                        {
+                            required.Add(RuntimeLibrary.DataStringName);   // READ A$ (D064)
+                            emitter.CallLabel(RuntimeLibrary.ReadStringLabel);
+                            emitter.LdDeLabel(Slot(((VariableExpression)target).Name).Label);
+                            emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                            continue;
+                        }
                         emitter.CallLabel(RuntimeLibrary.ReadLabel);   // HL = nombre suivant
                         if (target is ArrayElementExpression cell)
                         {
@@ -1446,7 +1472,16 @@ public static class CodeGenerator
                 if (restorePoints.Contains(k))
                     emitter.Label($"data_at_{k}");
                 if (k < dataValues.Count)
-                    emitter.Word(dataValues[k] & 0xFFFF);
+                {
+                    // Nombre : 0, valeur, longueur et lettres de son écriture ; texte : 1, longueur, lettres (D064)
+                    DataItem item = dataValues[k];
+                    byte[] written = Encode(item.Text);
+                    emitter.Bytes((byte)(item.IsText ? 1 : 0));
+                    if (!item.IsText)
+                        emitter.Word(item.Value & 0xFFFF);
+                    emitter.Bytes((byte)(written.Length - 1));
+                    emitter.Data(written[..^1]);
+                }
             }
             emitter.Label(RuntimeLibrary.DataEndLabel);
         }
@@ -1504,7 +1539,8 @@ public static class CodeGenerator
     static bool StatementUsesStrings(Statement statement) =>
         AstWalker.All(statement).Any(Types.IsString)
         || (statement is AssignStatement assign && VariableNames.IsString(assign.Variable))
-        || (statement is InputStatement input && input.Variables.Any(VariableNames.IsString));
+        || (statement is InputStatement input && input.Variables.Any(VariableNames.IsString))
+        || statement is LineInputStatement;
 
     // Texte en octets, avec 0 à la fin. Les caractères hors ASCII sont remplacés par « ? » pour
     // l'instant : la table des caractères du CPC n'est pas encore gérée.

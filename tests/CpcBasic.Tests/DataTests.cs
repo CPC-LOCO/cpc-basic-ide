@@ -46,21 +46,28 @@ public class DataTests
         Assert.Equal(new[] { 10, -5, 300, -25536, 7 }, data.Values.ToArray());
     }
 
+    // Depuis D064, comme le Locomotive : un élément vide est le nombre 0 (avant, c'était une erreur)
     [Theory]
-    [InlineData("10 DATA")]
-    [InlineData("10 DATA 1, , 2")]
-    [InlineData("10 DATA 1,")]
-    public void DATA_sans_nombre_est_signale(string source)
+    [InlineData("10 DATA", 1)]
+    [InlineData("10 DATA 1, , 2", 3)]
+    [InlineData("10 DATA 1,", 2)]
+    public void Un_element_vide_dans_DATA_vaut_0(string source, int count)
     {
-        Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.ExpectedDataValue);
+        var data = Assert.IsType<DataStatement>(Parse(source).Statements[0]);
+
+        Assert.Equal(count, data.Items.Count);
+        Assert.Contains(data.Items, item => !item.IsText && item.Value == 0 && item.Text == "");
     }
 
-    [Theory]
-    [InlineData("10 DATA \"ABC\"")]
-    [InlineData("10 DATA 1, BONJOUR")]
-    public void Un_texte_dans_DATA_n_est_pas_encore_possible(string source)
+    // Depuis D064 : les textes sont permis dans DATA (avant, c'était une erreur)
+    [Fact]
+    public void Un_texte_dans_DATA_entre_guillemets_ou_non()
     {
-        Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.DataTextNotYet);
+        var data = Assert.IsType<DataStatement>(Parse("10 DATA \"ABC, D\", 1, BONJOUR LE CPC").Statements[0]);
+
+        Assert.Equal(new DataItem(true, 0, "ABC, D"), data.Items[0]);
+        Assert.Equal(new DataItem(false, 1, "1"), data.Items[1]);
+        Assert.Equal(new DataItem(true, 0, "BONJOUR LE CPC"), data.Items[2]);
     }
 
     [Theory]
@@ -92,9 +99,9 @@ public class DataTests
     }
 
     [Fact]
-    public void READ_dans_une_variable_texte_n_est_pas_encore_possible()
+    public void READ_dans_une_variable_texte_est_possible_depuis_D064()
     {
-        Assert.Contains(Errors("10 READ A$"), e => e.Code == DiagnosticCode.StringNotYetHere);   // étape E3 (D062)
+        Assert.Empty(Errors("10 READ A$\n20 DATA X"));
     }
 
     [Fact]

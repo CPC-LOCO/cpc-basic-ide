@@ -2,7 +2,7 @@
 
 Cette page recense **toutes les instructions, fonctions et opérateurs** du Locomotive BASIC et dit où en est le compilateur pour chacun. Elle sert à garder une vue d'ensemble avant d'ajouter des commandes nouvelles (règle D053). **Elle doit être mise à jour à chaque nouvelle commande.**
 
-Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @, 657 avec les textes E1, 685 avec E2).
+Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État relevé dans le code (`Parser.cs`, `Lexer.cs`, `CodeGenerator.cs`), pas de mémoire. Version du compilateur : 357 tests réussis avant le lot A (396 avec le lot A, 450 avec le lot B, 481 avec le lot C (parties 1 et MEMORY), 534 avec DIM, 568 avec DATA / READ / RESTORE, 609 avec le lot D, 622 avec @, 657 avec les textes E1, 685 avec E2, 700 avec E3a).
 
 **Source de la liste :** table des mots du Locomotive BASIC et index des commandes et fonctions de cpcwiki ([Technical information about Locomotive BASIC](https://www.cpcwiki.eu/index.php/Technical_information_about_Locomotive_BASIC), [Locomotive BASIC](https://cpcwiki.eu/index.php/BASIC)). Les mots marqués « BASIC 1.1 » n'existent que sur les CPC 664 et 6128.
 
@@ -75,8 +75,8 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | À faire | À décider : DEFINT a peu de sens si tout est entier. |
 | `DIM` | tableaux | Faite | Tableaux d'entiers, une ou plusieurs dimensions, taille écrite ou calculée, création automatique (0 à 10) sans DIM, vérification des cases (« Subscript out of range »). Textes et réels avec les lots E et F. D058. |
 | `ERASE` | efface un tableau | À faire |  |
-| `DATA` | données dans le programme | Partielle | Nombres entiers (-32768 à 65535), aussi en hexadécimal (&C9, D060). Textes avec le lot E. D059. |
-| `READ` | lit les données | Faite | Dans une variable ou une case de tableau ; « DATA exhausted » s'il n'y a plus rien. D059. |
+| `DATA` | données dans le programme | Faite | Nombres entiers (-32768 à 65535, &hexadécimal), textes entre guillemets ou non, éléments vides (D059, D060, D064). Réels avec le lot F. |
+| `READ` | lit les données | Faite | Dans une variable, une case de tableau ou une variable texte (READ A$ rend un nombre tel qu'il est écrit) ; « DATA exhausted », « Type mismatch ». D059, D064. |
 | `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |
 | `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
 | `SWAP` | échange deux variables | À faire |  |
@@ -90,7 +90,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `WAIT` | attend un état sur un port | À faire |  |
 | `UNT` | convertit une adresse en entier signé | À faire |  |
 | `| (commandes RSX)` | appelle une extension | À faire |  |
-| `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061). `@a$` avec le lot E ; passage à CALL et aux RSX à venir. |
+| `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061), `@A$` = adresse de la fiche de 3 octets (D064). Passage à CALL et aux RSX à venir. |
 | `DI / EI` | coupe / remet les interruptions | À faire |  |
 | `SYMBOL` | redéfinit un caractère | À faire |  |
 | `SYMBOL AFTER` | réserve les caractères redéfinissables | À faire |  |
@@ -157,13 +157,13 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `INKEY` | état d'une touche | Faite | À confirmer dans WinAPE (`examples\clavier.bas`). |
-| `INKEY$` | touche appuyée | À faire |  |
+| `INKEY$` | touche appuyée | Faite | D064. |
 | `JOY` | état de la manette | Faite | JOY avec une valeur autre que 0 ou 1 lit la manette 1. |
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
 | `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). |
-| `LINE INPUT` | saisie d'une ligne de texte | À faire |  |
+| `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte (pas encore de tableau de textes). D064. |
 
 ## 7. Disquette et cassette
 
