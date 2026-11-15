@@ -220,6 +220,7 @@ public sealed class Z80Emitter
     public void IncMemHl() => code.Add(0x34);                                                    // INC (HL)
     public void DecMemHl() => code.Add(0x35);                                                    // DEC (HL)
     public void XorMemHl() => code.Add(0xAE);                                                    // XOR (HL)
+    public void LdLE() => code.Add(0x6B);                                                        // LD L,E (D069)
     public void AddAD() => code.Add(0x82);                                                       // ADD A,D
     public void AddAE() => code.Add(0x83);                                                       // ADD A,E
     public void OrImm(int value) { code.Add(0xF6); code.Add((byte)value); }                      // OR n

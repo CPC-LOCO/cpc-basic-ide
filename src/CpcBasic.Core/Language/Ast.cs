@@ -193,6 +193,15 @@ public static class Types
         BinaryExpression binary => binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
                                        or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Power
                                    && (IsReal(binary.Left) || IsReal(binary.Right)),
+        // Fonctions mathématiques (lot F2) : toujours à virgule, ou selon leur valeur (INT(5) reste entier)
+        CallExpression call => call.Function switch
+        {
+            "SIN" or "COS" or "TAN" or "ATN" or "SQR" or "EXP" or "LOG" or "LOG10" or "PI" or "RND" or "CREAL" => true,
+            "INT" or "FIX" or "ABS" => IsReal(call.Arguments[0]),
+            "ROUND" => call.Arguments.Count == 2 || IsReal(call.Arguments[0]),
+            "MIN" or "MAX" => call.Arguments.Any(IsReal),
+            _ => false
+        },
         _ => false
     };
 

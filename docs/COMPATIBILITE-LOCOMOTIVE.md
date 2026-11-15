@@ -209,13 +209,13 @@ Tout cela attend les variables chaînes (A$).
 | `SGN` | signe | Faite |  |
 | `MIN / MAX` | plus petite / plus grande valeur | Faite | Deux valeurs ou plus. |
 | `RANDOMIZE` | initialise le hasard | Faite | Avec ou sans nombre. |
-| `RND` | nombre au hasard | À faire | Le projet propose RANDOM(min, max) à la place (ajout). |
-| `INT / FIX / CINT / ROUND / CREAL` | arrondis et conversions | À faire | Surtout utiles avec les réels. |
-| `SQR` | racine carrée | À faire |  |
-| `EXP / LOG / LOG10` | exponentielle, logarithmes | À faire |  |
-| `SIN / COS / TAN / ATN` | trigonométrie | À faire |  |
-| `PI` | valeur de pi | À faire |  |
-| `DEG / RAD` | degrés ou radians | À faire |  |
+| `RND` | nombre au hasard | Fait | Lot F2 (D069) : RND, RND(0), RND(négatif). Suite différente du vrai CPC. RANDOM(min, max) reste disponible (ajout). |
+| `INT / FIX / CINT / ROUND / CREAL` | arrondis et conversions | Fait | Lot F2 (D069). La ROM rend la partie entière sur 4 octets : reconvertie par BINARY TO REAL. |
+| `SQR` | racine carrée | Fait | Lot F2 (D069) : Improper argument si négatif. |
+| `EXP / LOG / LOG10` | exponentielle, logarithmes | Fait | Lot F2 (D069). |
+| `SIN / COS / TAN / ATN` | trigonométrie | Fait | Lot F2 (D069). |
+| `PI` | valeur de pi | Fait | Lot F2 (D069). |
+| `DEG / RAD` | degrés ou radians | Fait | Lot F2 (D069). |
 
 ## 10. Opérateurs
 

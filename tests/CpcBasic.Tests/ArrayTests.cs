@@ -104,7 +104,7 @@ public class ArrayTests
     }
 
     [Theory]
-    [InlineData("10 A = SIN(3)")]
+    [InlineData("10 A = FRE(3)")]   // SIN existe depuis le lot F2 (D069)
     [InlineData("10 DIM ERASE(3)")]
     [InlineData("10 SOUND(1) = 2")]
     public void Un_mot_du_Locomotive_pas_encore_disponible_ne_devient_pas_un_tableau(string source)

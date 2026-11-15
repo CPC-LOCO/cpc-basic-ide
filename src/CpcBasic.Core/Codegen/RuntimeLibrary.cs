@@ -118,6 +118,7 @@ public static class RuntimeLibrary
     public const string RealOpsName = "RealOps";       // nombres à virgule : conversions, opérations (D068)
     public const string RealPrintName = "RealPrint";   // nombres à virgule : affichage comme PRINT (D068)
     public const string InputRealName = "InputReal";   // nombres à virgule : INPUT A! (D068)
+    public const string RealRndName = "RealRnd";       // RND (D069)
     public const string MathsAllName = "FMathsAll";
     public const string Maths464Name = "FMaths464";
     public const string Maths6128Name = "FMaths6128";
@@ -2982,6 +2983,7 @@ public static class RuntimeLibrary
         [RealOpsName] = new RuntimeModule(RealOpsName, [ErrorName, PrintStringName], RealRuntime.EmitOps),
         [RealPrintName] = new RuntimeModule(RealPrintName, [], RealRuntime.EmitPrint),
         [InputRealName] = new RuntimeModule(InputRealName, [InputName], RealRuntime.EmitInput),
+        [RealRndName] = new RuntimeModule(RealRndName, [Rand16Name, RandomizeName], RealRuntime.EmitRnd),
         [Maths464Name] = new RuntimeModule(Maths464Name, [], e => EmitMathsFixed(e, rom464: true)),
         [Maths6128Name] = new RuntimeModule(Maths6128Name, [], e => EmitMathsFixed(e, rom464: false))
     };

@@ -144,8 +144,28 @@ internal sealed class MiniZ80
                 HL = ok ? (ushort)rounded : (ushort)0;
                 break;
             }
-            case "fix": ok = Result(Math.Truncate(ReadReal(first))); break;
-            case "int": ok = Result(Math.Floor(ReadReal(first))); break;
+            case "fix":                                        // comme le CPC (D069) : entier de 4 octets en place, signe dans B
+            case "int":
+            {
+                double value = ReadReal(first);
+                double whole = Math.Abs(routine.Name == "fix" ? Math.Truncate(value) : Math.Floor(value));
+                ok = whole < 4294967296.0;
+                if (ok)
+                {
+                    uint binary = (uint)whole;
+                    for (int k = 0; k < 4; k++)
+                        Memory[(first + k) & 0xFFFF] = (byte)(binary >> (8 * k));
+                }
+                B = (byte)(value < 0 ? 0x80 : 0);
+                break;
+            }
+            case "bin2real":
+            {
+                uint binary = (uint)(Memory[first] | (Memory[(first + 1) & 0xFFFF] << 8)
+                                     | (Memory[(first + 2) & 0xFFFF] << 16) | (Memory[(first + 3) & 0xFFFF] << 24));
+                ok = WriteReal(first, (A & 0x80) != 0 ? -(double)binary : binary);
+                break;
+            }
             case "x10a": ok = Result(ReadReal(first) * Math.Pow(10, (sbyte)A)); break;
             case "add": ok = Result(ReadReal(first) + ReadReal(DE)); break;
             case "rsub": ok = Result(ReadReal(DE) - ReadReal(first)); break;
@@ -376,6 +396,7 @@ internal sealed class MiniZ80
                 ZeroFlag = A == 0;
                 break;
             case 0x37: CarryFlag = true; break;                        // SCF
+            case 0x6B: L = E; break;                                   // LD L,E (D069)
             case 0x82: Add(D); break;                                  // ADD A,D (D068)
             case 0x83: Add(E); break;                                  // ADD A,E (D068)
             case 0x34: Memory[HL]++; ZeroFlag = Memory[HL] == 0; break;            // INC (HL) (D068)

@@ -97,10 +97,15 @@ public static class FirmwareMaths
     public static readonly FirmwareMathsRoutine IntegerToReal = new("int2real", 0xBD64, 0xBD40);
     /// <summary>REAL TO INTEGER : HL = nombre -> HL = entier sans signe arrondi (le signe reste celui du nombre).</summary>
     public static readonly FirmwareMathsRoutine RealToInteger = new("real2int", 0xBD6A, 0xBD46);
-    /// <summary>REAL FIX : (HL) = partie entière vers zéro.</summary>
+    /// <summary>
+    /// REAL FIX : partie entière vers zéro, mais rangée en (HL) comme un entier sans signe de 4 octets (le 5e octet
+    /// n'est pas touché), le signe dans B. Constaté sur le CPC (D069) : il faut ensuite BINARY TO REAL.
+    /// </summary>
     public static readonly FirmwareMathsRoutine Fix = new("fix", 0xBD70, 0xBD4C);
-    /// <summary>REAL INT : (HL) = partie entière vers le bas.</summary>
+    /// <summary>REAL INT : comme REAL FIX, mais vers le bas. Non utilisé (voir RealRuntime.FloorLabel).</summary>
     public static readonly FirmwareMathsRoutine Int = new("int", 0xBD73, 0xBD4F);
+    /// <summary>BINARY TO REAL : (HL) = entier sans signe de 4 octets, A bit 7 = signe -> (HL) = nombre à virgule.</summary>
+    public static readonly FirmwareMathsRoutine BinaryToReal = new("bin2real", 0xBD67, 0xBD43);
     /// <summary>REAL *10^A : (HL) = (HL) × 10^A, A signé.</summary>
     public static readonly FirmwareMathsRoutine Times10Power = new("x10a", 0xBD79, 0xBD55);
     /// <summary>REAL ADDITION : (HL) = (HL) + (DE).</summary>
@@ -135,7 +140,7 @@ public static class FirmwareMaths
     public static readonly IReadOnlyList<FirmwareMathsRoutine> All =
     [
         IntegerToReal, RealToInteger, Fix, Int, Times10Power, Add, ReverseSubtract, Multiply, Divide,
-        Compare, Negate, Sign, AngleMode, Pi, Sqr, Power, Log, Log10, Exp, Sin, Cos, Tan, Atn
+        Compare, Negate, Sign, AngleMode, Pi, Sqr, Power, Log, Log10, Exp, Sin, Cos, Tan, Atn, BinaryToReal
     ];
 
     /// <summary>KL PROBE ROM : avec C = 0, rend H = 0 sur un 464, 1 sur un 664, 2 sur un 6128, 4 sur un Plus.</summary>

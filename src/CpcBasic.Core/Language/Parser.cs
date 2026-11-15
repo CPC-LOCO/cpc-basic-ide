@@ -26,7 +26,9 @@ public static class Parser
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
         "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
-        "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR"];
+        "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
+        "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
+        "DEG", "RAD"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -86,7 +88,22 @@ public static class Parser
         ["INSTR"] = new("INSTR([début,] texte, texte cherché)", 2, 3, Patterns: ["SS", "NSS"]),
         ["HEX$"] = new("HEX$(nombre [, chiffres])", 1, 2),
         ["BIN$"] = new("BIN$(nombre [, chiffres])", 1, 2),
-        ["INP"] = new("INP(port)", 1, 1, true)
+        ["INP"] = new("INP(port)", 1, 1, true),
+        // Lot F2 (D069) : fonctions mathématiques, calculées par la ROM
+        ["SIN"] = new("SIN(angle)", 1, 1),
+        ["COS"] = new("COS(angle)", 1, 1),
+        ["TAN"] = new("TAN(angle)", 1, 1),
+        ["ATN"] = new("ATN(valeur)", 1, 1),
+        ["SQR"] = new("SQR(valeur)", 1, 1),
+        ["EXP"] = new("EXP(valeur)", 1, 1),
+        ["LOG"] = new("LOG(valeur)", 1, 1),
+        ["LOG10"] = new("LOG10(valeur)", 1, 1),
+        ["INT"] = new("INT(valeur)", 1, 1),
+        ["FIX"] = new("FIX(valeur)", 1, 1),
+        ["CINT"] = new("CINT(valeur)", 1, 1),
+        ["CREAL"] = new("CREAL(valeur)", 1, 1),
+        ["ROUND"] = new("ROUND(valeur [, décimales])", 1, 2),
+        ["RND"] = new("RND[(valeur)]", 0, 1)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
@@ -97,6 +114,8 @@ public static class Parser
     {
         ["MODE"] = new("MODE mode (0, 1 ou 2)", 1, [0], [2]),
         ["CLS"] = new("CLS", 0, [], []),
+        ["DEG"] = new("DEG", 0, [], []),                // angles en degrés (D069)
+        ["RAD"] = new("RAD", 0, [], []),                // angles en radians (D069)
         ["LOCATE"] = new("LOCATE colonne, ligne", 2, [1, 1], [80, 25]),
         ["PEN"] = new("PEN stylo (0 à 15)", 1, [0], [15]),
         ["PAPER"] = new("PAPER fond (0 à 15)", 1, [0], [15]),
@@ -404,7 +423,7 @@ public static class Parser
             case "CONTINUE":
                 return ParseLoopControl(tokens, pos, statements, isExit: false);
 
-            case "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "DEG" or "RAD" or "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -2369,6 +2388,11 @@ public static class Parser
                 {
                     pos++;                              // INKEY$ s'écrit sans parenthèses : touche tapée, ou "" (D064)
                     return new CallExpression("INKEY$", []);
+                }
+                if (t.Text == "PI" || (t.Text == "RND" && tokens[pos + 1].Kind != TokenKind.LeftParen))
+                {
+                    pos++;                              // PI et RND s'écrivent sans parenthèses (D069)
+                    return new CallExpression(t.Text, []);
                 }
                 if (t.Text == "TIME")
                 {

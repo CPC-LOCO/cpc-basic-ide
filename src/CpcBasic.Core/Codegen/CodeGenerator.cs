@@ -335,6 +335,10 @@ public static class CodeGenerator
                     });
                     break;
 
+                case CallExpression call when Types.IsReal(call):
+                    EmitRealFunction(call, k);                      // SIN, SQR, INT... (lot F2, D069)
+                    break;
+
                 default:
                 {
                     int saved = realFree;                           // calcul entier, puis converti
@@ -345,6 +349,126 @@ public static class CodeGenerator
                     emitter.CallLabel(RealRuntime.IntToRealLabel);
                     break;
                 }
+            }
+        }
+
+        // Routine de calcul de la ROM sur la case : « Overflow » (le programme continue) si le résultat est trop grand
+        void EmitFirmwareFunction(FirmwareMathsRoutine routine, string temp)
+        {
+            string ok = $"ffn_{labelCount++}";
+            emitter.LdHlLabel(temp);
+            emitter.CallLabel(routine.Label);
+            emitter.JrCLabel(ok);
+            emitter.LdHlLabel(temp);
+            emitter.CallLabel(RealRuntime.OverflowPositiveLabel);
+            emitter.Label(ok);
+        }
+
+        // Fonction mathématique à virgule (lot F2, D069) : résultat dans la case k
+        void EmitRealFunction(CallExpression call, int k)
+        {
+            string temp = RealTemp(k);
+            IReadOnlyList<Expression> a = call.Arguments;
+            switch (call.Function)
+            {
+                case "PI":
+                    emitter.LdHlLabel(temp);
+                    emitter.CallLabel(FirmwareMaths.Pi.Label);
+                    break;
+
+                case "CREAL":
+                    EmitRealInto(a[0], k);
+                    break;
+
+                case "INT" or "FIX" or "ABS":
+                    EmitRealInto(a[0], k);
+                    emitter.LdHlLabel(temp);
+                    emitter.CallLabel(call.Function switch
+                    {
+                        "INT" => RealRuntime.FloorLabel,         // la ROM rend un entier de 4 octets (D069)
+                        "FIX" => RealRuntime.FixLabel,
+                        _ => RealRuntime.AbsLabel
+                    });
+                    break;
+
+                case "SQR" or "LOG" or "LOG10":
+                    // SQR(-1), LOG(0) : « Improper argument », le programme s'arrête
+                    EmitRealInto(a[0], k);
+                    emitter.LdHlLabel(temp);
+                    emitter.CallLabel(call.Function == "SQR" ? RealRuntime.CheckNotNegativeLabel : RealRuntime.CheckPositiveLabel);
+                    EmitFirmwareFunction(call.Function switch
+                    {
+                        "SQR" => FirmwareMaths.Sqr,
+                        "LOG" => FirmwareMaths.Log,
+                        _ => FirmwareMaths.Log10
+                    }, temp);
+                    break;
+
+                case "SIN" or "COS" or "TAN" or "ATN" or "EXP":
+                    EmitRealInto(a[0], k);
+                    EmitFirmwareFunction(call.Function switch
+                    {
+                        "SIN" => FirmwareMaths.Sin,
+                        "COS" => FirmwareMaths.Cos,
+                        "TAN" => FirmwareMaths.Tan,
+                        "ATN" => FirmwareMaths.Atn,
+                        _ => FirmwareMaths.Exp
+                    }, temp);
+                    break;
+
+                case "ROUND":
+                    EmitRealInto(a[0], k);
+                    if (a.Count == 2)
+                    {
+                        int saved = realFree;                       // nombre de décimales (entier)
+                        realFree = k + 1;
+                        EmitExpression(a[1]);
+                        realFree = saved;
+                        emitter.LdAL();
+                    }
+                    else
+                    {
+                        emitter.XorA();
+                    }
+                    emitter.LdHlLabel(temp);
+                    emitter.CallLabel(RealRuntime.RoundLabel);
+                    break;
+
+                case "MIN" or "MAX":
+                {
+                    string other = RealTemp(k + 1);
+                    string skip = $"fmm_{labelCount++}";
+                    EmitRealInto(a[0], k);
+                    EmitRealInto(a[1], k + 1);
+                    emitter.LdHlLabel(temp);
+                    emitter.LdDeLabel(other);
+                    emitter.CallLabel(FirmwareMaths.Compare.Label);
+                    emitter.CpImm(call.Function == "MAX" ? 0xFF : 1);   // MAX : gauche plus petit ; MIN : plus grand
+                    emitter.JrNzLabel(skip);
+                    EmitCopyReal(other, temp);
+                    emitter.Label(skip);
+                    break;
+                }
+
+                case "RND":
+                    // RND : nombre suivant ; RND(0) : le même que le précédent ; RND(négatif) : repart de ce nombre
+                    required.Add(RuntimeLibrary.RealRndName);
+                    if (a.Count == 1)
+                    {
+                        EmitRealInto(a[0], k);
+                        emitter.LdHlLabel(temp);
+                        emitter.CallLabel(FirmwareMaths.Sign.Label);
+                    }
+                    else
+                    {
+                        emitter.LdAImm(1);
+                    }
+                    emitter.LdHlLabel(temp);
+                    emitter.CallLabel(RealRuntime.RndLabel);
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Fonction à virgule non gérée : {call.Function}");
             }
         }
 
@@ -575,10 +699,30 @@ public static class CodeGenerator
                             emitter.CallLabel(RuntimeLibrary.Abs16Label);
                             break;
 
+                        case "SGN" when Types.IsReal(call.Arguments[0]):
+                            EmitRealInto(call.Arguments[0], realFree);  // SGN(2.5) : 1, 0 ou -1 (D069)
+                            emitter.LdHlLabel(RealTemp(realFree));
+                            emitter.CallLabel(FirmwareMaths.Sign.Label);
+                            emitter.LdLA();
+                            emitter.AddAA();
+                            emitter.SbcAA();
+                            emitter.LdHA();
+                            break;
+
                         case "SGN":
                             EmitExpression(call.Arguments[0]);
                             required.Add(RuntimeLibrary.Sgn16Name);
                             emitter.CallLabel(RuntimeLibrary.Sgn16Label);
+                            break;
+
+                        case "CINT" when Types.IsReal(call.Arguments[0]):
+                            EmitRealInto(call.Arguments[0], realFree);  // arrondi ; « Overflow » s'il ne tient pas (D069)
+                            emitter.LdHlLabel(RealTemp(realFree));
+                            emitter.CallLabel(RealRuntime.RealToIntLabel);
+                            break;
+
+                        case "CINT" or "INT" or "FIX" or "ROUND":
+                            EmitExpression(call.Arguments[0]);          // sur un entier : rien à changer (D069)
                             break;
 
                         case "HIBYTE":                      // octet de poids fort, 0 à 255
@@ -940,6 +1084,11 @@ public static class CodeGenerator
             {
                 case "CLS":
                     emitter.CallAddress(TxtClearWindow);
+                    break;
+
+                case "DEG" or "RAD":                // angles de SIN, COS, TAN et ATN (D069)
+                    emitter.LdAImm(screen.Command == "DEG" ? 1 : 0);
+                    emitter.CallLabel(FirmwareMaths.AngleMode.Label);
                     break;
 
                 case "MEMORY":                      // MEMORY adresse : réserve le haut de la mémoire ; rien à faire à l'exécution,
@@ -1803,7 +1952,8 @@ public static class CodeGenerator
     /// <summary>Vrai si l'instruction utilise un texte (variable A$, texte entre guillemets dans un calcul...) (D062).</summary>
     // Nombres à virgule (D068) : un nombre écrit avec une virgule, une variable A!, ou une affectation à A!
     static bool StatementUsesReals(Statement statement) =>
-        AstWalker.All(statement).Any(e => e is RealNumberExpression || (e is VariableExpression v && VariableNames.IsReal(v.Name)))
+        AstWalker.All(statement).Any(Types.IsReal)
+        || statement is ScreenStatement { Command: "DEG" or "RAD" }
         || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable))
         || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable));
 

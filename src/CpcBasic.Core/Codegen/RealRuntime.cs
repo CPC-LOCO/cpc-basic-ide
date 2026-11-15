@@ -27,6 +27,16 @@ internal static class RealRuntime
     public const string PowLabel = "rt_fop_pow";         // (HL) = (HL) ^ (DE)
     public const string PrintLabel = "rt_fprint";        // HL = adresse du nombre : l'affiche comme PRINT
 
+    // Fonctions (lot F2, D069) ; HL = adresse du nombre, gardé
+    public const string OverflowPositiveLabel = "rt_fovf_pos";     // (HL) trop grand : « Overflow », +1.70141E+38
+    public const string AbsLabel = "rt_fabs";                      // (HL) = ABS((HL))
+    public const string CheckNotNegativeLabel = "rt_fchk_neg";     // SQR : « Improper argument » si (HL) < 0
+    public const string CheckPositiveLabel = "rt_fchk_pos";        // LOG : « Improper argument » si (HL) <= 0
+    public const string RoundLabel = "rt_fround";                  // (HL) = ROUND((HL), A)
+    public const string FixLabel = "rt_ffix";                      // (HL) = FIX((HL))
+    public const string FloorLabel = "rt_ffloor";                  // (HL) = INT((HL))
+    public const string RndLabel = "rt_frnd";                      // (HL) = RND ; A = 1 suivant, 0 le même, &FF repart
+
     public static void EmitOps(Z80Emitter e)
     {
         // ---- entier signé (HL) vers nombre à virgule rangé en DE ----
@@ -202,6 +212,177 @@ internal static class RealRuntime
         e.CallLabel(RuntimeLibrary.PrintStringLabel);
         e.LdHlLabel("rt_fr_crlf");
         e.JpLabel(RuntimeLibrary.PrintStringLabel);
+
+        // ---- fonctions (lot F2, D069) ----
+        e.Label(OverflowPositiveLabel);
+        e.XorA();
+        e.LdMemA("rt_fsign");
+        e.JpLabel("rt_fovf");
+
+        e.Label(AbsLabel);
+        e.PushHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.LdAHl();
+        e.AndImm(0x7F);
+        e.LdHlA();
+        e.PopHl();
+        e.Ret();
+
+        e.Label(CheckNotNegativeLabel);                   // négatif (et pas zéro) : erreur
+        e.PushHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.LdAHl();
+        e.AndImm(0x80);
+        e.IncHl();
+        e.JrZLabel("rt_fchk_ok");
+        e.LdAHl();
+        e.OrA();
+        e.JrZLabel("rt_fchk_ok");
+        e.JrLabel("rt_fchk_bad");
+        e.Label(CheckPositiveLabel);                      // négatif ou zéro : erreur
+        e.PushHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.LdAHl();
+        e.AndImm(0x80);
+        e.IncHl();
+        e.JrNzLabel("rt_fchk_bad");
+        e.LdAHl();
+        e.OrA();
+        e.JrZLabel("rt_fchk_bad");
+        e.Label("rt_fchk_ok");
+        e.PopHl();
+        e.Ret();
+        e.Label("rt_fchk_bad");
+        e.PopHl();
+        e.LdHlLabel("rt_fr_msg_imp");
+        e.JpLabel(RuntimeLibrary.ErrorLabel);
+
+        // Partie entière d'un nombre positif ou nul, en place (HL gardé). La ROM (REAL FIX) rend un entier
+        // de 4 octets : BINARY TO REAL le remet en nombre à virgule (constaté sur le CPC, D069).
+        e.Label("rt_ftrunc");
+        e.PushHl();
+        e.LdDeImm(4);
+        e.AddHlDe();
+        e.LdAHl();
+        e.OrA();
+        e.JrZLabel("rt_ftrunc_end");                      // zéro
+        e.CpImm(160);
+        e.JrNcLabel("rt_ftrunc_end");                     // 2^32 ou plus : déjà entier
+        e.CpImm(129);
+        e.JrNcLabel("rt_ftrunc_rom");
+        e.StoreHlImm(0);                                  // moins de 1 : zéro
+        e.Label("rt_ftrunc_end");
+        e.PopHl();
+        e.Ret();
+        e.Label("rt_ftrunc_rom");
+        e.PopHl();
+        e.PushHl();
+        e.CallLabel(FirmwareMaths.Fix.Label);
+        e.PopHl();
+        e.PushHl();
+        e.XorA();
+        e.CallLabel(FirmwareMaths.BinaryToReal.Label);
+        e.PopHl();
+        e.Ret();
+
+        // Signe à part (rt_fxs) et nombre rendu positif
+        e.Label("rt_fsplit");
+        e.PushHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.LdAHl();
+        e.AndImm(0x80);
+        e.LdMemA("rt_fxs");
+        e.LdAHl();
+        e.AndImm(0x7F);
+        e.LdHlA();
+        e.PopHl();
+        e.Ret();
+        // Le signe revient (sauf pour zéro)
+        e.Label("rt_fsign_back");
+        e.PushHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.LdAHl();
+        e.DecHl();
+        e.OrA();
+        e.JrZLabel("rt_fsign_zero");
+        e.LdAMem("rt_fxs");
+        e.OrMemHl();
+        e.LdHlA();
+        e.Label("rt_fsign_zero");
+        e.PopHl();
+        e.Ret();
+
+        // FIX : vers zéro
+        e.Label(FixLabel);
+        e.CallLabel("rt_fsplit");
+        e.CallLabel("rt_ftrunc");
+        e.JpLabel("rt_fsign_back");
+
+        // INT : vers le bas (un négatif qui n'est pas entier perd 1 de plus : INT(-2.7) = -3)
+        e.Label(FloorLabel);
+        e.CallLabel("rt_fsplit");
+        e.PushHl();
+        e.LdDeLabel("rt_fxo");
+        e.LdBcImm(5);
+        e.Ldir();
+        e.PopHl();
+        e.CallLabel("rt_ftrunc");
+        e.LdAMem("rt_fxs");
+        e.OrA();
+        e.JpZLabel("rt_fsign_back");
+        e.PushHl();
+        e.LdDeLabel("rt_fxo");
+        e.CallLabel(FirmwareMaths.Compare.Label);
+        e.PopHl();
+        e.OrA();
+        e.JpZLabel("rt_fsign_back");
+        e.PushHl();
+        e.LdDeLabel("rt_fone");
+        e.CallLabel(FirmwareMaths.Add.Label);
+        e.PopHl();
+        e.JpLabel("rt_fsign_back");
+
+        // ROUND : x * 10^A, + 0,5 sur la valeur sans signe, partie entière, signe remis, puis / 10^A
+        e.Label(RoundLabel);
+        e.LdMemA("rt_frn");
+        e.PushHl();
+        e.CallLabel(FirmwareMaths.Times10Power.Label);
+        e.PopHl();
+        e.CallLabel("rt_fsplit");
+        e.PushHl();
+        e.LdDeLabel("rt_fhalf");
+        e.CallLabel(FirmwareMaths.Add.Label);
+        e.PopHl();
+        e.CallLabel("rt_ftrunc");
+        e.CallLabel("rt_fsign_back");
+        e.LdAMem("rt_frn");
+        e.Cpl();
+        e.IncA();
+        e.JpLabel(FirmwareMaths.Times10Power.Label);
+
+        e.Label("rt_fxs");
+        e.Reserve(1);
+        e.Label("rt_fxo");
+        e.Reserve(5);
+        e.Label("rt_fone");
+        e.Data(LocoReal.Encode(1)!);
+        e.Label("rt_frn");
+        e.Reserve(1);
+        e.Label("rt_fhalf");
+        e.Data(LocoReal.Encode(0.5)!);
+        e.Label("rt_fr_msg_imp");
+        e.Data(Ascii("Improper argument"));
 
         e.Label("rt_fsign");
         e.Reserve(1);
@@ -563,6 +744,68 @@ internal static class RealRuntime
         e.Data(LocoReal.Encode(1e8)!);
         e.Label("rt_fp_1e9");
         e.Data(LocoReal.Encode(1e9)!);
+    }
+
+    /// <summary>
+    /// RND (D069) : nombre de 0 (compris) à 1 (non compris) fait de deux tirages du générateur 16 bits (Rand16) :
+    /// premier / 65536 + second / 4294967296. RANDOMIZE agit donc aussi sur RND. La suite n'est pas celle du CPC.
+    /// </summary>
+    public static void EmitRnd(Z80Emitter e)
+    {
+        e.Label(RndLabel);
+        e.LdMemHl("rt_frnd_dst");
+        e.OrA();
+        e.JrZLabel("rt_frnd_last");
+        e.IncA();
+        e.JrNzLabel("rt_frnd_next");
+        e.LoadEFromHl();                                  // RND(négatif) : la graine vient des octets du nombre
+        e.IncHl();
+        e.LoadDFromHl();
+        e.IncHl();
+        e.LdAHl();
+        e.XorE();
+        e.LdEA();
+        e.IncHl();
+        e.LdAHl();
+        e.XorD();
+        e.LdHA();
+        e.LdLE();
+        e.CallLabel(RuntimeLibrary.RandomizeLabel);
+        e.Label("rt_frnd_next");
+        e.CallLabel(RuntimeLibrary.Rand16Label);
+        e.LdDeLabel("rt_frnd_v");
+        e.XorA();
+        e.CallLabel(FirmwareMaths.IntegerToReal.Label);
+        e.LdHlLabel("rt_frnd_v");
+        e.LdDeLabel("rt_frnd_k16");
+        e.CallLabel(FirmwareMaths.Multiply.Label);
+        e.CallLabel(RuntimeLibrary.Rand16Label);
+        e.LdDeLabel("rt_frnd_t");
+        e.XorA();
+        e.CallLabel(FirmwareMaths.IntegerToReal.Label);
+        e.LdHlLabel("rt_frnd_t");
+        e.LdDeLabel("rt_frnd_k32");
+        e.CallLabel(FirmwareMaths.Multiply.Label);
+        e.LdHlLabel("rt_frnd_v");
+        e.LdDeLabel("rt_frnd_t");
+        e.CallLabel(FirmwareMaths.Add.Label);
+        e.Label("rt_frnd_last");
+        e.LdHlLabel("rt_frnd_v");
+        e.LdDeMem("rt_frnd_dst");
+        e.LdBcImm(5);
+        e.Ldir();
+        e.Ret();
+
+        e.Label("rt_frnd_dst");
+        e.Reserve(2);
+        e.Label("rt_frnd_v");
+        e.Reserve(5);
+        e.Label("rt_frnd_t");
+        e.Reserve(5);
+        e.Label("rt_frnd_k16");
+        e.Data(LocoReal.Encode(1.0 / 65536)!);
+        e.Label("rt_frnd_k32");
+        e.Data(LocoReal.Encode(1.0 / 4294967296)!);
     }
 
     public const string InputLabel = "rt_input_real";   // DE = où ranger : lit le nombre tapé (retenue = « Redo »)
