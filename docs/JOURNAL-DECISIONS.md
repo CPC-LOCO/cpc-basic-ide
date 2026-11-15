@@ -457,6 +457,33 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Ensuite, peut-être :** Linux (l'éditeur utilise Avalonia, prévu pour Windows, Linux et macOS ; seuls les scripts de développement sont propres à Windows).
 - **À savoir pour la signature :** il faut un certificat de signature de code délivré par une autorité (en général payant, avec vérification d'identité) ; des offres gratuites existent pour les logiciels libres. À étudier au moment venu, avec les tarifs et conditions du moment.
 
+## D068 : lot F1b, nombres à virgule : les fondations (En cours, 15 nov. 2026)
+- **Format :** les nombres à virgule sont ceux du Locomotive, sur 5 octets (4 octets de mantisse, dont le bit de signe, puis l'exposant + 128 ; 0 = zéro). Le compilateur sait les écrire (`LocoReal`, dans `src\CpcBasic.Core\Codegen\LocoReal.cs`), par exemple pour les nombres écrits dans le programme (3.14).
+- **Calculs :** faits par les routines de la ROM du CPC (addition, multiplication, division, comparaison, SIN, SQR...), comme le vrai BASIC, donc avec exactement les mêmes résultats. Leurs adresses ne sont pas les mêmes sur le 464 et sur le 664/6128 (par exemple &BD88 est la division sur le 6128 mais SIN sur le 464).
+- **Table de sauts :** le programme appelle ces routines à travers une petite table en mémoire (`rt_fm_...`), remplie au départ par `rt_fm_init` :
+  - réglage « Tous les CPC » : la table du 664/6128 est en place ; au départ, KL PROBE ROM (&B915) dit quelle machine tourne et, si c'est un 464, la table du 464 est recopiée par-dessus ;
+  - réglage « CPC 464 » ou « CPC 664/6128 » (F7) : la bonne table directement, sans test.
+  Le départ met aussi les angles en radians (comme le BASIC à l'allumage).
+- **Tests :** le simulateur Z80 des tests imite ces routines (aux adresses du 464 ou du 664/6128 selon la machine choisie) et KL PROBE ROM ; nouveaux essais dans `tests\CpcBasic.Tests\RealTests.cs` (23 tests). Fondations vérifiées le 15 nov. 2026 : 749 tests réussis.
+- **Ce qu'affiche le vrai BASIC (capture de l'utilisateur, SugarBox réglé comme WinAPE, 15 nov. 2026) :**
+  - 1/3 ; 2/3 ; 10/3 ; 100/3 → ` 0.333333333  0.666666667  3.33333333  33.3333333` : 9 chiffres significatifs, le dernier arrondi, les zéros de fin enlevés ; un espace devant un nombre positif, un espace après chaque nombre (comme les entiers) ;
+  - 1000000/3 ; 1E8/3 ; 1/7 ; 0.5 → ` 333333.333  33333333.3  0.142857143  0.5` ;
+  - 1E9 ; 123456789 ; 1234567890 → ` 1E+09  123456789  1.23457E+09` : écriture avec exposant au-delà de 9 chiffres, et alors 6 chiffres significatifs au plus ;
+  - 0.1 ; 0.01 ; 0.001 ; 0.0001 → ` 0.1  0.01  0.001  0.0001` ;
+  - -1.5 ; 1E-10 ; 1E20 ; -2.5E-5 → `-1.5  1E-10  1E+20 -0.000025` ;
+  - PI écrit en entier ; 2^0.5 → ` 3.14159265  1.41421356` ;
+  - STR$(1/3) et STR$(-0.5) → `[ 0.333333333]` et `[-0.5]` : espace devant si positif, pas d'espace après ;
+  - A%=2.5 : B%=-2.5 : C%=3.5 → ` 3 -3  4` : arrondi au plus près, le « ,5 » s'éloignant de zéro ;
+  - PRINT 1E38*10 → `Overflow` sur une ligne, puis ` 1.70141E+38`, et le programme **continue** : pour les nombres à virgule, Overflow n'est pas une erreur qui arrête le programme, c'est un avertissement, et le résultat devient le plus grand nombre possible (avec son signe).
+  - Deuxième capture (contrôle) : 1E-5 … 1E-9 → ` 0.00001  0.000001  0.0000001  0.00000001  0.000000001` ; 1.5E-6 ; 1.234E-7 ; 0.000123456789 → ` 0.0000015  1.234E-07  1.23457E-04` ; 999999999 ; 999999999.6 ; 123456789.4 ; 12345678.95 → ` 999999999  1E+09  123456789  12345679` ; 1E10/3 ; -1E15/7 ; 2^40 → ` 3.33333E+09 -1.42857E+14  1.09951E+12` ; 100000 ; 1E5 ; 1000000 ; 1E6 → tous écrits sans exposant ; -0 ; 0 ; -0.000001 → ` 0  0 -0.000001` ; PRINT 1/0;"SUITE" → `Division by zero` sur une ligne, puis ` 1.70141E+38 SUITE`, et le programme continue jusqu'à FIN.
+- **Règle d'affichage retenue (déduite des deux captures) :**
+  1. arrondir le nombre à 9 chiffres significatifs ;
+  2. l'écrire sans exposant si cela tient en 9 chiffres au plus, sans compter le « 0 » de « 0, » : au plus 9 chiffres avant la virgule pour un nombre ≥ 1 (999999999 oui, 1E+09 non), au plus 9 chiffres après la virgule pour un nombre < 1 (0.000000001 oui, 1E-10 non ; 0.0000001234 non) ; les zéros de fin sont enlevés, puis la virgule si plus rien ne la suit ;
+  3. sinon, écriture avec exposant : 6 chiffres significatifs (arrondis, zéros de fin enlevés), puis `E+` ou `E-` et l'exposant sur 2 chiffres (1E+09, 1.234E-07) ;
+  4. un signe « - » ou un espace devant, comme pour les entiers ; -0 s'écrit 0.
+- **Overflow et Division by zero** avec des nombres à virgule : le message s'affiche sur sa propre ligne, le résultat devient ±1.70141E+38, et le programme continue (ce ne sont pas des erreurs qui l'arrêtent).
+- **Reste à faire pour F1b :** les nombres écrits avec une virgule (3.14, .5, 1E5), les variables A!, DEFINT / DEFREAL / DEFSTR, le réglage « Sans signe = à virgule », les opérations et comparaisons, l'affichage (PRINT) et la saisie (INPUT) au format exact du Locomotive. L'affichage attend la capture de WinAPE demandée à l'utilisateur.
+
 ---
 
 ## Notes de fin de session (modèle)

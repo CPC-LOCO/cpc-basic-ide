@@ -115,6 +115,38 @@ public static class RuntimeLibrary
 
     // Puissance entière (^, D060)
     public const string Pow16Name = "Pow16";
+    public const string MathsAllName = "FMathsAll";
+    public const string Maths464Name = "FMaths464";
+    public const string Maths6128Name = "FMaths6128";
+    /// <summary>À appeler une fois au départ d'un programme qui calcule avec des nombres à virgule.</summary>
+    public const string MathsInitLabel = "rt_fm_init";
+
+    /// <summary>Le module de calcul à virgule qui convient à la machine choisie (F7).</summary>
+    public static string MathsModuleFor(TargetMachine target) => target switch
+    {
+        TargetMachine.Cpc464 => Maths464Name,
+        TargetMachine.Cpc664And6128 => Maths6128Name,
+        _ => MathsAllName
+    };
+
+    static void EmitMathsTable(Z80Emitter e, bool rom464)
+    {
+        e.Label("rt_fm_table");
+        foreach (FirmwareMathsRoutine routine in FirmwareMaths.All)
+        {
+            int address = rom464 ? routine.Address464 : routine.Address6128;
+            e.Label(routine.Label);
+            e.Bytes(0xC3, (byte)(address & 0xFF), (byte)(address >> 8));
+        }
+    }
+
+    static void EmitMathsFixed(Z80Emitter e, bool rom464)
+    {
+        EmitMathsTable(e, rom464);
+        e.Label(MathsInitLabel);
+        e.XorA();
+        e.JpLabel(FirmwareMaths.AngleMode.Label);   // angles en radians, comme au démarrage du BASIC
+    }
     public const string Pow16Label = "rt_pow16";
 
     public const string HeapName = "Heap";
@@ -2918,7 +2950,34 @@ public static class RuntimeLibrary
             e.PopDe();
             e.PopBc();
             e.Ret();
-        })
+        }),
+        // Calculs à virgule par la ROM (lot F1b, D068) : table de sauts rt_fm_... (voir FirmwareMaths).
+        // rt_fm_init (appelée au départ du programme) remplit la table si besoin et met les angles en radians.
+        //  - FMathsAll  : tous les CPC. La table contient les adresses du 664/6128 ; si KL PROBE ROM
+        //                 dit que c'est un 464 (H = 0), on recopie par-dessus la table du 464.
+        //  - FMaths464 / FMaths6128 : machine choisie (F7), la bonne table directement.
+        [MathsAllName] = new RuntimeModule(MathsAllName, [], e =>
+        {
+            EmitMathsTable(e, rom464: false);
+            e.Label(MathsInitLabel);
+            e.LdCImm(0);
+            e.CallAddress(FirmwareMaths.KlProbeRom);   // H = version de la machine
+            e.LdAH();
+            e.OrA();
+            e.JpNzLabel("rt_fm_radians");               // 664, 6128, Plus : la table est déjà bonne
+            e.LdHlLabel("rt_fm_t464");
+            e.LdDeLabel("rt_fm_table");
+            e.LdBcImm(FirmwareMaths.All.Count * 3);
+            e.Ldir();
+            e.Label("rt_fm_radians");
+            e.XorA();
+            e.JpLabel(FirmwareMaths.AngleMode.Label);
+            e.Label("rt_fm_t464");
+            foreach (FirmwareMathsRoutine routine in FirmwareMaths.All)
+                e.Bytes(0xC3, (byte)(routine.Address464 & 0xFF), (byte)(routine.Address464 >> 8));
+        }),
+        [Maths464Name] = new RuntimeModule(Maths464Name, [], e => EmitMathsFixed(e, rom464: true)),
+        [Maths6128Name] = new RuntimeModule(Maths6128Name, [], e => EmitMathsFixed(e, rom464: false))
     };
 
     public static RuntimeModule Get(string name) =>

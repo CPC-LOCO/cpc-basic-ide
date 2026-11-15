@@ -4,6 +4,7 @@
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
 using System.Text;
+using CpcBasic.Core.Codegen;
 
 namespace CpcBasic.Tests;
 
@@ -37,6 +38,26 @@ internal sealed class MiniZ80
     public readonly Dictionary<ushort, byte> Ports = new();
     public readonly List<(ushort Port, byte Value)> PortWrites = new();
     public readonly Queue<byte> KeyQueue = new();
+
+    /// <summary>Version rendue par KL PROBE ROM (&amp;B915) dans H : 0 = 464, 1 = 664, 2 = 6128 (D068).
+    /// Elle choisit aussi les adresses des routines de calcul à virgule simulées (464 ou 664/6128).</summary>
+    public byte FirmwareVersion = 2;
+
+    /// <summary>Angles en degrés (SET ANGLE MODE avec A différent de 0), sinon en radians.</summary>
+    public bool AngleDegrees;
+
+    /// <summary>Lit un nombre à virgule de 5 octets à cette adresse.</summary>
+    public double ReadReal(int address) => LocoReal.Decode(Memory.AsSpan(address & 0xFFFF, 5));
+
+    /// <summary>Range un nombre à virgule de 5 octets ; faux s'il est trop grand (Overflow).</summary>
+    public bool WriteReal(int address, double value)
+    {
+        byte[]? bytes = LocoReal.Encode(value);
+        if (bytes is null)
+            return false;
+        Array.Copy(bytes, 0, Memory, address & 0xFFFF, 5);
+        return true;
+    }
 
     /// <summary>
     /// Vrai si la ROM haute (celle du BASIC) est active : le Z80 lit alors la ROM de &C000 à &FFFF au lieu de l'écran,
@@ -86,6 +107,89 @@ internal sealed class MiniZ80
                 throw new InvalidOperationException("Le module tourne sans fin.");
             Step();
         }
+    }
+
+    /// <summary>
+    /// Simule une routine de calcul à virgule de la ROM (voir FirmwareMaths), aux adresses du 464 si
+    /// FirmwareVersion vaut 0, sinon à celles du 664/6128. Rend faux si l'adresse n'en est pas une.
+    /// Les calculs se font en double puis sont arrondis sur 5 octets, ce qui suffit pour les tests.
+    /// </summary>
+    bool FirmwareMathsCall(ushort address)
+    {
+        FirmwareMathsRoutine? routine = FirmwareMaths.All.FirstOrDefault(
+            r => (FirmwareVersion == 0 ? r.Address464 : r.Address6128) == address);
+        if (routine is null)
+            return false;
+
+        ushort first = HL;
+        bool ok = true;
+        double Angle(double x) => AngleDegrees ? x * Math.PI / 180 : x;
+        bool Result(double value) => !double.IsNaN(value) && WriteReal(first, value);
+
+        switch (routine.Name)
+        {
+            case "int2real":
+            {
+                double value = HL;
+                if ((A & 0x80) != 0)
+                    value = -value;
+                ok = WriteReal(DE, value);
+                HL = DE;
+                break;
+            }
+            case "real2int":
+            {
+                double rounded = Math.Floor(Math.Abs(ReadReal(first)) + 0.5);
+                ok = rounded <= 65535;
+                HL = ok ? (ushort)rounded : (ushort)0;
+                break;
+            }
+            case "fix": ok = Result(Math.Truncate(ReadReal(first))); break;
+            case "int": ok = Result(Math.Floor(ReadReal(first))); break;
+            case "x10a": ok = Result(ReadReal(first) * Math.Pow(10, (sbyte)A)); break;
+            case "add": ok = Result(ReadReal(first) + ReadReal(DE)); break;
+            case "rsub": ok = Result(ReadReal(DE) - ReadReal(first)); break;
+            case "mult": ok = Result(ReadReal(first) * ReadReal(DE)); break;
+            case "div": ok = ReadReal(DE) != 0 && Result(ReadReal(first) / ReadReal(DE)); break;
+            case "cmp":
+            {
+                double a = ReadReal(first), b = ReadReal(DE);
+                A = (byte)(a > b ? 1 : a == b ? 0 : 0xFF);
+                ZeroFlag = A == 0;
+                break;
+            }
+            case "neg": ok = Result(-ReadReal(first)); break;
+            case "sgn":
+            {
+                double a = ReadReal(first);
+                A = (byte)(a > 0 ? 1 : a == 0 ? 0 : 0xFF);
+                ZeroFlag = A == 0;
+                break;
+            }
+            case "angle": AngleDegrees = A != 0; break;
+            case "pi": ok = Result(Math.PI); break;
+            case "sqr": ok = ReadReal(first) >= 0 && Result(Math.Sqrt(ReadReal(first))); break;
+            case "pow": ok = Result(Math.Pow(ReadReal(first), ReadReal(DE))); break;
+            case "log": ok = ReadReal(first) > 0 && Result(Math.Log(ReadReal(first))); break;
+            case "log10": ok = ReadReal(first) > 0 && Result(Math.Log10(ReadReal(first))); break;
+            case "exp": ok = Result(Math.Exp(ReadReal(first))); break;
+            case "sin": ok = Result(Math.Sin(Angle(ReadReal(first)))); break;
+            case "cos": ok = Result(Math.Cos(Angle(ReadReal(first)))); break;
+            case "tan": ok = Result(Math.Tan(Angle(ReadReal(first)))); break;
+            case "atn":
+            {
+                double value = Math.Atan(ReadReal(first));
+                ok = Result(AngleDegrees ? value * 180 / Math.PI : value);
+                break;
+            }
+            default:
+                throw new InvalidOperationException($"Routine de calcul non simulée : {routine.Name}");
+        }
+
+        if (routine.Name != "int2real" && routine.Name != "real2int")
+            HL = first;
+        CarryFlag = ok;
+        return true;
     }
 
     byte Fetch() => Memory[pc++ & 0xFFFF];
@@ -311,6 +415,10 @@ internal sealed class MiniZ80
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
                     pc = Pop();
                 }
+                else if (FirmwareMathsCall(target))
+                {
+                    pc = Pop();                                        // routine de calcul : retour à l'appelant
+                }
                 else
                 {
                     pc = target;
@@ -364,6 +472,16 @@ internal sealed class MiniZ80
                     string shown = Output.ToString();                  // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = 1;
+                }
+                else if (address == FirmwareMaths.KlProbeRom)
+                {
+                    A = 0x80;                                          // KL PROBE ROM : ROM 0 = BASIC
+                    H = FirmwareVersion;
+                    L = 0;
+                }
+                else if (FirmwareMathsCall(address))
+                {
+                    // routine de calcul à virgule simulée
                 }
                 else if (address == 0xBD0D)
                 {
