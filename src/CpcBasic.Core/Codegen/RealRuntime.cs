@@ -440,6 +440,12 @@ internal static class RealRuntime
         e.Ret();
 
         e.Label("rt_fp_nz");
+        e.CallLabel("rt_fp_conv");
+        e.JpLabel("rt_fp_sgn");
+
+        // Chiffres d'un nombre non nul (aussi pour PRINT USING, D074) : rt_fp_x -> 9 chiffres rt_fp_d0..d8
+        // (valeur = d0,d1d2... x 10^rt_fp_e), rt_fp_neg (&80 si négatif), rt_fp_nd
+        e.Label("rt_fp_conv");
         e.LdAMem("rt_fp_x3");                             // signe à part, nombre rendu positif
         e.LdBA();
         e.AndImm(0x80);
@@ -556,7 +562,10 @@ internal static class RealRuntime
         e.LdBImm(9);
         e.CallLabel("rt_fp_count");
 
+        e.Ret();
+
         // Signe
+        e.Label("rt_fp_sgn");
         e.LdAMem("rt_fp_neg");
         e.OrA();
         e.LdAImm(' ');

@@ -556,6 +556,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Taille :** un programme qui écrit un texte de 2 caractères ou plus, ou un nombre, contient le module PrintFit (127 octets) : PRINT "HELLO" passe de 29 à 161 octets.
 - **Fichiers :** Ast.cs (PrintZoneStatement, PrintTabStatement, NoLeadingSpace), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (PrintFormat, PrintFit), RealRuntime.cs (rt_fprint_fit), MiniZ80.cs (TXT GET WINDOW, TXT VALIDATE), `tests\CpcBasic.Tests\PrintFormatTests.cs` (nouveau) ; exemple `examples\colonnes.bas`.
 
+## D074 : lot H3, PRINT USING (Validé le 15 nov. 2026 : 1005 tests réussis ; `format.bas` compilé identique au vrai BASIC de SugarBox)
+- **Référence :** `examples\format.bas`, tapé dans le vrai BASIC (SugarBox, 15 nov. 2026). Dans SugarBox, la touche « \ » d'un clavier français n'arrive pas telle quelle : passer par CHR$(92).
+- **Écriture :** PRINT [#n,] [éléments ;] USING "format"; valeur {; ou , valeur} [; ou ,]. USING prend toute la suite du PRINT.
+- **Format découpé à la compilation :** texte autour des emplacements écrit tel quel ; chaque valeur prend l'emplacement suivant ; à la fin du format on reprend au début ; après la dernière valeur, le texte qui suit est écrit jusqu'à l'emplacement suivant (« PRIX ###.## EUR »). Format sans emplacement : erreur (le vrai BASIC : Improper argument). Texte dans un emplacement de nombre (ou l'inverse) : « Type mismatch ».
+- **Limite pour l'instant :** le format doit être écrit entre guillemets ; un format rangé dans une variable (PRINT USING F$; X) est refusé avec un message clair. À ajouter si besoin (découpage pendant l'exécution).
+- **Textes :** « ! » première lettre ; « \   \ » 2 + nombre d'espaces lettres (coupé ou complété d'espaces) ; « & » tout le texte.
+- **Nombres :** [+] [** [$] | $$] # et , [. #] [^^^^] [+ ou -]. Le nombre est découpé en 9 chiffres (même routine que PRINT, `rt_fp_conv`), arrondi au dernier chiffre écrit (,5 vers le haut), puis écrit : signe devant (« + » demandé, ou « - » s'il n'y a pas de signe derrière), « $ », chiffres groupés par 3 si « , », point, décimales, exposant E+nn, signe derrière (« - » ou espace ; « + » ou « - »). Partie entière nulle : « 0 » ajouté s'il reste de la place (0.50). Plus court que l'emplacement : espaces à gauche (étoiles avec « ** ») ; plus long : « % » suivi du nombre (« %123456 », « %1,234,567 »). Avec exposant : une place de moins avant le point quand aucun signe n'est demandé (« #.##^^^^ » : « .12E+05 »).
+- **Modules :** PrintUsing (nombres, avec les calculs par la ROM) et PrintUsingStr (textes) ; vérification de fin de ligne (D073) avant chaque valeur.
+- **Mot réservé :** USING (mot du Locomotive).
+- **Fichiers :** Ast.cs (PrintUsingNumberStatement, PrintUsingStringStatement, UsingFlags), Diagnostic.cs (deux messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs, RealRuntime.cs (rt_fp_conv), `tests\CpcBasic.Tests\UsingTests.cs` (nouveau) ; exemple `examples\format.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

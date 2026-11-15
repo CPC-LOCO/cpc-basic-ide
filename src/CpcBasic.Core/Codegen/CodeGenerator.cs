@@ -1723,6 +1723,22 @@ public static class CodeGenerator
                         EmitText("\r\n");
                     break;
 
+                case PrintUsingNumberStatement usingNumber:         // PRINT USING "###.##"; X (D074)
+                    EmitRealInto(usingNumber.Value, 0);
+                    required.Add(RuntimeLibrary.PrintUsingName);
+                    emitter.LdHlLabel(RealTemp(0));
+                    emitter.LdBcImm((usingNumber.Width << 8) | usingNumber.Before);
+                    emitter.LdDeImm((usingNumber.Decimals << 8) | usingNumber.Flags);
+                    emitter.CallLabel(RuntimeLibrary.UsingNumLabel);
+                    break;
+
+                case PrintUsingStringStatement usingText:           // PRINT USING "!"; A$ (D074)
+                    EmitString(usingText.Value);
+                    required.Add(RuntimeLibrary.PrintUsingStrName);
+                    emitter.LdAImm(usingText.Width);
+                    emitter.CallLabel(RuntimeLibrary.UsingStrLabel);
+                    break;
+
                 case PrintZoneStatement:                            // « , » dans PRINT (D073)
                     required.Add(RuntimeLibrary.PrintFormatName);
                     emitter.CallLabel(RuntimeLibrary.ZoneLabel);
@@ -2298,6 +2314,7 @@ public static class CodeGenerator
     static bool StatementUsesReals(Statement statement) =>
         AstWalker.All(statement).Any(Types.IsReal)
         || statement is ScreenStatement { Command: "DEG" or "RAD" }
+        || statement is PrintUsingNumberStatement                   // PRINT USING : calculs par la ROM (D074)
         || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable))
         || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable))
         || (statement is DataStatement data && data.Items.Any(item => item.IsReal));

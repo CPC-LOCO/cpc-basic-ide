@@ -114,6 +114,11 @@ public static class RuntimeLibrary
     public const int TxtGetWindow = 0xBB69;                     // TXT GET WINDOW : H = gauche, D = droite (à partir de 0)
     public const string PrintFormatName = "PrintFormat";
     public const int TxtValidate = 0xBB87;                      // TXT VALIDATE : H, L -> position où s'écrira le caractère suivant
+    public const string PrintUsingName = "PrintUsing";          // PRINT USING, nombres (D074)
+    public const string UsingNumLabel = "rt_using_num";         // HL = nombre (5 octets), B = largeur, C = places avant le point,
+                                                                // D = chiffres après le point, E = indicateurs (UsingFlags)
+    public const string PrintUsingStrName = "PrintUsingStr";    // PRINT USING, textes (D074)
+    public const string UsingStrLabel = "rt_using_str";         // HL = fiche, A = largeur (0 : tout le texte)
     public const string PrintFitName = "PrintFit";              // un élément qui ne tient pas dans la fin de la ligne passe à la ligne
     public const string PrintFitLabel = "rt_pf_fit";            // A = longueur de l'élément
     public const string PrintFitStrLabel = "rt_pf_fit_str";     // HL = fiche du texte (gardée)
@@ -212,6 +217,464 @@ public static class RuntimeLibrary
     const string ErrRedim = "rt_arr_err_redim";
 
     static byte[] Ascii(string text) => [.. System.Text.Encoding.ASCII.GetBytes(text), 0];
+
+    // PRINT USING, nombres (D074). Voir le commentaire du module PrintUsing.
+    static void EmitUsingNumber(Z80Emitter e)
+    {
+        const int PlusLead = Language.UsingFlags.PlusLead, TrailMinus = Language.UsingFlags.TrailMinus,
+                  TrailPlus = Language.UsingFlags.TrailPlus, Asterisk = Language.UsingFlags.Asterisk,
+                  Dollar = Language.UsingFlags.Dollar, Comma = Language.UsingFlags.Comma,
+                  Exponent = Language.UsingFlags.Exponent, Point = Language.UsingFlags.Point;
+
+        e.Label(UsingNumLabel);
+        e.LdAB();
+        e.LdMemA("rt_us_w");
+        e.LdAC();
+        e.LdMemA("rt_us_l");
+        e.LdAD();
+        e.LdMemA("rt_us_d");
+        e.LdAE();
+        e.LdMemA("rt_us_f");
+        e.LdDeLabel("rt_fp_x");
+        e.LdBcImm(5);
+        e.Ldir();
+        e.LdHlLabel("rt_us_b");                  // chiffres b0 à b9 : b0 = 0 (place pour une retenue), b1 à b9 = d0 à d8
+        e.LdBImm(10);
+        e.Label("rt_us_clr");
+        e.StoreHlImm(0);
+        e.IncHl();
+        e.DjnzLabel("rt_us_clr");
+        e.XorA();
+        e.LdMemA("rt_us_neg");
+        e.LdMemA("rt_us_e");
+        e.LdAImm(1);
+        e.LdMemA("rt_us_zero");
+        e.LdAMem("rt_fp_x4");
+        e.OrA();
+        e.JrZLabel("rt_us_conv");                // zéro : tous les chiffres à 0
+        e.CallLabel("rt_fp_conv");
+        e.LdHlLabel("rt_fp_d0");
+        e.LdDeLabel("rt_us_b1");
+        e.LdBcImm(9);
+        e.Ldir();
+        e.LdAMem("rt_fp_e");
+        e.LdMemA("rt_us_e");                     // b1 vaut b1 x 10^e
+        e.LdAMem("rt_fp_neg");
+        e.LdMemA("rt_us_neg");
+        e.XorA();
+        e.LdMemA("rt_us_zero");
+        e.Label("rt_us_conv");
+        e.LdHlLabel("rt_us_buf");
+        e.LdMemHl("rt_us_p");
+
+        // Signe devant, puis $
+        e.LdAMem("rt_us_f");
+        e.AndImm(PlusLead);
+        e.JrZLabel("rt_us_nolead");
+        e.LdAMem("rt_us_neg");
+        e.OrA();
+        e.LdAImm('+');
+        e.JrZLabel("rt_us_lead");
+        e.LdAImm('-');
+        e.Label("rt_us_lead");
+        e.CallLabel("rt_us_put");
+        e.JrLabel("rt_us_dollar");
+        e.Label("rt_us_nolead");
+        e.LdAMem("rt_us_f");
+        e.AndImm(TrailMinus | TrailPlus);
+        e.JrNzLabel("rt_us_dollar");
+        e.LdAMem("rt_us_neg");
+        e.OrA();
+        e.JrZLabel("rt_us_dollar");
+        e.LdAImm('-');
+        e.CallLabel("rt_us_put");
+        e.Label("rt_us_dollar");
+        e.LdAMem("rt_us_f");
+        e.AndImm(Dollar);
+        e.JrZLabel("rt_us_body");
+        e.LdAImm('$');
+        e.CallLabel("rt_us_put");
+        e.Label("rt_us_body");
+        e.LdHlMem("rt_us_p");
+        e.LdMemHl("rt_us_ip");                   // début des chiffres (pour le « 0 » ajouté)
+        e.XorA();
+        e.LdMemA("rt_us_st");
+        e.LdAMem("rt_us_f");
+        e.AndImm(Exponent);
+        e.JpNzLabel("rt_us_exp");
+
+        // Sans exposant : arrondi au chiffre d'indice e + 2 + décimales, partie entière = b0 à b(e+1)
+        e.LdAMem("rt_us_e");
+        e.AddAImm(2);
+        e.LdBA();
+        e.LdAMem("rt_us_d");
+        e.AddAB();
+        e.CallLabel("rt_us_round");
+        e.LdAMem("rt_us_e");
+        e.AddAImm(2);
+        e.LdMemA("rt_us_r");                     // chiffres de la partie entière restant à écrire
+        e.AndImm(0x80);
+        e.JrNzLabel("rt_us_intdone");
+        e.LdAMem("rt_us_r");
+        e.OrA();
+        e.JrZLabel("rt_us_intdone");
+        e.XorA();
+        e.LdMemA("rt_us_i");
+        e.Label("rt_us_int");
+        e.LdAMem("rt_us_i");
+        e.CallLabel("rt_us_dig");
+        e.LdCA();
+        e.LdAMem("rt_us_st");
+        e.OrA();
+        e.JrNzLabel("rt_us_more");
+        e.LdAC();
+        e.OrA();
+        e.JrZLabel("rt_us_inext");               // zéros de tête : rien
+        e.LdAImm(1);
+        e.LdMemA("rt_us_st");
+        e.JrLabel("rt_us_pdig");
+        e.Label("rt_us_more");
+        e.LdAMem("rt_us_f");
+        e.AndImm(Comma);
+        e.JrZLabel("rt_us_pdig");
+        e.LdAMem("rt_us_r");                     // « , » avant un chiffre si le nombre de chiffres restants est multiple de 3
+        e.Label("rt_us_mod3");
+        e.SubImm(3);
+        e.JrZLabel("rt_us_comma");
+        e.JrNcLabel("rt_us_mod3");
+        e.JrLabel("rt_us_pdig");
+        e.Label("rt_us_comma");
+        e.LdAImm(',');
+        e.CallLabel("rt_us_put");
+        e.Label("rt_us_pdig");
+        e.LdAC();
+        e.AddAImm('0');
+        e.CallLabel("rt_us_put");
+        e.Label("rt_us_inext");
+        e.LdHlLabel("rt_us_i");
+        e.IncMemHl();
+        e.LdHlLabel("rt_us_r");
+        e.DecMemHl();
+        e.JrNzLabel("rt_us_int");
+        e.Label("rt_us_intdone");
+        e.LdAMem("rt_us_f");
+        e.AndImm(Point);
+        e.JpZLabel("rt_us_trail");
+        e.LdAImm('.');
+        e.CallLabel("rt_us_put");
+        e.LdAMem("rt_us_e");
+        e.AddAImm(2);
+        e.LdMemA("rt_us_i");
+        e.CallLabel("rt_us_decs");
+        e.JpLabel("rt_us_trail");
+
+        // Avec exposant : k chiffres avant le point (une place de moins s'il n'y a pas de signe écrit)
+        e.Label("rt_us_exp");
+        e.LdAMem("rt_us_l");
+        e.LdBA();
+        e.LdAMem("rt_us_f");
+        e.AndImm(PlusLead | TrailMinus | TrailPlus);
+        e.JrNzLabel("rt_us_kset");
+        e.LdAB();
+        e.OrA();
+        e.JrZLabel("rt_us_kset");
+        e.DecB();
+        e.Label("rt_us_kset");
+        e.LdAB();
+        e.LdMemA("rt_us_k");
+        e.LdAMem("rt_us_d");
+        e.AddAB();
+        e.IncA();
+        e.CallLabel("rt_us_round");              // arrondi au chiffre d'indice 1 + k + décimales
+        e.LdAMem("rt_us_b");
+        e.OrA();
+        e.LdAImm(1);
+        e.JrZLabel("rt_us_s");
+        e.XorA();                                // retenue jusqu'à b0 : les chiffres commencent à b0
+        e.Label("rt_us_s");
+        e.LdMemA("rt_us_start");
+        e.LdAMem("rt_us_e");                     // exposant écrit : e + 1 - k (+ 1 si retenue), 0 pour zéro
+        e.IncA();
+        e.LdBA();
+        e.LdAMem("rt_us_k");
+        e.LdCA();
+        e.LdAB();
+        e.SubC();
+        e.LdBA();
+        e.LdAMem("rt_us_start");
+        e.OrA();
+        e.LdAB();
+        e.JrNzLabel("rt_us_pe1");
+        e.IncA();
+        e.Label("rt_us_pe1");
+        e.LdBA();
+        e.LdAMem("rt_us_zero");
+        e.OrA();
+        e.LdAB();
+        e.JrZLabel("rt_us_pe2");
+        e.XorA();
+        e.Label("rt_us_pe2");
+        e.LdMemA("rt_us_pe");
+        e.LdAMem("rt_us_start");
+        e.LdMemA("rt_us_i");
+        e.LdAMem("rt_us_k");
+        e.OrA();
+        e.JrZLabel("rt_us_epoint");
+        e.LdBA();
+        e.Label("rt_us_eint");
+        e.PushBc();
+        e.LdAMem("rt_us_i");
+        e.CallLabel("rt_us_dig");
+        e.AddAImm('0');
+        e.CallLabel("rt_us_put");
+        e.LdHlLabel("rt_us_i");
+        e.IncMemHl();
+        e.PopBc();
+        e.DjnzLabel("rt_us_eint");
+        e.Label("rt_us_epoint");
+        e.LdAMem("rt_us_f");
+        e.AndImm(Point);
+        e.JrZLabel("rt_us_eexp");
+        e.LdAImm('.');
+        e.CallLabel("rt_us_put");
+        e.CallLabel("rt_us_decs");
+        e.Label("rt_us_eexp");
+        e.LdAImm('E');
+        e.CallLabel("rt_us_put");
+        e.LdAMem("rt_us_pe");
+        e.LdBA();
+        e.AndImm(0x80);
+        e.LdAImm('+');
+        e.JrZLabel("rt_us_es");
+        e.LdAB();
+        e.Cpl();
+        e.IncA();
+        e.LdBA();
+        e.LdAImm('-');
+        e.Label("rt_us_es");
+        e.CallLabel("rt_us_put");
+        e.LdAB();
+        e.LdCImm('0' - 1);
+        e.Label("rt_us_et");
+        e.IncC();
+        e.SubImm(10);
+        e.JrNcLabel("rt_us_et");
+        e.AddAImm(10);
+        e.LdBA();
+        e.LdAC();
+        e.CallLabel("rt_us_put");
+        e.LdAB();
+        e.AddAImm('0');
+        e.CallLabel("rt_us_put");
+        e.LdAImm(1);
+        e.LdMemA("rt_us_st");                    // pas de « 0 » ajouté avec un exposant
+
+        // Signe derrière
+        e.Label("rt_us_trail");
+        e.LdAMem("rt_us_f");
+        e.AndImm(TrailMinus);
+        e.JrZLabel("rt_us_tp");
+        e.LdAMem("rt_us_neg");
+        e.OrA();
+        e.LdAImm(' ');
+        e.JrZLabel("rt_us_tput");
+        e.LdAImm('-');
+        e.JrLabel("rt_us_tput");
+        e.Label("rt_us_tp");
+        e.LdAMem("rt_us_f");
+        e.AndImm(TrailPlus);
+        e.JrZLabel("rt_us_len");
+        e.LdAMem("rt_us_neg");
+        e.OrA();
+        e.LdAImm('+');
+        e.JrZLabel("rt_us_tput");
+        e.LdAImm('-');
+        e.Label("rt_us_tput");
+        e.CallLabel("rt_us_put");
+
+        // Longueur ; partie entière nulle : « 0 » inséré au début des chiffres s'il reste de la place
+        e.Label("rt_us_len");
+        e.LdHlMem("rt_us_p");
+        e.LdDeLabel("rt_us_buf");
+        e.OrA();
+        e.SbcHlDe();
+        e.LdAL();
+        e.LdMemA("rt_us_n");
+        e.LdAMem("rt_us_st");
+        e.OrA();
+        e.JrNzLabel("rt_us_out");
+        e.LdAMem("rt_us_w");
+        e.LdBA();
+        e.LdAMem("rt_us_n");
+        e.CpB();
+        e.JrNcLabel("rt_us_out");
+        e.LdHlMem("rt_us_p");
+        e.LdDeMem("rt_us_ip");
+        e.OrA();
+        e.SbcHlDe();                             // HL = caractères à décaler
+        e.LdAH();
+        e.OrL();
+        e.JrZLabel("rt_us_z0");
+        e.LdBH();
+        e.LdCL();
+        e.LdHlMem("rt_us_p");
+        e.LdDH();
+        e.LdEL();
+        e.DecHl();
+        e.Lddr();
+        e.Label("rt_us_z0");
+        e.LdHlMem("rt_us_ip");
+        e.StoreHlImm('0');
+        e.LdHlLabel("rt_us_n");
+        e.IncMemHl();
+
+        // Écriture : vérification de fin de ligne, puis « % » ou les espaces (étoiles) de gauche, puis le nombre
+        e.Label("rt_us_out");
+        e.LdAMem("rt_us_w");
+        e.LdBA();
+        e.LdAMem("rt_us_n");
+        e.CpB();
+        e.JrCLabel("rt_us_pad");
+        e.JrZLabel("rt_us_pad");
+        e.IncA();                                // trop long : « % » puis le nombre
+        e.CallLabel(PrintFitLabel);
+        e.LdAImm('%');
+        e.CallAddress(TxtOutput);
+        e.JrLabel("rt_us_text");
+        e.Label("rt_us_pad");
+        e.LdAB();
+        e.CallLabel(PrintFitLabel);
+        e.LdAMem("rt_us_n");
+        e.LdCA();
+        e.LdAMem("rt_us_w");
+        e.SubC();
+        e.JrZLabel("rt_us_text");
+        e.LdBA();
+        e.LdAMem("rt_us_f");
+        e.AndImm(Asterisk);
+        e.LdAImm(' ');
+        e.JrZLabel("rt_us_padl");
+        e.LdAImm('*');
+        e.Label("rt_us_padl");
+        e.CallAddress(TxtOutput);
+        e.DjnzLabel("rt_us_padl");
+        e.Label("rt_us_text");
+        e.LdAMem("rt_us_n");
+        e.OrA();
+        e.RetZ();
+        e.LdBA();
+        e.LdHlLabel("rt_us_buf");
+        e.Label("rt_us_tl");
+        e.LdAHl();
+        e.CallAddress(TxtOutput);
+        e.IncHl();
+        e.DjnzLabel("rt_us_tl");
+        e.Ret();
+
+        // A = caractère, ajouté au texte (BC gardés)
+        e.Label("rt_us_put");
+        e.PushHl();
+        e.LdHlMem("rt_us_p");
+        e.LdHlA();
+        e.IncHl();
+        e.LdMemHl("rt_us_p");
+        e.PopHl();
+        e.Ret();
+
+        // A = indice -> A = chiffre b(indice), 0 en dehors de b0 à b9 (BC gardés)
+        e.Label("rt_us_dig");
+        e.CpImm(10);
+        e.JrNcLabel("rt_us_dig0");
+        e.LdEA();
+        e.LdDZero();
+        e.LdHlLabel("rt_us_b");
+        e.AddHlDe();
+        e.LdAHl();
+        e.Ret();
+        e.Label("rt_us_dig0");
+        e.XorA();
+        e.Ret();
+
+        // Décimales : rt_us_d chiffres à partir de l'indice rt_us_i
+        e.Label("rt_us_decs");
+        e.LdAMem("rt_us_d");
+        e.OrA();
+        e.RetZ();
+        e.LdBA();
+        e.Label("rt_us_dl");
+        e.PushBc();
+        e.LdAMem("rt_us_i");
+        e.CallLabel("rt_us_dig");
+        e.AddAImm('0');
+        e.CallLabel("rt_us_put");
+        e.LdHlLabel("rt_us_i");
+        e.IncMemHl();
+        e.PopBc();
+        e.DjnzLabel("rt_us_dl");
+        e.Ret();
+
+        // Arrondi : A = indice du premier chiffre enlevé. 0 ou moins : tout devient 0 ; 10 ou plus : rien à faire.
+        e.Label("rt_us_round");
+        e.LdMemA("rt_us_q");
+        e.LdBA();
+        e.AndImm(0x80);
+        e.JrNzLabel("rt_us_rzero");
+        e.LdAB();
+        e.OrA();
+        e.JrZLabel("rt_us_rzero");
+        e.CpImm(10);
+        e.RetNc();
+        e.LdEA();
+        e.LdDZero();
+        e.LdHlLabel("rt_us_b");
+        e.AddHlDe();
+        e.LdAHl();
+        e.CpImm(5);
+        e.JrCLabel("rt_us_rclr");
+        e.PushHl();
+        e.Label("rt_us_rinc");                   // + 1 au chiffre d'avant, avec retenue
+        e.DecHl();
+        e.IncMemHl();
+        e.LdAHl();
+        e.CpImm(10);
+        e.JrCLabel("rt_us_rdone");
+        e.StoreHlImm(0);
+        e.JrLabel("rt_us_rinc");
+        e.Label("rt_us_rdone");
+        e.PopHl();
+        e.Label("rt_us_rclr");
+        e.LdAMem("rt_us_q");
+        e.LdBA();
+        e.LdAImm(10);
+        e.SubB();
+        e.LdBA();
+        e.Label("rt_us_rcl");
+        e.StoreHlImm(0);
+        e.IncHl();
+        e.DjnzLabel("rt_us_rcl");
+        e.Ret();
+        e.Label("rt_us_rzero");
+        e.LdHlLabel("rt_us_b");
+        e.LdBImm(10);
+        e.JrLabel("rt_us_rcl");
+
+        foreach (string name in new[] { "rt_us_w", "rt_us_l", "rt_us_d", "rt_us_f", "rt_us_neg", "rt_us_e", "rt_us_zero",
+                                        "rt_us_q", "rt_us_r", "rt_us_i", "rt_us_st", "rt_us_k", "rt_us_start", "rt_us_pe", "rt_us_n" })
+        {
+            e.Label(name);
+            e.Reserve(1);
+        }
+        e.Label("rt_us_p");
+        e.Reserve(2);
+        e.Label("rt_us_ip");
+        e.Reserve(2);
+        e.Label("rt_us_b");
+        e.Reserve(1);
+        e.Label("rt_us_b1");
+        e.Reserve(9);
+        e.Label("rt_us_buf");
+        e.Reserve(100);
+    }
 
     static readonly Dictionary<string, RuntimeModule> Modules = new()
     {
@@ -343,6 +806,54 @@ public static class RuntimeLibrary
                 e.Reserve(1);
             }
         }),
+
+        // PRINT USING, textes (D074) : « ! » (A = 1), « \   \ » (A = largeur : le texte est coupé ou complété d'espaces),
+        // « & » (A = 0 : tout le texte).
+        [PrintUsingStrName] = new RuntimeModule(PrintUsingStrName, [StringsName, PrintFitName], e =>
+        {
+            e.Label(UsingStrLabel);
+            e.OrA();
+            e.JrNzLabel("rt_ust_fixed");
+            e.CallLabel(PrintFitStrLabel);
+            e.JpLabel(StrPrintLabel);
+            e.Label("rt_ust_fixed");
+            e.LdMemA("rt_ust_w");
+            e.PushHl();
+            e.CallLabel(PrintFitLabel);
+            e.PopHl();
+            e.LoadCFromHl();                         // C = longueur du texte
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();                                // HL = lettres
+            e.LdAMem("rt_ust_w");
+            e.LdBA();                                // B = largeur
+            e.Label("rt_ust_loop");
+            e.LdAC();
+            e.OrA();
+            e.JrZLabel("rt_ust_pad");
+            e.LdAHl();
+            e.CallAddress(TxtOutput);
+            e.IncHl();
+            e.DecC();
+            e.DjnzLabel("rt_ust_loop");
+            e.Ret();
+            e.Label("rt_ust_pad");
+            e.LdAImm(' ');
+            e.CallAddress(TxtOutput);
+            e.DjnzLabel("rt_ust_pad");
+            e.Ret();
+            e.Label("rt_ust_w");
+            e.Reserve(1);
+        }),
+
+        // PRINT USING, nombres (D074), règles relevées dans le vrai BASIC (SugarBox, 15 nov. 2026). Le nombre (5 octets) est
+        // découpé en 9 chiffres par rt_fp_conv, arrondi au dernier chiffre écrit, puis écrit dans rt_us_buf :
+        // signe devant (+, ou - sans signe derrière), $, chiffres (groupés par 3 avec « , »), point, décimales, exposant,
+        // signe derrière. Partie entière nulle : « 0 » ajouté s'il reste de la place (0.50). Plus court que l'emplacement :
+        // espaces (ou étoiles) à gauche ; plus long : « % » puis le nombre entier.
+        [PrintUsingName] = new RuntimeModule(PrintUsingName, [RealPrintName, PrintFitName], EmitUsingNumber),
 
         [PrintFormatName] = new RuntimeModule(PrintFormatName, [ErrorName, PrintFitName], e =>
         {

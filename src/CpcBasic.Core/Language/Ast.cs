@@ -52,6 +52,29 @@ public sealed record PrintZoneStatement(int SourceLine) : Statement(SourceLine);
 /// <summary>TAB(colonne) ou SPC(nombre d'espaces) dans PRINT (lot H2, D073).</summary>
 public sealed record PrintTabStatement(int SourceLine, Expression Value, bool Spc) : Statement(SourceLine);
 
+/// <summary>
+/// Emplacement de nombre de PRINT USING (lot H3, D074). Width : nombre de caractères de l'emplacement ; Before : places
+/// avant le point (# , ** $$) ; Decimals : # après le point ; Flags : voir UsingFlags.
+/// </summary>
+public sealed record PrintUsingNumberStatement(int SourceLine, Expression Value, int Width, int Before, int Decimals, int Flags)
+    : Statement(SourceLine);
+
+/// <summary>Emplacement de texte de PRINT USING (D074) : Width 1 pour « ! », n pour « \   \ », 0 pour « & » (tout le texte).</summary>
+public sealed record PrintUsingStringStatement(int SourceLine, Expression Value, int Width) : Statement(SourceLine);
+
+/// <summary>Indicateurs d'un emplacement de nombre de PRINT USING (D074), lus aussi par le module PrintUsing.</summary>
+public static class UsingFlags
+{
+    public const int PlusLead = 1;      // « + » devant : signe toujours écrit, collé au nombre
+    public const int TrailMinus = 2;    // « - » derrière : « - » ou espace après le nombre
+    public const int TrailPlus = 4;     // « + » derrière : « + » ou « - » après le nombre
+    public const int Asterisk = 8;      // « ** » : espaces de gauche remplacés par des étoiles
+    public const int Dollar = 16;       // « $$ » : « $ » collé au nombre
+    public const int Comma = 32;        // « , » avant le point : chiffres groupés par trois
+    public const int Exponent = 64;     // « ^^^^ » : écriture avec exposant (E+05)
+    public const int Point = 128;       // « . » : point décimal écrit
+}
+
 /// <summary>A = expression (avec ou sans LET). Variable : nom en majuscules, suffixe compris.</summary>
 public sealed record AssignStatement(int SourceLine, string Variable, Expression Value) : Statement(SourceLine);
 
@@ -391,6 +414,8 @@ public static class AstWalker
         ScreenStatement s => s.Arguments,
         StreamStatement st when st.Stream is not null => [st.Stream],
         PrintTabStatement t => [t.Value],
+        PrintUsingNumberStatement u => [u.Value],
+        PrintUsingStringStatement u => [u.Value],
         EnvelopeStatement env => env.Sections.SelectMany(x => new[] { x.A, x.B, x.C }).OfType<Expression>().Prepend(env.Number),
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
         OnStatement o => [o.Selector],

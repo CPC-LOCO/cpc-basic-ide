@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -1101,6 +1101,13 @@ public static class Parser
                 continue;
             }
 
+            if (t.Kind == TokenKind.Word && t.Text == "USING")   // la suite du PRINT est écrite avec le format (D074)
+            {
+                if (!ParseUsing(tokens, ref pos, line, items, diagnostics, out newLine))
+                    return SkipToStatementEnd(tokens, pos);
+                break;
+            }
+
             newLine = true;
             Token after = tokens[pos + 1];
             if (t.Kind == TokenKind.Word && t.Text is "TAB" or "SPC" && after.Kind == TokenKind.LeftParen)
@@ -1148,6 +1155,201 @@ public static class Parser
         }
         statements.AddRange(items);
         return pos;
+    }
+
+    /// <summary>Un morceau de format de PRINT USING : texte à écrire tel quel, ou emplacement (D074).</summary>
+    sealed record UsingPart(string? Text, bool IsString = false, int Width = 0, int Before = 0, int Decimals = 0, int Flags = 0)
+    {
+        public bool IsField => Text is null;
+    }
+
+    // USING "format"; valeur {; ou , valeur} [; ou ,] (lot H3, D074). Le format est découpé à la compilation : le texte
+    // autour des emplacements est écrit tel quel ; chaque valeur prend l'emplacement suivant ; à la fin du format, on
+    // reprend au début ; après la dernière valeur, le texte qui suit est écrit jusqu'à l'emplacement suivant.
+    static bool ParseUsing(IReadOnlyList<Token> tokens, ref int pos, int line, List<Statement> items,
+                           List<Diagnostic> diagnostics, out bool newLine)
+    {
+        newLine = true;
+        pos++;
+        if (tokens[pos].Kind != TokenKind.String || tokens[pos + 1].Kind != TokenKind.Semicolon)
+        {
+            Token wrong = tokens[pos].Kind == TokenKind.String ? tokens[pos + 1] : tokens[pos];
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UsingFormatNotLiteral, line, wrong.Text));
+            return false;
+        }
+        string format = tokens[pos].Text;
+        pos += 2;
+
+        List<UsingPart> parts = ParseUsingFormat(format);
+        if (!parts.Any(p => p.IsField))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UsingWithoutField, line, format));
+            return false;
+        }
+
+        var values = new List<Expression>();
+        while (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+            if (value is null)
+                return false;
+            values.Add(value);
+            newLine = true;
+            if (tokens[pos].Kind is not (TokenKind.Semicolon or TokenKind.Comma))
+                break;
+            pos++;
+            newLine = false;
+        }
+        if (values.Count == 0)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, line, tokens[pos].Text, "PRINT USING"));
+            return false;
+        }
+
+        int index = 0;
+        foreach (Expression value in values)
+        {
+            while (true)
+            {
+                if (index == parts.Count)
+                    index = 0;
+                UsingPart part = parts[index++];
+                if (!part.IsField)
+                {
+                    items.Add(new PrintStatement(line, part.Text!, false));
+                    continue;
+                }
+                if (part.IsString != Types.IsString(value))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, line,
+                                                   part.IsString ? "un texte est attendu" : "un nombre est attendu", "PRINT USING"));
+                    return false;
+                }
+                items.Add(part.IsString
+                    ? new PrintUsingStringStatement(line, value, part.Width)
+                    : new PrintUsingNumberStatement(line, value, part.Width, part.Before, part.Decimals, part.Flags));
+                break;
+            }
+        }
+        while (index < parts.Count && !parts[index].IsField)
+            items.Add(new PrintStatement(line, parts[index++].Text!, false));
+        return true;
+    }
+
+    // Découpe un format de PRINT USING (D074). Texte : « ! » (1re lettre), « & » (tout), « \  \ » (2 + espaces lettres).
+    // Nombre : [+] [** [$] | $$] # et , [. #] [^^^^] [+ ou -], comme le Locomotive.
+    static List<UsingPart> ParseUsingFormat(string f)
+    {
+        var parts = new List<UsingPart>();
+        var literal = new System.Text.StringBuilder();
+        void Flush()
+        {
+            if (literal.Length > 0)
+                parts.Add(new UsingPart(literal.ToString()));
+            literal.Clear();
+        }
+
+        int i = 0;
+        while (i < f.Length)
+        {
+            char c = f[i];
+            if (c is '!' or '&')
+            {
+                Flush();
+                parts.Add(new UsingPart(null, IsString: true, Width: c == '!' ? 1 : 0));
+                i++;
+                continue;
+            }
+            if (c == '\\')
+            {
+                int j = i + 1;
+                while (j < f.Length && f[j] == ' ')
+                    j++;
+                if (j < f.Length && f[j] == '\\')
+                {
+                    Flush();
+                    parts.Add(new UsingPart(null, IsString: true, Width: j - i + 1));
+                    i = j + 1;
+                    continue;
+                }
+            }
+            int end = TryUsingNumber(f, i, out UsingPart? field);
+            if (field is not null)
+            {
+                Flush();
+                parts.Add(field);
+                i = end;
+                continue;
+            }
+            literal.Append(c);
+            i++;
+        }
+        Flush();
+        return parts;
+    }
+
+    static int TryUsingNumber(string f, int start, out UsingPart? field)
+    {
+        bool At(int k, string s) => k + s.Length <= f.Length && string.CompareOrdinal(f, k, s, 0, s.Length) == 0;
+        field = null;
+        int i = start, flags = 0, before = 0, decimals = 0;
+        if (At(i, "+"))
+        {
+            flags |= UsingFlags.PlusLead;
+            i++;
+        }
+        if (At(i, "**"))
+        {
+            flags |= UsingFlags.Asterisk;
+            before += 2;
+            i += 2;
+            if (At(i, "$"))
+            {
+                flags |= UsingFlags.Dollar;
+                before++;
+                i++;
+            }
+        }
+        else if (At(i, "$$"))
+        {
+            flags |= UsingFlags.Dollar;
+            before += 2;
+            i += 2;
+        }
+        while (i < f.Length && (f[i] == '#' || (f[i] == ',' && before > 0)))
+        {
+            if (f[i] == ',')
+                flags |= UsingFlags.Comma;
+            before++;
+            i++;
+        }
+        bool point = false;
+        if (At(i, ".") && (before > 0 || At(i + 1, "#")))
+        {
+            point = true;
+            flags |= UsingFlags.Point;
+            i++;
+            while (i < f.Length && f[i] == '#')
+            {
+                decimals++;
+                i++;
+            }
+        }
+        if (before == 0 && !point)
+            return start;                               // pas un emplacement : « + » ou « $ » seul est du texte
+        if (At(i, "^^^^"))
+        {
+            flags |= UsingFlags.Exponent;
+            i += 4;
+        }
+        if ((flags & UsingFlags.PlusLead) == 0 && (At(i, "-") || At(i, "+")))
+        {
+            flags |= f[i] == '-' ? UsingFlags.TrailMinus : UsingFlags.TrailPlus;
+            i++;
+        }
+        field = new UsingPart(null, Width: Math.Min(i - start, 255), Before: Math.Min(before, 255),
+                              Decimals: Math.Min(decimals, 255), Flags: flags);
+        return i;
     }
 
     static bool IsPrintSeparatorOrEnd(Token token) =>

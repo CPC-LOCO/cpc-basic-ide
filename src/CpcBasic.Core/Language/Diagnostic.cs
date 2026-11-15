@@ -63,7 +63,9 @@ public enum DiagnosticCode
     StringNotYetHere,
     ExpectedLetterRange,
     ExpectedStreamComma,     // lot H1 (D072) : PRINT #1 "A" sans virgule après le numéro de fenêtre
-    ExpectedStream           // lot H1 (D072) : POS(0) au lieu de POS(#0)
+    ExpectedStream,          // lot H1 (D072) : POS(0) au lieu de POS(#0)
+    UsingFormatNotLiteral,   // lot H3 (D074) : PRINT USING F$; X (format pas entre guillemets)
+    UsingWithoutField        // lot H3 (D074) : format sans aucun emplacement
 }
 
 /// <summary>
@@ -198,6 +200,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"{(Context.Length == 0 ? "cette commande" : Context)} attend une virgule « , » après le numéro de fenêtre (exemple : {(Context.Length == 0 ? "PRINT" : Context)} #1, ...).{Why}",
         DiagnosticCode.ExpectedStream =>
             $"{(Context.Length == 0 ? "POS ou VPOS" : Context)} attend un numéro de fenêtre précédé de « # », comme le Locomotive (exemple : {(Context.Length == 0 ? "POS" : Context)}(#0)).{Why}",
+        DiagnosticCode.UsingFormatNotLiteral =>
+            $"PRINT USING attend ici un format écrit entre guillemets suivi de « ; », par exemple PRINT USING \"###.##\"; X. Un format rangé dans une variable n'est pas encore possible.{Why}",
+        DiagnosticCode.UsingWithoutField =>
+            $"PRINT USING : le format « {Argument} » ne contient aucun emplacement (# pour un nombre, ! & ou \\  \\ pour un texte). Le vrai BASIC répondrait « Improper argument ».",
         _ => $"problème inconnu ({Code})."
     };
 
