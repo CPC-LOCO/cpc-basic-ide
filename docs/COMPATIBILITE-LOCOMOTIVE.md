@@ -162,7 +162,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
-| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). Fenêtres #0 à #7 (D072). Édition de la ligne avec COPY : étape H5. |
+| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). Fenêtres #0 à #7 (D072). Édition de la ligne comme le vrai BASIC, avec COPY (D076). |
 | `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. Fenêtres #0 à #7 (D072). |
 
 ## 7. Disquette et cassette
@@ -289,7 +289,7 @@ Ce n'est pas une décision : c'est ma proposition, à discuter.
 5. **Lot E : chaînes de caractères (fait, D062 à D065 ; reste DEC$).**
 6. **Lot F : réels et fonctions mathématiques.**
 7. **Lot G : son.** SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB.
-8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE (validée, D073) ; H3 PRINT USING (validée, D074) ; H4 SYMBOL, TAG (validée, D075) ; H5 édition de la ligne d'INPUT avec COPY.
+8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE (validée, D073) ; H3 PRINT USING (validée, D074) ; H4 SYMBOL, TAG (validée, D075) ; H5 édition de la ligne d'INPUT avec COPY (validée, D076). **Lot H terminé.**
 9. **Lot I : interruptions et erreurs.** AFTER, EVERY, REMAIN, ON BREAK, ON ERROR GOTO, RESUME.
 10. **Lot J : disquette et cassette.** CAT, LOAD, SAVE, OPENIN, OPENOUT, flux.
 

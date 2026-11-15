@@ -62,7 +62,11 @@ internal sealed class MiniZ80
     public readonly List<(byte Char, byte[] Rows)> Matrices = new();
     public readonly List<(int First, ushort Table)> MatrixTables = new();
     public readonly List<bool> Tags = new();
-    public int MatrixReads;                     // largeur rendue par TXT GET WINDOW (lot H2, D073)
+    public int MatrixReads;
+
+    // Éditeur de la ligne tapée (lot H5, D076) : positions données à TXT SET CURSOR, caractères lus par TXT RD CHAR
+    public readonly List<(byte Col, byte Row)> CursorMoves = new();
+    public readonly Dictionary<(byte Col, byte Row), byte> ScreenChars = new();                     // largeur rendue par TXT GET WINDOW (lot H2, D073)
     public readonly List<byte> StreamSelects = new();
     public readonly Dictionary<byte, StringBuilder> StreamOutput = new();
     public readonly List<(byte Stream, byte Left, byte Right, byte Top, byte Bottom)> Windows = new();
@@ -446,6 +450,7 @@ internal sealed class MiniZ80
             case 0x37: CarryFlag = true; break;                        // SCF
             case 0x6B: L = E; break;                                   // LD L,E (D069)
             case 0x6C: L = H; break;                                   // LD L,H (POS, D072)
+            case 0x24: H++; ZeroFlag = H == 0; break;                  // INC H (D076)
             case 0x82: Add(D); break;                                  // ADD A,D (D068)
             case 0x83: Add(E); break;                                  // ADD A,E (D068)
             case 0x34: Memory[HL]++; ZeroFlag = Memory[HL] == 0; break;            // INC (HL) (D068)
@@ -490,6 +495,15 @@ internal sealed class MiniZ80
                 {
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
                     pc = Pop();
+                }
+                else if (target == 0xBB75)
+                {
+                    CursorMoves.Add((H, L));                           // JP TXT SET CURSOR (éditeur de ligne, D076)
+                    pc = Pop();
+                }
+                else if (target == 0xBB8A || target == 0xBB8D)
+                {
+                    pc = Pop();                                        // JP TXT PLACE / REMOVE CURSOR (D076)
                 }
                 else if (target == 0xBBAB)
                 {
@@ -564,6 +578,20 @@ internal sealed class MiniZ80
                     string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = (byte)(1 + shown.Count(c => c == '\n'));
+                }
+                else if (address == 0xBB75)
+                {
+                    CursorMoves.Add((H, L));                           // TXT SET CURSOR (D076)
+                }
+                else if (address == 0xBB8A || address == 0xBB8D)
+                {
+                    // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
+                }
+                else if (address == 0xBB60)
+                {
+                    (byte col, byte row) = CursorMoves.Count > 0 ? CursorMoves[^1] : ((byte)1, (byte)1);
+                    CarryFlag = ScreenChars.TryGetValue((col, row), out byte shown);   // TXT RD CHAR (D076)
+                    A = shown;
                 }
                 else if (address == 0xBBA8)
                 {

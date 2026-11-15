@@ -174,7 +174,8 @@ public class InputTests
         // 1, 2, Suppr, 3 : le texte lu est « 13 »
         string output = Run("10 INPUT A\n20 PRINT A", "12\x7F" + "3\r");
 
-        Assert.Equal("? 12\b \b3\r\n 13 \r\n", output);   // effacer : recule, espace, recule (D064)
+        // D076 : le curseur est replacé par TXT SET CURSOR (pas visible ici), un espace efface le « 2 », puis le « 3 » s'écrit
+        Assert.Equal("? 12 3\r\n 13 \r\n", output);
     }
 
     [Fact]

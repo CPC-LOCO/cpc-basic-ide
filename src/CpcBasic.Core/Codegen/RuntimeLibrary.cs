@@ -36,6 +36,7 @@ public static class RuntimeLibrary
 
     /// <summary>KM WAIT CHAR : attend une touche ; le caractère est rendu dans A.</summary>
     public const int KmWaitChar = 0xBB06;
+    public const int TxtSetCursorAddress = 0xBB75;   // TXT SET CURSOR : H = colonne, L = ligne
 
     // Saisie de nombres (INPUT, D055)
     public const string InputName = "Input";
@@ -3597,60 +3598,391 @@ public static class RuntimeLibrary
         //  rt_input_end  : affiche « ?Extra ignored » s'il reste du texte non lu.
         [InputName] = new RuntimeModule(InputName, [], e =>
         {
+            // Éditeur de la ligne tapée, comme celui du vrai BASIC (lot H5, D076) : flèches gauche et droite dans la ligne,
+            // haut et bas d'une largeur d'écran, CTRL + gauche / droite au début / à la fin, une lettre s'insère, DEL efface
+            // à gauche, CLR sous le curseur, SHIFT + flèches déplacent le curseur de copie, COPY recopie le caractère
+            // qui est sous lui (TXT RD CHAR) et l'avance. 255 caractères au plus. Les positions à l'écran sont calculées
+            // depuis celle du premier caractère (rt_in_sc, rt_in_sr), recalée après chaque affichage (défilement).
             e.Label(InputLineLabel);
             e.XorA();
             e.LdMemA("rt_inp_len");
-            e.Label("rt_in_key");
-            e.CallAddress(KmWaitChar);
-            e.CpImm(13);
-            e.JrZLabel("rt_in_done");
-            e.CpImm(127);
-            e.JrZLabel("rt_in_back");
-            e.CpImm(32);
-            e.JrCLabel("rt_in_key");             // caractère de commande : ignoré
-            e.CpImm(128);
-            e.JrNcLabel("rt_in_key");            // caractère étendu : ignoré
-            e.LdCA();
-            e.LdAMem("rt_inp_len");
-            e.CpImm(80);
-            e.JrNcLabel("rt_in_key");            // ligne pleine
-            e.LdEA();
-            e.LdDZero();
-            e.LdHlLabel("rt_inp_buf");
-            e.AddHlDe();
-            e.LdAC();
-            e.LdHlA();
-            e.LdAMem("rt_inp_len");
+            e.LdMemA("rt_in_pos");
+            e.LdMemA("rt_in_cp");
+            e.CallAddress(0xBB69);                   // TXT GET WINDOW : largeur et hauteur
+            e.LdAD();
+            e.SubH();
             e.IncA();
-            e.LdMemA("rt_inp_len");
-            e.LdAC();
-            e.CallAddress(TxtOutput);
-            e.JrLabel("rt_in_key");
+            e.LdMemA("rt_in_w");
+            e.LdAE();
+            e.SubL();
+            e.IncA();
+            e.LdMemA("rt_in_h");
+            e.CallAddress(TxtGetCursor);
+            e.CallAddress(TxtValidate);              // où s'écrira le premier caractère
+            e.LdAH();
+            e.LdMemA("rt_in_sc");
+            e.LdAL();
+            e.LdMemA("rt_in_sr");
 
-            e.Label("rt_in_back");
+            e.Label("rt_in_key");
+            e.LdHlImm(0xBB8A);                       // TXT PLACE CURSOR : les curseurs sont montrés pendant l'attente
+            e.CallLabel("rt_in_blobs");
+            e.CallAddress(KmWaitChar);
+            e.PushAf();
+            e.LdHlImm(0xBB8D);                       // TXT REMOVE CURSOR
+            e.CallLabel("rt_in_blobs");
+            e.PopAf();
+            foreach ((int code, string target) in new[] { (13, "rt_in_done"), (127, "rt_in_del"), (0x10, "rt_in_clr"),
+                         (0xE0, "rt_in_copy"), (0xF2, "rt_in_left"), (0xF3, "rt_in_right"), (0xF0, "rt_in_up"),
+                         (0xF1, "rt_in_down"), (0xFA, "rt_in_home"), (0xFB, "rt_in_ctrlend"), (0xF4, "rt_in_cup"),
+                         (0xF5, "rt_in_cdown"), (0xF6, "rt_in_cleft"), (0xF7, "rt_in_cright") })
+            {
+                e.CpImm(code);
+                e.JpZLabel(target);
+            }
+            e.CpImm(32);
+            e.JrCLabel("rt_in_key");             // autre caractère de commande : ignoré
+            e.CpImm(127);
+            e.JrNcLabel("rt_in_key");            // caractère étendu : ignoré
+
+            // Insertion du caractère A à la position du curseur
+            e.Label("rt_in_insert");
+            e.LdMemA("rt_in_ch");
             e.LdAMem("rt_inp_len");
-            e.OrA();
-            e.JrZLabel("rt_in_key");             // rien à effacer
-            e.DecA();
-            e.LdMemA("rt_inp_len");
-            e.LdAImm(8);                         // à l'écran : recule, efface avec un espace, recule (D064)
-            e.CallAddress(TxtOutput);
-            e.LdAImm(' ');
-            e.CallAddress(TxtOutput);
-            e.LdAImm(8);
-            e.CallAddress(TxtOutput);
-            e.JrLabel("rt_in_key");
+            e.CpImm(255);
+            e.JpZLabel("rt_in_key");             // ligne pleine
+            e.LdAMem("rt_in_pos");
+            e.LdBA();
+            e.LdAMem("rt_inp_len");
+            e.SubB();                            // A = caractères à décaler vers la droite
+            e.JrZLabel("rt_in_put");
+            e.LdCA();
+            e.LdBImm(0);
+            e.LdAMem("rt_inp_len");
+            e.CallLabel("rt_in_addr");           // HL = tampon + longueur
+            e.LdDH();
+            e.LdEL();
+            e.DecHl();
+            e.Lddr();
+            e.Label("rt_in_put");
+            e.LdAMem("rt_in_pos");
+            e.CallLabel("rt_in_addr");
+            e.LdAMem("rt_in_ch");
+            e.LdHlA();
+            e.LdHlLabel("rt_inp_len");
+            e.IncMemHl();
+            e.XorA();
+            e.CallLabel("rt_in_tail");
+            e.LdHlLabel("rt_in_pos");
+            e.IncMemHl();
+            e.JpLabel("rt_in_key");
 
+            // DEL : efface à gauche (le curseur recule puis CLR) ; CLR : efface sous le curseur
+            e.Label("rt_in_del");
+            e.LdAMem("rt_in_pos");
+            e.OrA();
+            e.JpZLabel("rt_in_key");
+            e.DecA();
+            e.LdMemA("rt_in_pos");
+            e.JrLabel("rt_in_erase");
+            e.Label("rt_in_clr");
+            e.LdAMem("rt_in_pos");
+            e.LdBA();
+            e.LdAMem("rt_inp_len");
+            e.CpB();
+            e.JpZLabel("rt_in_key");             // rien sous le curseur
+            e.Label("rt_in_erase");
+            e.LdAMem("rt_in_pos");
+            e.LdBA();
+            e.LdAMem("rt_inp_len");
+            e.SubB();
+            e.DecA();                            // A = caractères à décaler vers la gauche
+            e.JrZLabel("rt_in_shorter");
+            e.LdCA();
+            e.LdBImm(0);
+            e.LdAMem("rt_in_pos");
+            e.CallLabel("rt_in_addr");
+            e.LdDH();
+            e.LdEL();
+            e.IncHl();
+            e.Ldir();
+            e.Label("rt_in_shorter");
+            e.LdHlLabel("rt_inp_len");
+            e.DecMemHl();
+            e.LdAImm(1);                         // un espace efface le dernier caractère à l'écran
+            e.CallLabel("rt_in_tail");
+            e.JpLabel("rt_in_key");
+
+            // Déplacements dans la ligne
+            e.Label("rt_in_left");
+            e.LdAMem("rt_in_pos");
+            e.OrA();
+            e.JpZLabel("rt_in_key");
+            e.DecA();
+            e.JrLabel("rt_in_setpos");
+            e.Label("rt_in_right");
+            e.LdAMem("rt_in_pos");
+            e.LdBA();
+            e.LdAMem("rt_inp_len");
+            e.CpB();
+            e.JpZLabel("rt_in_key");
+            e.LdAB();
+            e.IncA();
+            e.JrLabel("rt_in_setpos");
+            e.Label("rt_in_up");
+            e.LdAMem("rt_in_w");
+            e.LdBA();
+            e.LdAMem("rt_in_pos");
+            e.SubB();
+            e.JpCLabel("rt_in_key");
+            e.JrLabel("rt_in_setpos");
+            e.Label("rt_in_down");
+            e.LdAMem("rt_in_w");
+            e.LdBA();
+            e.LdAMem("rt_in_pos");
+            e.AddAB();
+            e.JpCLabel("rt_in_key");
+            e.LdBA();
+            e.LdAMem("rt_inp_len");
+            e.CpB();
+            e.JpCLabel("rt_in_key");             // au-delà de la fin
+            e.LdAB();
+            e.JrLabel("rt_in_setpos");
+            e.Label("rt_in_home");
+            e.XorA();
+            e.JrLabel("rt_in_setpos");
+            e.Label("rt_in_ctrlend");
+            e.LdAMem("rt_inp_len");
+            e.Label("rt_in_setpos");
+            e.LdMemA("rt_in_pos");
+            e.JpLabel("rt_in_key");
+
+            // Curseur de copie (SHIFT + flèches) : il part de la position du curseur, puis reste dans la fenêtre
+            e.Label("rt_in_cup");
+            e.CallLabel("rt_in_cstart");
+            e.LdAMem("rt_in_cr");
+            e.CpImm(2);
+            e.JpCLabel("rt_in_key");
+            e.DecA();
+            e.LdMemA("rt_in_cr");
+            e.JpLabel("rt_in_key");
+            e.Label("rt_in_cdown");
+            e.CallLabel("rt_in_cstart");
+            e.LdAMem("rt_in_h");
+            e.LdBA();
+            e.LdAMem("rt_in_cr");
+            e.CpB();
+            e.JpNcLabel("rt_in_key");
+            e.IncA();
+            e.LdMemA("rt_in_cr");
+            e.JpLabel("rt_in_key");
+            e.Label("rt_in_cleft");
+            e.CallLabel("rt_in_cstart");
+            e.LdAMem("rt_in_cc");
+            e.CpImm(2);
+            e.JpCLabel("rt_in_key");
+            e.DecA();
+            e.LdMemA("rt_in_cc");
+            e.JpLabel("rt_in_key");
+            e.Label("rt_in_cright");
+            e.CallLabel("rt_in_cstart");
+            e.LdAMem("rt_in_w");
+            e.LdBA();
+            e.LdAMem("rt_in_cc");
+            e.CpB();
+            e.JpNcLabel("rt_in_key");
+            e.IncA();
+            e.LdMemA("rt_in_cc");
+            e.JpLabel("rt_in_key");
+
+            // COPY : lit le caractère sous le curseur de copie, l'avance d'une place, puis insère le caractère lu
+            e.Label("rt_in_copy");
+            e.LdAMem("rt_in_cp");
+            e.OrA();
+            e.JpZLabel("rt_in_key");
+            e.LdAMem("rt_in_cc");
+            e.LdHA();
+            e.LdAMem("rt_in_cr");
+            e.LdLA();
+            e.CallAddress(TxtSetCursorAddress);
+            e.CallAddress(0xBB60);               // TXT RD CHAR : A = caractère, retenue à 1 s'il est reconnu
+            e.JpNcLabel("rt_in_key");
+            e.PushAf();
+            e.LdAMem("rt_in_w");
+            e.LdBA();
+            e.LdAMem("rt_in_cc");
+            e.CpB();
+            e.JrNcLabel("rt_in_cwrap");
+            e.IncA();
+            e.LdMemA("rt_in_cc");
+            e.JrLabel("rt_in_cdone");
+            e.Label("rt_in_cwrap");              // au bord droit : début de la ligne suivante, s'il y en a une
+            e.LdAImm(1);
+            e.LdMemA("rt_in_cc");
+            e.LdAMem("rt_in_h");
+            e.LdBA();
+            e.LdAMem("rt_in_cr");
+            e.CpB();
+            e.JrNcLabel("rt_in_cdone");
+            e.IncA();
+            e.LdMemA("rt_in_cr");
+            e.Label("rt_in_cdone");
+            e.PopAf();
+            e.JpLabel("rt_in_insert");
+
+            // Entrée : curseur après le dernier caractère (pas au début de la ligne suivante), puis fin du texte
             e.Label("rt_in_done");
             e.LdAMem("rt_inp_len");
-            e.LdEA();
-            e.LdDZero();
-            e.LdHlLabel("rt_inp_buf");
-            e.AddHlDe();
+            e.OrA();
+            e.JrNzLabel("rt_in_doneafter");
+            e.CallLabel("rt_in_goto");
+            e.JrLabel("rt_in_end0");
+            e.Label("rt_in_doneafter");
+            e.DecA();
+            e.CallLabel("rt_in_rowcol");
+            e.IncH();
+            e.CallAddress(TxtSetCursorAddress);
+            e.Label("rt_in_end0");
+            e.LdAMem("rt_inp_len");
+            e.CallLabel("rt_in_addr");
             e.XorA();
             e.LdHlA();                           // fin du texte : un octet à 0
             e.LdHlLabel("rt_inp_buf");
             e.LdMemHl("rt_inp_ptr");
+            e.Ret();
+
+            // A = position -> HL = adresse dans le tampon
+            e.Label("rt_in_addr");
+            e.LdEA();
+            e.LdDZero();
+            e.LdHlLabel("rt_inp_buf");
+            e.AddHlDe();
+            e.Ret();
+
+            // A = position -> H = colonne, L = ligne à l'écran (la ligne peut être hors de la fenêtre)
+            e.Label("rt_in_rowcol");
+            e.LdLA();
+            e.LdHZero();
+            e.LdAMem("rt_in_sc");
+            e.DecA();
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();                         // HL = colonne de départ - 1 + position
+            e.LdAMem("rt_in_w");
+            e.LdEA();
+            e.LdCImm(0);
+            e.Label("rt_in_rc_div");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_in_rc_back");
+            e.IncC();
+            e.JrLabel("rt_in_rc_div");
+            e.Label("rt_in_rc_back");
+            e.AddHlDe();
+            e.LdAL();
+            e.IncA();
+            e.LdBA();                            // B = colonne
+            e.LdAMem("rt_in_sr");
+            e.AddAC();
+            e.LdLA();                            // L = ligne
+            e.LdHB();
+            e.Ret();
+
+            // A = position : le curseur y est placé
+            e.Label("rt_in_goto");
+            e.CallLabel("rt_in_rowcol");
+            e.JpAddress(TxtSetCursorAddress);
+
+            // HL = TXT PLACE CURSOR ou TXT REMOVE CURSOR : appliqué au curseur de copie puis à celui de la ligne
+            e.Label("rt_in_blobs");
+            e.LdMemHl("rt_in_vec");
+            e.LdAMem("rt_in_cp");
+            e.OrA();
+            e.JrZLabel("rt_in_bmain");
+            e.LdAMem("rt_in_cc");
+            e.LdHA();
+            e.LdAMem("rt_in_cr");
+            e.LdLA();
+            e.CallAddress(TxtSetCursorAddress);
+            e.CallLabel("rt_in_vcall");
+            e.Label("rt_in_bmain");
+            e.LdAMem("rt_in_pos");
+            e.CallLabel("rt_in_goto");
+            e.Label("rt_in_vcall");
+            e.Bytes(0xC3);
+            e.Label("rt_in_vec");
+            e.Word(0xBB8A);
+
+            // Curseur de copie : au premier SHIFT + flèche, il part de la position du curseur de la ligne
+            e.Label("rt_in_cstart");
+            e.LdAMem("rt_in_cp");
+            e.OrA();
+            e.RetNz();
+            e.IncA();
+            e.LdMemA("rt_in_cp");
+            e.LdAMem("rt_in_pos");
+            e.CallLabel("rt_in_rowcol");
+            e.LdAH();
+            e.LdMemA("rt_in_cc");
+            e.LdAL();
+            e.LdMemA("rt_in_cr");
+            e.Ret();
+
+            // Réaffiche la ligne à partir du curseur (A = 1 : un espace en plus), puis recale la position du début :
+            // l'écran a pu défiler. Le curseur de copie suit ; s'il sort par le haut, il disparaît.
+            e.Label("rt_in_tail");
+            e.LdMemA("rt_in_sp");
+            e.LdAMem("rt_in_pos");
+            e.CallLabel("rt_in_goto");
+            e.LdAMem("rt_in_pos");
+            e.LdMemA("rt_in_m");
+            e.Label("rt_in_tl");
+            e.LdAMem("rt_in_m");
+            e.LdBA();
+            e.LdAMem("rt_inp_len");
+            e.CpB();
+            e.JrZLabel("rt_in_tl_end");
+            e.LdAB();
+            e.CallLabel("rt_in_addr");
+            e.LdAHl();
+            e.CallAddress(TxtOutput);
+            e.LdHlLabel("rt_in_m");
+            e.IncMemHl();
+            e.JrLabel("rt_in_tl");
+            e.Label("rt_in_tl_end");
+            e.LdAMem("rt_in_sp");
+            e.OrA();
+            e.JrZLabel("rt_in_sync");
+            e.LdAImm(' ');
+            e.CallAddress(TxtOutput);
+            e.LdHlLabel("rt_in_m");
+            e.IncMemHl();
+            e.Label("rt_in_sync");
+            e.LdAMem("rt_in_pos");
+            e.LdBA();
+            e.LdAMem("rt_in_m");
+            e.CpB();
+            e.RetZ();                            // rien d'affiché
+            e.CallAddress(TxtGetCursor);         // L = ligne du dernier caractère affiché
+            e.LdAL();
+            e.LdMemA("rt_in_t");
+            e.LdAMem("rt_in_m");
+            e.DecA();
+            e.CallLabel("rt_in_rowcol");         // L = ligne prévue pour lui
+            e.LdAMem("rt_in_t");
+            e.SubL();
+            e.LdBA();                            // B = décalage dû au défilement
+            e.LdAMem("rt_in_sr");
+            e.AddAB();
+            e.LdMemA("rt_in_sr");
+            e.LdAMem("rt_in_cr");
+            e.AddAB();
+            e.LdMemA("rt_in_cr");
+            e.DecA();
+            e.AndImm(0x80);
+            e.RetZ();
+            e.XorA();
+            e.LdMemA("rt_in_cp");
             e.Ret();
 
             e.Label(InputMoreLabel);
@@ -3794,8 +4126,14 @@ public static class RuntimeLibrary
             e.Reserve(2);
             e.Label("rt_inp_acc");
             e.Reserve(2);
+            foreach (string name in new[] { "rt_in_pos", "rt_in_cp", "rt_in_w", "rt_in_h", "rt_in_sc", "rt_in_sr", "rt_in_ch",
+                                            "rt_in_cc", "rt_in_cr", "rt_in_sp", "rt_in_m", "rt_in_t" })
+            {
+                e.Label(name);
+                e.Reserve(1);
+            }
             e.Label("rt_inp_buf");
-            e.Reserve(82);
+            e.Reserve(257);                          // 255 caractères et l'octet 0 de fin (D076)
         }),
 
         // Affiche l'entier signé contenu dans HL, comme le BASIC : un espace devant s'il est positif

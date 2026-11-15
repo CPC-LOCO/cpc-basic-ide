@@ -577,6 +577,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** SYMBOL, TAG, TAGOFF (mots du Locomotive).
 - **Fichiers :** Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules Symbol, SymbolAfter), MiniZ80.cs, `tests\CpcBasic.Tests\SymbolTests.cs` (nouveau) ; exemple `examples\symboles.bas`.
 
+## D076 : lot H5, édition de la ligne tapée (INPUT, LINE INPUT) (Validé le 15 nov. 2026 : 1040 tests réussis ; `edition.bas` dans WinAPE : BONJXOUR, BONJUR, BONOUR et COPY comme le vrai BASIC ; lot H terminé)
+- **Demande de l'utilisateur (14 nov. 2026, IDEES.md) :** retrouver l'éditeur de saisie du vrai BASIC, avec la touche COPY.
+- **Référence (SugarBox, 15 nov. 2026) :** BONJOUR, 3 × flèche gauche, X -> BONJXOUR (la lettre s'insère) ; CLR -> BONJUR (efface sous le curseur) ; DEL -> BONOUR (efface à gauche) ; SHIFT + flèches puis COPY recopie ce qui est affiché (« Ready »). Touches du PC : COPY = Alt gauche (WinAPE et SugarBox), CLR = Suppr (SugarBox).
+- **Touches :** caractères (32 à 126) insérés ; flèches gauche / droite ; haut / bas : une largeur de fenêtre en arrière / en avant dans la ligne ; CTRL + gauche / droite : début / fin ; DEL, CLR ; SHIFT + flèches : curseur de copie (il part de la position du curseur, reste dans la fenêtre) ; COPY : lit le caractère sous lui (TXT RD CHAR &BB60), l'avance d'une place (au bord droit : début de la ligne suivante) et l'insère. Entrée : fin, le curseur est remis après le dernier caractère. 255 caractères au plus (80 avant).
+- **Affichage :** les deux curseurs sont montrés pendant l'attente d'une touche (TXT PLACE CURSOR &BB8A / TXT REMOVE CURSOR &BB8D). Après une insertion ou un effacement, la fin de la ligne est réécrite (avec un espace en plus après un effacement). La position à l'écran de chaque caractère est calculée depuis celle du premier, recalée après chaque affichage pour suivre le défilement ; le curseur de copie suit, et disparaît s'il sort par le haut.
+- **Codes des touches (KM WAIT CHAR) :** &F0 à &F3 flèches, &F4 à &F7 avec SHIFT, &FA / &FB CTRL + gauche / droite, &E0 COPY, &10 CLR, &7F DEL.
+- **Test modifié :** InputTests (Suppr) : la trace attendue devient « ? 12 3 » (le curseur est replacé par TXT SET CURSOR au lieu de reculer avec le code 8).
+- **Fichiers :** RuntimeLibrary.cs (module Input), Z80Emitter.cs (INC H), MiniZ80.cs, `tests\CpcBasic.Tests\EditLineTests.cs` (nouveau), InputTests.cs ; exemple `examples\edition.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)
