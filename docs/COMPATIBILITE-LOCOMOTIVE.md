@@ -92,8 +92,8 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `| (commandes RSX)` | appelle une extension | À faire |  |
 | `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061), `@A$` = adresse de la fiche de 3 octets (D064). Passage à CALL et aux RSX à venir. |
 | `DI / EI` | coupe / remet les interruptions | À faire |  |
-| `SYMBOL` | redéfinit un caractère | À faire |  |
-| `SYMBOL AFTER` | réserve les caractères redéfinissables | À faire |  |
+| `SYMBOL` | redéfinit un caractère | Faite | D075. |
+| `SYMBOL AFTER` | réserve les caractères redéfinissables | Faite | D075. 240 à 255 redessinables dès le départ. |
 
 ## 3. Texte et fenêtres d'affichage
 
@@ -115,8 +115,8 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `CURSOR` | affiche ou cache le curseur | À faire | BASIC 1.1 seulement (664, 6128). |
 | `WIDTH` | largeur de ligne de l'imprimante | À faire |  |
 | `ZONE` | largeur des zones de PRINT | Faite | D073. |
-| `TAG` | texte aux coordonnées graphiques | À faire |  |
-| `TAGOFF` | fin de TAG | À faire |  |
+| `TAG` | texte aux coordonnées graphiques | Faite | Avec #n (D075). |
+| `TAGOFF` | fin de TAG | Faite | Avec #n (D075). |
 | `SPEED INK` | vitesse du clignotement des couleurs | À faire |  |
 | `FRAME` | attend le balayage de l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
 | `POS` | colonne du curseur | Faite | POS(#0) à POS(#7), D072 (#8 avec le lot J). |
@@ -289,7 +289,7 @@ Ce n'est pas une décision : c'est ma proposition, à discuter.
 5. **Lot E : chaînes de caractères (fait, D062 à D065 ; reste DEC$).**
 6. **Lot F : réels et fonctions mathématiques.**
 7. **Lot G : son.** SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB.
-8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE (validée, D073) ; H3 PRINT USING (validée, D074) ; H4 SYMBOL, TAG ; H5 édition de la ligne d'INPUT avec COPY.
+8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE (validée, D073) ; H3 PRINT USING (validée, D074) ; H4 SYMBOL, TAG (validée, D075) ; H5 édition de la ligne d'INPUT avec COPY.
 9. **Lot I : interruptions et erreurs.** AFTER, EVERY, REMAIN, ON BREAK, ON ERROR GOTO, RESUME.
 10. **Lot J : disquette et cassette.** CAT, LOAD, SAVE, OPENIN, OPENOUT, flux.
 

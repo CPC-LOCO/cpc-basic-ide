@@ -1286,6 +1286,37 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "SYMBOL":                          // SYMBOL caractère, lignes (D075) : lignes absentes = 0
+                    for (int row = 0; row < 8; row++)
+                    {
+                        if (row + 1 < a.Count)
+                        {
+                            EmitExpression(a[row + 1]);
+                            emitter.LdAL();
+                        }
+                        else
+                        {
+                            emitter.XorA();
+                        }
+                        emitter.LdMemA($"rt_sym_r{row}");
+                    }
+                    EmitExpression(a[0]);
+                    emitter.LdAL();
+                    required.Add(RuntimeLibrary.SymbolName);
+                    emitter.CallLabel(RuntimeLibrary.SymbolLabel);
+                    break;
+
+                case "SYMBOL AFTER":                    // D075 : table des caractères redessinables
+                    EmitExpression(a[0]);
+                    required.Add(RuntimeLibrary.SymbolAfterName);
+                    emitter.CallLabel(RuntimeLibrary.SymbolAfterLabel);
+                    break;
+
+                case "TAG" or "TAGOFF":                 // D075 : TXT SET GRAPHIC, texte au curseur graphique ou non
+                    emitter.LdAImm(screen.Command == "TAG" ? 1 : 0);
+                    emitter.CallAddress(0xBB63);
+                    break;
+
                 case "ZONE":                            // ZONE largeur (D073) : vérifiée pendant l'exécution (1 à 255)
                     EmitExpression(a[0]);
                     required.Add(RuntimeLibrary.PrintFormatName);
@@ -1512,7 +1543,7 @@ public static class CodeGenerator
                 || (usesReals && StatementUsesReals(statement))
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
-                || statement is ScreenStatement { Command: "ZONE" })   // #N calculé : « Improper argument in 20 » (D072)
+                || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" })   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
                 emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
@@ -2267,6 +2298,18 @@ public static class CodeGenerator
                 emitter.Reserve(2);
             }
         }
+        // Table des caractères redessinables (SYMBOL AFTER, D075) : (256 - plus petit premier caractère) x 8 octets ;
+        // premier caractère calculé : la table complète (2 Ko)
+        var symbolAfters = program.Statements.OfType<ScreenStatement>().Where(sa => sa.Command == "SYMBOL AFTER").ToList();
+        int symbolChars = symbolAfters
+            .Select(sa => sa.Arguments[0] is NumberExpression firstChar ? Math.Max(0, 256 - firstChar.Value) : 256)
+            .DefaultIfEmpty(0).Max();
+        if (symbolAfters.Count > 0)
+        {
+            emitter.Label(RuntimeLibrary.SymbolTableLabel);
+            emitter.Reserve(symbolChars * 8);
+        }
+
         if (arrays.Count > 0 || usesStrings)
             emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);   // la mémoire libre commence ici
 

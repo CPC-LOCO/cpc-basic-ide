@@ -119,6 +119,12 @@ public static class RuntimeLibrary
                                                                 // D = chiffres après le point, E = indicateurs (UsingFlags)
     public const string PrintUsingStrName = "PrintUsingStr";    // PRINT USING, textes (D074)
     public const string UsingStrLabel = "rt_using_str";         // HL = fiche, A = largeur (0 : tout le texte)
+    // Caractères (lot H4, D075)
+    public const string SymbolName = "Symbol";
+    public const string SymbolLabel = "rt_symbol";              // A = caractère ; lignes dans rt_sym_r0 à rt_sym_r7
+    public const string SymbolAfterName = "SymbolAfter";
+    public const string SymbolAfterLabel = "rt_symafter";       // HL = premier caractère redessinable (0 à 256)
+    public const string SymbolTableLabel = "rt_sym_table";      // placée par le générateur : (256 - premier) x 8 octets
     public const string PrintFitName = "PrintFit";              // un élément qui ne tient pas dans la fin de la ligne passe à la ligne
     public const string PrintFitLabel = "rt_pf_fit";            // A = longueur de l'élément
     public const string PrintFitStrLabel = "rt_pf_fit_str";     // HL = fiche du texte (gardée)
@@ -854,6 +860,79 @@ public static class RuntimeLibrary
         // signe derrière. Partie entière nulle : « 0 » ajouté s'il reste de la place (0.50). Plus court que l'emplacement :
         // espaces (ou étoiles) à gauche ; plus long : « % » puis le nombre entier.
         [PrintUsingName] = new RuntimeModule(PrintUsingName, [RealPrintName, PrintFitName], EmitUsingNumber),
+
+        // SYMBOL caractère, lignes (D075) : TXT SET MATRIX (&BBA8) ; caractère pas redessinable : « Improper argument »
+        // (comme le vrai BASIC : SYMBOL 65,255 sans SYMBOL AFTER 65 ou moins).
+        [SymbolName] = new RuntimeModule(SymbolName, [ErrorName], e =>
+        {
+            e.Label(SymbolLabel);
+            e.LdHlLabel("rt_sym_r0");
+            e.CallAddress(0xBBA8);
+            e.RetC();
+            e.LdHlLabel("rt_sym_msg");
+            e.JpLabel(ErrorLabel);
+            for (int k = 0; k < 8; k++)
+            {
+                e.Label($"rt_sym_r{k}");
+                e.Reserve(1);
+            }
+            e.Label("rt_sym_msg");
+            e.Data(Ascii("Improper argument"));
+        }),
+
+        // SYMBOL AFTER n (D075) : les dessins actuels des caractères n à 255 (TXT GET MATRIX &BBA5, lus avec la ROM basse
+        // ouverte) sont copiés dans rt_sym_table, puis la table est donnée au firmware (TXT SET M TABLE &BBAB).
+        // n = 256 : plus aucun caractère redessinable. Hors de 0 à 256 : « Improper argument ».
+        [SymbolAfterName] = new RuntimeModule(SymbolAfterName, [ErrorName], e =>
+        {
+            e.Label(SymbolAfterLabel);
+            e.LdAH();
+            e.OrA();
+            e.JrZLabel("rt_sa_ok");
+            e.DecA();
+            e.JrNzLabel("rt_sa_bad");
+            e.LdAL();
+            e.OrA();
+            e.JrNzLabel("rt_sa_bad");
+            e.LdDeImm(256);                          // SYMBOL AFTER 256 : pas de table
+            e.JpAddress(0xBBAB);
+            e.Label("rt_sa_ok");
+            e.LdAL();
+            e.LdMemA("rt_sa_n");
+            e.LdMemA("rt_sa_c");
+            e.LdHlLabel(SymbolTableLabel);
+            e.LdMemHl("rt_sa_p");
+            e.Label("rt_sa_copy");
+            e.LdAMem("rt_sa_c");
+            e.CallAddress(0xBBA5);                   // TXT GET MATRIX : HL = dessin actuel du caractère
+            e.CallAddress(0xB906);                   // KL L ROM ENABLE : A = état d'avant
+            e.PushAf();
+            e.LdDeMem("rt_sa_p");
+            e.LdBcImm(8);
+            e.Ldir();
+            e.LdMemDe("rt_sa_p");
+            e.PopAf();
+            e.CallAddress(0xB90C);                   // KL ROM RESTORE
+            e.LdHlLabel("rt_sa_c");
+            e.IncMemHl();
+            e.JrNzLabel("rt_sa_copy");               // jusqu'au caractère 255
+            e.LdAMem("rt_sa_n");
+            e.LdEA();
+            e.LdDZero();
+            e.LdHlLabel(SymbolTableLabel);
+            e.JpAddress(0xBBAB);
+            e.Label("rt_sa_bad");
+            e.LdHlLabel("rt_sa_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_sa_n");
+            e.Reserve(1);
+            e.Label("rt_sa_c");
+            e.Reserve(1);
+            e.Label("rt_sa_p");
+            e.Reserve(2);
+            e.Label("rt_sa_msg");
+            e.Data(Ascii("Improper argument"));
+        }),
 
         [PrintFormatName] = new RuntimeModule(PrintFormatName, [ErrorName, PrintFitName], e =>
         {

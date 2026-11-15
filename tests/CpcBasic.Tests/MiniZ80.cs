@@ -54,7 +54,15 @@ internal sealed class MiniZ80
 
     // Fenêtres (lot H1, D072) : fenêtre choisie (TXT STR SELECT), texte écrit dans chacune, WINDOW et WINDOW SWAP reçus
     public byte CurrentStream;
-    public byte WindowWidth = 40;                     // largeur rendue par TXT GET WINDOW (lot H2, D073)
+    public byte WindowWidth = 40;
+
+    // Caractères (lot H4, D075) : premier caractère redessinable (240 au départ, comme le BASIC), dessins reçus,
+    // tables données, TAG / TAGOFF
+    public int FirstUserChar = 240;
+    public readonly List<(byte Char, byte[] Rows)> Matrices = new();
+    public readonly List<(int First, ushort Table)> MatrixTables = new();
+    public readonly List<bool> Tags = new();
+    public int MatrixReads;                     // largeur rendue par TXT GET WINDOW (lot H2, D073)
     public readonly List<byte> StreamSelects = new();
     public readonly Dictionary<byte, StringBuilder> StreamOutput = new();
     public readonly List<(byte Stream, byte Left, byte Right, byte Top, byte Bottom)> Windows = new();
@@ -483,6 +491,12 @@ internal sealed class MiniZ80
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
                     pc = Pop();
                 }
+                else if (target == 0xBBAB)
+                {
+                    FirstUserChar = DE;                                // JP TXT SET M TABLE (sortie de rt_symafter, D075)
+                    MatrixTables.Add((DE, HL));
+                    pc = Pop();
+                }
                 else if (target == 0xBBB4)
                 {
                     SelectStream();                                    // JP TXT STR SELECT (sortie de rt_stream, D072)
@@ -550,6 +564,30 @@ internal sealed class MiniZ80
                     string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = (byte)(1 + shown.Count(c => c == '\n'));
+                }
+                else if (address == 0xBBA8)
+                {
+                    CarryFlag = A >= FirstUserChar;                    // TXT SET MATRIX (D075)
+                    if (CarryFlag)
+                        Matrices.Add((A, Memory[HL..(HL + 8)]));
+                }
+                else if (address == 0xBBA5)
+                {
+                    HL = (ushort)(0x3800 + A * 8);                     // TXT GET MATRIX : dessin (mémoire vide ici)
+                    MatrixReads++;
+                }
+                else if (address == 0xBBAB)
+                {
+                    FirstUserChar = DE;                                // TXT SET M TABLE (D075)
+                    MatrixTables.Add((DE, HL));
+                }
+                else if (address == 0xB906)
+                {
+                    A = 0;                                             // KL L ROM ENABLE : état d'avant
+                }
+                else if (address == 0xBB63)
+                {
+                    Tags.Add(A != 0);                                  // TXT SET GRAPHIC (TAG, TAGOFF)
                 }
                 else if (address == 0xBB69)
                 {

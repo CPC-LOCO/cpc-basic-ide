@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -135,6 +135,12 @@ public static class Parser
         // Lot H1 (D072) : fenêtres de texte, colonnes et lignes à partir de 1 (le firmware ramène ce qui dépasse dans l'écran)
         ["WINDOW"] = new("WINDOW [#fenêtre,] gauche, droite, haut, bas", 4, [1, 1, 1, 1], [255, 255, 255, 255]),
         ["WINDOW SWAP"] = new("WINDOW SWAP fenêtre [, fenêtre]", 1, [0, 0], [7, 7], Command: "WINDOW SWAP"),
+        // Lot H4 (D075) : caractères redessinés et texte à la position graphique
+        ["SYMBOL"] = new("SYMBOL caractère, ligne1 [, ligne2, ... ligne8] (de 0 à 255)", 2,
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0], [255, 255, 255, 255, 255, 255, 255, 255, 255]),
+        ["SYMBOL AFTER"] = new("SYMBOL AFTER premier caractère (0 à 256)", 1, [0], [256], Command: "SYMBOL AFTER"),
+        ["TAG"] = new("TAG [#fenêtre]", 0, [], []),
+        ["TAGOFF"] = new("TAGOFF [#fenêtre]", 0, [], []),
         // Lot H2 (D073) : largeur des zones de PRINT (13 au départ)
         ["ZONE"] = new("ZONE largeur (1 à 255)", 1, [1], [255]),
         // D056 : accès à la machine
@@ -378,8 +384,12 @@ public static class Parser
             case "WINDOW" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "SWAP":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["WINDOW SWAP"], pos + 2);
 
-            case "WINDOW" or "CLS" or "LOCATE" or "PEN" or "PAPER":
-                return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, t.Text, t.Text != "CLS",
+            // Caractères (lot H4, D075)
+            case "SYMBOL" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "AFTER":
+                return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["SYMBOL AFTER"], pos + 2);
+
+            case "WINDOW" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "TAG" or "TAGOFF":
+                return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, t.Text, t.Text is not ("CLS" or "TAG" or "TAGOFF"),
                                           rest => ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text], rest));
 
             case "DEFINT" or "DEFREAL" or "DEFSTR":
@@ -456,7 +466,7 @@ public static class Parser
             case "ENV" or "ENT":
                 return ParseEnvelope(tokens, pos, statements, diagnostics);
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":

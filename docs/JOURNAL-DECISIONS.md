@@ -567,6 +567,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mot réservé :** USING (mot du Locomotive).
 - **Fichiers :** Ast.cs (PrintUsingNumberStatement, PrintUsingStringStatement, UsingFlags), Diagnostic.cs (deux messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs, RealRuntime.cs (rt_fp_conv), `tests\CpcBasic.Tests\UsingTests.cs` (nouveau) ; exemple `examples\format.bas`.
 
+## D075 : lot H4, SYMBOL, SYMBOL AFTER, TAG, TAGOFF (Validé le 15 nov. 2026 : 1023 tests réussis ; `symboles.bas` compilé identique au vrai BASIC de SugarBox)
+- **Référence :** `examples\symboles.bas`, tapé dans le vrai BASIC (SugarBox, 15 nov. 2026).
+- **SYMBOL caractère, ligne1 [, … ligne8]** : lignes absentes à 0 (SYMBOL 242,&FF : un trait en haut). Par TXT SET MATRIX (&BBA8) ; caractère pas redessinable : « Improper argument in N », comme le vrai BASIC (SYMBOL 65,255 après SYMBOL AFTER 240).
+- **Caractères 240 à 255 redessinables dès le départ**, comme dans le vrai BASIC : le programme compilé est lancé depuis le BASIC, dont la table (SYMBOL AFTER 240) reste en place au-dessus de &A67B.
+- **SYMBOL AFTER n** (0 à 256) : les dessins actuels des caractères n à 255 sont copiés (TXT GET MATRIX &BBA5, lus avec la ROM basse ouverte, KL L ROM ENABLE &B906) dans une table placée à la fin du programme, puis donnée au firmware (TXT SET M TABLE &BBAB). Taille de la table : (256 - plus petit n écrit) × 8 octets ; n calculé : 2 Ko. SYMBOL AFTER 256 : plus de table.
+- **TAG [#n] / TAGOFF [#n]** : TXT SET GRAPHIC (&BB63). Le texte s'écrit au curseur graphique, dans la couleur du tracé ; **le curseur texte (LOCATE) ne bouge pas** (remarque de l'utilisateur, vérifiée : FIN s'écrit sous AVANT). Un PRINT sans « ; » dessine les retours à la ligne comme deux petits symboles (← ↓), comme le vrai BASIC.
+- **Non vérifié :** sous TAG, la vérification de fin de ligne (D073), la virgule et TAB se servent encore de la colonne du curseur texte.
+- **Mots réservés :** SYMBOL, TAG, TAGOFF (mots du Locomotive).
+- **Fichiers :** Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules Symbol, SymbolAfter), MiniZ80.cs, `tests\CpcBasic.Tests\SymbolTests.cs` (nouveau) ; exemple `examples\symboles.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)
