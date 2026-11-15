@@ -54,6 +54,7 @@ internal sealed class MiniZ80
 
     // Fenêtres (lot H1, D072) : fenêtre choisie (TXT STR SELECT), texte écrit dans chacune, WINDOW et WINDOW SWAP reçus
     public byte CurrentStream;
+    public byte WindowWidth = 40;                     // largeur rendue par TXT GET WINDOW (lot H2, D073)
     public readonly List<byte> StreamSelects = new();
     public readonly Dictionary<byte, StringBuilder> StreamOutput = new();
     public readonly List<(byte Stream, byte Left, byte Right, byte Top, byte Bottom)> Windows = new();
@@ -550,9 +551,21 @@ internal sealed class MiniZ80
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = (byte)(1 + shown.Count(c => c == '\n'));
                 }
+                else if (address == 0xBB69)
+                {
+                    H = 0;                                             // TXT GET WINDOW : gauche, droite, haut, bas (D073)
+                    D = (byte)(WindowWidth - 1);
+                    L = 0;
+                    E = 24;
+                }
                 else if (address == 0xBB87)
                 {
-                    CarryFlag = true;                                  // TXT VALIDATE : la position convient (D072)
+                    if (H > WindowWidth)                               // TXT VALIDATE (D072) : au-delà du bord droit,
+                    {                                                  // le caractère suivant ira à la ligne (D073)
+                        L = (byte)(L + (H - 1) / WindowWidth);
+                        H = (byte)((H - 1) % WindowWidth + 1);
+                    }
+                    CarryFlag = true;
                 }
                 else if (address == 0xBBB4)
                 {

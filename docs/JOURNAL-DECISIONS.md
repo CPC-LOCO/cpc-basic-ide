@@ -543,6 +543,19 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** WINDOW, SWAP, POS, VPOS ne peuvent plus servir de noms de variables (ils étaient déjà des mots du Locomotive).
 - **Fichiers :** Lexer.cs (jeton #), Ast.cs (StreamStatement), Diagnostic.cs (deux messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module Stream), MiniZ80.cs, `tests\CpcBasic.Tests\WindowTests.cs` (nouveau) ; exemple `examples\fenetres.bas`.
 
+## D073 : lot H2, mise en page de PRINT (Validé le 15 nov. 2026 : 977 tests réussis ; `colonnes.bas`, `essais\fin.bas` et `essais\locate.bas` compilés identiques au vrai BASIC)
+- **Référence :** le programme de `examples\colonnes.bas`, tapé dans le vrai BASIC (SugarBox, 15 nov. 2026), en MODE 1.
+- **Virgule :** va au début de la zone suivante (colonnes 1, 14, 27… avec ZONE 13), toujours après la colonne actuelle (PRINT ,"A" écrit colonne 14). Si la zone ne tient pas entière dans la fenêtre (colonne 40 + 13 > 40), passage à la ligne. Une virgule à la fin garde la ligne.
+- **ZONE n** (1 à 255, 13 au départ) ; valeur calculée hors limites : « Improper argument ».
+- **TAB(n)** : espaces jusqu'à la colonne n ; colonne déjà dépassée : passage à la ligne puis colonne n ; n plus grand que la largeur : ramené dedans ; n inférieur à 1 : 1. **SPC(n)** : n espaces (négatif : aucun ; plus grand que la largeur : reste de la division). TAB et SPC peuvent être suivis directement d'un élément (PRINT TAB(10)"X").
+- **WRITE [#n,] valeurs** : textes entre guillemets, nombres sans espace (STR$ sans son espace du début), séparés par « , », puis passage à la ligne ; « ; » accepté entre les valeurs.
+- **Largeur et colonne :** celles de la fenêtre choisie (TXT GET WINDOW &BB69, TXT GET CURSOR &BB78), donc tout marche aussi avec PRINT #n.
+- **Module :** PrintFormat (rt_zone, rt_tab, rt_spc, rt_zone_set), lié seulement s'il sert. Les PRINT sans virgule, TAB ni SPC ne changent pas.
+- **Mots réservés :** ZONE, TAB, SPC, WRITE (mots du Locomotive).
+- **Élément qui ne tient pas dans la fin de la ligne :** il passe entier à la ligne suivante, sauf en colonne 1 (constaté dans SugarBox avec `PRINT "X";TAB(38);"ABCD"` ; l'utilisateur l'avait déjà remarqué au début du projet, mais ce n'était pas écrit ici). Vérification faite avant chaque texte de 2 caractères ou plus, chaque texte calculé, chaque entier (signe + chiffres) et chaque nombre à virgule (caractères comptés avant l'affichage). La colonne est celle de TXT VALIDATE (&BB87) : après une ligne remplie, c'est 1, donc pas de ligne vide (5 × « BONJOUR  » puis le 6e en colonne 1). Module PrintFit (rt_pf_fit), lié dès qu'un PRINT écrit un tel élément.
+- **Taille :** un programme qui écrit un texte de 2 caractères ou plus, ou un nombre, contient le module PrintFit (127 octets) : PRINT "HELLO" passe de 29 à 161 octets.
+- **Fichiers :** Ast.cs (PrintZoneStatement, PrintTabStatement, NoLeadingSpace), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (PrintFormat, PrintFit), RealRuntime.cs (rt_fprint_fit), MiniZ80.cs (TXT GET WINDOW, TXT VALIDATE), `tests\CpcBasic.Tests\PrintFormatTests.cs` (nouveau) ; exemple `examples\colonnes.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -99,10 +99,10 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateur « ; » et fenêtres #0 à #7 (D072). Pas encore de virgule (zones), de TAB, SPC (H2), ni de USING (H3). Les accents sont remplacés par « ? ». |
-| `TAB / SPC` | positionne ou saute des colonnes dans PRINT | À faire |  |
+| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateurs « ; » et « , » (zones), TAB, SPC (D073), fenêtres #0 à #7 (D072). Pas encore de USING (H3). Les accents sont remplacés par « ? ». |
+| `TAB / SPC` | positionne ou saute des colonnes dans PRINT | Faite | D073. |
 | `USING` | format d'affichage des nombres (PRINT USING) | À faire |  |
-| `WRITE` | affiche avec guillemets et virgules | À faire |  |
+| `WRITE` | affiche avec guillemets et virgules | Faite | Avec #0 à #7 (D073). |
 | `LOCATE` | place le curseur de texte | Faite | Avec #n (D072). |
 | `CLS` | efface l'écran de texte | Faite | Avec #n (D072). |
 | `PEN` | couleur du texte | Partielle | Avec #n (D072) ; sans le mode transparent. |
@@ -114,7 +114,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `WINDOW SWAP` | échange deux fenêtres | Faite | D072. |
 | `CURSOR` | affiche ou cache le curseur | À faire | BASIC 1.1 seulement (664, 6128). |
 | `WIDTH` | largeur de ligne de l'imprimante | À faire |  |
-| `ZONE` | largeur des zones de PRINT | À faire |  |
+| `ZONE` | largeur des zones de PRINT | Faite | D073. |
 | `TAG` | texte aux coordonnées graphiques | À faire |  |
 | `TAGOFF` | fin de TAG | À faire |  |
 | `SPEED INK` | vitesse du clignotement des couleurs | À faire |  |
@@ -289,7 +289,7 @@ Ce n'est pas une décision : c'est ma proposition, à discuter.
 5. **Lot E : chaînes de caractères (fait, D062 à D065 ; reste DEC$).**
 6. **Lot F : réels et fonctions mathématiques.**
 7. **Lot G : son.** SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB.
-8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE ; H3 PRINT USING ; H4 SYMBOL, TAG ; H5 édition de la ligne d'INPUT avec COPY.
+8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE (validée, D073) ; H3 PRINT USING ; H4 SYMBOL, TAG ; H5 édition de la ligne d'INPUT avec COPY.
 9. **Lot I : interruptions et erreurs.** AFTER, EVERY, REMAIN, ON BREAK, ON ERROR GOTO, RESUME.
 10. **Lot J : disquette et cassette.** CAT, LOAD, SAVE, OPENIN, OPENOUT, flux.
 

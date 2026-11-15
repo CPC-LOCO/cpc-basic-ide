@@ -93,9 +93,10 @@ public class CodeGeneratorTests
     [Fact]
     public void Print_produces_the_expected_binary()
     {
-        byte[] code = Generate("10 PRINT \"HI\"").Code;
+        // Un seul caractère : pas de vérification de fin de ligne (D073), le programme reste minimal
+        byte[] code = Generate("10 PRINT \"H\"").Code;
 
-        Assert.Equal(26, code.Length);                       // 12 + 9 (module) + 5 (texte)
+        Assert.Equal(25, code.Length);                       // 12 + 9 (module) + 4 (texte)
 
         Assert.Equal(0x21, code[0]);                         // LD HL,texte
         Assert.Equal(0x4015, Word(code, 1));
@@ -110,8 +111,17 @@ public class CodeGeneratorTests
         byte[] module = [0x7E, 0xB7, 0xC8, 0xCD, 0x5A, 0xBB, 0x23, 0x18, 0xF7];
         Assert.Equal(module, code[12..21]);                  // le module PrintString
 
-        byte[] text = [(byte)'H', (byte)'I', 0x0D, 0x0A, 0x00];
-        Assert.Equal(text, code[21..26]);
+        byte[] text = [(byte)'H', 0x0D, 0x0A, 0x00];
+        Assert.Equal(text, code[21..25]);
+    }
+
+    [Fact]
+    public void Print_of_a_longer_text_checks_the_end_of_the_line_first()
+    {
+        GeneratedProgram generated = Generate("10 PRINT \"HI\"");
+
+        Assert.Equal(new byte[] { 0x3E, 0x02, 0xCD }, generated.Code[0..3]);   // LD A,2 : CALL rt_pf_fit (D073)
+        Assert.Equal(new[] { "PrintFit", "PrintString" }, generated.Modules.OrderBy(m => m).ToArray());
     }
 
     [Fact]
@@ -173,8 +183,8 @@ public class CompilerTests
 
         Assert.True(result.Success);
         Assert.Empty(result.Diagnostics);
-        Assert.Equal(29, result.BinarySize);                 // 12 + 9 (module) + 8 (texte)
-        Assert.Equal(new[] { "PrintString" }, result.Modules);
+        Assert.Equal(161, result.BinarySize);                // 17 + 9 (PrintString) + 127 (PrintFit, D073) + 8 (texte)
+        Assert.Equal(new[] { "PrintFit", "PrintString" }, result.Modules.OrderBy(m => m).ToArray());   // D073
 
         string disk = AsText(result.Disk!.ToDskBytes());
         Assert.Contains("HELLO   BAS", disk);                // chargeur BASIC

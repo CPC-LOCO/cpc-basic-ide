@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -135,6 +135,8 @@ public static class Parser
         // Lot H1 (D072) : fenêtres de texte, colonnes et lignes à partir de 1 (le firmware ramène ce qui dépasse dans l'écran)
         ["WINDOW"] = new("WINDOW [#fenêtre,] gauche, droite, haut, bas", 4, [1, 1, 1, 1], [255, 255, 255, 255]),
         ["WINDOW SWAP"] = new("WINDOW SWAP fenêtre [, fenêtre]", 1, [0, 0], [7, 7], Command: "WINDOW SWAP"),
+        // Lot H2 (D073) : largeur des zones de PRINT (13 au départ)
+        ["ZONE"] = new("ZONE largeur (1 à 255)", 1, [1], [255]),
         // D056 : accès à la machine
         ["POKE"] = new("POKE adresse, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
         ["OUT"] = new("OUT port, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
@@ -368,6 +370,10 @@ public static class Parser
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "PRINT", false,
                                           rest => ParsePrint(tokens, pos, statements, diagnostics, rest));
 
+            case "WRITE":                               // lot H2 (D073)
+                return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "WRITE", false,
+                                          rest => ParseWrite(tokens, pos, statements, diagnostics, rest));
+
             // Fenêtres (lot H1, D072)
             case "WINDOW" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "SWAP":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["WINDOW SWAP"], pos + 2);
@@ -450,7 +456,7 @@ public static class Parser
             case "ENV" or "ENT":
                 return ParseEnvelope(tokens, pos, statements, diagnostics);
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -1066,22 +1072,57 @@ public static class Parser
         }
     }
 
+    // PRINT [#n,] éléments séparés par « ; » (collés) ou « , » (zone suivante, lot H2, D073). Éléments : texte, valeur,
+    // TAB(colonne), SPC(nombre). Seul TAB(...) ou SPC(...) peut être suivi d'un élément sans séparateur (PRINT TAB(10)"X").
+    // Sans « ; » ni « , » à la fin, on passe à la ligne.
     static int ParsePrint(IReadOnlyList<Token> tokens, int pos,
                           List<Statement> statements, List<Diagnostic> diagnostics, int? restStart = null)
     {
         int line = tokens[pos].Line;
         pos = restStart ?? pos + 1;
 
-        var items = new List<object>();   // string (texte) ou Expression
-        bool trailingSemicolon = false;
+        var items = new List<Statement>();
+        bool newLine = true;
 
         while (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
         {
-            Token after = tokens[pos + 1];
-            if (tokens[pos].Kind == TokenKind.String
-                && (after.Kind == TokenKind.Semicolon || IsStatementEnd(after) || IsElse(after) || after.Kind == TokenKind.String))
+            Token t = tokens[pos];
+            if (t.Kind == TokenKind.Semicolon)
             {
-                items.Add(tokens[pos].Text);
+                pos++;
+                newLine = false;
+                continue;
+            }
+            if (t.Kind == TokenKind.Comma)
+            {
+                items.Add(new PrintZoneStatement(line));
+                pos++;
+                newLine = false;
+                continue;
+            }
+
+            newLine = true;
+            Token after = tokens[pos + 1];
+            if (t.Kind == TokenKind.Word && t.Text is "TAB" or "SPC" && after.Kind == TokenKind.LeftParen)
+            {
+                pos += 2;
+                Expression? count = ParseExpression(tokens, ref pos, diagnostics);
+                if (count is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (tokens[pos].Kind != TokenKind.RightParen)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, line, "", t.Text));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos++;
+                items.Add(new PrintTabStatement(line, count, t.Text == "SPC"));
+                continue;                               // PRINT TAB(10)"X" : l'élément peut suivre directement
+            }
+
+            if (t.Kind == TokenKind.String
+                && (IsPrintSeparatorOrEnd(after) || after.Kind == TokenKind.String))
+            {
+                items.Add(new PrintStatement(line, t.Text, false));
                 pos++;
             }
             else
@@ -1089,34 +1130,68 @@ public static class Parser
                 Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);   // nombre ou texte (A$, "A" + B$)
                 if (value is null)
                     return SkipToStatementEnd(tokens, pos);
-                items.Add(value);
+                items.Add(new PrintValueStatement(line, value, false));
             }
 
-            if (tokens[pos].Kind == TokenKind.Semicolon)
+            if (!IsPrintSeparatorOrEnd(tokens[pos]))
+                break;                                  // la suite (PRINT "A" "B") sera signalée comme inattendue
+        }
+
+        if (newLine)
+        {
+            if (items.Count > 0 && items[^1] is PrintStatement text)
+                items[^1] = text with { NewLine = true };
+            else if (items.Count > 0 && items[^1] is PrintValueStatement value)
+                items[^1] = value with { NewLine = true };
+            else
+                items.Add(new PrintStatement(line, "", true));   // PRINT seul, ou fini par TAB(n) : saut de ligne
+        }
+        statements.AddRange(items);
+        return pos;
+    }
+
+    static bool IsPrintSeparatorOrEnd(Token token) =>
+        token.Kind is TokenKind.Semicolon or TokenKind.Comma || IsStatementEnd(token) || IsElse(token);
+
+    // WRITE [#n,] [valeur {, valeur}] (lot H2, D073) : textes entre guillemets, nombres sans espace, séparés par des
+    // virgules, puis passage à la ligne. « ; » est accepté comme séparateur, comme le Locomotive.
+    static int ParseWrite(IReadOnlyList<Token> tokens, int pos,
+                          List<Statement> statements, List<Diagnostic> diagnostics, int? restStart = null)
+    {
+        int line = tokens[pos].Line;
+        pos = restStart ?? pos + 1;
+
+        var items = new List<Statement>();
+        while (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+            if (value is null)
+                return SkipToStatementEnd(tokens, pos);
+
+            if (items.Count > 0)
+                items.Add(new PrintStatement(line, ",", false));
+            if (value is StringLiteralExpression literal)
             {
-                pos++;
-                trailingSemicolon = true;
+                items.Add(new PrintStatement(line, "\"" + literal.Text + "\"", false));
+            }
+            else if (Types.IsString(value))
+            {
+                items.Add(new PrintStatement(line, "\"", false));
+                items.Add(new PrintValueStatement(line, value, false));
+                items.Add(new PrintStatement(line, "\"", false));
             }
             else
             {
-                trailingSemicolon = false;
-                break;
+                items.Add(new PrintValueStatement(line, new CallExpression("STR$", [value]), false, NoLeadingSpace: true));
             }
+
+            if (tokens[pos].Kind is not (TokenKind.Comma or TokenKind.Semicolon))
+                break;
+            pos++;
         }
 
-        if (items.Count == 0)
-        {
-            statements.Add(new PrintStatement(line, "", true));   // PRINT seul : saut de ligne
-            return pos;
-        }
-
-        for (int i = 0; i < items.Count; i++)
-        {
-            bool newLine = i == items.Count - 1 && !trailingSemicolon;
-            statements.Add(items[i] is string text
-                ? new PrintStatement(line, text, newLine)
-                : new PrintValueStatement(line, (Expression)items[i], newLine));
-        }
+        items.Add(new PrintStatement(line, "", true));
+        statements.AddRange(items);
         return pos;
     }
 

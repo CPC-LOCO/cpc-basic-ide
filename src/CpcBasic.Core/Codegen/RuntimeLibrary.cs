@@ -110,6 +110,19 @@ public static class RuntimeLibrary
     public const string StreamName = "Stream";
     public const string StreamLabel = "rt_stream";              // HL = numéro calculé : vérifié (0 à 7), puis choisi
 
+    // Mise en page de PRINT (lot H2, D073)
+    public const int TxtGetWindow = 0xBB69;                     // TXT GET WINDOW : H = gauche, D = droite (à partir de 0)
+    public const string PrintFormatName = "PrintFormat";
+    public const int TxtValidate = 0xBB87;                      // TXT VALIDATE : H, L -> position où s'écrira le caractère suivant
+    public const string PrintFitName = "PrintFit";              // un élément qui ne tient pas dans la fin de la ligne passe à la ligne
+    public const string PrintFitLabel = "rt_pf_fit";            // A = longueur de l'élément
+    public const string PrintFitStrLabel = "rt_pf_fit_str";     // HL = fiche du texte (gardée)
+    public const string PrintFitIntLabel = "rt_pf_fit_int";     // HL = entier (gardé)
+    public const string ZoneLabel = "rt_zone";                  // « , » dans PRINT
+    public const string ZoneSetLabel = "rt_zone_set";           // ZONE : HL = largeur (1 à 255)
+    public const string TabLabel = "rt_tab";                    // TAB : HL = colonne
+    public const string SpcLabel = "rt_spc";                    // SPC : HL = nombre d'espaces
+
     // DATA, READ, RESTORE (D059)
     public const string DataName = "Data";
     public const string DataStringName = "DataString";         // READ A$ (D064)
@@ -175,6 +188,7 @@ public static class RuntimeLibrary
     public const string StrConcatLabel = "rt_str_concat";
     public const string StrAssignLabel = "rt_str_assign";
     public const string StrPrintLabel = "rt_str_print";
+    public const string StrPrintNoSpaceLabel = "rt_str_print_ns";   // WRITE (D073) : sans l'espace du début
     public const string StrCmpLabel = "rt_str_cmp";
     public const string StrFunctionsName = "StrFunctions";    // LEFT$, MID$, CHR$, VAL... (D063)
     public const string InputStringName = "InputString";
@@ -233,6 +247,236 @@ public static class RuntimeLibrary
             e.JpAddress(TxtStrSelect);
             e.Label("rt_stream_msg");
             e.Data(Ascii("Improper argument"));
+        }),
+
+        // Mise en page de PRINT, comme le Locomotive (lot H2, D073). Tout se fait dans la fenêtre choisie : sa largeur vient
+        // de TXT GET WINDOW, la colonne du curseur de TXT GET CURSOR (à partir de 1).
+        //  rt_zone : début de la zone suivante (1 + k * largeur, après la colonne actuelle) ; si cette zone ne tient pas
+        //            entière dans la fenêtre, passage à la ligne.
+        //  rt_tab  : HL = colonne (moins de 1 : 1 ; au-delà de la largeur : ramenée dedans). Colonne déjà dépassée :
+        //            passage à la ligne puis espaces.
+        //  rt_spc  : HL = nombre d'espaces (négatif : aucun ; au-delà de la largeur : reste de la division).
+        //  rt_zone_set : HL = largeur des zones, de 1 à 255, sinon « Improper argument ».
+        // Avant d'écrire un élément de PRINT (texte de 2 caractères ou plus, texte calculé, nombre), le vrai BASIC vérifie
+        // qu'il tient dans la fin de la ligne ; sinon il passe d'abord à la ligne, sauf si le curseur est en colonne 1
+        // (constaté dans SugarBox : PRINT "X";TAB(38);"ABCD" écrit ABCD entier sur la ligne suivante, D073).
+        // La colonne est celle où s'écrira le caractère suivant (TXT VALIDATE) : après une ligne remplie, c'est 1.
+        [PrintFitName] = new RuntimeModule(PrintFitName, [], e =>
+        {
+            e.Label(PrintFitLabel);
+            e.OrA();
+            e.RetZ();
+            e.LdMemA("rt_pf_len");
+            e.CallLabel("rt_pf_width");
+            e.LdMemA("rt_pf_w");
+            e.CallAddress(TxtGetCursor);
+            e.CallAddress(TxtValidate);
+            e.LdAH();
+            e.DecA();
+            e.RetZ();                                // colonne 1 : rien à faire
+            e.LdLA();
+            e.LdHZero();                             // HL = colonne - 1
+            e.LdAMem("rt_pf_len");
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();                             // HL = dernière colonne de l'élément
+            e.LdAMem("rt_pf_w");
+            e.LdEA();
+            e.OrA();
+            e.SbcHlDe();
+            e.RetC();
+            e.RetZ();                                // il tient
+            e.JpLabel("rt_pf_newline");
+
+            e.Label(PrintFitStrLabel);
+            e.PushHl();
+            e.LdAHl();                               // longueur du texte
+            e.CallLabel(PrintFitLabel);
+            e.PopHl();
+            e.Ret();
+
+            // Longueur d'un entier écrit par PRINT : signe ou espace, puis 1 à 5 chiffres (sans l'espace final)
+            e.Label(PrintFitIntLabel);
+            e.PushHl();
+            e.Bit7H();
+            e.JrZLabel("rt_pf_int_pos");
+            e.XorA();                                // HL = 0 - HL
+            e.SubL();
+            e.LdLA();
+            e.SbcAA();
+            e.SubH();
+            e.LdHA();
+            e.Label("rt_pf_int_pos");
+            e.LdCImm(2);
+            foreach (int limit in new[] { 10, 100, 1000, 10000 })
+            {
+                e.LdDeImm(limit);
+                e.OrA();
+                e.SbcHlDe();
+                e.AddHlDe();
+                e.JrCLabel("rt_pf_int_len");
+                e.IncC();
+            }
+            e.Label("rt_pf_int_len");
+            e.LdAC();
+            e.CallLabel(PrintFitLabel);
+            e.PopHl();
+            e.Ret();
+
+            // A = largeur de la fenêtre
+            e.Label("rt_pf_width");
+            e.CallAddress(TxtGetWindow);
+            e.LdAD();
+            e.SubH();
+            e.IncA();
+            e.Ret();
+
+            e.Label("rt_pf_newline");
+            e.LdAImm(13);
+            e.CallAddress(TxtOutput);
+            e.LdAImm(10);
+            e.JpAddress(TxtOutput);
+
+            foreach (string scratch in new[] { "rt_pf_w", "rt_pf_len" })
+            {
+                e.Label(scratch);
+                e.Reserve(1);
+            }
+        }),
+
+        [PrintFormatName] = new RuntimeModule(PrintFormatName, [ErrorName, PrintFitName], e =>
+        {
+
+            // B espaces (TXT OUTPUT garde tous les registres)
+            e.Label("rt_pf_spaces");
+            e.LdAB();
+            e.OrA();
+            e.RetZ();
+            e.Label("rt_pf_spaces_loop");
+            e.LdAImm(' ');
+            e.CallAddress(TxtOutput);
+            e.DjnzLabel("rt_pf_spaces_loop");
+            e.Ret();
+
+            e.Label(ZoneLabel);
+            e.CallLabel("rt_pf_width");
+            e.LdMemA("rt_pf_w");
+            e.CallAddress(TxtGetCursor);
+            e.CallAddress(TxtValidate);             // après une ligne remplie : colonne 1
+            e.LdAH();
+            e.LdMemA("rt_pf_col");
+            e.LdEA();
+            e.LdDZero();                             // DE = colonne
+            e.LdAMem("rt_zone_w");
+            e.LdCA();
+            e.LdBImm(0);                             // BC = largeur des zones
+            e.LdHlImm(1);
+            e.Label("rt_zone_next");
+            e.AddHlBc();                             // HL = début de zone suivant
+            e.PushHl();
+            e.OrA();
+            e.SbcHlDe();
+            e.PopHl();
+            e.JrCLabel("rt_zone_next");
+            e.JrZLabel("rt_zone_next");              // jusqu'à dépasser la colonne actuelle
+            e.PushHl();
+            e.AddHlBc();
+            e.DecHl();                               // HL = dernière colonne de la zone
+            e.LdAMem("rt_pf_w");
+            e.LdEA();
+            e.LdDZero();
+            e.OrA();
+            e.SbcHlDe();
+            e.PopHl();
+            e.JrCLabel("rt_zone_fits");
+            e.JrZLabel("rt_zone_fits");
+            e.JpLabel("rt_pf_newline");              // la zone ne tient pas : à la ligne
+            e.Label("rt_zone_fits");
+            e.LdAMem("rt_pf_col");
+            e.LdBA();
+            e.LdAL();
+            e.SubB();
+            e.LdBA();
+            e.JpLabel("rt_pf_spaces");
+
+            e.Label(TabLabel);
+            e.Bit7H();
+            e.JrNzLabel("rt_tab_one");
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel("rt_tab_pos");
+            e.Label("rt_tab_one");
+            e.LdHlImm(1);
+            e.Label("rt_tab_pos");
+            e.PushHl();
+            e.CallLabel("rt_pf_width");
+            e.PopHl();
+            e.LdEA();
+            e.LdDZero();                             // DE = largeur
+            e.Label("rt_tab_reduce");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_tab_back");
+            e.JrZLabel("rt_tab_back");
+            e.JrLabel("rt_tab_reduce");
+            e.Label("rt_tab_back");
+            e.AddHlDe();                             // 1 <= colonne <= largeur
+            e.LdAL();
+            e.LdMemA("rt_pf_n");
+            e.CallAddress(TxtGetCursor);
+            e.CallAddress(TxtValidate);
+            e.LdAMem("rt_pf_n");
+            e.SubH();
+            e.RetZ();                                // déjà à la bonne colonne
+            e.JrCLabel("rt_tab_newline");
+            e.LdBA();
+            e.JpLabel("rt_pf_spaces");
+            e.Label("rt_tab_newline");               // colonne dépassée : à la ligne, puis colonne - 1 espaces
+            e.CallLabel("rt_pf_newline");
+            e.LdAMem("rt_pf_n");
+            e.DecA();
+            e.LdBA();
+            e.JpLabel("rt_pf_spaces");
+
+            e.Label(SpcLabel);
+            e.Bit7H();
+            e.RetNz();
+            e.PushHl();
+            e.CallLabel("rt_pf_width");
+            e.PopHl();
+            e.LdEA();
+            e.LdDZero();
+            e.Label("rt_spc_reduce");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_spc_reduce");
+            e.AddHlDe();                             // reste de la division par la largeur
+            e.LdAL();
+            e.LdBA();
+            e.JpLabel("rt_pf_spaces");
+
+            e.Label(ZoneSetLabel);
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_zone_bad");
+            e.OrL();
+            e.JrZLabel("rt_zone_bad");
+            e.LdAL();
+            e.LdMemA("rt_zone_w");
+            e.Ret();
+            e.Label("rt_zone_bad");
+            e.LdHlLabel("rt_zone_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_zone_msg");
+            e.Data(Ascii("Improper argument"));
+
+            e.Label("rt_zone_w");
+            e.Data([13]);                            // 13 colonnes au départ, comme le Locomotive
+            foreach (string scratch in new[] { "rt_pf_col", "rt_pf_n" })
+            {
+                e.Label(scratch);
+                e.Reserve(1);
+            }
         }),
 
         [ErrorName] = new RuntimeModule(ErrorName, [PrintStringName], e =>
@@ -807,6 +1051,25 @@ public static class RuntimeLibrary
             e.CallAddress(TxtOutput);
             e.IncHl();
             e.DjnzLabel("rt_str_print_loop");
+            e.Ret();
+
+            // Comme rt_str_print, sans l'espace du début s'il y en a un (WRITE 12 : « 12 », lot H2, D073)
+            e.Label(StrPrintNoSpaceLabel);
+            e.LoadBFromHl();
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();
+            e.LdAB();
+            e.OrA();
+            e.RetZ();
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_str_print_loop");
+            e.IncHl();
+            e.DecB();
+            e.JrNzLabel("rt_str_print_loop");
             e.Ret();
 
             e.Label(StrCmpLabel);
@@ -3037,7 +3300,7 @@ public static class RuntimeLibrary
                 e.Bytes(0xC3, (byte)(routine.Address464 & 0xFF), (byte)(routine.Address464 >> 8));
         }),
         [RealOpsName] = new RuntimeModule(RealOpsName, [ErrorName, PrintStringName], RealRuntime.EmitOps),
-        [RealPrintName] = new RuntimeModule(RealPrintName, [], RealRuntime.EmitPrint),
+        [RealPrintName] = new RuntimeModule(RealPrintName, [PrintFitName], RealRuntime.EmitPrint),
         [InputRealName] = new RuntimeModule(InputRealName, [InputName, RealParseName], RealRuntime.EmitInput),
         [RealParseName] = new RuntimeModule(RealParseName, [RealOpsName], RealRuntime.EmitParse),
         [RealValName] = new RuntimeModule(RealValName, [RealParseName, StrFunctionsName], RealRuntime.EmitVal),

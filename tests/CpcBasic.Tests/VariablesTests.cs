@@ -398,7 +398,7 @@ public class VariablesCodeGeneratorTests
     {
         GeneratedProgram generated = Generate("10 PRINT 5;");
 
-        Assert.Equal(new[] { "PrintInt" }, generated.Modules);
+        Assert.Equal(new[] { "PrintFit", "PrintInt" }, generated.Modules);   // PrintFit : fin de ligne (D073)
     }
 
     [Fact]
@@ -406,7 +406,7 @@ public class VariablesCodeGeneratorTests
     {
         GeneratedProgram generated = Generate("10 PRINT 5");
 
-        Assert.Equal(new[] { "PrintInt", "PrintString" }, generated.Modules);
+        Assert.Equal(new[] { "PrintFit", "PrintInt", "PrintString" }, generated.Modules);
         byte[] lineBreak = [0x0D, 0x0A, 0x00];
         Assert.Equal(lineBreak, generated.Code[^3..]);
     }
@@ -423,6 +423,6 @@ public class VariablesCodeGeneratorTests
         CompileResult result = Compiler.CompileToDisk("10 A = 5\n20 PRINT \"A=\"; A", "vars");
 
         Assert.True(result.Success);
-        Assert.Equal(new[] { "PrintInt", "PrintString" }, result.Modules);
+        Assert.Equal(new[] { "PrintFit", "PrintInt", "PrintString" }, result.Modules);
     }
 }

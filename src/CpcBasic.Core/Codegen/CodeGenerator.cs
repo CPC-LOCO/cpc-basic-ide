@@ -1286,6 +1286,12 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "ZONE":                            // ZONE largeur (D073) : vérifiée pendant l'exécution (1 à 255)
+                    EmitExpression(a[0]);
+                    required.Add(RuntimeLibrary.PrintFormatName);
+                    emitter.CallLabel(RuntimeLibrary.ZoneSetLabel);
+                    break;
+
                 case "WINDOW SWAP":                     // WINDOW SWAP a [, b] : b vaut 0 s'il est omis (D072)
                     EmitExpression(a[0]);
                     if (a.Count > 1)
@@ -1505,7 +1511,8 @@ public static class CodeGenerator
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
                 || (usesReals && StatementUsesReals(statement))
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
-                || statement is StreamStatement { Stream: not null and not NumberExpression })   // #N calculé : « Improper argument in 20 » (D072)
+                || statement is StreamStatement { Stream: not null and not NumberExpression }
+                || statement is ScreenStatement { Command: "ZONE" })   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
                 emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
@@ -1700,11 +1707,37 @@ public static class CodeGenerator
                 }
 
                 case PrintStatement print:
+                    if (print.Text.Length >= 2)                     // passe à la ligne s'il ne tient pas (D073)
+                    {
+                        required.Add(RuntimeLibrary.PrintFitName);
+                        emitter.LdAImm(Math.Min(print.Text.Length, 255));
+                        emitter.CallLabel(RuntimeLibrary.PrintFitLabel);
+                    }
                     EmitText(print.NewLine ? print.Text + "\r\n" : print.Text);
+                    break;
+
+                case PrintValueStatement { NoLeadingSpace: true } write:
+                    EmitString(write.Value);                        // WRITE 12 : STR$ sans l'espace du début (D073)
+                    emitter.CallLabel(RuntimeLibrary.StrPrintNoSpaceLabel);
+                    if (write.NewLine)
+                        EmitText("\r\n");
+                    break;
+
+                case PrintZoneStatement:                            // « , » dans PRINT (D073)
+                    required.Add(RuntimeLibrary.PrintFormatName);
+                    emitter.CallLabel(RuntimeLibrary.ZoneLabel);
+                    break;
+
+                case PrintTabStatement tab:                         // TAB(n), SPC(n) dans PRINT (D073)
+                    EmitExpression(tab.Value);
+                    required.Add(RuntimeLibrary.PrintFormatName);
+                    emitter.CallLabel(tab.Spc ? RuntimeLibrary.SpcLabel : RuntimeLibrary.TabLabel);
                     break;
 
                 case PrintValueStatement printValue when Types.IsString(printValue.Value):
                     EmitString(printValue.Value);                   // PRINT A$ (D062)
+                    required.Add(RuntimeLibrary.PrintFitName);
+                    emitter.CallLabel(RuntimeLibrary.PrintFitStrLabel);   // à la ligne s'il ne tient pas (D073)
                     emitter.CallLabel(RuntimeLibrary.StrPrintLabel);
                     if (printValue.NewLine)
                         EmitText("\r\n");
@@ -1713,7 +1746,7 @@ public static class CodeGenerator
                 case PrintValueStatement printValue when Types.IsReal(printValue.Value):
                     EmitRealInto(printValue.Value, 0);              // PRINT 1/3 (D068)
                     emitter.LdHlLabel(RealTemp(0));
-                    emitter.CallLabel(RealRuntime.PrintLabel);
+                    emitter.CallLabel(RealRuntime.PrintFitLabel);   // à la ligne s'il ne tient pas (D073)
                     if (printValue.NewLine)
                         EmitText("\r\n");
                     break;
@@ -1721,6 +1754,8 @@ public static class CodeGenerator
                 case PrintValueStatement printValue:
                     EmitExpression(printValue.Value);
                     required.Add(RuntimeLibrary.PrintIntName);
+                    required.Add(RuntimeLibrary.PrintFitName);
+                    emitter.CallLabel(RuntimeLibrary.PrintFitIntLabel);   // à la ligne s'il ne tient pas (D073)
                     emitter.CallLabel(RuntimeLibrary.PrintIntLabel);
                     if (printValue.NewLine)
                         EmitText("\r\n");

@@ -26,6 +26,7 @@ internal static class RealRuntime
     public const string DivLabel = "rt_fop_div";         // (HL) = (HL) / (DE)
     public const string PowLabel = "rt_fop_pow";         // (HL) = (HL) ^ (DE)
     public const string PrintLabel = "rt_fprint";        // HL = adresse du nombre : l'affiche comme PRINT
+    public const string PrintFitLabel = "rt_fprint_fit"; // pareil, après être passé à la ligne s'il ne tient pas (D073)
 
     // Fonctions (lot F2, D069) ; HL = adresse du nombre, gardé
     public const string OverflowPositiveLabel = "rt_fovf_pos";     // (HL) trop grand : « Overflow », +1.70141E+38
@@ -398,6 +399,32 @@ internal static class RealRuntime
         e.LdAImm(' ');
         e.CallLabel("rt_fp_out");
         e.Ret();
+
+        // PRINT : on compte d'abord les caractères (la sortie est détournée vers un compteur), puis on vérifie que le
+        // nombre tient dans la fin de la ligne (rt_pf_fit, D073), puis on l'affiche.
+        e.Label(PrintFitLabel);
+        e.PushHl();
+        e.XorA();
+        e.LdMemA("rt_fp_fitcnt");
+        e.LdHlLabel("rt_fp_fitinc");
+        e.LdMemHl("rt_fp_vec");
+        e.PopHl();
+        e.PushHl();
+        e.CallLabel("rt_fp_text");
+        e.LdHlImm(TxtOutput);
+        e.LdMemHl("rt_fp_vec");
+        e.LdAMem("rt_fp_fitcnt");
+        e.CallLabel(RuntimeLibrary.PrintFitLabel);
+        e.PopHl();
+        e.JpLabel(PrintLabel);
+        e.Label("rt_fp_fitinc");
+        e.PushHl();
+        e.LdHlLabel("rt_fp_fitcnt");
+        e.IncMemHl();
+        e.PopHl();
+        e.Ret();
+        e.Label("rt_fp_fitcnt");
+        e.Reserve(1);
 
         e.Label("rt_fp_text");
         e.LdDeLabel("rt_fp_x");

@@ -279,6 +279,6 @@ public class LoopsCodeGeneratorTests
             "10 FOR i = 1 TO 3\n20 PRINT i;\n30 NEXT", "loop");
 
         Assert.True(result.Success);
-        Assert.Equal(new[] { "PrintInt" }, result.Modules);
+        Assert.Equal(new[] { "PrintFit", "PrintInt" }, result.Modules);   // PrintFit : fin de ligne (D073)
     }
 }

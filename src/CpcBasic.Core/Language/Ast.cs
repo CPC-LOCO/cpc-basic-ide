@@ -39,8 +39,18 @@ public abstract record Statement(int SourceLine);
 /// <summary>PRINT "texte" : affiche un texte. NewLine est faux si l'instruction se termine par « ; ».</summary>
 public sealed record PrintStatement(int SourceLine, string Text, bool NewLine) : Statement(SourceLine);
 
-/// <summary>PRINT expression : affiche un nombre. NewLine est faux s'il est suivi de « ; ».</summary>
-public sealed record PrintValueStatement(int SourceLine, Expression Value, bool NewLine) : Statement(SourceLine);
+/// <summary>
+/// PRINT expression : affiche un nombre. NewLine est faux s'il est suivi de « ; ».
+/// NoLeadingSpace (WRITE, lot H2, D073) : Value est STR$(nombre), affiché sans l'espace du début.
+/// </summary>
+public sealed record PrintValueStatement(int SourceLine, Expression Value, bool NewLine, bool NoLeadingSpace = false)
+    : Statement(SourceLine);
+
+/// <summary>« , » dans PRINT : va au début de la zone suivante, ou à la ligne si elle ne tient pas (lot H2, D073).</summary>
+public sealed record PrintZoneStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>TAB(colonne) ou SPC(nombre d'espaces) dans PRINT (lot H2, D073).</summary>
+public sealed record PrintTabStatement(int SourceLine, Expression Value, bool Spc) : Statement(SourceLine);
 
 /// <summary>A = expression (avec ou sans LET). Variable : nom en majuscules, suffixe compris.</summary>
 public sealed record AssignStatement(int SourceLine, string Variable, Expression Value) : Statement(SourceLine);
@@ -380,6 +390,7 @@ public static class AstWalker
         RandomizeStatement r when r.Seed is not null => [r.Seed],
         ScreenStatement s => s.Arguments,
         StreamStatement st when st.Stream is not null => [st.Stream],
+        PrintTabStatement t => [t.Value],
         EnvelopeStatement env => env.Sections.SelectMany(x => new[] { x.A, x.B, x.C }).OfType<Expression>().Prepend(env.Number),
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
         OnStatement o => [o.Selector],

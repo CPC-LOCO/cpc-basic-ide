@@ -26,7 +26,7 @@ public class RealFunctionsTests
     static string Run(string source)
     {
         GeneratedProgram program = CodeGenerator.Generate(Parse(source), 0x4000);
-        var cpu = new MiniZ80();
+        var cpu = new MiniZ80 { WindowWidth = 80 };   // 80 colonnes (MODE 2) : plusieurs valeurs sur une ligne (D073)
         cpu.Load(program.Code, 0x4000);
         cpu.Memory[0xBB18] = 0xC9;
         cpu.Call(0x4000);
