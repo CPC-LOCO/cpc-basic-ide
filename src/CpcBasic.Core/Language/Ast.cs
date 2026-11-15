@@ -13,13 +13,21 @@ public enum VarType
     /// <summary>Octet non signé 8 bits : variable déclarée avec BYTE.</summary>
     Byte,
     /// <summary>Texte : A$ (lot E, D062). Fiche de 3 octets comme le Locomotive : longueur, puis adresse des lettres.</summary>
-    String
+    String,
+    /// <summary>Nombre à virgule : A! (lot F1b, D068). 5 octets comme le Locomotive.</summary>
+    Real
 }
 
 public static class VariableNames
 {
-    /// <summary>Le suffixe ! (réel) n'existe pas encore ; $ (texte) existe depuis le lot E (D062).</summary>
+    /// <summary>
+    /// Vrai si la variable est utilisable partout. Une variable A! (nombre à virgule, lot F1b, D068) ne l'est
+    /// encore que dans un calcul et une affectation simple : pas encore en tableau, FOR, INPUT, READ ni avec @.
+    /// </summary>
     public static bool IsSupported(string name) => name[^1] is not '!';
+
+    /// <summary>Vrai pour une variable nombre à virgule (A!).</summary>
+    public static bool IsReal(string name) => name[^1] == '!';
 
     /// <summary>Vrai pour une variable texte (A$).</summary>
     public static bool IsString(string name) => name[^1] == '$';
@@ -134,6 +142,9 @@ public abstract record Expression;
 
 public sealed record NumberExpression(int Value) : Expression;
 
+/// <summary>3.14, .5, 1E5 ou 40000 : un nombre à virgule écrit dans le programme (lot F1b, D068).</summary>
+public sealed record RealNumberExpression(double Value) : Expression;
+
 public sealed record VariableExpression(string Name) : Expression;
 
 /// <summary>
@@ -169,6 +180,20 @@ public sealed record ConcatExpression(Expression Left, Expression Right) : Expre
 /// <summary>Le type d'une expression : texte ou nombre (lot E, D062).</summary>
 public static class Types
 {
+    /// <summary>
+    /// Vrai si l'expression donne un nombre à virgule (D068) : un nombre écrit avec une virgule, une variable A!,
+    /// ou + - * / ^ dont un côté est à virgule. Entre deux entiers, le calcul reste entier.
+    /// </summary>
+    public static bool IsReal(Expression expression) => expression switch
+    {
+        RealNumberExpression => true,
+        VariableExpression variable => VariableNames.IsReal(variable.Name),
+        BinaryExpression binary => binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
+                                       or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Power
+                                   && (IsReal(binary.Left) || IsReal(binary.Right)),
+        _ => false
+    };
+
     /// <summary>Vrai si l'expression donne un texte.</summary>
     public static bool IsString(Expression expression) => expression switch
     {

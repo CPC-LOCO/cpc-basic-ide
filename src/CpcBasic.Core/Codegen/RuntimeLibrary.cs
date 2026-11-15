@@ -115,6 +115,8 @@ public static class RuntimeLibrary
 
     // Puissance entière (^, D060)
     public const string Pow16Name = "Pow16";
+    public const string RealOpsName = "RealOps";       // nombres à virgule : conversions, opérations (D068)
+    public const string RealPrintName = "RealPrint";   // nombres à virgule : affichage comme PRINT (D068)
     public const string MathsAllName = "FMathsAll";
     public const string Maths464Name = "FMaths464";
     public const string Maths6128Name = "FMaths6128";
@@ -2976,6 +2978,8 @@ public static class RuntimeLibrary
             foreach (FirmwareMathsRoutine routine in FirmwareMaths.All)
                 e.Bytes(0xC3, (byte)(routine.Address464 & 0xFF), (byte)(routine.Address464 >> 8));
         }),
+        [RealOpsName] = new RuntimeModule(RealOpsName, [ErrorName, PrintStringName], RealRuntime.EmitOps),
+        [RealPrintName] = new RuntimeModule(RealPrintName, [], RealRuntime.EmitPrint),
         [Maths464Name] = new RuntimeModule(Maths464Name, [], e => EmitMathsFixed(e, rom464: true)),
         [Maths6128Name] = new RuntimeModule(Maths6128Name, [], e => EmitMathsFixed(e, rom464: false))
     };

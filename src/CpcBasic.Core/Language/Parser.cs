@@ -444,7 +444,9 @@ public static class Parser
             return SkipToStatementEnd(tokens, pos);
         }
 
-        if (!VariableNames.IsSupported(name.Text))
+        // A! = valeur : nombre à virgule (D068) ; pas encore de tableau de nombres à virgule
+        if (!VariableNames.IsSupported(name.Text)
+            && (!VariableNames.IsReal(name.Text) || tokens[pos + 1].Kind == TokenKind.LeftParen))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
             return SkipToStatementEnd(tokens, pos);
@@ -479,6 +481,12 @@ public static class Parser
                                            VariableNames.IsString(name.Text) ? "un texte est attendu" : "un nombre est attendu"));
             return SkipToStatementEnd(tokens, pos);
         }
+
+        if (!VariableNames.IsString(name.Text) && !VariableNames.IsReal(name.Text)
+            && IntegerConstant(value, valueStart, diagnostics) is Expression whole)
+            value = whole;                              // A% = 2.5 : 3 dès la compilation (D068)
+        else if (!VariableNames.IsString(name.Text) && !VariableNames.IsReal(name.Text))
+            return SkipToStatementEnd(tokens, pos);
 
         statements.Add(indexes is null
             ? new AssignStatement(line, name.Text, value)
@@ -1161,7 +1169,9 @@ public static class Parser
             return null;
         }
 
-        return ParseNumber(tokens, ref pos, diagnostics, negative) is NumberExpression number ? number.Value : null;
+        Expression? read = ParseNumber(tokens, ref pos, diagnostics, negative);
+        return read is null ? null
+            : IntegerConstant(read, t, diagnostics) is NumberExpression number ? number.Value : null;   // 40000 : trop grand (D068)
     }
 
     // NEXT [variable]
@@ -1874,7 +1884,23 @@ public static class Parser
             diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, at.Line, "un nombre est attendu"));
             return null;
         }
-        return value;
+        return value is null ? null : IntegerConstant(value, at, diagnostics);
+    }
+
+    // Un nombre à virgule écrit dans le programme, là où il faut un entier (BOX 2.6, A% = 40000) : arrondi
+    // comme le Locomotive (,5 s'éloigne de zéro) ; hors de -32768 à 32767, erreur dès la compilation (D068).
+    static Expression? IntegerConstant(Expression value, Token at, List<Diagnostic> diagnostics)
+    {
+        if (value is not RealNumberExpression real)
+            return value;
+        double rounded = Math.Round(real.Value, MidpointRounding.AwayFromZero);
+        if (rounded < -32768 || rounded > 32767)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, at.Line,
+                                           real.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            return null;
+        }
+        return new NumberExpression((int)rounded);
     }
 
     // Les deux côtés d'une opération sur les nombres (AND, *, ^...) doivent être des nombres (lot E, D062)
@@ -2133,7 +2159,8 @@ public static class Parser
                     diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, t.Text));
                     return null;
                 }
-                if (!VariableNames.IsSupported(t.Text))
+                if (!VariableNames.IsSupported(t.Text)
+                    && (!VariableNames.IsReal(t.Text) || tokens[pos + 1].Kind == TokenKind.LeftParen))
                 {
                     diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, t.Line, t.Text));
                     return null;
@@ -2260,15 +2287,25 @@ public static class Parser
     {
         Token t = tokens[pos];
         long limit = negative ? 32768 : 32767;
+        bool decimals = t.Text.Contains('.') || t.Text.Contains('E');
 
-        if (!long.TryParse(t.Text, out long value) || value > limit)
+        if (!decimals && long.TryParse(t.Text, out long value) && value <= limit)
+        {
+            pos++;
+            return new NumberExpression((int)(negative ? -value : value));
+        }
+
+        // 3.14, 1E5 ou un nombre trop grand pour un entier (40000) : nombre à virgule, comme le Locomotive (D068)
+        if (!double.TryParse(t.Text, System.Globalization.NumberStyles.Float,
+                             System.Globalization.CultureInfo.InvariantCulture, out double real)
+            || CpcBasic.Core.Codegen.LocoReal.Encode(real) is null)
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, t.Line, (negative ? "-" : "") + t.Text));
             return null;
         }
 
         pos++;
-        return new NumberExpression((int)(negative ? -value : value));
+        return new RealNumberExpression(negative ? -real : real);
     }
 
     // Avance jusqu'au prochain « : » ou à la fin de la ligne

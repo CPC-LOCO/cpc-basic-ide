@@ -86,7 +86,8 @@ public static class CodeGenerator
             if (!variables.TryGetValue(name, out VariableSlot? slot))
             {
                 VarType type = declared.TryGetValue(name, out VarType declaredType) ? declaredType
-                    : VariableNames.IsString(name) ? VarType.String : VarType.Integer;
+                    : VariableNames.IsString(name) ? VarType.String
+                    : VariableNames.IsReal(name) ? VarType.Real : VarType.Integer;
                 slot = new VariableSlot($"var_{slots.Count}", type);
                 variables[name] = slot;
                 slots.Add(slot);
@@ -150,6 +151,7 @@ public static class CodeGenerator
         // Textes (lot E, D062). Un texte écrit dans le programme a sa fiche (longueur, adresse) à la fin du binaire.
         var literals = new List<string>();
         bool usesStrings = program.Statements.Any(StatementUsesStrings);
+        bool usesReals = program.Statements.Any(StatementUsesReals);   // nombres à virgule (D068)
 
         // HL = adresse de la fiche du texte
         void EmitString(Expression expression)
@@ -262,6 +264,90 @@ public static class CodeGenerator
             }
         }
 
+        // Nombres à virgule (lot F1b, D068). Un calcul se fait dans des cases de 5 octets (ftmp_0, ftmp_1...) :
+        // la case k reçoit la valeur, la case k + 1 sert pour l'opérande de droite. realFree = première case libre
+        // (un calcul entier au milieu d'un calcul à virgule ne doit pas écraser les cases déjà prises).
+        int realFree = 0;
+        int realTemps = 0;
+        var realLiterals = new Dictionary<double, string>();
+
+        string RealTemp(int k)
+        {
+            realTemps = Math.Max(realTemps, k + 1);
+            return $"ftmp_{k}";
+        }
+
+        string RealLiteral(double value)
+        {
+            if (!realLiterals.TryGetValue(value, out string? label))
+            {
+                label = $"flit_{realLiterals.Count}";
+                realLiterals[value] = label;
+            }
+            return label;
+        }
+
+        void EmitCopyReal(string from, string to)
+        {
+            emitter.LdHlLabel(from);
+            emitter.LdDeLabel(to);
+            emitter.LdBcImm(5);
+            emitter.Ldir();
+        }
+
+        // Calcule l'expression comme nombre à virgule dans la case k
+        void EmitRealInto(Expression expression, int k)
+        {
+            string temp = RealTemp(k);
+            switch (expression)
+            {
+                case RealNumberExpression real:
+                    EmitCopyReal(RealLiteral(real.Value), temp);
+                    break;
+
+                case NumberExpression number:
+                    EmitCopyReal(RealLiteral(number.Value), temp);
+                    break;
+
+                case VariableExpression variable when VariableNames.IsReal(variable.Name):
+                    EmitCopyReal(Slot(variable.Name).Label, temp);
+                    break;
+
+                case BinaryExpression { Operator: BinaryOperator.Subtract, Left: NumberExpression { Value: 0 } } minus
+                    when Types.IsReal(minus):
+                    EmitRealInto(minus.Right, k);                   // -X
+                    emitter.LdHlLabel(temp);
+                    emitter.CallLabel(FirmwareMaths.Negate.Label);
+                    break;
+
+                case BinaryExpression binary when Types.IsReal(binary):
+                    EmitRealInto(binary.Left, k);
+                    EmitRealInto(binary.Right, k + 1);
+                    emitter.LdHlLabel(temp);
+                    emitter.LdDeLabel(RealTemp(k + 1));
+                    emitter.CallLabel(binary.Operator switch
+                    {
+                        BinaryOperator.Add => RealRuntime.AddLabel,
+                        BinaryOperator.Subtract => RealRuntime.SubLabel,
+                        BinaryOperator.Multiply => RealRuntime.MulLabel,
+                        BinaryOperator.Divide => RealRuntime.DivLabel,
+                        _ => RealRuntime.PowLabel
+                    });
+                    break;
+
+                default:
+                {
+                    int saved = realFree;                           // calcul entier, puis converti
+                    realFree = k + 1;
+                    EmitExpression(expression);
+                    realFree = saved;
+                    emitter.LdDeLabel(temp);
+                    emitter.CallLabel(RealRuntime.IntToRealLabel);
+                    break;
+                }
+            }
+        }
+
         // Variable -> HL (un octet est étendu à 16 bits)
         void EmitLoad(VariableSlot slot)
         {
@@ -319,6 +405,15 @@ public static class CodeGenerator
         // Calcule l'expression : le résultat est dans HL
         void EmitExpression(Expression expression)
         {
+            if (Types.IsReal(expression))
+            {
+                // Nombre à virgule là où il faut un entier : arrondi, « Overflow » s'il ne tient pas (D068)
+                EmitRealInto(expression, realFree);
+                emitter.LdHlLabel(RealTemp(realFree));
+                emitter.CallLabel(RealRuntime.RealToIntLabel);
+                return;
+            }
+
             switch (expression)
             {
                 case NumberExpression number:
@@ -674,6 +769,21 @@ public static class CodeGenerator
                 emitter.CallLabel(RuntimeLibrary.StrCmpLabel);
                 rightSide = new NumberExpression(0);
             }
+            else if (Types.IsReal(comparison.Left) || Types.IsReal(comparison.Right))
+            {
+                // Nombres à virgule (D068) : la ROM rend A = 1, 0 ou &FF ; HL = A avec son signe, comparé à 0
+                int k = realFree;
+                EmitRealInto(comparison.Left, k);
+                EmitRealInto(comparison.Right, k + 1);
+                emitter.LdHlLabel(RealTemp(k));
+                emitter.LdDeLabel(RealTemp(k + 1));
+                emitter.CallLabel(FirmwareMaths.Compare.Label);
+                emitter.LdLA();
+                emitter.AddAA();
+                emitter.SbcAA();
+                emitter.LdHA();
+                rightSide = new NumberExpression(0);
+            }
             else
             {
                 EmitExpression(comparison.Left);
@@ -1020,6 +1130,15 @@ public static class CodeGenerator
         if (usesData)
             required.Add(RuntimeLibrary.DataName);
 
+        // Nombres à virgule (D068) : table des routines de la ROM selon la machine, angles en radians
+        if (usesReals)
+        {
+            required.Add(RuntimeLibrary.MathsModuleFor(options.Target));
+            required.Add(RuntimeLibrary.RealOpsName);
+            required.Add(RuntimeLibrary.RealPrintName);
+            emitter.CallLabel(RuntimeLibrary.MathsInitLabel);
+        }
+
         // Tableaux : la mémoire libre commence juste après le programme (D058)
         if (arrays.Count > 0 || usesStrings)
         {
@@ -1047,6 +1166,7 @@ public static class CodeGenerator
                 emitter.CallLabel(RuntimeLibrary.StrResetLabel);
 
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
+                || (usesReals && StatementUsesReals(statement))
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" }))
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
@@ -1235,6 +1355,14 @@ public static class CodeGenerator
                         EmitText("\r\n");
                     break;
 
+                case PrintValueStatement printValue when Types.IsReal(printValue.Value):
+                    EmitRealInto(printValue.Value, 0);              // PRINT 1/3 (D068)
+                    emitter.LdHlLabel(RealTemp(0));
+                    emitter.CallLabel(RealRuntime.PrintLabel);
+                    if (printValue.NewLine)
+                        EmitText("\r\n");
+                    break;
+
                 case PrintValueStatement printValue:
                     EmitExpression(printValue.Value);
                     required.Add(RuntimeLibrary.PrintIntName);
@@ -1247,6 +1375,11 @@ public static class CodeGenerator
                     EmitString(assign.Value);                       // A$ = texte (D062)
                     emitter.LdDeLabel(Slot(assign.Variable).Label);
                     emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                    break;
+
+                case AssignStatement assign when VariableNames.IsReal(assign.Variable):
+                    EmitRealInto(assign.Value, 0);                  // A! = valeur (D068)
+                    EmitCopyReal(RealTemp(0), Slot(assign.Variable).Label);
                     break;
 
                 case AssignStatement assign:
@@ -1570,7 +1703,19 @@ public static class CodeGenerator
         foreach (VariableSlot slot in slots)
         {
             emitter.Label(slot.Label);
-            emitter.Reserve(slot.Type switch { VarType.Byte => 1, VarType.String => 3, _ => 2 });
+            emitter.Reserve(slot.Type switch { VarType.Byte => 1, VarType.String => 3, VarType.Real => 5, _ => 2 });
+        }
+
+        // Nombres à virgule : cases de calcul, puis nombres écrits dans le programme (D068)
+        for (int k = 0; k < realTemps; k++)
+        {
+            emitter.Label($"ftmp_{k}");
+            emitter.Reserve(5);
+        }
+        foreach ((double value, string label) in realLiterals)
+        {
+            emitter.Label(label);
+            emitter.Data(LocoReal.Encode(value)!);
         }
 
         // Descripteurs des tableaux : adresse des cases (0 = pas encore créé), puis nombre de cases de chaque dimension
@@ -1616,6 +1761,11 @@ public static class CodeGenerator
     static string StringLabel(int index) => $"str_{index}";
 
     /// <summary>Vrai si l'instruction utilise un texte (variable A$, texte entre guillemets dans un calcul...) (D062).</summary>
+    // Nombres à virgule (D068) : un nombre écrit avec une virgule, une variable A!, ou une affectation à A!
+    static bool StatementUsesReals(Statement statement) =>
+        AstWalker.All(statement).Any(e => e is RealNumberExpression || (e is VariableExpression v && VariableNames.IsReal(v.Name)))
+        || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable));
+
     static bool StatementUsesStrings(Statement statement) =>
         AstWalker.All(statement).Any(Types.IsString)
         || (statement is AssignStatement assign && VariableNames.IsString(assign.Variable))

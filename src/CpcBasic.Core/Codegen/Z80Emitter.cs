@@ -212,6 +212,16 @@ public sealed class Z80Emitter
 
     public void LdDeMem(string label) { code.Add(0xED); code.Add(0x5B); AddAbsolute(label); }           // LD DE,(étiquette)
 
+    // Nombres à virgule (lot F1b, D068)
+    public void SlaMemHl() { code.Add(0xCB); code.Add(0x26); }                                   // SLA (HL)
+    public void RlMemHl() { code.Add(0xCB); code.Add(0x16); }                                    // RL (HL)
+    public void SrlMemHl() { code.Add(0xCB); code.Add(0x3E); }                                   // SRL (HL)
+    public void RrMemHl() { code.Add(0xCB); code.Add(0x1E); }                                    // RR (HL)
+    public void IncMemHl() => code.Add(0x34);                                                    // INC (HL)
+    public void DecMemHl() => code.Add(0x35);                                                    // DEC (HL)
+    public void XorMemHl() => code.Add(0xAE);                                                    // XOR (HL)
+    public void OrImm(int value) { code.Add(0xF6); code.Add((byte)value); }                      // OR n
+
     public void Ret() => code.Add(0xC9);                                           // RET
     public void RetZ() => code.Add(0xC8);                                          // RET Z
     public void CallAddress(int address) { code.Add(0xCD); AddWord(address); }     // CALL adresse

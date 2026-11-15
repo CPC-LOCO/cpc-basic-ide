@@ -376,6 +376,10 @@ internal sealed class MiniZ80
                 ZeroFlag = A == 0;
                 break;
             case 0x37: CarryFlag = true; break;                        // SCF
+            case 0x34: Memory[HL]++; ZeroFlag = Memory[HL] == 0; break;            // INC (HL) (D068)
+            case 0x35: Memory[HL]--; ZeroFlag = Memory[HL] == 0; break;            // DEC (HL) (D068)
+            case 0xAE: A ^= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // XOR (HL) (D068)
+            case 0xF6: A |= Fetch(); ZeroFlag = A == 0; CarryFlag = false; break;          // OR n (D068)
             case 0x17:                                                 // RLA
             {
                 bool carryOut = (A & 0x80) != 0;
@@ -589,6 +593,19 @@ internal sealed class MiniZ80
                 break;
             case 0x1D: L = Rl_Right(L); break;                         // RR L
             case 0x3C: CarryFlag = (H & 0x01) != 0; H = (byte)(H >> 1); ZeroFlag = H == 0; break;   // SRL H
+            // Nombres à virgule (lot F1b, D068) : décalages d'un octet en mémoire
+            case 0x26:                                                 // SLA (HL)
+                CarryFlag = (Memory[HL] & 0x80) != 0;
+                Memory[HL] = (byte)(Memory[HL] << 1);
+                ZeroFlag = Memory[HL] == 0;
+                break;
+            case 0x16: Memory[HL] = Rl(Memory[HL]); break;             // RL (HL)
+            case 0x3E:                                                 // SRL (HL)
+                CarryFlag = (Memory[HL] & 0x01) != 0;
+                Memory[HL] = (byte)(Memory[HL] >> 1);
+                ZeroFlag = Memory[HL] == 0;
+                break;
+            case 0x1E: Memory[HL] = Rl_Right(Memory[HL]); break;       // RR (HL)
             case 0xBC: H = (byte)(H & 0x7F); break;                    // RES 7,H
             case 0x40: ZeroFlag = (B & 0x01) == 0; break;              // BIT 0,B
             case 0x43: ZeroFlag = (E & 0x01) == 0; break;              // BIT 0,E (D060)

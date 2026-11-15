@@ -457,7 +457,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Ensuite, peut-être :** Linux (l'éditeur utilise Avalonia, prévu pour Windows, Linux et macOS ; seuls les scripts de développement sont propres à Windows).
 - **À savoir pour la signature :** il faut un certificat de signature de code délivré par une autorité (en général payant, avec vérification d'identité) ; des offres gratuites existent pour les logiciels libres. À étudier au moment venu, avec les tarifs et conditions du moment.
 
-## D068 : lot F1b, nombres à virgule : les fondations (En cours, 15 nov. 2026)
+## D068 : lot F1b, nombres à virgule : fondations et étape F1b1 (F1b1 validée le 15 nov. 2026 ; F1b2 à faire)
 - **Format :** les nombres à virgule sont ceux du Locomotive, sur 5 octets (4 octets de mantisse, dont le bit de signe, puis l'exposant + 128 ; 0 = zéro). Le compilateur sait les écrire (`LocoReal`, dans `src\CpcBasic.Core\Codegen\LocoReal.cs`), par exemple pour les nombres écrits dans le programme (3.14).
 - **Calculs :** faits par les routines de la ROM du CPC (addition, multiplication, division, comparaison, SIN, SQR...), comme le vrai BASIC, donc avec exactement les mêmes résultats. Leurs adresses ne sont pas les mêmes sur le 464 et sur le 664/6128 (par exemple &BD88 est la division sur le 6128 mais SIN sur le 464).
 - **Table de sauts :** le programme appelle ces routines à travers une petite table en mémoire (`rt_fm_...`), remplie au départ par `rt_fm_init` :
@@ -482,7 +482,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
   3. sinon, écriture avec exposant : 6 chiffres significatifs (arrondis, zéros de fin enlevés), puis `E+` ou `E-` et l'exposant sur 2 chiffres (1E+09, 1.234E-07) ;
   4. un signe « - » ou un espace devant, comme pour les entiers ; -0 s'écrit 0.
 - **Overflow et Division by zero** avec des nombres à virgule : le message s'affiche sur sa propre ligne, le résultat devient ±1.70141E+38, et le programme continue (ce ne sont pas des erreurs qui l'arrêtent).
-- **Reste à faire pour F1b :** les nombres écrits avec une virgule (3.14, .5, 1E5), les variables A!, DEFINT / DEFREAL / DEFSTR, le réglage « Sans signe = à virgule », les opérations et comparaisons, l'affichage (PRINT) et la saisie (INPUT) au format exact du Locomotive. L'affichage attend la capture de WinAPE demandée à l'utilisateur.
+- **Étape F1b1 (validée le 15 nov. 2026 : tests réussis ; `virgule.bas` compilé donne dans WinAPE exactement le même écran que le même programme tapé dans le vrai BASIC de SugarBox) :**
+  - nombres écrits avec une virgule ou un exposant (3.14, .5, 1E5, 2.5E-3) ; un nombre entier trop grand pour un entier (40000, -40000) devient un nombre à virgule, comme dans le Locomotive ; au-delà de 1.7E+38 : erreur à la compilation ;
+  - variables A! (pas encore en tableau, FOR, INPUT, READ ni avec @ : F1b2 et F3) ;
+  - + - * / ^ et le signe moins : dès qu'un côté est à virgule, le calcul se fait à virgule (par la ROM) ; entre deux entiers, il reste entier (7/2 = 3, choix D066) ;
+  - comparaisons (= <> < > <= >=) entre nombres à virgule, ou entre un entier et un nombre à virgule ;
+  - nombre à virgule là où il faut un entier (A% = B!, BOX X!, ...) : arrondi au plus près, « ,5 » s'éloignant de zéro ; s'il ne tient pas de -32768 à 32767 : « Overflow in N » et le programme s'arrête (écrit dans le programme, A% = 40000.4 : erreur dès la compilation) ;
+  - PRINT d'un nombre à virgule selon la règle ci-dessus ; Overflow et Division by zero : message sur sa ligne, ±1.70141E+38, et le programme continue ;
+  - fichiers : `src\CpcBasic.Core\Codegen\RealRuntime.cs` (nouveau : modules RealOps et RealPrint), Lexer.cs, Parser.cs, Ast.cs, CodeGenerator.cs, Z80Emitter.cs, RuntimeLibrary.cs, `tests\CpcBasic.Tests\MiniZ80.cs`, `tests\CpcBasic.Tests\RealProgramTests.cs` (nouveau), VariablesTests.cs (PRINT 40000 et PRINT B! sont maintenant permis) ; exemple `examples\virgule.bas`.
+- **Reste à faire pour F1b (étape F1b2) :** DEFINT / DEFREAL / DEFSTR, le réglage « Sans signe = à virgule » (F8), INPUT d'un nombre à virgule, @A!.
 
 ---
 

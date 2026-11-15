@@ -214,7 +214,8 @@ public class VariablesParserTests
     {
         Assert.Equal(DiagnosticCode.NumberOutOfRange, SingleError("10 A% = 32768"));
         Assert.Equal(DiagnosticCode.NumberOutOfRange, SingleError("10 A% = -32769"));
-        Assert.Equal(DiagnosticCode.NumberOutOfRange, SingleError("10 PRINT 40000"));
+        // Depuis le lot F1b (D068), 40000 est un nombre à virgule, comme dans le Locomotive : PRINT 40000 est permis
+        Assert.Equal(DiagnosticCode.NumberOutOfRange, SingleError("10 A% = 40000.4"));
     }
 
     [Fact]
@@ -222,7 +223,8 @@ public class VariablesParserTests
     {
         // Depuis le lot E (D062), A$ existe : lui donner un nombre est une erreur de type, comme le Locomotive
         Assert.Equal(DiagnosticCode.TypeMismatch, SingleError("10 A$ = 1"));
-        Assert.Equal(DiagnosticCode.UnsupportedVariableType, SingleError("10 PRINT B!"));
+        // Depuis le lot F1b (D068), B! existe ; les tableaux de nombres à virgule viendront avec F3
+        Assert.Equal(DiagnosticCode.UnsupportedVariableType, SingleError("10 PRINT B!(1)"));
     }
 
     [Fact]

@@ -93,13 +93,35 @@ public static class Lexer
             }
 
             // Nombre : le premier nombre de la ligne est son numéro
-            if (char.IsDigit(c))
+            // Nombre à virgule (lot F1b, D068) : 3.14, .5, 1E5, 2.5E-3 (pas pour le numéro de ligne)
+            if (char.IsDigit(c) || (c == '.' && !first && i + 1 < text.Length && char.IsDigit(text[i + 1])))
             {
                 int start = i;
                 while (i < text.Length && char.IsDigit(text[i]))
                     i++;
+                if (!first)
+                {
+                    if (i < text.Length && text[i] == '.')
+                    {
+                        i++;
+                        while (i < text.Length && char.IsDigit(text[i]))
+                            i++;
+                    }
+                    if (i < text.Length && (text[i] == 'E' || text[i] == 'e'))
+                    {
+                        int exponent = i + 1;
+                        if (exponent < text.Length && (text[exponent] == '+' || text[exponent] == '-'))
+                            exponent++;
+                        if (exponent < text.Length && char.IsDigit(text[exponent]))
+                        {
+                            i = exponent;
+                            while (i < text.Length && char.IsDigit(text[i]))
+                                i++;
+                        }
+                    }
+                }
                 tokens.Add(new Token(first ? TokenKind.LineNumber : TokenKind.Number,
-                                     text[start..i], line, column));
+                                     text[start..i].ToUpperInvariant(), line, column));
                 first = false;
                 continue;
             }
