@@ -38,7 +38,7 @@ Documents de référence :
 - **Journal :** on n'efface jamais une entrée ; si une décision change, on en ajoute une nouvelle qui renvoie à l'ancienne.
 - **Mots réservés :** chaque nouveau mot-clé empêche d'utiliser ce nom comme variable ; à signaler et à noter dans le journal.
 
-## 3. État au moment de la reprise (13 novembre 2026)
+## 3. État au moment de la reprise (15 novembre 2026)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
 - **Dernier commit sur GitHub :** « Reprise a jour apres lot C partie 1 » (13 nov. 2026, 481 tests).
@@ -52,6 +52,9 @@ Documents de référence :
 - **Lot E, étape E3b (D065) validée le 14 nov. 2026** : tableaux de textes, MID$(A$, …) = . 721 tests, `examples\tabtexte.bas` conforme. **Le lot E (chaînes) est terminé** (reste DEC$, BASIC 1.1).
 - **Lot F (nombres à virgule), choix faits (D066) :** A reste entier, réglage par programme « Sans signe : à virgule (F8) » ; calculs par les routines de la ROM ; réglage « Machine (F7) » (Tous les CPC par défaut, avec reconnaissance automatique). Découpage F1a, F1b, F2, F3.
 - **Étape F1a (D066) validée le 14 nov. 2026** : les deux réglages dans l'éditeur et le compilateur (726 tests).
+- **Lot F terminé le 15 nov. 2026** (D068 à D070) : nombres à virgule, fonctions mathématiques, tableaux à virgule, DATA, READ, VAL, STR$. Exemples `virgule`, `types`, `fonction`, `tabreel`, `valstr`, tous identiques au vrai BASIC.
+- **Lot G1 (son) validé le 15 nov. 2026** (D071) : SOUND, ENV, ENT, RELEASE, SQ. `examples\musique.bas`.
+- **Dernier commit sur GitHub :** « Lot G1 : le son (SOUND, ENV, ENT, RELEASE, SQ) » (15 nov. 2026, **909 tests**).
 - **Règle de l'utilisateur :** le projet doit être 100 % compatible avec le Locomotive BASIC. **Finir tous les lots de l'inventaire (A à J) avant toute commande nouvelle** (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent). On avance lot par lot.
 
 ### Fait et validé
@@ -100,7 +103,11 @@ Documents de référence :
 - Les modules Z80 sont écrits en C# dans `RuntimeLibrary.cs` ; chacun déclare ses dépendances, seuls les modules utilisés sont liés (liaison sélective). Modules actuels : PrintString, PrintInt, Input, Mul16, Div16, Abs16, Sgn16, Min16, Max16, Rand16, Randomize, RandomRange, Pixel, Box, Array (D058), RunError et Data (D059).
 - Tableaux (D058) : un descripteur par tableau à la fin du binaire (adresse des cases, puis nombre de cases par dimension) ; les cases sont prises au lancement après le programme (`rt_heap_start`), jusqu'à &A67B ou MEMORY. Erreurs à l'exécution : module commun `RunError` (texte du Locomotive + « in » + numéro de ligne rangé dans `rt_err_line`), puis attente d'une touche et redémarrage (D059). `AstWalker` (dans `Ast.cs`) parcourt les expressions d'une instruction.
 - Le programme compilé commence en &4000. Expressions sur 16 bits, résultat dans `HL`. Variables réservées à la fin du binaire. Les octets (`BYTE`) sont étendus à 16 bits en lecture. Fonctions : `NOM(valeurs)` (table `Functions` du parser) ; `TIME` sans parenthèses.
-- Nombres : entiers de -32768 à 32767. Une adresse écrite seule (POKE, PEEK, CALL, MEMORY…) peut aller jusqu'à 65535 ; dans un calcul, non (écrire `-16384 + I`). Cela changera avec les lots D et F.
+- Nombres entiers de -32768 à 32767 ; une adresse écrite seule (POKE, PEEK, CALL, MEMORY…) peut aller jusqu'à 65535. Un nombre écrit plus grand, ou avec virgule ou exposant, est un nombre à virgule (D068).
+- Nombres à virgule (D068 à D070) : 5 octets du Locomotive (`LocoReal.cs`). Calculs par la ROM à travers une table de sauts `rt_fm_...` (`FirmwareMaths`, adresses 464 et 664/6128 ; « Tous les CPC » : KL PROBE ROM au départ). Un calcul se fait dans des cases `ftmp_k` (`EmitRealInto`, `realFree`). Modules dans `RealRuntime.cs` : RealOps (conversions, opérations, Overflow), RealPrint (affichage exact, aiguillage `rt_fp_out` pour STR$), RealParse (INPUT A!, VAL), RealRnd, DataReal. Piège connu : REAL INT / REAL FIX de la ROM rendent un entier de 4 octets (D069).
+- Sans DEF ni réglage F8, `A` est un entier à part (D026) ; DEFINT/DEFREAL/DEFSTR et F8 ajoutent le signe aux noms avant la lecture (`ApplyDefaultTypes` dans le parser).
+- Son (D071) : routines de la ROM &BCAA, &BCAD, &BCB3, &BCBC, &BCBF ; `EnvelopeStatement` pour ENV et ENT.
+- Vérifier contre le vrai BASIC : faire taper un petit programme à l'utilisateur dans **SugarBox** (WinAPE déforme le collage), relever l'écran, puis comparer avec l'exemple compilé.
 - Sauts (D054) : chaque ligne numérotée reçoit une étiquette `line_N` (zéro octet) ; GOTO = JP, GOSUB = CALL, RETURN = RET.
 - Blocs (FOR, WHILE, REPEAT, DO, IF) : pile commune dans le parser et dans le générateur. `EXIT` et `CONTINUE` sont de simples sauts.
 - Comparaisons signées : on retourne le bit 15 des deux valeurs puis on compare avec la retenue.
@@ -113,6 +120,8 @@ Documents de référence :
 - Réglages de l'éditeur : `EditorSettings.cs`, fichier `%APPDATA%\CpcBasicIde\reglages.json`. F6 passe de l'éditeur aux messages (D041).
 
 ## 6. Comment donner les fichiers à la nouvelle conversation
+
+**Économiser la conversation (demande de l'utilisateur, 15 nov. 2026) :** ne pas relire tous les fichiers. Lire ce fichier, puis seulement les parties utiles à l'étape en cours (chercher avec `grep`, lire quelques dizaines de lignes) ; ne lire le journal que pour la décision voulue (`grep -n "## D07"`).
 
 **Le plus simple :** le dépôt est public. Après avoir poussé le dernier commit sur GitHub, écrire à Claude « clone le dépôt CPC-LOCO/cpc-basic-ide et lis docs\REPRISE.md ». Claude peut alors lire tous les fichiers lui-même. (Il ne peut pas forcément pousser : c'est l'utilisateur qui pousse avec `packaging\commit.cmd`.)
 
@@ -144,4 +153,4 @@ Documents de référence :
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE. Clone le dépôt CPC-LOCO/cpc-basic-ide (ou lis les fichiers joints) et lis d'abord docs\REPRISE.md. Le dernier commit est le lot C partie 1 (POKE, PEEK, CALL, OUT, INP, MEMORY), validé ; les tests passent (481). On continue le lot C : DIM, puis DATA / READ / RESTORE.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est le lot G1 (le son), validé ; 909 tests passent. On attaque le lot H (fenêtres et mise en forme : WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #, et l'édition de la ligne d'INPUT avec COPY).
