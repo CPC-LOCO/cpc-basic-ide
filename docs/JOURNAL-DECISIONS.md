@@ -451,6 +451,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fait (F1a) :** `CompilerOptions` (machine, variables sans signe) transmis de l'éditeur à l'analyse et au générateur ; deux boutons dans l'éditeur, « Machine : … (F7) » et « Sans signe : entiers / à virgule (F8) », avec un message d'explication à chaque changement, l'état dans la barre d'état et dans le message de compilation réussie. Les réglages n'ont pas encore d'effet sur le programme compilé (ils serviront dès F1b).
 - **Fichiers :** `src\CpcBasic.Core\CompilerOptions.cs` (nouveau), Compiler.cs, BasicAnalyzer.cs, CodeGenerator.cs, `src\CpcIde\EditorSettings.cs`, `src\CpcIde\MainWindow.axaml`, `src\CpcIde\MainWindow.axaml.cs`, `tests\CpcBasic.Tests\OptionsTests.cs` (5 tests).
 
+## D067 : forme finale du projet (Décidé, 15 nov. 2026)
+- **Choix de l'utilisateur :** viser d'abord **Windows**, avec un **programme d'installation** (raccourci, désinstallation) au lieu de l'archive .zip actuelle, et un programme **signé** pour qu'un antivirus ne le bloque pas (Avast signale aujourd'hui l'exécutable non signé).
+- **Quand :** une fois que tout fonctionnera, et après que l'utilisateur aura indiqué les choses à ajouter avant de créer le fichier d'installation (il le dira à ce moment-là).
+- **Ensuite, peut-être :** Linux (l'éditeur utilise Avalonia, prévu pour Windows, Linux et macOS ; seuls les scripts de développement sont propres à Windows).
+- **À savoir pour la signature :** il faut un certificat de signature de code délivré par une autorité (en général payant, avec vérification d'identité) ; des offres gratuites existent pour les logiciels libres. À étudier au moment venu, avec les tarifs et conditions du moment.
+
 ---
 
 ## Notes de fin de session (modèle)
