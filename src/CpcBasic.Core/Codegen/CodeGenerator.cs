@@ -114,12 +114,13 @@ public static class CodeGenerator
 
         // Tableaux de textes (D065) : leurs cases sont des fiches de 3 octets. S'il y en a, chaque accès à un tableau
         // indique d'abord la taille de ses cases (2 ou 3) ; sinon rien n'est ajouté.
-        bool hasStringArrays = arrays.Keys.Any(VariableNames.IsString);
+        // Tableaux de nombres à virgule (D070) : cases de 5 octets.
+        bool hasStringArrays = arrays.Keys.Any(name => VariableNames.IsString(name) || VariableNames.IsReal(name));
         void EmitElementSize(string name)
         {
             if (!hasStringArrays)
                 return;
-            emitter.LdAImm(VariableNames.IsString(name) ? 3 : 2);
+            emitter.LdAImm(VariableNames.IsString(name) ? 3 : VariableNames.IsReal(name) ? 5 : 2);
             emitter.LdMemA(RuntimeLibrary.ArrayElementSizeLabel);
         }
 
@@ -312,6 +313,18 @@ public static class CodeGenerator
                 case VariableExpression variable when VariableNames.IsReal(variable.Name):
                     EmitCopyReal(Slot(variable.Name).Label, temp);
                     break;
+
+                case ArrayElementExpression element when VariableNames.IsReal(element.Name):
+                {
+                    int saved = realFree;                           // T!(I) (D070) : les numéros de case sont entiers
+                    realFree = k;
+                    EmitElementAddress(element.Name, element.Indexes);
+                    realFree = saved;
+                    emitter.LdDeLabel(temp);
+                    emitter.LdBcImm(5);
+                    emitter.Ldir();
+                    break;
+                }
 
                 case BinaryExpression { Operator: BinaryOperator.Subtract, Left: NumberExpression { Value: 0 } } minus
                     when Types.IsReal(minus):
@@ -1294,7 +1307,11 @@ public static class CodeGenerator
         }
 
         if (usesData)
+        {
             required.Add(RuntimeLibrary.DataName);
+            // Nombres à virgule dans DATA ou READ A! (D070) : lecture par le module DataReal
+            required.Add(usesReals ? RuntimeLibrary.DataRealName : RuntimeLibrary.DataNoRealName);
+        }
 
         // Nombres à virgule (D068) : table des routines de la ROM selon la machine, angles en radians
         if (usesReals)
@@ -1428,7 +1445,15 @@ public static class CodeGenerator
                         {
                             // INPUT A! (D068) : le nombre tapé, écrit comme dans un programme (1.5, -2E3...)
                             required.Add(RuntimeLibrary.InputRealName);
-                            emitter.LdDeLabel(Slot(input.Variables[i]).Label);
+                            if (input.Indexes?[i] is { } realIndexes)
+                            {
+                                EmitElementAddress(input.Variables[i], realIndexes);   // INPUT T!(I) (D070)
+                                emitter.ExDeHl();
+                            }
+                            else
+                            {
+                                emitter.LdDeLabel(Slot(input.Variables[i]).Label);
+                            }
                             emitter.CallLabel(RealRuntime.InputLabel);
                             emitter.JpCLabel(redo);
                             continue;
@@ -1562,6 +1587,17 @@ public static class CodeGenerator
                     EmitStore(Slot(assign.Variable));
                     break;
 
+                case ArrayAssignStatement arrayAssign when VariableNames.IsReal(arrayAssign.Name):
+                    EmitRealInto(arrayAssign.Value, 0);             // T!(I) = valeur (D070)
+                    realFree = 1;
+                    EmitElementAddress(arrayAssign.Name, arrayAssign.Indexes);
+                    realFree = 0;
+                    emitter.ExDeHl();
+                    emitter.LdHlLabel(RealTemp(0));
+                    emitter.LdBcImm(5);
+                    emitter.Ldir();
+                    break;
+
                 case ArrayAssignStatement arrayAssign when VariableNames.IsString(arrayAssign.Name):
                     EmitString(arrayAssign.Value);                  // N$(I) = texte (D065)
                     emitter.PushHl();
@@ -1613,6 +1649,21 @@ public static class CodeGenerator
                                 emitter.LdDeLabel(Slot(((VariableExpression)target).Name).Label);
                             }
                             emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                            continue;
+                        }
+                        if (Types.IsReal(target))
+                        {
+                            // READ A! ou READ T!(I) (D070) : DE = où ranger le nombre
+                            if (target is ArrayElementExpression realCell)
+                            {
+                                EmitElementAddress(realCell.Name, realCell.Indexes);
+                                emitter.ExDeHl();
+                            }
+                            else
+                            {
+                                emitter.LdDeLabel(Slot(((VariableExpression)target).Name).Label);
+                            }
+                            emitter.CallLabel(RealRuntime.ReadRealLabel);
                             continue;
                         }
                         emitter.CallLabel(RuntimeLibrary.ReadLabel);   // HL = nombre suivant
@@ -1875,11 +1926,14 @@ public static class CodeGenerator
                     emitter.Label($"data_at_{k}");
                 if (k < dataValues.Count)
                 {
-                    // Nombre : 0, valeur, longueur et lettres de son écriture ; texte : 1, longueur, lettres (D064)
+                    // Nombre : 0, valeur, longueur et lettres de son écriture ; texte : 1, longueur, lettres (D064) ;
+                    // nombre à virgule : 2, ses 5 octets, longueur et lettres (D070)
                     DataItem item = dataValues[k];
                     byte[] written = Encode(item.Text);
-                    emitter.Bytes((byte)(item.IsText ? 1 : 0));
-                    if (!item.IsText)
+                    emitter.Bytes((byte)(item.IsText ? 1 : item.IsReal ? 2 : 0));
+                    if (item.IsReal)
+                        emitter.Data(LocoReal.Encode(item.Real)!);
+                    else if (!item.IsText)
                         emitter.Word(item.Value & 0xFFFF);
                     emitter.Bytes((byte)(written.Length - 1));
                     emitter.Data(written[..^1]);
@@ -1955,7 +2009,8 @@ public static class CodeGenerator
         AstWalker.All(statement).Any(Types.IsReal)
         || statement is ScreenStatement { Command: "DEG" or "RAD" }
         || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable))
-        || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable));
+        || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable))
+        || (statement is DataStatement data && data.Items.Any(item => item.IsReal));
 
     static bool StatementUsesStrings(Statement statement) =>
         AstWalker.All(statement).Any(Types.IsString)

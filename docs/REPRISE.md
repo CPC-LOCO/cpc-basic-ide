@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D069 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D070 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -69,7 +69,7 @@ Documents de référence :
 
 ### Prochaine étape : fin du lot C
 
-1. lot F : F1a faite ; F1b faite (nombres à virgule : écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, réglage F8, FOR X!, INPUT A!, @A!, D068) ; F2 faite (fonctions mathématiques, DEG/RAD, RND, D069), F3 (tableaux, READ, VAL, STR$ avec les nombres à virgule) à faire : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
+1. lot F : F1a faite ; F1b faite (nombres à virgule : écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, réglage F8, FOR X!, INPUT A!, @A!, D068) ; F2 faite (fonctions mathématiques, DEG/RAD, RND, D069), F3a faite (tableaux à virgule, DATA et READ, D070) ; F3b (VAL et STR$ avec les nombres à virgule) à faire : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
 
 Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, comparaisons comme valeurs), lot E (chaînes), F (réels et fonctions mathématiques), G (son), H (fenêtres et mise en forme), I (interruptions et erreurs), J (disquette et cassette).
 

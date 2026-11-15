@@ -70,12 +70,23 @@ public class DataTests
         Assert.Equal(new DataItem(true, 0, "BONJOUR LE CPC"), data.Items[2]);
     }
 
+    // Depuis le lot F3 (D070), un nombre trop grand pour un entier est un nombre à virgule, comme le Locomotive
     [Theory]
-    [InlineData("10 DATA 65536")]
-    [InlineData("10 DATA -32769")]
-    public void Un_nombre_trop_grand_dans_DATA_est_refuse(string source)
+    [InlineData("10 DATA 65536", 65536.0)]
+    [InlineData("10 DATA -32769", -32769.0)]
+    [InlineData("10 DATA 3.14", 3.14)]
+    [InlineData("10 DATA -.5E2", -50.0)]
+    public void Un_nombre_trop_grand_ou_a_virgule_dans_DATA_est_a_virgule(string source, double value)
     {
-        Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.NumberOutOfRange);
+        var data = Assert.IsType<DataStatement>(Parse(source).Statements[0]);
+        Assert.True(data.Items[0].IsReal);
+        Assert.Equal(value, data.Items[0].Real);
+    }
+
+    [Fact]
+    public void Un_nombre_beaucoup_trop_grand_dans_DATA_est_refuse()
+    {
+        Assert.Contains(Errors("10 DATA 1E39"), e => e.Code == DiagnosticCode.NumberOutOfRange);
     }
 
     [Fact]

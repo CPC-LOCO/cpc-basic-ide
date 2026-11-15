@@ -509,6 +509,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **RND :** de 0 (compris) à 1 (non compris), fait de deux tirages du générateur entier (D050) : RANDOMIZE agit aussi sur RND. RND(0) redonne le dernier nombre, RND(négatif) repart d'une graine tirée de ce nombre. La suite n'est pas celle du vrai CPC (ce sont des nombres au hasard).
 - **Fichiers :** Parser.cs (fonctions, PI et RND sans parenthèses, DEG et RAD), Ast.cs (types des fonctions), CodeGenerator.cs, RealRuntime.cs (ROUND, ABS, contrôles, module RealRnd), RuntimeLibrary.cs, Z80Emitter.cs, MiniZ80.cs, `tests\CpcBasic.Tests\RealFunctionsTests.cs` (nouveau), ArrayTests.cs (SIN existe maintenant : l'essai utilise FRE) ; exemple `examples\fonction.bas`.
 
+## D070 : lot F3, nombres à virgule partout (F3a validée le 15 nov. 2026 : tests réussis, `tabreel.bas` identique dans WinAPE et dans le vrai BASIC de SugarBox ; F3b à faire)
+- **Découpage :** F3a = tableaux de nombres à virgule, nombres à virgule dans DATA, READ A! ; F3b = VAL et STR$ avec les nombres à virgule.
+- **Tableaux (F3a) :** DIM T!(10), T!(I) = ..., INPUT T!(I), READ T!(I), @T!(I) ; plusieurs dimensions ; sans DIM : cases 0 à 10, comme les autres tableaux. Une case fait 5 octets (le module Array sait maintenant multiplier par 2, 3 ou 5). Avec le réglage F8, DIM T(10) est un tableau à virgule.
+- **DATA (F3a) :** 3.14, .5, -1E3, ou un entier trop grand (70000, -32769) sont rangés comme nombres à virgule : élément « 2 », ses 5 octets, puis son écriture (pour READ A$). Plus de 1.7E+38 : erreur à la compilation. Les entiers de -32768 à 65535 restent comme avant (D059).
+- **READ (F3a) :** READ A! lit un nombre à virgule, ou un entier converti ; READ A (entier) sur un nombre à virgule l'arrondit (« Overflow in N » s'il ne tient pas) ; READ A$ rend l'écriture du nombre ; READ A! sur un texte : « Type mismatch ».
+- **Fichiers (F3a) :** Ast.cs (tous les types de variables existent, DataItem.IsReal), Parser.cs (DATA), CodeGenerator.cs, RuntimeLibrary.cs (Array : cases de 5 octets ; Data, DataString : élément 2 ; modules DataReal / DataNoReal), RealRuntime.cs, `tests\CpcBasic.Tests\RealArraysTests.cs` (nouveau), ArrayTests.cs, VariablesTests.cs, DataTests.cs (tableaux à virgule et grands nombres dans DATA maintenant permis) ; exemple `examples\tabreel.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

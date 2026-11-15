@@ -20,11 +20,8 @@ public enum VarType
 
 public static class VariableNames
 {
-    /// <summary>
-    /// Vrai si la variable est utilisable partout. Une variable A! (nombre à virgule, lot F1b, D068) ne l'est
-    /// encore que dans un calcul et une affectation simple : pas encore en tableau, FOR, INPUT, READ ni avec @.
-    /// </summary>
-    public static bool IsSupported(string name) => name[^1] is not '!';
+    /// <summary>Tous les types existent depuis le lot F3 (tableaux de nombres à virgule, D070).</summary>
+    public static bool IsSupported(string name) => name.Length > 0;
 
     /// <summary>Vrai pour une variable nombre à virgule (A!).</summary>
     public static bool IsReal(string name) => name[^1] == '!';
@@ -190,6 +187,7 @@ public static class Types
     {
         RealNumberExpression => true,
         VariableExpression variable => VariableNames.IsReal(variable.Name),
+        ArrayElementExpression element => VariableNames.IsReal(element.Name),      // T!(3) (D070)
         BinaryExpression binary => binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
                                        or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Power
                                    && (IsReal(binary.Left) || IsReal(binary.Right)),
@@ -270,13 +268,14 @@ public sealed record InputStatement(int SourceLine, string? Prompt, bool Questio
 /// Un élément de DATA (D064). Un nombre garde aussi son écriture (READ A$ la rend telle quelle : « 012 ») ; un texte
 /// n'a pas de valeur (READ A sur un texte : « Type mismatch »). Un élément vide est le nombre 0, écrit « ».
 /// </summary>
-public sealed record DataItem(bool IsText, int Value, string Text);
+/// <summary>Élément de DATA. IsReal : nombre à virgule (3.14, 1E5, 70000), valeur dans Real (lot F3, D070).</summary>
+public sealed record DataItem(bool IsText, int Value, string Text, bool IsReal = false, double Real = 0);
 
 /// <summary>DATA 10, "BONJOUR", -5 : éléments rangés dans le programme, lus par READ (lot C, D059 ; textes : D064).</summary>
 public sealed record DataStatement(int SourceLine, IReadOnlyList<DataItem> Items) : Statement(SourceLine)
 {
     /// <summary>Les nombres seulement, sur 16 bits.</summary>
-    public IReadOnlyList<int> Values => Items.Where(item => !item.IsText).Select(item => item.Value).ToList();
+    public IReadOnlyList<int> Values => Items.Where(item => !item.IsText && !item.IsReal).Select(item => item.Value).ToList();
 }
 
 /// <summary>LINE INPUT [;] ["texte" ;] A$ : toute la ligne tapée va dans A$, virgules comprises (D064).</summary>

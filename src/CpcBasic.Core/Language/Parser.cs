@@ -784,13 +784,26 @@ public static class Parser
 
         if (digits.Length > 0 && digits.All(char.IsAsciiDigit))
         {
-            if (!long.TryParse(digits, out long value) || value > (negative ? 32768 : 65535))
+            if (long.TryParse(digits, out long value) && value <= (negative ? 32768 : 65535))
+            {
+                int word = (int)(negative ? -value : value);
+                return new DataItem(false, Signed16(word & 0xFFFF), inner);
+            }
+        }
+
+        // 3.14, .5, 1E5, ou un entier trop grand (70000) : nombre à virgule, comme le Locomotive (D070)
+        if (System.Text.RegularExpressions.Regex.IsMatch(digits, @"^(\d+\.?\d*|\.\d+)([Ee][+-]?\d+)?$")
+            && double.TryParse(digits, System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out double real))
+        {
+            if (negative)
+                real = -real;
+            if (CpcBasic.Core.Codegen.LocoReal.Encode(real) is null)
             {
                 diagnostics.Add(new Diagnostic(DiagnosticCode.NumberOutOfRange, t.Line, number));
                 return null;
             }
-            int word = (int)(negative ? -value : value);
-            return new DataItem(false, Signed16(word & 0xFFFF), inner);
+            return new DataItem(false, 0, inner, IsReal: true, Real: real);
         }
 
         if (TryHexText(digits, out int hex))

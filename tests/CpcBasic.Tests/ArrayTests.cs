@@ -112,12 +112,11 @@ public class ArrayTests
         Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.NotYetAvailable);
     }
 
-    // Les tableaux de textes existent depuis D065 (DIM A$(5) est accepté) ; ceux de réels attendent le lot F
-    [Theory]
-    [InlineData("10 B!(2) = 1", DiagnosticCode.UnsupportedVariableType)]
-    public void Les_tableaux_de_reels_n_existent_pas_encore(string source, DiagnosticCode code)
+    // Les tableaux de textes existent depuis D065, ceux de nombres à virgule depuis le lot F3 (D070)
+    [Fact]
+    public void Les_tableaux_de_nombres_a_virgule_existent()
     {
-        Assert.Contains(Errors(source), e => e.Code == code);
+        Assert.DoesNotContain(Errors("10 B!(2) = 1.5"), e => e.Code == DiagnosticCode.UnsupportedVariableType);
     }
 
     [Theory]

@@ -119,6 +119,8 @@ public static class RuntimeLibrary
     public const string RealPrintName = "RealPrint";   // nombres à virgule : affichage comme PRINT (D068)
     public const string InputRealName = "InputReal";   // nombres à virgule : INPUT A! (D068)
     public const string RealRndName = "RealRnd";       // RND (D069)
+    public const string DataRealName = "DataReal";     // nombres à virgule dans DATA, READ A! (D070)
+    public const string DataNoRealName = "DataNoReal"; // programme sans nombre à virgule : rien à lire de tel (D070)
     public const string MathsAllName = "FMathsAll";
     public const string Maths464Name = "FMaths464";
     public const string Maths6128Name = "FMaths6128";
@@ -278,9 +280,13 @@ public static class RuntimeLibrary
             e.AddHlDe();
             e.JrNcLabel("rt_read_none");             // plus rien à lire
             e.LdAHl();                               // 0 : nombre (valeur, puis son écriture) ; 1 : texte (D064)
-            e.IncHl();
+            e.IncHl();                               // 2 : nombre à virgule (D070, module DataReal)
             e.OrA();
-            e.JrNzLabel("rt_read_text");
+            e.JrZLabel("rt_read_int");
+            e.CpImm(2);
+            e.JpZLabel("rt_read_real");
+            e.JrLabel("rt_read_text");
+            e.Label("rt_read_int");
             e.LoadEFromHl();
             e.IncHl();
             e.LoadDFromHl();
@@ -320,8 +326,14 @@ public static class RuntimeLibrary
             e.JpNcLabel("rt_read_none");
             e.LdAHl();
             e.IncHl();
+            e.CpImm(1);
+            e.JrZLabel("rt_read_str_text");
             e.OrA();
-            e.JrNzLabel("rt_read_str_text");
+            e.JrZLabel("rt_read_str_int");
+            e.IncHl();                               // nombre à virgule : 5 octets à sauter (D070)
+            e.IncHl();
+            e.IncHl();
+            e.Label("rt_read_str_int");
             e.IncHl();                               // nombre : on saute sa valeur
             e.IncHl();
             e.Label("rt_read_str_text");
@@ -1671,13 +1683,18 @@ public static class RuntimeLibrary
 
             // Réserve HL cases pour le descripteur DE, et les met à 0
             e.Label(ArrayAllocLabel);
-            e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
-            e.LdCL();
+            e.LdBH();                                // taille d'une case : 2 octets (entier), 3 (fiche de texte, D065)
+            e.LdCL();                                // ou 5 (nombre à virgule, D070)
             e.AddHlHl();
             e.JpCLabel(ErrMemory);
             e.LdAMem(ArrayElementSizeLabel);
+            e.CpImm(2);
+            e.JrZLabel("rt_arr_alloc_two");
             e.CpImm(3);
-            e.JrNzLabel("rt_arr_alloc_two");
+            e.JrZLabel("rt_arr_alloc_three");
+            e.AddHlHl();                             // 4 cases, puis + 1 = 5
+            e.JpCLabel(ErrMemory);
+            e.Label("rt_arr_alloc_three");
             e.AddHlBc();
             e.JpCLabel(ErrMemory);
             e.Label("rt_arr_alloc_two");
@@ -1762,9 +1779,13 @@ public static class RuntimeLibrary
             e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
             e.LdCL();
             e.AddHlHl();
-            e.LdAMem(ArrayElementSizeLabel);         // écart en octets
+            e.LdAMem(ArrayElementSizeLabel);         // écart en octets : 2, 3 ou 5 fois le numéro (D070)
+            e.CpImm(2);
+            e.JrZLabel("rt_arr_e1_two");
             e.CpImm(3);
-            e.JrNzLabel("rt_arr_e1_two");
+            e.JrZLabel("rt_arr_e1_two_3");
+            e.AddHlHl();
+            e.Label("rt_arr_e1_two_3");
             e.AddHlBc();
             e.Label("rt_arr_e1_two");
             e.ExDeHl();
@@ -1828,9 +1849,13 @@ public static class RuntimeLibrary
             e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
             e.LdCL();
             e.AddHlHl();
-            e.LdAMem(ArrayElementSizeLabel);
+            e.LdAMem(ArrayElementSizeLabel);         // écart en octets : 2, 3 ou 5 fois le numéro (D070)
+            e.CpImm(2);
+            e.JrZLabel("rt_arr_e_two");
             e.CpImm(3);
-            e.JrNzLabel("rt_arr_e_two");
+            e.JrZLabel("rt_arr_e_two_3");
+            e.AddHlHl();
+            e.Label("rt_arr_e_two_3");
             e.AddHlBc();
             e.Label("rt_arr_e_two");
             e.ExDeHl();
@@ -2984,6 +3009,12 @@ public static class RuntimeLibrary
         [RealPrintName] = new RuntimeModule(RealPrintName, [], RealRuntime.EmitPrint),
         [InputRealName] = new RuntimeModule(InputRealName, [InputName], RealRuntime.EmitInput),
         [RealRndName] = new RuntimeModule(RealRndName, [Rand16Name, RandomizeName], RealRuntime.EmitRnd),
+        [DataRealName] = new RuntimeModule(DataRealName, [DataName, RealOpsName], RealRuntime.EmitDataReal),
+        [DataNoRealName] = new RuntimeModule(DataNoRealName, [DataName], e =>
+        {
+            e.Label("rt_read_real");                 // jamais atteint : pas de nombre à virgule dans les DATA
+            e.JpLabel("rt_read_text");
+        }),
         [Maths464Name] = new RuntimeModule(Maths464Name, [], e => EmitMathsFixed(e, rom464: true)),
         [Maths6128Name] = new RuntimeModule(Maths6128Name, [], e => EmitMathsFixed(e, rom464: false))
     };

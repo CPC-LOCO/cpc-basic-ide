@@ -223,8 +223,8 @@ public class VariablesParserTests
     {
         // Depuis le lot E (D062), A$ existe : lui donner un nombre est une erreur de type, comme le Locomotive
         Assert.Equal(DiagnosticCode.TypeMismatch, SingleError("10 A$ = 1"));
-        // Depuis le lot F1b (D068), B! existe ; les tableaux de nombres à virgule viendront avec F3
-        Assert.Equal(DiagnosticCode.UnsupportedVariableType, SingleError("10 PRINT B!(1)"));
+        // Depuis le lot F1b (D068), B! existe ; les tableaux de nombres à virgule depuis F3 (D070)
+        Assert.Equal(DiagnosticCode.TypeMismatch, SingleError("10 B! = \"X\""));
     }
 
     [Fact]

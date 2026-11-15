@@ -808,6 +808,76 @@ internal static class RealRuntime
         e.Data(LocoReal.Encode(1.0 / 4294967296)!);
     }
 
+    public const string ReadRealLabel = "rt_read_f";      // READ A! : DE = où ranger le nombre suivant des DATA (D070)
+
+    /// <summary>
+    /// DATA et nombres à virgule (D070). Un élément « 2 » de la table des DATA est un nombre à virgule :
+    /// 2, ses 5 octets, la longueur de son écriture, puis les lettres.
+    ///  - rt_read_real : READ A (entier) tombe sur un nombre à virgule : arrondi, « Overflow » s'il ne tient pas ;
+    ///  - rt_read_f    : READ A! : nombre à virgule tel quel, ou entier converti.
+    /// </summary>
+    public static void EmitDataReal(Z80Emitter e)
+    {
+        e.Label("rt_read_real");                          // HL = les 5 octets (venant de rt_read)
+        e.CallLabel("rt_dr_skip");
+        e.LdDeLabel("rt_dr_tmp");                         // copie : la table des DATA ne doit pas changer
+        e.LdBcImm(5);
+        e.Ldir();
+        e.LdHlLabel("rt_dr_tmp");
+        e.JpLabel(RealToIntLabel);
+
+        e.Label(ReadRealLabel);
+        e.LdMemDe("rt_dr_dst");
+        e.LdHlMem(RuntimeLibrary.DataPointerLabel);
+        e.LdDeLabel(RuntimeLibrary.DataEndLabel);
+        e.OrA();
+        e.SbcHlDe();
+        e.AddHlDe();
+        e.JpNcLabel("rt_read_none");                      // plus rien à lire
+        e.LdAHl();
+        e.IncHl();
+        e.CpImm(1);
+        e.JpZLabel("rt_read_text");                       // un texte : Type mismatch
+        e.CpImm(2);
+        e.JrZLabel("rt_dr_real");
+        e.LoadEFromHl();                                  // entier : converti
+        e.IncHl();
+        e.LoadDFromHl();
+        e.IncHl();
+        e.LoadCFromHl();
+        e.IncHl();
+        e.LdBImm(0);
+        e.AddHlBc();
+        e.LdMemHl(RuntimeLibrary.DataPointerLabel);
+        e.ExDeHl();
+        e.LdDeMem("rt_dr_dst");
+        e.JpLabel(IntToRealLabel);
+        e.Label("rt_dr_real");
+        e.CallLabel("rt_dr_skip");
+        e.LdDeMem("rt_dr_dst");
+        e.LdBcImm(5);
+        e.Ldir();
+        e.Ret();
+
+        // HL = les 5 octets d'un nombre à virgule : le pointeur des DATA passe à l'élément suivant (HL gardé)
+        e.Label("rt_dr_skip");
+        e.PushHl();
+        e.LdDeImm(5);
+        e.AddHlDe();
+        e.LoadCFromHl();
+        e.IncHl();
+        e.LdBImm(0);
+        e.AddHlBc();
+        e.LdMemHl(RuntimeLibrary.DataPointerLabel);
+        e.PopHl();
+        e.Ret();
+
+        e.Label("rt_dr_tmp");
+        e.Reserve(5);
+        e.Label("rt_dr_dst");
+        e.Reserve(2);
+    }
+
     public const string InputLabel = "rt_input_real";   // DE = où ranger : lit le nombre tapé (retenue = « Redo »)
 
     /// <summary>
