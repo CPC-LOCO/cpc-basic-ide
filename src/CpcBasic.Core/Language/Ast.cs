@@ -54,8 +54,10 @@ public sealed record DeclareStatement(int SourceLine, IReadOnlyList<string> Name
 /// <summary>
 /// FOR variable = départ TO limite [STEP pas]. La limite et le pas sont des nombres écrits dans
 /// le programme (décision D033). Le corps de la boucle se termine au NEXT correspondant.
+/// Variable à virgule (FOR X!, D068) : RealLimit et RealStep donnent la limite et le pas ; Step vaut alors 1 ou -1.
 /// </summary>
-public sealed record ForStatement(int SourceLine, string Variable, Expression Start, int Limit, int Step)
+public sealed record ForStatement(int SourceLine, string Variable, Expression Start, int Limit, int Step,
+                                  double RealLimit = 0, double RealStep = 0)
     : Statement(SourceLine);
 
 /// <summary>NEXT [variable] : referme la boucle FOR ouverte la plus récente.</summary>

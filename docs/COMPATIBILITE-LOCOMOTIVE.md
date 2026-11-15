@@ -67,12 +67,12 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `Variables entières (A, A%)` | nombre entier | Écart voulu | Le Locomotive : A est un réel. Ici A et A% sont deux variables entières 16 bits distinctes. |
-| `Variables réelles (A!)` | nombre à virgule | Partielle | Lot F1b1 (D068) : calculs, affectation, comparaisons, PRINT. Pas encore en tableau, FOR, INPUT, READ ni avec @. |
+| `Variables réelles (A!)` | nombre à virgule | Partielle | Lot F1b (D068) : calculs, affectation, comparaisons, PRINT, FOR, INPUT, @. Pas encore en tableau ni avec READ (F3). |
 | `Variables chaînes (A$)` | texte | Faite | Variables, +, comparaisons, PRINT, INPUT (D062), tableaux de textes (D065). |
 | `Nombres décimaux entiers` | constantes 0 à 32767 (et négatifs) | Faite |  |
 | `Nombres hexadécimaux et binaires (&H, &X)` | constantes écrites en base 16 ou 2 | Faite | &C9, &HC9, &X1010, de &0 à &FFFF (&FFFF = -1). D060. |
 | `Nombres réels (3.14, 1E5)` | constantes à virgule | Fait | Lot F1b1 (D068) : calculs par la ROM (464 et 664/6128), affichage identique au vrai BASIC, Overflow et Division by zero qui laissent continuer. Entre deux entiers, le calcul reste entier (7/2 = 3, D066). |
-| `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | À faire | À décider : DEFINT a peu de sens si tout est entier. |
+| `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | Fait | Lot F1b2 (D068) : valent pour tout le programme ; après DEFINT A-Z, A et A% sont la même variable. Réglage F8 = DEFREAL A-Z. |
 | `DIM` | tableaux | Faite | Tableaux d'entiers, une ou plusieurs dimensions, taille écrite ou calculée, création automatique (0 à 10) sans DIM, vérification des cases (« Subscript out of range »). Textes et réels avec les lots E et F. D058. |
 | `ERASE` | efface un tableau | À faire |  |
 | `DATA` | données dans le programme | Faite | Nombres entiers (-32768 à 65535, &hexadécimal), textes entre guillemets ou non, éléments vides (D059, D060, D064). Réels avec le lot F. |

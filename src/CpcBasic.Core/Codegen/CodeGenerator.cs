@@ -30,7 +30,7 @@ public static class CodeGenerator
     /// <summary>Une boucle ouverte : ses étiquettes servent à NEXT, EXIT et CONTINUE.</summary>
     sealed record LoopInfo(LoopKind Kind, string Variable, int Step, int Limit,
                            string BodyLabel, string NextLabel, string ExitLabel,
-                           bool HasTopCondition = false);
+                           bool HasTopCondition = false, double RealLimit = 0, double RealStep = 0);
 
     /// <summary>Un IF ouvert : ses étiquettes servent à ELSE et END IF.</summary>
     sealed class IfInfo(string elseLabel, string endLabel)
@@ -719,6 +719,23 @@ public static class CodeGenerator
         {
             VariableSlot slot = Slot(loop.Variable);
 
+            if (slot.Type == VarType.Real)
+            {
+                // FOR X! (D068) : X! = X! + pas, puis comparaison avec la limite par la ROM (A = 1, 0 ou &FF).
+                // Pas positif : on continue tant que X! n'est pas plus grand ; négatif : pas plus petit.
+                emitter.Label(loop.NextLabel);
+                emitter.LdHlLabel(slot.Label);
+                emitter.LdDeLabel(RealLiteral(loop.RealStep));
+                emitter.CallLabel(RealRuntime.AddLabel);
+                emitter.LdHlLabel(slot.Label);
+                emitter.LdDeLabel(RealLiteral(loop.RealLimit));
+                emitter.CallLabel(FirmwareMaths.Compare.Label);
+                emitter.CpImm(loop.RealStep > 0 ? 1 : 0xFF);
+                emitter.JpNzLabel(loop.BodyLabel);
+                emitter.Label(loop.ExitLabel);
+                return;
+            }
+
             emitter.Label(loop.NextLabel);
             EmitLoad(slot);
             emitter.LdDeImm(loop.Step & 0xFFFF);
@@ -1258,6 +1275,15 @@ public static class CodeGenerator
                             emitter.JpCLabel(redo);
                             continue;
                         }
+                        if (VariableNames.IsReal(input.Variables[i]))
+                        {
+                            // INPUT A! (D068) : le nombre tapé, écrit comme dans un programme (1.5, -2E3...)
+                            required.Add(RuntimeLibrary.InputRealName);
+                            emitter.LdDeLabel(Slot(input.Variables[i]).Label);
+                            emitter.CallLabel(RealRuntime.InputLabel);
+                            emitter.JpCLabel(redo);
+                            continue;
+                        }
                         emitter.CallLabel(RuntimeLibrary.InputNumLabel);
                         emitter.JpCLabel(redo);
                         if (input.Indexes?[i] is { } cellIndexes)
@@ -1489,6 +1515,20 @@ public static class CodeGenerator
                     foreach (string declaredName in declare.Names)
                         declared[declaredName] = VarType.Byte;   // aucun code : seul le type est retenu
                     break;
+
+                case ForStatement forStatement when VariableNames.IsReal(forStatement.Variable):
+                {
+                    EmitRealInto(forStatement.Start, 0);            // FOR X! = départ (D068)
+                    EmitCopyReal(RealTemp(0), Slot(forStatement.Variable).Label);
+
+                    int id = loopCount++;
+                    var loop = new LoopInfo(LoopKind.For, forStatement.Variable, forStatement.Step, 0,
+                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit",
+                                            RealLimit: forStatement.RealLimit, RealStep: forStatement.RealStep);
+                    emitter.Label(loop.BodyLabel);
+                    loops.Push(loop);
+                    break;
+                }
 
                 case ForStatement forStatement:
                 {
@@ -1764,7 +1804,8 @@ public static class CodeGenerator
     // Nombres à virgule (D068) : un nombre écrit avec une virgule, une variable A!, ou une affectation à A!
     static bool StatementUsesReals(Statement statement) =>
         AstWalker.All(statement).Any(e => e is RealNumberExpression || (e is VariableExpression v && VariableNames.IsReal(v.Name)))
-        || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable));
+        || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable))
+        || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable));
 
     static bool StatementUsesStrings(Statement statement) =>
         AstWalker.All(statement).Any(Types.IsString)

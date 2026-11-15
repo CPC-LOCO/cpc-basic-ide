@@ -376,6 +376,8 @@ internal sealed class MiniZ80
                 ZeroFlag = A == 0;
                 break;
             case 0x37: CarryFlag = true; break;                        // SCF
+            case 0x82: Add(D); break;                                  // ADD A,D (D068)
+            case 0x83: Add(E); break;                                  // ADD A,E (D068)
             case 0x34: Memory[HL]++; ZeroFlag = Memory[HL] == 0; break;            // INC (HL) (D068)
             case 0x35: Memory[HL]--; ZeroFlag = Memory[HL] == 0; break;            // DEC (HL) (D068)
             case 0xAE: A ^= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // XOR (HL) (D068)

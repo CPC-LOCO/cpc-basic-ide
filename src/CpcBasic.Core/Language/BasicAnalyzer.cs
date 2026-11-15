@@ -17,10 +17,10 @@ public static class BasicAnalyzer
     /// <param name="options">Réglages de la compilation (D066) ; null : réglages par défaut.</param>
     public static AnalysisResult Analyze(string source, CompilerOptions? options = null)
     {
-        _ = options ?? CompilerOptions.Default;   // utilisé par les nombres à virgule (étape F1b)
+        options ??= CompilerOptions.Default;
         var diagnostics = new List<Diagnostic>();
         List<Token> tokens = Lexer.Tokenize(source, diagnostics);
-        BasicProgram program = Parser.Parse(tokens, diagnostics);
+        BasicProgram program = Parser.Parse(tokens, diagnostics, options.RealByDefault);   // réglage F8 (D068)
         return new AnalysisResult(program, diagnostics);
     }
 }

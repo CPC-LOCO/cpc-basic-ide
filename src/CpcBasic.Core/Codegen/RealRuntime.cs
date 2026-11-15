@@ -565,5 +565,257 @@ internal static class RealRuntime
         e.Data(LocoReal.Encode(1e9)!);
     }
 
+    public const string InputLabel = "rt_input_real";   // DE = où ranger : lit le nombre tapé (retenue = « Redo »)
+
+    /// <summary>
+    /// INPUT A! (D068) : lit dans la ligne tapée (rt_inp_ptr, module Input) un nombre écrit comme dans un programme :
+    /// espaces, signe, chiffres avec au plus un point, puis E et l'exposant ; puis espaces et « , » ou la fin.
+    /// Chaque chiffre : x = x * 10 + chiffre (exact jusqu'à 9 chiffres), puis une seule fois x * 10^(exposant - décimales).
+    /// Retenue à 1 si le texte n'est pas un nombre (le programme redemande : « ?Redo from start »).
+    /// </summary>
+    public static void EmitInput(Z80Emitter e)
+    {
+        e.Label(InputLabel);
+        e.LdMemDe("rt_fi_dst");
+        e.XorA();
+        e.LdMemA("rt_fi_neg");
+        e.LdMemA("rt_fi_dec");
+        e.LdMemA("rt_fi_nd");
+        e.LdMemA("rt_fi_pt");
+        e.LdMemA("rt_fi_x4");                             // x = 0
+        e.LdHlImm(0);
+        e.LdMemHl("rt_fi_e");
+        e.LdHlMem("rt_inp_ptr");
+        e.Label("rt_fi_sp1");
+        e.LdAHl();
+        e.CpImm(' ');
+        e.JrNzLabel("rt_fi_sign");
+        e.IncHl();
+        e.JrLabel("rt_fi_sp1");
+        e.Label("rt_fi_sign");
+        e.CpImm('-');
+        e.JrNzLabel("rt_fi_plus");
+        e.LdAImm(0x80);
+        e.LdMemA("rt_fi_neg");
+        e.IncHl();
+        e.JrLabel("rt_fi_mant");
+        e.Label("rt_fi_plus");
+        e.CpImm('+');
+        e.JrNzLabel("rt_fi_mant");
+        e.IncHl();
+        e.Label("rt_fi_mant");
+        e.LdMemHl("rt_fi_p");
+
+        // Chiffres et point
+        e.Label("rt_fi_mloop");
+        e.LdHlMem("rt_fi_p");
+        e.LdAHl();
+        e.CpImm('.');
+        e.JrZLabel("rt_fi_point");
+        e.SubImm('0');
+        e.CpImm(10);
+        e.JrNcLabel("rt_fi_mend");
+        e.CallLabel("rt_fi_digit");
+        e.JpCLabel("rt_fi_fail");
+        e.LdHlMem("rt_fi_p");
+        e.IncHl();
+        e.LdMemHl("rt_fi_p");
+        e.JrLabel("rt_fi_mloop");
+        e.Label("rt_fi_point");
+        e.LdAMem("rt_fi_pt");
+        e.OrA();
+        e.JrNzLabel("rt_fi_mend");                        // un second point : fin du nombre (donc erreur plus loin)
+        e.IncA();
+        e.LdMemA("rt_fi_pt");
+        e.IncHl();
+        e.LdMemHl("rt_fi_p");
+        e.JrLabel("rt_fi_mloop");
+
+        // Exposant
+        e.Label("rt_fi_mend");
+        e.LdAMem("rt_fi_nd");
+        e.OrA();
+        e.JpZLabel("rt_fi_fail");                         // il faut au moins un chiffre
+        e.LdHlMem("rt_fi_p");
+        e.LdAHl();
+        e.CpImm('E');
+        e.JrZLabel("rt_fi_exp");
+        e.CpImm('e');
+        e.JpNzLabel("rt_fi_tail");
+        e.Label("rt_fi_exp");
+        e.IncHl();
+        e.LdBImm(0);                                      // B = 1 : exposant négatif
+        e.LdAHl();
+        e.CpImm('-');
+        e.JrNzLabel("rt_fi_eplus");
+        e.LdBImm(1);
+        e.IncHl();
+        e.JrLabel("rt_fi_edig");
+        e.Label("rt_fi_eplus");
+        e.CpImm('+');
+        e.JrNzLabel("rt_fi_edig");
+        e.IncHl();
+        e.Label("rt_fi_edig");
+        e.LdCImm(0);
+        e.LdAHl();
+        e.SubImm('0');
+        e.CpImm(10);
+        e.JpNcLabel("rt_fi_fail");                        // E sans chiffre
+        e.Label("rt_fi_eloop");
+        e.LdAHl();
+        e.SubImm('0');
+        e.CpImm(10);
+        e.JrNcLabel("rt_fi_eend");
+        e.LdDA();
+        e.LdAC();
+        e.CpImm(20);
+        e.JrNcLabel("rt_fi_ebig");                        // déjà très grand : on n'ajoute plus de chiffre
+        e.AddAA();
+        e.LdEA();
+        e.AddAA();
+        e.AddAA();
+        e.AddAE();
+        e.AddAD();
+        e.LdCA();
+        e.Label("rt_fi_ebig");
+        e.IncHl();
+        e.JrLabel("rt_fi_eloop");
+        e.Label("rt_fi_eend");
+        e.LdMemHl("rt_fi_p");
+        e.LdLC();
+        e.LdHZero();
+        e.LdAB();
+        e.OrA();
+        e.JrZLabel("rt_fi_epos");
+        e.XorA();                                         // HL = -HL
+        e.SubL();
+        e.LdLA();
+        e.SbcAA();
+        e.SubH();
+        e.LdHA();
+        e.Label("rt_fi_epos");
+        e.LdMemHl("rt_fi_e");
+
+        // Après le nombre : espaces, puis « , » ou la fin
+        e.Label("rt_fi_tail");
+        e.LdHlMem("rt_fi_p");
+        e.Label("rt_fi_sp2");
+        e.LdAHl();
+        e.CpImm(' ');
+        e.JrNzLabel("rt_fi_after");
+        e.IncHl();
+        e.JrLabel("rt_fi_sp2");
+        e.Label("rt_fi_after");
+        e.OrA();
+        e.JrZLabel("rt_fi_ok");
+        e.CpImm(',');
+        e.JpNzLabel("rt_fi_fail");
+        e.IncHl();
+        e.Label("rt_fi_ok");
+        e.LdMemHl("rt_inp_ptr");
+
+        // Puissance de 10 : exposant - décimales, ramenée entre -127 et 127
+        e.LdHlMem("rt_fi_e");
+        e.LdAMem("rt_fi_dec");
+        e.LdEA();
+        e.LdDZero();
+        e.OrA();
+        e.SbcHlDe();
+        e.LdAH();
+        e.OrA();
+        e.JrZLabel("rt_fi_hi0");
+        e.IncA();
+        e.JrZLabel("rt_fi_hiff");
+        e.LdAH();
+        e.AndImm(0x80);
+        e.LdAImm(127);
+        e.JrZLabel("rt_fi_pow");
+        e.LdAImm(129);                                    // -127
+        e.JrLabel("rt_fi_pow");
+        e.Label("rt_fi_hi0");
+        e.LdAL();
+        e.CpImm(128);
+        e.JrCLabel("rt_fi_pow");
+        e.LdAImm(127);
+        e.JrLabel("rt_fi_pow");
+        e.Label("rt_fi_hiff");
+        e.LdAL();
+        e.CpImm(129);
+        e.JrNcLabel("rt_fi_pow");
+        e.LdAImm(129);
+        e.Label("rt_fi_pow");
+        e.OrA();
+        e.JrZLabel("rt_fi_sgn");
+        e.LdHlLabel("rt_fi_x");
+        e.CallLabel(FirmwareMaths.Times10Power.Label);
+        e.JrNcLabel("rt_fi_fail");
+        e.Label("rt_fi_sgn");
+        e.LdAMem("rt_fi_neg");
+        e.OrA();
+        e.JrZLabel("rt_fi_store");
+        e.LdHlLabel("rt_fi_x");
+        e.CallLabel(FirmwareMaths.Negate.Label);
+        e.Label("rt_fi_store");
+        e.LdHlLabel("rt_fi_x");
+        e.LdDeMem("rt_fi_dst");
+        e.LdBcImm(5);
+        e.Ldir();
+        e.OrA();                                          // retenue à 0 : tout va bien
+        e.Ret();
+        e.Label("rt_fi_fail");
+        e.Scf();
+        e.Ret();
+
+        // A = chiffre : x = x * 10 + chiffre ; retenue à 1 si le nombre devient trop grand
+        e.Label("rt_fi_digit");
+        e.LdCA();
+        e.LdHlLabel("rt_fi_nd");
+        e.IncMemHl();
+        e.LdAMem("rt_fi_pt");
+        e.OrA();
+        e.JrZLabel("rt_fi_whole");
+        e.LdHlLabel("rt_fi_dec");
+        e.IncMemHl();                                     // un chiffre après le point
+        e.Label("rt_fi_whole");
+        e.PushBc();
+        e.LdAImm(1);
+        e.LdHlLabel("rt_fi_x");
+        e.CallLabel(FirmwareMaths.Times10Power.Label);
+        e.PopBc();
+        e.JrNcLabel("rt_fi_dfail");
+        e.LdLC();
+        e.LdHZero();
+        e.XorA();
+        e.LdDeLabel("rt_fi_d");
+        e.CallLabel(FirmwareMaths.IntegerToReal.Label);
+        e.LdHlLabel("rt_fi_x");
+        e.LdDeLabel("rt_fi_d");
+        e.CallLabel(FirmwareMaths.Add.Label);
+        e.JrNcLabel("rt_fi_dfail");
+        e.OrA();
+        e.Ret();
+        e.Label("rt_fi_dfail");
+        e.Scf();
+        e.Ret();
+
+        e.Label("rt_fi_x");
+        e.Reserve(4);
+        e.Label("rt_fi_x4");
+        e.Reserve(1);
+        e.Label("rt_fi_d");
+        e.Reserve(5);
+        e.Label("rt_fi_dst");
+        e.Reserve(2);
+        e.Label("rt_fi_p");
+        e.Reserve(2);
+        e.Label("rt_fi_e");
+        e.Reserve(2);
+        foreach (string label in new[] { "rt_fi_neg", "rt_fi_dec", "rt_fi_nd", "rt_fi_pt" })
+        {
+            e.Label(label);
+            e.Reserve(1);
+        }
+    }
+
     static byte[] Ascii(string text) => [.. System.Text.Encoding.ASCII.GetBytes(text), 0];
 }

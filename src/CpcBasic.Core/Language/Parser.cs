@@ -26,7 +26,7 @@ public static class Parser
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
         "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
-        "INKEY$", "LINE"];
+        "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -124,8 +124,11 @@ public static class Parser
         ["DRAWR"] = "DRAWR écartx, écarty [, [stylo] [, mode]]"
     };
 
-    public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics)
+    /// <param name="realByDefault">Réglage « Sans signe : à virgule » (F8, D066) : A est alors A!.</param>
+    public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics, bool realByDefault = false)
     {
+        realDivision = realByDefault;
+        tokens = ApplyDefaultTypes(tokens, realByDefault);
         var statements = new List<Statement>();
         var lines = new Dictionary<int, int>();   // numéro de ligne -> rang de l'instruction qui la suit
         int pos = 0;
@@ -138,6 +141,107 @@ public static class Parser
         CheckBlocks(statements, diagnostics);
         CheckLineTargets(statements, lines, diagnostics);
         return new BasicProgram(statements, lines);
+    }
+
+    // Réglage « Sans signe : à virgule » (F8) : 7/2 donne 3.5 comme dans le Locomotive, même entre deux entiers (D066)
+    [ThreadStatic] static bool realDivision;
+
+    static readonly HashSet<string> DefWords = ["DEFINT", "DEFREAL", "DEFSTR"];
+
+    // Mots du langage lus par le parser sans être des commandes (GO SUB, BREAK...) : jamais des noms de variables
+    static readonly HashSet<string> OtherKeywords = ["BREAK", "GO", "SUB"];
+
+    static int? Letter(Token t) =>
+        t.Kind == TokenKind.Word && t.Text.Length == 1 && t.Text[0] is >= 'A' and <= 'Z' ? t.Text[0] - 'A' : null;
+
+    // DEFINT A-Z, I : les lettres concernées (0 = A). null si l'écriture est fausse ; pos avance après la liste.
+    static List<int>? ReadLetterRanges(IReadOnlyList<Token> tokens, ref int pos)
+    {
+        var letters = new List<int>();
+        while (true)
+        {
+            int? first = Letter(tokens[pos]);
+            if (first is null)
+                return null;
+            pos++;
+            int last = first.Value;
+            if (tokens[pos].Kind == TokenKind.Minus)
+            {
+                pos++;
+                int? second = Letter(tokens[pos]);
+                if (second is null || second < first)
+                    return null;
+                last = second.Value;
+                pos++;
+            }
+            for (int l = first.Value; l <= last; l++)
+                letters.Add(l);
+            if (tokens[pos].Kind != TokenKind.Comma)
+                return letters;
+            pos++;
+        }
+    }
+
+    static bool IsPlainVariableName(string word) =>
+        word[0] is >= 'A' and <= 'Z' && !VariableNames.HasSuffix(word)
+        && !Commands.Contains(word) && !LocomotiveWords.Contains(word) && !Functions.ContainsKey(word)
+        && !OtherKeywords.Contains(word);
+
+    /// <summary>
+    /// Type des variables sans signe (D068) : DEFINT (%), DEFREAL (!) et DEFSTR ($) donnent le type selon la première
+    /// lettre ; le réglage « Sans signe : à virgule » met toutes les lettres à « ! ». Ces réglages valent pour tout
+    /// le programme (le dernier l'emporte pour une même lettre). Les noms sont alors écrits avec leur signe :
+    /// après DEFINT A-Z, A et A% sont la même variable, comme dans le Locomotive. Sans réglage, rien ne change :
+    /// A reste un entier à part (D026). Les variables BYTE gardent leur nom.
+    /// </summary>
+    static IReadOnlyList<Token> ApplyDefaultTypes(IReadOnlyList<Token> tokens, bool realByDefault)
+    {
+        var suffix = new char?[26];
+        if (realByDefault)
+            Array.Fill(suffix, '!');
+        bool any = realByDefault;
+        var letterPlaces = new HashSet<int>();
+        var bytes = new HashSet<string>();
+
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            Token t = tokens[i];
+            if (t.Kind != TokenKind.Word)
+                continue;
+            if (DefWords.Contains(t.Text))
+            {
+                int pos = i + 1;
+                List<int>? letters = ReadLetterRanges(tokens, ref pos);
+                for (int k = i + 1; k < pos; k++)
+                    letterPlaces.Add(k);
+                if (letters is null)
+                    continue;                           // l'erreur est signalée à la lecture de l'instruction
+                char mark = t.Text switch { "DEFINT" => '%', "DEFSTR" => '$', _ => '!' };
+                foreach (int l in letters)
+                    suffix[l] = mark;
+                any = true;
+            }
+            else if (t.Text == "BYTE")
+            {
+                for (int k = i + 1; k < tokens.Count && !IsStatementEnd(tokens[k]); k++)
+                    if (tokens[k].Kind == TokenKind.Word)
+                        bytes.Add(tokens[k].Text);
+            }
+        }
+
+        if (!any)
+            return tokens;
+
+        var result = new List<Token>(tokens.Count);
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            Token t = tokens[i];
+            if (t.Kind == TokenKind.Word && !letterPlaces.Contains(i) && IsPlainVariableName(t.Text)
+                && !bytes.Contains(t.Text) && suffix[t.Text[0] - 'A'] is char mark)
+                t = t with { Text = t.Text + mark };
+            result.Add(t);
+        }
+        return result;
     }
 
     const int MaxLineNumber = 65529;   // plus grand numéro de ligne du Locomotive BASIC
@@ -231,6 +335,19 @@ public static class Parser
         {
             case "PRINT":
                 return ParsePrint(tokens, pos, statements, diagnostics);
+
+            case "DEFINT" or "DEFREAL" or "DEFSTR":
+            {
+                // Rien à exécuter : le type des variables a été réglé avant la lecture du programme (D068)
+                int end = pos + 1;
+                if (ReadLetterRanges(tokens, ref end) is null || !(IsStatementEnd(tokens[end]) || IsElse(tokens[end])))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedLetterRange, tokens[end].Line,
+                                                   IsStatementEnd(tokens[end]) ? "" : tokens[end].Text));
+                    return SkipToStatementEnd(tokens, end);
+                }
+                return end;
+            }
 
             case "END":
                 if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "IF")
@@ -402,7 +519,8 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedVariableName, name.Line, name.Text));
                 return SkipToStatementEnd(tokens, pos);
             }
-            if (!VariableNames.IsSupported(name.Text))
+            if (!VariableNames.IsSupported(name.Text)
+                && (!VariableNames.IsReal(name.Text) || tokens[pos + 1].Kind == TokenKind.LeftParen))
             {
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
                 return SkipToStatementEnd(tokens, pos);
@@ -1077,7 +1195,7 @@ public static class Parser
             diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedVariableName, name.Line, name.Text));
             return SkipToStatementEnd(tokens, pos);
         }
-        if (!VariableNames.IsSupported(name.Text))
+        if (!VariableNames.IsSupported(name.Text) && !VariableNames.IsReal(name.Text))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnsupportedVariableType, name.Line, name.Text));
             return SkipToStatementEnd(tokens, pos);
@@ -1089,6 +1207,16 @@ public static class Parser
         }
         pos++;
 
+        if (VariableNames.IsReal(name.Text))
+        {
+            // FOR X! = départ TO limite [STEP pas] : limite et pas peuvent être à virgule (D068)
+            Expression realStart = new NumberExpression(0);
+            double realLimit = 0, realStep = 1;
+            bool realOk = ParseRealForHeader(tokens, ref pos, diagnostics, ref realStart, ref realLimit, ref realStep);
+            statements.Add(new ForStatement(line, name.Text, realStart, 0, Math.Sign(realStep), realLimit, realStep));
+            return realOk ? pos : SkipToStatementEnd(tokens, pos);
+        }
+
         Expression start = new NumberExpression(0);
         int limit = 0;
         int step = 1;
@@ -1096,6 +1224,89 @@ public static class Parser
 
         statements.Add(new ForStatement(line, name.Text, start, limit, step));
         return ok ? pos : SkipToStatementEnd(tokens, pos);
+    }
+
+    static bool ParseRealForHeader(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
+                                   ref Expression start, ref double limit, ref double step)
+    {
+        if (tokens[pos].Kind != TokenKind.Equals)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedEquals, tokens[pos].Line, tokens[pos].Text));
+            return false;
+        }
+        pos++;
+
+        Token at = tokens[pos];
+        Expression? first = ParseAnyExpression(tokens, ref pos, diagnostics);
+        if (first is null)
+            return false;
+        if (Types.IsString(first))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, at.Line, "un nombre est attendu"));
+            return false;
+        }
+        start = first;
+
+        if (tokens[pos].Kind != TokenKind.Word || tokens[pos].Text != "TO")
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedTo, tokens[pos].Line, tokens[pos].Text));
+            return false;
+        }
+        pos++;
+
+        double? lastValue = ParseSignedReal(tokens, ref pos, diagnostics);
+        if (lastValue is null)
+            return false;
+        limit = lastValue.Value;
+
+        if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "STEP")
+        {
+            pos++;
+            double? stepValue = ParseSignedReal(tokens, ref pos, diagnostics);
+            if (stepValue is null)
+                return false;
+            if (stepValue.Value == 0)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.StepIsZero, tokens[pos - 1].Line));
+                return false;
+            }
+            step = stepValue.Value;
+        }
+        return true;
+    }
+
+    // Nombre écrit dans le programme, avec son signe, entier ou à virgule (limite et pas d'un FOR X!)
+    static double? ParseSignedReal(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        bool negative = false;
+        if (tokens[pos].Kind == TokenKind.Minus)
+        {
+            negative = true;
+            pos++;
+        }
+        else if (tokens[pos].Kind == TokenKind.Plus)
+        {
+            pos++;
+        }
+
+        Token t = tokens[pos];
+        if (t.Kind == TokenKind.HexNumber)
+        {
+            pos++;
+            int value = Signed16(Lexer.HexValue(t.Text) ?? 0);
+            return negative ? -value : value;
+        }
+        if (t.Kind != TokenKind.Number)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedNumber, t.Line, t.Text));
+            return null;
+        }
+        return ParseNumber(tokens, ref pos, diagnostics, negative) switch
+        {
+            NumberExpression number => number.Value,
+            RealNumberExpression real => real.Value,
+            _ => null
+        };
     }
 
     static bool ParseForHeader(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
@@ -2048,6 +2259,12 @@ public static class Parser
             if (op != BinaryOperator.Multiply && right is NumberExpression { Value: 0 })
                 diagnostics.Add(new Diagnostic(DiagnosticCode.DivisionByZero, opToken.Line, opToken.Text));
 
+            // Réglage F8 : « / » divise à virgule même entre deux entiers (7/2 = 3.5), comme le Locomotive (D066).
+            // Le côté gauche est rendu à virgule (un nombre écrit le devient directement, sinon + 0.0).
+            if (op == BinaryOperator.Divide && realDivision && !Types.IsReal(left) && !Types.IsReal(right))
+                left = left is NumberExpression whole ? new RealNumberExpression(whole.Value)
+                    : new BinaryExpression(BinaryOperator.Add, left, new RealNumberExpression(0));
+
             left = new BinaryExpression(op, left, right);
         }
 
@@ -2129,6 +2346,12 @@ public static class Parser
             {
                 // @A ou @T(3) : adresse de la variable ou de la case (D061)
                 pos++;
+                if (tokens[pos].Kind == TokenKind.Word && VariableNames.IsReal(tokens[pos].Text)
+                    && tokens[pos + 1].Kind != TokenKind.LeftParen)
+                {
+                    pos++;                              // @A! : adresse des 5 octets du nombre (D068)
+                    return new AddressOfExpression(new VariableExpression(tokens[pos - 1].Text));
+                }
                 int before = diagnostics.Count;
                 Expression? target = ParseTarget(tokens, ref pos, diagnostics);
                 for (int i = before; i < diagnostics.Count; i++)

@@ -457,7 +457,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Ensuite, peut-être :** Linux (l'éditeur utilise Avalonia, prévu pour Windows, Linux et macOS ; seuls les scripts de développement sont propres à Windows).
 - **À savoir pour la signature :** il faut un certificat de signature de code délivré par une autorité (en général payant, avec vérification d'identité) ; des offres gratuites existent pour les logiciels libres. À étudier au moment venu, avec les tarifs et conditions du moment.
 
-## D068 : lot F1b, nombres à virgule : fondations et étape F1b1 (F1b1 validée le 15 nov. 2026 ; F1b2 à faire)
+## D068 : lot F1b, nombres à virgule : fondations, F1b1 et F1b2 (Validé le 15 nov. 2026 : lot F1b terminé)
 - **Format :** les nombres à virgule sont ceux du Locomotive, sur 5 octets (4 octets de mantisse, dont le bit de signe, puis l'exposant + 128 ; 0 = zéro). Le compilateur sait les écrire (`LocoReal`, dans `src\CpcBasic.Core\Codegen\LocoReal.cs`), par exemple pour les nombres écrits dans le programme (3.14).
 - **Calculs :** faits par les routines de la ROM du CPC (addition, multiplication, division, comparaison, SIN, SQR...), comme le vrai BASIC, donc avec exactement les mêmes résultats. Leurs adresses ne sont pas les mêmes sur le 464 et sur le 664/6128 (par exemple &BD88 est la division sur le 6128 mais SIN sur le 464).
 - **Table de sauts :** le programme appelle ces routines à travers une petite table en mémoire (`rt_fm_...`), remplie au départ par `rt_fm_init` :
@@ -490,7 +490,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
   - nombre à virgule là où il faut un entier (A% = B!, BOX X!, ...) : arrondi au plus près, « ,5 » s'éloignant de zéro ; s'il ne tient pas de -32768 à 32767 : « Overflow in N » et le programme s'arrête (écrit dans le programme, A% = 40000.4 : erreur dès la compilation) ;
   - PRINT d'un nombre à virgule selon la règle ci-dessus ; Overflow et Division by zero : message sur sa ligne, ±1.70141E+38, et le programme continue ;
   - fichiers : `src\CpcBasic.Core\Codegen\RealRuntime.cs` (nouveau : modules RealOps et RealPrint), Lexer.cs, Parser.cs, Ast.cs, CodeGenerator.cs, Z80Emitter.cs, RuntimeLibrary.cs, `tests\CpcBasic.Tests\MiniZ80.cs`, `tests\CpcBasic.Tests\RealProgramTests.cs` (nouveau), VariablesTests.cs (PRINT 40000 et PRINT B! sont maintenant permis) ; exemple `examples\virgule.bas`.
-- **Reste à faire pour F1b (étape F1b2) :** DEFINT / DEFREAL / DEFSTR, le réglage « Sans signe = à virgule » (F8), INPUT d'un nombre à virgule, @A!.
+- **Étape F1b2 (validée le 15 nov. 2026 : tests réussis ; `types.bas` donne les mêmes écrans dans WinAPE et SugarBox. Avec une virgule tapée à la française (100,2), le CPC prend 100 puis affiche « ?Extra ignored » : c'est bien le comportement du vrai BASIC, où la virgule sépare deux valeurs et le point sert pour les décimales) :**
+  - **DEFINT, DEFREAL, DEFSTR** lettre ou plage (A-Z), séparées par des virgules. Ils valent pour **tout le programme**, où qu'ils soient écrits (pour une même lettre, le dernier l'emporte). Une variable sans signe prend alors le signe de sa lettre : après DEFINT A-Z, A et A% sont la même variable, comme dans le Locomotive. Sans aucun DEF, rien ne change (A reste un entier à part, D026). Une variable BYTE garde son type. Liste de lettres fausse : erreur à la compilation.
+  - **Réglage F8 « Sans signe : à virgule »** : comme un DEFREAL A-Z au début (les DEF du programme passent avant) ; « / » divise alors à virgule même entre deux entiers (7/2 = 3.5), comme le Locomotive.
+  - **FOR X!** : départ calculé, limite et pas écrits dans le programme (entiers ou à virgule) ; à chaque NEXT, X! + pas puis comparaison avec la limite par la ROM.
+  - **INPUT A!** : nombre tapé comme dans un programme (1.5, -2.5E-3, .5) ; sinon « ?Redo from start ».
+  - **@A!** : adresse des 5 octets du nombre.
+  - Pas encore : tableaux de nombres à virgule, READ A!, fonctions (F2, F3). Avec le réglage F8, un tableau sans signe (DIM T(10)) est donc encore refusé jusqu'à F3.
+  - Fichiers : Parser.cs, Ast.cs, Diagnostic.cs (nouveau message ExpectedLetterRange), BasicAnalyzer.cs, CodeGenerator.cs, RealRuntime.cs (module InputReal), RuntimeLibrary.cs, Z80Emitter.cs, MiniZ80.cs, `tests\CpcBasic.Tests\RealTypesTests.cs` (nouveau) ; exemple `examples\types.bas`.
 
 ---
 

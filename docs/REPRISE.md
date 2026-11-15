@@ -69,7 +69,7 @@ Documents de référence :
 
 ### Prochaine étape : fin du lot C
 
-1. lot F : F1a faite ; F1b1 faite (nombres à virgule : écriture, A!, calculs, comparaisons, PRINT, D068) ; F1b2 (DEFINT/DEFREAL/DEFSTR, réglage F8, INPUT, @A!), F2 (fonctions), F3 (tableaux, READ, VAL, FOR) à faire : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
+1. lot F : F1a faite ; F1b faite (nombres à virgule : écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, réglage F8, FOR X!, INPUT A!, @A!, D068), F2 (fonctions), F3 (tableaux, READ, VAL, FOR) à faire : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
 
 Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, comparaisons comme valeurs), lot E (chaînes), F (réels et fonctions mathématiques), G (son), H (fenêtres et mise en forme), I (interruptions et erreurs), J (disquette et cassette).
 

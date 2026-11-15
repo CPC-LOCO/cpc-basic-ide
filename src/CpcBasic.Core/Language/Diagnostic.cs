@@ -60,7 +60,8 @@ public enum DiagnosticCode
     HexNumberOutOfRange,
     TypeMismatch,
     StringTooLong,
-    StringNotYetHere
+    StringNotYetHere,
+    ExpectedLetterRange
 }
 
 /// <summary>
@@ -189,6 +190,8 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"ce texte a {Argument} caractères : un texte en a 255 au plus.",
         DiagnosticCode.StringNotYetHere =>
             $"« {Argument} » : les textes ne sont pas encore possibles ici (tableaux de textes, READ A$, @A$ et MID$(...) = viendront dans l'étape suivante).",
+        DiagnosticCode.ExpectedLetterRange =>
+            $"{(Context.Length == 0 ? "DEFINT, DEFREAL ou DEFSTR" : Context)} attend une lettre, ou deux lettres séparées par « - » (exemple : DEFINT A-Z, I).{Why}",
         _ => $"problème inconnu ({Code})."
     };
 
