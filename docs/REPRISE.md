@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D071 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D072 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -54,6 +54,7 @@ Documents de référence :
 - **Étape F1a (D066) validée le 14 nov. 2026** : les deux réglages dans l'éditeur et le compilateur (726 tests).
 - **Lot F terminé le 15 nov. 2026** (D068 à D070) : nombres à virgule, fonctions mathématiques, tableaux à virgule, DATA, READ, VAL, STR$. Exemples `virgule`, `types`, `fonction`, `tabreel`, `valstr`, tous identiques au vrai BASIC.
 - **Lot G1 (son) validé le 15 nov. 2026** (D071) : SOUND, ENV, ENT, RELEASE, SQ. `examples\musique.bas`.
+- **Lot H1 (fenêtres) validé le 15 nov. 2026** (D072) : WINDOW, WINDOW SWAP, #n, POS, VPOS. `examples\fenetres.bas`. 943 tests.
 - **Dernier commit sur GitHub :** « Lot G1 : le son (SOUND, ENV, ENT, RELEASE, SQ) » (15 nov. 2026, **909 tests**).
 - **Règle de l'utilisateur :** le projet doit être 100 % compatible avec le Locomotive BASIC. **Finir tous les lots de l'inventaire (A à J) avant toute commande nouvelle** (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent). On avance lot par lot.
 
@@ -74,7 +75,8 @@ Documents de référence :
 
 - **Lot F (nombres à virgule) terminé et validé le 15 nov. 2026** : F1a (réglages F7/F8, D066), F1b (écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, FOR X!, INPUT A!, @A!, D068), F2 (fonctions mathématiques, DEG/RAD, RND, D069), F3a (tableaux à virgule, DATA, READ) et F3b (VAL et STR$, D070). Chaque étape comparée écran par écran avec le vrai BASIC (SugarBox).
 - **Lot G1 (son) fait et validé le 15 nov. 2026** : SOUND, ENV, ENT, RELEASE, SQ (D071). ON SQ GOSUB est reporté au lot I (interruptions).
-- **Suite :** lot H (fenêtres et mise en forme ; y ajouter l'édition complète de la ligne d'INPUT avec la touche COPY, voir IDEES), I (interruptions et erreurs), J (disquette et cassette).
+- **Lot H découpé (D072) :** H1 fenêtres et #n (WINDOW, WINDOW SWAP, #n sur PRINT/LOCATE/CLS/PEN/PAPER/INPUT/LINE INPUT, POS, VPOS) **validée le 15 nov. 2026 (943 tests)** (`examples\fenetres.bas`, `tests\CpcBasic.Tests\WindowTests.cs`) ; puis H2 (virgule, ZONE, TAB, SPC, WRITE), H3 (PRINT USING), H4 (SYMBOL, SYMBOL AFTER, TAG, TAGOFF), H5 (édition de la ligne d'INPUT avec COPY).
+- **Suite :** lot I (interruptions et erreurs), J (disquette et cassette).
 - **Méthode qui marche bien :** avant d'écrire une étape, faire taper à l'utilisateur un petit programme dans le vrai BASIC (SugarBox ; WinAPE déforme le collage) pour relever les affichages exacts, puis comparer l'exemple compilé avec ce même programme.
 
 ### Questions en attente (à reposer au bon moment)

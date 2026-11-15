@@ -126,6 +126,13 @@ public sealed record ScreenStatement(int SourceLine, string Command, IReadOnlyLi
     : Statement(SourceLine);
 
 /// <summary>
+/// Choix de la fenêtre (flux #0 à #7) pour la commande qui suit (lot H1, D072). PRINT #1, "A" devient :
+/// StreamStatement(1), PRINT "A", StreamStatement(null). Stream null : retour à la fenêtre #0, comme le Locomotive
+/// après chaque commande.
+/// </summary>
+public sealed record StreamStatement(int SourceLine, Expression? Stream) : Statement(SourceLine);
+
+/// <summary>
 /// Une partie d'enveloppe (lot G1, D071) : nombre de pas, taille d'un pas, pause ; ou, avec « = » (Absolute),
 /// ENV : forme et période de l'enveloppe matérielle, ENT : période du son et pause (C vaut alors null).
 /// </summary>
@@ -372,6 +379,7 @@ public static class AstWalker
         IfStatement i => Of(i.Condition),
         RandomizeStatement r when r.Seed is not null => [r.Seed],
         ScreenStatement s => s.Arguments,
+        StreamStatement st when st.Stream is not null => [st.Stream],
         EnvelopeStatement env => env.Sections.SelectMany(x => new[] { x.A, x.B, x.C }).OfType<Expression>().Prepend(env.Number),
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
         OnStatement o => [o.Selector],

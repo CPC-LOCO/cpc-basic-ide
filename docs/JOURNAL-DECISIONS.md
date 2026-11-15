@@ -532,6 +532,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérification :** le simulateur des tests note les blocs envoyés à la ROM ; la vraie vérification est à l'oreille : `examples\musique.bas` (Frère Jacques à deux voix, avec une enveloppe de volume et un vibrato), compilé dans WinAPE, comparé au même programme tapé dans SugarBox.
 - **Fichiers :** Ast.cs (EnvelopeStatement), Parser.cs, CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\SoundTests.cs` (nouveau) ; exemple `examples\musique.bas`.
 
+## D072 : lot H1, fenêtres et numéros de fenêtre (Validé le 15 nov. 2026 : 943 tests réussis ; `fenetres.bas` compilé identique au même programme dans le vrai BASIC de SugarBox ; POS et VPOS au bord droit : 1 et 2 comme le vrai BASIC)
+- **Découpage du lot H :** H1 fenêtres et #n ; H2 mise en page de PRINT (virgule, ZONE, TAB, SPC, WRITE) ; H3 PRINT USING ; H4 SYMBOL, SYMBOL AFTER, TAG, TAGOFF ; H5 édition complète de la ligne d'INPUT (flèches, CLR, COPY). Les flux #8 (imprimante) et #9 (disquette, cassette) vont au lot J.
+- **Par le firmware, comme le vrai BASIC :** TXT STR SELECT (&BBB4) choisit la fenêtre, TXT WIN ENABLE (&BB66) fixe ses bords, TXT SWAP STREAMS (&BBB7) échange deux fenêtres, TXT GET CURSOR (&BB78) et TXT VALIDATE (&BB87) donnent POS et VPOS.
+- **#n sur PRINT, LOCATE, CLS, PEN, PAPER, WINDOW, INPUT, LINE INPUT :** la commande est entourée du choix de la fenêtre n puis du retour à la fenêtre #0 (le Locomotive revient à #0 après chaque commande). Sans « # », le code produit ne change pas. Virgule obligatoire après le numéro (sauf PRINT #1 et CLS #1 seuls). Numéro écrit : 0 à 7, vérifié à la compilation ; numéro calculé : vérifié pendant l'exécution (« Improper argument in N »).
+- **WINDOW [#n,] gauche, droite, haut, bas** (à partir de 1 ; le firmware remet dans l'ordre et ramène dans l'écran) ; **WINDOW SWAP a [, b]** (b vaut 0 s'il est omis).
+- **POS(#n), VPOS(#n)** : « # » obligatoire comme le Locomotive (message clair sinon) ; position où s'écrira le caractère suivant ; la fenêtre de la commande en cours est gardée (PRINT #2, POS(#1) écrit dans #2). Au bord droit (40 caractères écrits en MODE 1), le vrai BASIC donne POS 1 et VPOS 2 : c'est ce que donne TXT VALIDATE.
+- **Erreurs pendant l'exécution :** le message s'affiche maintenant toujours dans la fenêtre #0.
+- **Remarque :** `MODE` remet les fenêtres en plein écran mais garde leurs couleurs ; après `WINDOW SWAP 0,2`, un second `RUN` dans le vrai BASIC commence donc avec les couleurs de l'ancienne fenêtre 2 (constaté dans SugarBox). Un programme compilé démarre toujours sur une machine neuve.
+- **Mots réservés :** WINDOW, SWAP, POS, VPOS ne peuvent plus servir de noms de variables (ils étaient déjà des mots du Locomotive).
+- **Fichiers :** Lexer.cs (jeton #), Ast.cs (StreamStatement), Diagnostic.cs (deux messages), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module Stream), MiniZ80.cs, `tests\CpcBasic.Tests\WindowTests.cs` (nouveau) ; exemple `examples\fenetres.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

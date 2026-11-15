@@ -14,6 +14,7 @@ public enum TokenKind
     HexNumber,    // &C9, &HC9 (hexadécimal) ou &X1010 (binaire), de 0 à &FFFF ; Text garde l'écriture d'origine (lot D, D060)
     Caret,        // ^ : puissance (lot D, D060)
     At,           // @ : adresse d'une variable (D061)
+    Hash,         // # : numéro de fenêtre (flux) dans PRINT #1, WINDOW #1... (lot H1, D072)
     DataItem,     // un élément de DATA, tel qu'il est écrit (sans les espaces autour ; guillemets gardés) (D064)
     Colon,
     Semicolon,
@@ -225,6 +226,7 @@ public static class Lexer
                 '=' => TokenKind.Equals,
                 '^' => TokenKind.Caret,
                 '@' => TokenKind.At,
+                '#' => TokenKind.Hash,
                 '(' => TokenKind.LeftParen,
                 ')' => TokenKind.RightParen,
                 _ => null

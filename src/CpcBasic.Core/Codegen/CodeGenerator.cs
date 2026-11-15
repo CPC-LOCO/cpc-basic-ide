@@ -736,6 +736,24 @@ public static class CodeGenerator
                             emitter.CallLabel(RuntimeLibrary.Abs16Label);
                             break;
 
+                        case "POS" or "VPOS":
+                        {
+                            // POS(#n), VPOS(#n) : colonne ou ligne où s'écrira le caractère suivant dans la fenêtre n,
+                            // puis retour à la fenêtre choisie avant (PRINT #2, POS(#1) écrit bien dans #2) (D072)
+                            EmitSelectStream(call.Arguments[0]);
+                            emitter.PushAf();
+                            emitter.CallAddress(RuntimeLibrary.TxtGetCursor);
+                            emitter.CallAddress(TxtValidate);
+                            emitter.PopAf();
+                            emitter.PushHl();
+                            emitter.CallAddress(TxtStrSelect);
+                            emitter.PopHl();
+                            if (call.Function == "POS")
+                                emitter.LdLH();
+                            emitter.LdHZero();
+                            break;
+                        }
+
                         case "SQ":                          // SQ(canal) : état du canal sonore (D071)
                             EmitExpression(call.Arguments[0]);
                             emitter.LdAL();
@@ -1122,6 +1140,27 @@ public static class CodeGenerator
             emitter.CallAddress(address);
         }
 
+        // Choisit la fenêtre (lot H1, D072) ; null : la fenêtre #0. Rend A = fenêtre choisie avant.
+        void EmitSelectStream(Expression? stream)
+        {
+            switch (stream)
+            {
+                case null:
+                    emitter.XorA();
+                    emitter.CallAddress(TxtStrSelect);
+                    break;
+                case NumberExpression number:           // nombre écrit : déjà vérifié par le parser
+                    emitter.LdAImm(number.Value);
+                    emitter.CallAddress(TxtStrSelect);
+                    break;
+                default:                                // valeur calculée : vérifiée pendant l'exécution
+                    EmitExpression(stream);
+                    required.Add(RuntimeLibrary.StreamName);
+                    emitter.CallLabel(RuntimeLibrary.StreamLabel);
+                    break;
+            }
+        }
+
         void EmitScreen(ScreenStatement screen)
         {
             IReadOnlyList<Expression> a = screen.Arguments;
@@ -1215,6 +1254,54 @@ public static class CodeGenerator
 
                 case "MODE":
                     EmitCallWithA(a[0], ScrSetMode);
+                    break;
+
+                case "WINDOW":
+                {
+                    // WINDOW gauche, droite, haut, bas (à partir de 1) -> H, D, L, E (à partir de 0). Le firmware remet
+                    // dans l'ordre et ramène dans l'écran ce qui dépasse, comme le Locomotive (D072).
+                    for (int i = 0; i < 3; i++)
+                    {
+                        EmitExpression(a[i]);
+                        emitter.PushHl();
+                    }
+                    EmitExpression(a[3]);
+                    emitter.LdAL();
+                    emitter.DecA();
+                    emitter.LdEA();                     // E = bas
+                    emitter.PopHl();
+                    emitter.LdAL();
+                    emitter.DecA();
+                    emitter.LdCA();                     // C = haut (pour l'instant)
+                    emitter.PopHl();
+                    emitter.LdAL();
+                    emitter.DecA();
+                    emitter.LdDA();                     // D = droite
+                    emitter.PopHl();
+                    emitter.LdAL();
+                    emitter.DecA();
+                    emitter.LdHA();                     // H = gauche
+                    emitter.LdLC();                     // L = haut
+                    emitter.CallAddress(TxtSetWindow);
+                    break;
+                }
+
+                case "WINDOW SWAP":                     // WINDOW SWAP a [, b] : b vaut 0 s'il est omis (D072)
+                    EmitExpression(a[0]);
+                    if (a.Count > 1)
+                    {
+                        emitter.PushHl();
+                        EmitExpression(a[1]);
+                        emitter.LdCL();
+                        emitter.PopHl();
+                    }
+                    else
+                    {
+                        emitter.LdCImm(0);
+                    }
+                    emitter.LdAL();
+                    emitter.LdBA();
+                    emitter.CallAddress(TxtSwapStreams);
                     break;
 
                 case "PEN":
@@ -1417,7 +1504,8 @@ public static class CodeGenerator
 
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
                 || (usesReals && StatementUsesReals(statement))
-                || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" }))
+                || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
+                || statement is StreamStatement { Stream: not null and not NumberExpression })   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
                 emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
@@ -2007,6 +2095,10 @@ public static class CodeGenerator
                     EmitScreen(screen);
                     break;
 
+                case StreamStatement stream:            // PRINT #1, ... : choix de la fenêtre, puis retour à #0 (D072)
+                    EmitSelectStream(stream.Stream);
+                    break;
+
                 case DrawStatement draw:
                     EmitDraw(draw);
                     break;
@@ -2142,6 +2234,11 @@ public static class CodeGenerator
     const int TxtSetCursor = 0xBB75;    // TXT SET CURSOR : H = colonne, L = ligne
     const int TxtSetPen = 0xBB90;       // TXT SET PEN : A = stylo
     const int TxtSetPaper = 0xBB96;     // TXT SET PAPER : A = fond
+    // Fenêtres (lot H1, D072)
+    const int TxtStrSelect = RuntimeLibrary.TxtStrSelect;   // TXT STR SELECT : A = fenêtre -> A = fenêtre d'avant
+    const int TxtSetWindow = 0xBB66;    // TXT WIN ENABLE : H = gauche, D = droite, L = haut, E = bas (à partir de 0)
+    const int TxtSwapStreams = 0xBBB7;  // TXT SWAP STREAMS : B et C = les deux fenêtres
+    const int TxtValidate = 0xBB87;     // TXT VALIDATE : H = colonne, L = ligne -> position où s'écrira le caractère suivant
     const int ScrSetInk = 0xBC32;       // SCR SET INK : A = stylo, B = couleur, C = seconde couleur
     const int ScrSetBorder = 0xBC38;    // SCR SET BORDER : B = couleur, C = seconde couleur
 

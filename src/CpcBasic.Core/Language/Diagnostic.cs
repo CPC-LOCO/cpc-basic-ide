@@ -61,7 +61,9 @@ public enum DiagnosticCode
     TypeMismatch,
     StringTooLong,
     StringNotYetHere,
-    ExpectedLetterRange
+    ExpectedLetterRange,
+    ExpectedStreamComma,     // lot H1 (D072) : PRINT #1 "A" sans virgule après le numéro de fenêtre
+    ExpectedStream           // lot H1 (D072) : POS(0) au lieu de POS(#0)
 }
 
 /// <summary>
@@ -192,6 +194,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"« {Argument} » : les textes ne sont pas encore possibles ici (tableaux de textes, READ A$, @A$ et MID$(...) = viendront dans l'étape suivante).",
         DiagnosticCode.ExpectedLetterRange =>
             $"{(Context.Length == 0 ? "DEFINT, DEFREAL ou DEFSTR" : Context)} attend une lettre, ou deux lettres séparées par « - » (exemple : DEFINT A-Z, I).{Why}",
+        DiagnosticCode.ExpectedStreamComma =>
+            $"{(Context.Length == 0 ? "cette commande" : Context)} attend une virgule « , » après le numéro de fenêtre (exemple : {(Context.Length == 0 ? "PRINT" : Context)} #1, ...).{Why}",
+        DiagnosticCode.ExpectedStream =>
+            $"{(Context.Length == 0 ? "POS ou VPOS" : Context)} attend un numéro de fenêtre précédé de « # », comme le Locomotive (exemple : {(Context.Length == 0 ? "POS" : Context)}(#0)).{Why}",
         _ => $"problème inconnu ({Code})."
     };
 

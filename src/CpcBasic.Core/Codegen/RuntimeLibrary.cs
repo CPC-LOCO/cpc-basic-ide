@@ -104,6 +104,12 @@ public static class RuntimeLibrary
     public const string ErrorLabel = "rt_error";                // HL = adresse du message (terminé par 0)
     public const string ErrorLineLabel = "rt_err_line";         // numéro de la ligne en cours, rangé par le programme
 
+    // Fenêtres (lot H1, D072)
+    /// <summary>TXT STR SELECT : A = fenêtre (flux 0 à 7) -> A = fenêtre choisie avant.</summary>
+    public const int TxtStrSelect = 0xBBB4;
+    public const string StreamName = "Stream";
+    public const string StreamLabel = "rt_stream";              // HL = numéro calculé : vérifié (0 à 7), puis choisi
+
     // DATA, READ, RESTORE (D059)
     public const string DataName = "Data";
     public const string DataStringName = "DataString";         // READ A$ (D064)
@@ -209,10 +215,32 @@ public static class RuntimeLibrary
         // Les erreurs affichent le message du Locomotive (« Subscript out of range in 30 ») par le module RunError.
         // Erreur pendant l'exécution. HL = message. Affiche (à la ligne si le curseur n'est pas au début)
         // « message in N », N étant rt_err_line, attend une touche, puis redémarre la machine comme la fin du programme.
+        // Numéro de fenêtre calculé (PRINT #N, ..., lot H1, D072) : HL de 0 à 7, sinon « Improper argument » comme le
+        // Locomotive (#8 et #9 viendront avec le lot J). Rend A = fenêtre choisie avant, comme TXT STR SELECT.
+        [StreamName] = new RuntimeModule(StreamName, [ErrorName], e =>
+        {
+            e.Label(StreamLabel);
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_stream_bad");
+            e.LdAL();
+            e.CpImm(8);
+            e.JpCLabel("rt_stream_ok");
+            e.Label("rt_stream_bad");
+            e.LdHlLabel("rt_stream_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_stream_ok");
+            e.JpAddress(TxtStrSelect);
+            e.Label("rt_stream_msg");
+            e.Data(Ascii("Improper argument"));
+        }),
+
         [ErrorName] = new RuntimeModule(ErrorName, [PrintStringName], e =>
         {
             e.Label(ErrorLabel);
             e.PushHl();
+            e.XorA();                                // le message s'affiche dans la fenêtre #0, comme le Locomotive (D072)
+            e.CallAddress(TxtStrSelect);
             e.CallAddress(TxtGetCursor);             // pas en début de ligne : on passe à la ligne
             e.LdAH();
             e.CpImm(1);

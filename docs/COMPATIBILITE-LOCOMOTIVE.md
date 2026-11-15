@@ -99,19 +99,19 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateur « ; » seulement. Pas de virgule (zones), de TAB, SPC, USING, ni de flux #. Les accents sont remplacés par « ? ». |
+| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateur « ; » et fenêtres #0 à #7 (D072). Pas encore de virgule (zones), de TAB, SPC (H2), ni de USING (H3). Les accents sont remplacés par « ? ». |
 | `TAB / SPC` | positionne ou saute des colonnes dans PRINT | À faire |  |
 | `USING` | format d'affichage des nombres (PRINT USING) | À faire |  |
 | `WRITE` | affiche avec guillemets et virgules | À faire |  |
-| `LOCATE` | place le curseur de texte | Partielle | Sans le numéro de fenêtre #n. |
-| `CLS` | efface l'écran de texte | Partielle | Sans le numéro de fenêtre #n. |
-| `PEN` | couleur du texte | Partielle | Sans #n ni mode transparent. |
-| `PAPER` | couleur du fond du texte | Partielle | Sans #n. |
+| `LOCATE` | place le curseur de texte | Faite | Avec #n (D072). |
+| `CLS` | efface l'écran de texte | Faite | Avec #n (D072). |
+| `PEN` | couleur du texte | Partielle | Avec #n (D072) ; sans le mode transparent. |
+| `PAPER` | couleur du fond du texte | Faite | Avec #n (D072). |
 | `INK` | couleur associée à un stylo (avec clignotement) | Faite |  |
 | `BORDER` | couleur du cadre (avec clignotement) | Faite |  |
 | `MODE` | mode d'écran 0, 1 ou 2 | Faite |  |
-| `WINDOW` | fenêtre de texte | À faire |  |
-| `WINDOW SWAP` | échange deux fenêtres | À faire |  |
+| `WINDOW` | fenêtre de texte | Faite | D072. |
+| `WINDOW SWAP` | échange deux fenêtres | Faite | D072. |
 | `CURSOR` | affiche ou cache le curseur | À faire | BASIC 1.1 seulement (664, 6128). |
 | `WIDTH` | largeur de ligne de l'imprimante | À faire |  |
 | `ZONE` | largeur des zones de PRINT | À faire |  |
@@ -119,8 +119,8 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `TAGOFF` | fin de TAG | À faire |  |
 | `SPEED INK` | vitesse du clignotement des couleurs | À faire |  |
 | `FRAME` | attend le balayage de l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
-| `POS` | colonne du curseur | À faire |  |
-| `VPOS` | ligne du curseur | À faire |  |
+| `POS` | colonne du curseur | Faite | POS(#0) à POS(#7), D072 (#8 avec le lot J). |
+| `VPOS` | ligne du curseur | Faite | D072. |
 | `COPYCHR$` | caractère lu à l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
 
 ## 4. Graphismes
@@ -162,8 +162,8 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
-| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). |
-| `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. |
+| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). Fenêtres #0 à #7 (D072). Édition de la ligne avec COPY : étape H5. |
+| `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. Fenêtres #0 à #7 (D072). |
 
 ## 7. Disquette et cassette
 
@@ -289,7 +289,7 @@ Ce n'est pas une décision : c'est ma proposition, à discuter.
 5. **Lot E : chaînes de caractères (fait, D062 à D065 ; reste DEC$).**
 6. **Lot F : réels et fonctions mathématiques.**
 7. **Lot G : son.** SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB.
-8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #.
+8. **Lot H : fenêtres et mise en forme.** WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #. Étapes (D072) : H1 fenêtres et #n (validée), H2 virgule, ZONE, TAB, SPC, WRITE ; H3 PRINT USING ; H4 SYMBOL, TAG ; H5 édition de la ligne d'INPUT avec COPY.
 9. **Lot I : interruptions et erreurs.** AFTER, EVERY, REMAIN, ON BREAK, ON ERROR GOTO, RESUME.
 10. **Lot J : disquette et cassette.** CAT, LOAD, SAVE, OPENIN, OPENOUT, flux.
 

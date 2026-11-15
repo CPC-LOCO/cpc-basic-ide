@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -53,8 +53,9 @@ public static class Parser
 
     // Patterns (D062, D063) : pour chaque nombre de valeurs permis, le genre de chacune : N nombre, S texte, A l'un ou l'autre.
     // Sans Patterns, toutes les valeurs sont des nombres.
+    // StreamFirst (lot H1, D072) : la première valeur est un numéro de fenêtre écrit avec « # », comme POS(#0).
     sealed record FunctionInfo(string Signature, int MinArguments, int MaxArguments, bool FirstIsAddress = false,
-                               string[]? Patterns = null);
+                               string[]? Patterns = null, bool StreamFirst = false);
 
     // Fonctions disponibles : nom, écriture à montrer dans les messages, nombre de valeurs
     static readonly Dictionary<string, FunctionInfo> Functions = new()
@@ -105,11 +106,16 @@ public static class Parser
         ["ROUND"] = new("ROUND(valeur [, décimales])", 1, 2),
         ["RND"] = new("RND[(valeur)]", 0, 1),
         // Lot G1 (D071) : état d'un canal sonore
-        ["SQ"] = new("SQ(canal : 1, 2 ou 4)", 1, 1)
+        ["SQ"] = new("SQ(canal : 1, 2 ou 4)", 1, 1),
+        // Lot H1 (D072) : position du curseur de texte dans une fenêtre
+        ["POS"] = new("POS(#fenêtre)", 1, 1, StreamFirst: true),
+        ["VPOS"] = new("VPOS(#fenêtre)", 1, 1, StreamFirst: true)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
-    sealed record ScreenCommandInfo(string Signature, int MinArguments, int[] Min, int[] Max, bool FirstIsAddress = false);
+    /// <remarks>Command : nom rangé dans l'instruction quand il diffère du mot lu (« WINDOW SWAP », D072).</remarks>
+    sealed record ScreenCommandInfo(string Signature, int MinArguments, int[] Min, int[] Max, bool FirstIsAddress = false,
+                                    string? Command = null);
 
     // Commandes d'écran (D046) : les valeurs écrites en nombres sont vérifiées à la compilation
     static readonly Dictionary<string, ScreenCommandInfo> ScreenCommands = new()
@@ -126,6 +132,9 @@ public static class Parser
         ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26]),
         ["CLG"] = new("CLG [stylo]", 0, [0], [15]),
         ["ORIGIN"] = new("ORIGIN x, y", 2, [-32768, -32768], [32767, 32767]),
+        // Lot H1 (D072) : fenêtres de texte, colonnes et lignes à partir de 1 (le firmware ramène ce qui dépasse dans l'écran)
+        ["WINDOW"] = new("WINDOW [#fenêtre,] gauche, droite, haut, bas", 4, [1, 1, 1, 1], [255, 255, 255, 255]),
+        ["WINDOW SWAP"] = new("WINDOW SWAP fenêtre [, fenêtre]", 1, [0, 0], [7, 7], Command: "WINDOW SWAP"),
         // D056 : accès à la machine
         ["POKE"] = new("POKE adresse, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
         ["OUT"] = new("OUT port, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
@@ -356,7 +365,16 @@ public static class Parser
         switch (t.Text)
         {
             case "PRINT":
-                return ParsePrint(tokens, pos, statements, diagnostics);
+                return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "PRINT", false,
+                                          rest => ParsePrint(tokens, pos, statements, diagnostics, rest));
+
+            // Fenêtres (lot H1, D072)
+            case "WINDOW" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "SWAP":
+                return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["WINDOW SWAP"], pos + 2);
+
+            case "WINDOW" or "CLS" or "LOCATE" or "PEN" or "PAPER":
+                return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, t.Text, t.Text != "CLS",
+                                          rest => ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text], rest));
 
             case "DEFINT" or "DEFREAL" or "DEFSTR":
             {
@@ -432,7 +450,7 @@ public static class Parser
             case "ENV" or "ENT":
                 return ParseEnvelope(tokens, pos, statements, diagnostics);
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -475,13 +493,15 @@ public static class Parser
                 return ParseOn(tokens, pos, statements, diagnostics);
 
             case "INPUT":
-                return ParseInput(tokens, pos, statements, diagnostics);
+                return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "INPUT", true,
+                                          rest => ParseInput(tokens, pos, statements, diagnostics, rest));
 
             case "MID$" when tokens[pos + 1].Kind == TokenKind.LeftParen:
                 return ParseMidAssign(tokens, pos, statements, diagnostics);
 
             case "LINE" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
-                return ParseLineInput(tokens, pos, statements, diagnostics);
+                return ParseStreamCommand(tokens, pos, 2, statements, diagnostics, "LINE INPUT", true,
+                                          rest => ParseLineInput(tokens, pos, statements, diagnostics, rest));
 
             case "CLEAR" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
                 statements.Add(new ClearInputStatement(t.Line));
@@ -502,10 +522,10 @@ public static class Parser
 
     // INPUT [;] ["texte" ; ou ,] variable [, variable ...]
     static int ParseInput(IReadOnlyList<Token> tokens, int pos,
-                          List<Statement> statements, List<Diagnostic> diagnostics)
+                          List<Statement> statements, List<Diagnostic> diagnostics, int? restStart = null)
     {
         int line = tokens[pos].Line;
-        pos++;
+        pos = restStart ?? pos + 1;
 
         bool noNewline = false;
         string? prompt = null;
@@ -642,10 +662,10 @@ public static class Parser
 
     // LINE INPUT [;] ["texte" ; ou ,] A$ : toute la ligne tapée, sans « ? » (D064)
     static int ParseLineInput(IReadOnlyList<Token> tokens, int pos,
-                              List<Statement> statements, List<Diagnostic> diagnostics)
+                              List<Statement> statements, List<Diagnostic> diagnostics, int? restStart = null)
     {
         int line = tokens[pos].Line;
-        pos += 2;
+        pos = restStart ?? pos + 2;
 
         bool noNewline = false;
         if (tokens[pos].Kind == TokenKind.Semicolon)
@@ -1047,10 +1067,10 @@ public static class Parser
     }
 
     static int ParsePrint(IReadOnlyList<Token> tokens, int pos,
-                          List<Statement> statements, List<Diagnostic> diagnostics)
+                          List<Statement> statements, List<Diagnostic> diagnostics, int? restStart = null)
     {
         int line = tokens[pos].Line;
-        pos++;
+        pos = restStart ?? pos + 1;
 
         var items = new List<object>();   // string (texte) ou Expression
         bool trailingSemicolon = false;
@@ -1102,10 +1122,10 @@ public static class Parser
 
     // MODE n | CLS | LOCATE colonne, ligne | PEN n | PAPER n | INK stylo, couleur [, couleur2] | BORDER couleur [, couleur2]
     static int ParseScreenCommand(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
-                                  List<Diagnostic> diagnostics, ScreenCommandInfo info)
+                                  List<Diagnostic> diagnostics, ScreenCommandInfo info, int? restStart = null)
     {
         Token name = tokens[pos];
-        pos++;
+        pos = restStart ?? pos + 1;
 
         var arguments = new List<Expression>();
         if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
@@ -1139,8 +1159,65 @@ public static class Parser
                                                $"{number.Value}|{info.Min[i]} à {info.Max[i]}"));
         }
 
-        statements.Add(new ScreenStatement(name.Line, name.Text, arguments));
+        statements.Add(new ScreenStatement(name.Line, info.Command ?? name.Text, arguments));
         return pos;
+    }
+
+    // Commande qui accepte un numéro de fenêtre « #n » juste après son nom (lot H1, D072) : PRINT #1, "A" ; LOCATE #2, 5, 3 ;
+    // CLS #1 ; INPUT #1, A$... La commande est lue par parse (qui reçoit la position après « #n, ») ; elle est
+    // entourée du choix de la fenêtre n puis du retour à la fenêtre #0, comme le fait le Locomotive après chaque commande.
+    static int ParseStreamCommand(IReadOnlyList<Token> tokens, int pos, int nameLength, List<Statement> statements,
+                                  List<Diagnostic> diagnostics, string command, bool commaRequired, Func<int, int> parse)
+    {
+        int line = tokens[pos].Line;
+        int rest = pos + nameLength;
+        int start = statements.Count;
+        if (!ParseStreamPrefix(tokens, ref rest, diagnostics, command, commaRequired, out Expression? stream))
+            return SkipToStatementEnd(tokens, rest);
+
+        int end = parse(rest);
+        if (stream is not null)
+        {
+            statements.Insert(start, new StreamStatement(line, stream));
+            statements.Add(new StreamStatement(line, null));
+        }
+        return end;
+    }
+
+    // « #n » suivi d'une virgule (D072). Sans « # », rien n'est lu et stream reste null. Rend faux si l'écriture est fausse.
+    // Les fenêtres vont de #0 à #7 ; #8 (imprimante) et #9 (disquette, cassette) viendront avec le lot J.
+    static bool ParseStreamPrefix(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
+                                  string command, bool commaRequired, out Expression? stream)
+    {
+        stream = null;
+        if (tokens[pos].Kind != TokenKind.Hash)
+            return true;
+        int line = tokens[pos].Line;
+        pos++;
+
+        stream = ParseExpression(tokens, ref pos, diagnostics);
+        if (stream is null)
+            return false;
+        CheckStreamNumber(stream, line, command, diagnostics);
+
+        if (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            return true;
+        }
+        if (commaRequired || !(IsStatementEnd(tokens[pos]) || IsElse(tokens[pos])))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedStreamComma, line, tokens[pos].Text, command));
+            return false;
+        }
+        return true;
+    }
+
+    static void CheckStreamNumber(Expression stream, int line, string command, List<Diagnostic> diagnostics)
+    {
+        if (stream is NumberExpression number && (number.Value < 0 || number.Value > 7))
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, line,
+                                           $"#{number.Value}|#0 à #7 (#8 et #9 viendront avec le lot J)", command));
     }
 
     const string SoundSignature = "SOUND canal, période [, durée [, volume [, env. volume [, env. ton [, bruit]]]]]";
@@ -2606,6 +2683,15 @@ public static class Parser
         {
             while (true)
             {
+                if (function.StreamFirst && arguments.Count == 0)
+                {
+                    if (tokens[pos].Kind != TokenKind.Hash)   // POS(#0) : le « # » est obligatoire (D072)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedStream, nameToken.Line, tokens[pos].Text, nameToken.Text));
+                        return null;
+                    }
+                    pos++;
+                }
                 Expression? argument = function.FirstIsAddress && arguments.Count == 0
                     ? ParseAddressArgument(tokens, ref pos, diagnostics)
                     : ParseAnyExpression(tokens, ref pos, diagnostics);   // le genre est vérifié plus bas
@@ -2644,6 +2730,9 @@ public static class Parser
                 return null;
             }
         }
+
+        if (function.StreamFirst)
+            CheckStreamNumber(arguments[0], nameToken.Line, nameToken.Text, diagnostics);
 
         if (nameToken.Text is "MIN" or "MAX")
         {

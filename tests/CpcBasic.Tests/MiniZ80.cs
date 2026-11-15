@@ -52,6 +52,33 @@ internal sealed class MiniZ80
     /// <summary>Canaux libérés par SOUND RELEASE (&amp;BCB3).</summary>
     public readonly List<byte> Released = new();
 
+    // Fenêtres (lot H1, D072) : fenêtre choisie (TXT STR SELECT), texte écrit dans chacune, WINDOW et WINDOW SWAP reçus
+    public byte CurrentStream;
+    public readonly List<byte> StreamSelects = new();
+    public readonly Dictionary<byte, StringBuilder> StreamOutput = new();
+    public readonly List<(byte Stream, byte Left, byte Right, byte Top, byte Bottom)> Windows = new();
+    public readonly List<(byte First, byte Second)> Swaps = new();
+
+    /// <summary>Texte écrit dans la fenêtre n (#0 : tout ce qui n'est pas dans une autre fenêtre).</summary>
+    public string StreamText(byte stream) => StreamOutput.TryGetValue(stream, out StringBuilder? text) ? text.ToString() : "";
+
+    /// <summary>TXT STR SELECT : A = fenêtre choisie -> A = fenêtre d'avant.</summary>
+    void SelectStream()
+    {
+        byte previous = CurrentStream;
+        CurrentStream = A;
+        StreamSelects.Add(A);
+        A = previous;
+    }
+
+    void TextOutput(byte character)
+    {
+        Output.Append((char)character);
+        if (!StreamOutput.TryGetValue(CurrentStream, out StringBuilder? text))
+            StreamOutput[CurrentStream] = text = new StringBuilder();
+        text.Append((char)character);
+    }
+
     /// <summary>État rendu par SOUND CHECK (&amp;BCAD) : 4 places libres, canal arrêté.</summary>
     public byte SoundStatus = 4;
 
@@ -409,6 +436,7 @@ internal sealed class MiniZ80
                 break;
             case 0x37: CarryFlag = true; break;                        // SCF
             case 0x6B: L = E; break;                                   // LD L,E (D069)
+            case 0x6C: L = H; break;                                   // LD L,H (POS, D072)
             case 0x82: Add(D); break;                                  // ADD A,D (D068)
             case 0x83: Add(E); break;                                  // ADD A,E (D068)
             case 0x34: Memory[HL]++; ZeroFlag = Memory[HL] == 0; break;            // INC (HL) (D068)
@@ -454,9 +482,14 @@ internal sealed class MiniZ80
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
                     pc = Pop();
                 }
+                else if (target == 0xBBB4)
+                {
+                    SelectStream();                                    // JP TXT STR SELECT (sortie de rt_stream, D072)
+                    pc = Pop();
+                }
                 else if (target == 0xBB5A)
                 {
-                    Output.Append((char)A);                            // JP TXT OUTPUT (sortie de rt_fp_out, D070)
+                    TextOutput(A);                                     // JP TXT OUTPUT (sortie de rt_fp_out, D070)
                     pc = Pop();
                 }
                 else if (FirmwareMathsCall(target))
@@ -474,7 +507,7 @@ internal sealed class MiniZ80
                 ushort address = Fetch16();
                 if (address == 0xBB5A)
                 {
-                    Output.Append((char)A);                            // TXT OUTPUT : caractère affiché
+                    TextOutput(A);                                     // TXT OUTPUT : caractère affiché
                 }
                 else if (address == 0xBC11)
                 {
@@ -513,9 +546,25 @@ internal sealed class MiniZ80
                 }
                 else if (address == 0xBB78)
                 {
-                    string shown = Output.ToString();                  // TXT GET CURSOR : H = colonne, L = ligne
+                    string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
-                    L = 1;
+                    L = (byte)(1 + shown.Count(c => c == '\n'));
+                }
+                else if (address == 0xBB87)
+                {
+                    CarryFlag = true;                                  // TXT VALIDATE : la position convient (D072)
+                }
+                else if (address == 0xBBB4)
+                {
+                    SelectStream();                                    // TXT STR SELECT (D072)
+                }
+                else if (address == 0xBB66)
+                {
+                    Windows.Add((CurrentStream, H, D, L, E));          // TXT WIN ENABLE (WINDOW, D072)
+                }
+                else if (address == 0xBBB7)
+                {
+                    Swaps.Add((B, C));                                 // TXT SWAP STREAMS (WINDOW SWAP, D072)
                 }
                 else if (address == 0xBCAA)
                 {
