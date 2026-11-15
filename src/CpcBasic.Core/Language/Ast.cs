@@ -194,7 +194,7 @@ public static class Types
         // Fonctions mathématiques (lot F2) : toujours à virgule, ou selon leur valeur (INT(5) reste entier)
         CallExpression call => call.Function switch
         {
-            "SIN" or "COS" or "TAN" or "ATN" or "SQR" or "EXP" or "LOG" or "LOG10" or "PI" or "RND" or "CREAL" => true,
+            "SIN" or "COS" or "TAN" or "ATN" or "SQR" or "EXP" or "LOG" or "LOG10" or "PI" or "RND" or "CREAL" or "VAL" => true,
             "INT" or "FIX" or "ABS" => IsReal(call.Arguments[0]),
             "ROUND" => call.Arguments.Count == 2 || IsReal(call.Arguments[0]),
             "MIN" or "MAX" => call.Arguments.Any(IsReal),

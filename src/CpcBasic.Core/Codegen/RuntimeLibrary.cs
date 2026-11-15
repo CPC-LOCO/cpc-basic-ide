@@ -119,6 +119,9 @@ public static class RuntimeLibrary
     public const string RealPrintName = "RealPrint";   // nombres à virgule : affichage comme PRINT (D068)
     public const string InputRealName = "InputReal";   // nombres à virgule : INPUT A! (D068)
     public const string RealRndName = "RealRnd";       // RND (D069)
+    public const string RealParseName = "RealParse";   // lecture d'un nombre écrit (INPUT A!, VAL) (D070)
+    public const string RealValName = "RealVal";       // VAL à virgule (D070)
+    public const string RealStrName = "RealStr";       // STR$ d'un nombre à virgule (D070)
     public const string DataRealName = "DataReal";     // nombres à virgule dans DATA, READ A! (D070)
     public const string DataNoRealName = "DataNoReal"; // programme sans nombre à virgule : rien à lire de tel (D070)
     public const string MathsAllName = "FMathsAll";
@@ -3007,7 +3010,10 @@ public static class RuntimeLibrary
         }),
         [RealOpsName] = new RuntimeModule(RealOpsName, [ErrorName, PrintStringName], RealRuntime.EmitOps),
         [RealPrintName] = new RuntimeModule(RealPrintName, [], RealRuntime.EmitPrint),
-        [InputRealName] = new RuntimeModule(InputRealName, [InputName], RealRuntime.EmitInput),
+        [InputRealName] = new RuntimeModule(InputRealName, [InputName, RealParseName], RealRuntime.EmitInput),
+        [RealParseName] = new RuntimeModule(RealParseName, [RealOpsName], RealRuntime.EmitParse),
+        [RealValName] = new RuntimeModule(RealValName, [RealParseName, StrFunctionsName], RealRuntime.EmitVal),
+        [RealStrName] = new RuntimeModule(RealStrName, [RealPrintName, StrFunctionsName], RealRuntime.EmitStr),
         [RealRndName] = new RuntimeModule(RealRndName, [Rand16Name, RandomizeName], RealRuntime.EmitRnd),
         [DataRealName] = new RuntimeModule(DataRealName, [DataName, RealOpsName], RealRuntime.EmitDataReal),
         [DataNoRealName] = new RuntimeModule(DataNoRealName, [DataName], e =>

@@ -154,6 +154,11 @@ public static class CodeGenerator
         bool usesStrings = program.Statements.Any(StatementUsesStrings);
         bool usesReals = program.Statements.Any(StatementUsesReals);   // nombres à virgule (D068)
 
+        // Cases de calcul des nombres à virgule (voir EmitRealInto) : déclarées ici, avant EmitString qui s'en sert (STR$)
+        int realFree = 0;
+        int realTemps = 0;
+        var realLiterals = new Dictionary<double, string>();
+
         // HL = adresse de la fiche du texte
         void EmitString(Expression expression)
         {
@@ -215,6 +220,13 @@ public static class CodeGenerator
                             emitter.CallLabel("rt_inkey");           // D064
                             break;
 
+                        case "STR$" when Types.IsReal(a[0]):
+                            required.Add(RuntimeLibrary.RealStrName);   // STR$(1/3) = " 0.333333333" (D070)
+                            EmitRealInto(a[0], realFree);
+                            emitter.LdHlLabel(RealTemp(realFree));
+                            emitter.CallLabel(RealRuntime.StrLabel);
+                            break;
+
                         case "CHR$" or "SPACE$" or "STR$":
                             EmitExpression(a[0]);
                             emitter.CallLabel(call.Function switch { "CHR$" => "rt_chr", "SPACE$" => "rt_space", _ => "rt_strs" });
@@ -268,9 +280,6 @@ public static class CodeGenerator
         // Nombres à virgule (lot F1b, D068). Un calcul se fait dans des cases de 5 octets (ftmp_0, ftmp_1...) :
         // la case k reçoit la valeur, la case k + 1 sert pour l'opérande de droite. realFree = première case libre
         // (un calcul entier au milieu d'un calcul à virgule ne doit pas écraser les cases déjà prises).
-        int realFree = 0;
-        int realTemps = 0;
-        var realLiterals = new Dictionary<double, string>();
 
         string RealTemp(int k)
         {
@@ -392,6 +401,19 @@ public static class CodeGenerator
                 case "CREAL":
                     EmitRealInto(a[0], k);
                     break;
+
+                case "VAL":
+                {
+                    // VAL("3.14") (D070) : le texte est lu comme un nombre à virgule (VAL("&FF") : 255)
+                    required.Add(RuntimeLibrary.RealValName);
+                    int saved = realFree;
+                    realFree = k;
+                    EmitString(a[0]);
+                    realFree = saved;
+                    emitter.LdDeLabel(temp);
+                    emitter.CallLabel(RealRuntime.ValLabel);
+                    break;
+                }
 
                 case "INT" or "FIX" or "ABS":
                     EmitRealInto(a[0], k);

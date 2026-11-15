@@ -198,17 +198,9 @@ internal static class RealRuntime
         e.PopHl();
         e.Ret();
 
-        // HL = message : affiché seul sur sa ligne (à la ligne d'abord si le curseur n'est pas au début)
+        // HL = message, puis passage à la ligne
+        // (là où est le curseur, comme le vrai BASIC : « 40000 Overflow », capture du 15 nov. 2026, D070)
         e.Label("rt_fwarn");
-        e.PushHl();
-        e.CallAddress(RuntimeLibrary.TxtGetCursor);
-        e.LdAH();
-        e.CpImm(1);
-        e.JrZLabel("rt_fwarn_col1");
-        e.LdHlLabel("rt_fr_crlf");
-        e.CallLabel(RuntimeLibrary.PrintStringLabel);
-        e.Label("rt_fwarn_col1");
-        e.PopHl();
         e.CallLabel(RuntimeLibrary.PrintStringLabel);
         e.LdHlLabel("rt_fr_crlf");
         e.JpLabel(RuntimeLibrary.PrintStringLabel);
@@ -404,7 +396,7 @@ internal static class RealRuntime
         e.Label(PrintLabel);
         e.CallLabel("rt_fp_text");
         e.LdAImm(' ');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.Ret();
 
         e.Label("rt_fp_text");
@@ -415,9 +407,9 @@ internal static class RealRuntime
         e.OrA();
         e.JpNzLabel("rt_fp_nz");
         e.LdAImm(' ');                                    // zéro : « 0 » (même -0)
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.LdAImm('0');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.Ret();
 
         e.Label("rt_fp_nz");
@@ -544,7 +536,7 @@ internal static class RealRuntime
         e.JrZLabel("rt_fp_sign");
         e.LdAImm('-');
         e.Label("rt_fp_sign");
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
 
         // Sans exposant ?  e10 de 0 à 8 : 12.5 ; e10 négatif : 0.0025 si les chiffres tiennent en 9
         e.LdAMem("rt_fp_e");
@@ -560,15 +552,15 @@ internal static class RealRuntime
         e.CpImm(10);
         e.JpNcLabel("rt_fp_exp");
         e.LdAImm('0');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.LdAImm('.');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.LdAB();
         e.OrA();
         e.JrZLabel("rt_fp_small");
         e.Label("rt_fp_zero");
         e.LdAImm('0');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.DjnzLabel("rt_fp_zero");
         e.Label("rt_fp_small");
         e.LdHlLabel("rt_fp_d0");
@@ -588,7 +580,7 @@ internal static class RealRuntime
         e.RetC();
         e.LdBA();
         e.LdAImm('.');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.JpLabel("rt_fp_digits");
 
         // Avec exposant : 6 chiffres, arrondis
@@ -622,11 +614,11 @@ internal static class RealRuntime
         e.JrZLabel("rt_fp_ee");
         e.LdBA();
         e.LdAImm('.');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.CallLabel("rt_fp_digits");
         e.Label("rt_fp_ee");
         e.LdAImm('E');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.LdAMem("rt_fp_e");
         e.LdBA();
         e.AndImm(0x80);
@@ -638,7 +630,7 @@ internal static class RealRuntime
         e.LdBA();
         e.LdAImm('-');
         e.Label("rt_fp_esign");
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.LdAB();
         e.LdCImm(0);
         e.Label("rt_fp_tens");
@@ -651,17 +643,17 @@ internal static class RealRuntime
         e.LdBA();
         e.LdAC();
         e.AddAImm('0');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.LdAB();
         e.AddAImm('0');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.Ret();
 
         // HL = premier chiffre, B = nombre de chiffres (au moins 1) : les affiche ; HL avance, C est gardé
         e.Label("rt_fp_digits");
         e.LdAHl();
         e.AddAImm('0');
-        e.CallAddress(TxtOutput);
+        e.CallLabel("rt_fp_out");
         e.IncHl();
         e.DjnzLabel("rt_fp_digits");
         e.Ret();
@@ -716,6 +708,12 @@ internal static class RealRuntime
         e.Label("rt_fp_dn");
         e.DjnzLabel("rt_fp_dv");
         e.Ret();
+
+        // Sortie d'un caractère : l'écran, ou le texte de STR$ (D070)
+        e.Label("rt_fp_out");
+        e.Bytes(0xC3);
+        e.Label("rt_fp_vec");
+        e.Word(TxtOutput);
 
         // Données
         e.Label("rt_fp_x");
@@ -889,7 +887,115 @@ internal static class RealRuntime
     public static void EmitInput(Z80Emitter e)
     {
         e.Label(InputLabel);
+        e.LdHlMem("rt_inp_ptr");
+        e.XorA();                                         // lecture stricte
+        e.CallLabel(ParseLabel);
+        e.RetC();
+        e.LdMemHl("rt_inp_ptr");
+        e.Ret();
+    }
+
+    public const string ValLabel = "rt_fval";            // HL = fiche du texte, DE = où ranger le nombre (D070)
+    public const string StrLabel = "rt_fstr";            // HL = nombre -> HL = fiche temporaire de son écriture (D070)
+
+    /// <summary>VAL à virgule (D070) : texte copié avec un 0 à la fin, puis lu souplement ; « &amp;FF » : VAL entier.</summary>
+    public static void EmitVal(Z80Emitter e)
+    {
+        e.Label(ValLabel);
+        e.LdMemDe("rt_fv_dst");
+        e.LdMemHl("rt_fv_desc");
+        e.LoadCFromHl();                                  // C = longueur
+        e.IncHl();
+        e.LoadEFromHl();
+        e.IncHl();
+        e.LoadDFromHl();
+        e.ExDeHl();                                       // HL = lettres
+        e.LdDeLabel("rt_fv_buf");
+        e.LdAC();
+        e.OrA();
+        e.JrZLabel("rt_fv_empty");
+        e.LdBImm(0);
+        e.Ldir();
+        e.Label("rt_fv_empty");
+        e.XorA();
+        e.StoreDeA();
+        e.LdHlLabel("rt_fv_buf");
+        e.Label("rt_fv_sp");
+        e.LdAHl();
+        e.CpImm(' ');
+        e.JrNzLabel("rt_fv_first");
+        e.IncHl();
+        e.JrLabel("rt_fv_sp");
+        e.Label("rt_fv_first");
+        e.CpImm('&');
+        e.JrZLabel("rt_fv_hex");
+        e.LdHlLabel("rt_fv_buf");
+        e.LdDeMem("rt_fv_dst");
+        e.LdAImm(1);                                      // lecture souple
+        e.JpLabel(ParseLabel);
+        e.Label("rt_fv_hex");
+        e.LdHlMem("rt_fv_desc");
+        e.CallLabel("rt_val");                            // HL = valeur entière
+        e.LdDeMem("rt_fv_dst");
+        e.JpLabel(IntToRealLabel);
+
+        e.Label("rt_fv_dst");
+        e.Reserve(2);
+        e.Label("rt_fv_desc");
+        e.Reserve(2);
+        e.Label("rt_fv_buf");
+        e.Reserve(256);
+    }
+
+    /// <summary>STR$ à virgule (D070) : l'affichage de PRINT, sans l'espace de fin, envoyé dans un texte.</summary>
+    public static void EmitStr(Z80Emitter e)
+    {
+        e.Label(StrLabel);
+        e.PushHl();
+        e.LdHlLabel("rt_fs_buf");
+        e.LdMemHl("rt_fs_ptr");
+        e.LdHlLabel("rt_fs_put");
+        e.LdMemHl("rt_fp_vec");                           // les caractères vont dans rt_fs_buf
+        e.PopHl();
+        e.CallLabel("rt_fp_text");
+        e.LdHlImm(TxtOutput);
+        e.LdMemHl("rt_fp_vec");                           // retour à l'écran
+        e.LdHlMem("rt_fs_ptr");
+        e.LdDeLabel("rt_fs_buf");
+        e.OrA();
+        e.SbcHlDe();
+        e.LdCL();                                         // C = nombre de caractères, DE = lettres
+        e.JpLabel("rt_sf_mem");
+
+        e.Label("rt_fs_put");                             // A = caractère (les registres sont gardés, comme TXT OUTPUT)
+        e.PushHl();
+        e.LdHlMem("rt_fs_ptr");
+        e.LdHlA();
+        e.IncHl();
+        e.LdMemHl("rt_fs_ptr");
+        e.PopHl();
+        e.Ret();
+
+        e.Label("rt_fs_ptr");
+        e.Reserve(2);
+        e.Label("rt_fs_buf");
+        e.Reserve(20);
+    }
+
+    public const string ParseLabel = "rt_fparse";
+
+    /// <summary>
+    /// Lecture d'un nombre écrit dans un texte (D068, D070). HL = texte terminé par 0, DE = où ranger, A = 0 : lecture
+    /// stricte (INPUT : après le nombre, seulement des espaces puis « , » ou la fin ; sinon retenue = erreur), A = 1 :
+    /// lecture souple (VAL : on s'arrête au premier caractère qui ne va pas ; sans chiffre, 0 ; « 1E » vaut 1 ;
+    /// trop grand : « Overflow » et ±1.70141E+38). Rend HL = suite du texte.
+    /// </summary>
+    public static void EmitParse(Z80Emitter e)
+    {
+        e.Label(ParseLabel);
+        e.LdMemA("rt_fi_mode");
         e.LdMemDe("rt_fi_dst");
+        e.PushHl();
         e.XorA();
         e.LdMemA("rt_fi_neg");
         e.LdMemA("rt_fi_dec");
@@ -898,7 +1004,7 @@ internal static class RealRuntime
         e.LdMemA("rt_fi_x4");                             // x = 0
         e.LdHlImm(0);
         e.LdMemHl("rt_fi_e");
-        e.LdHlMem("rt_inp_ptr");
+        e.PopHl();
         e.Label("rt_fi_sp1");
         e.LdAHl();
         e.CpImm(' ');
@@ -917,6 +1023,12 @@ internal static class RealRuntime
         e.JrNzLabel("rt_fi_mant");
         e.IncHl();
         e.Label("rt_fi_mant");
+        e.LdAHl();                                        // « - 5 » : espaces permis après le signe (vrai BASIC)
+        e.CpImm(' ');
+        e.JrNzLabel("rt_fi_mant2");
+        e.IncHl();
+        e.JrLabel("rt_fi_mant");
+        e.Label("rt_fi_mant2");
         e.LdMemHl("rt_fi_p");
 
         // Chiffres et point
@@ -948,7 +1060,12 @@ internal static class RealRuntime
         e.Label("rt_fi_mend");
         e.LdAMem("rt_fi_nd");
         e.OrA();
-        e.JpZLabel("rt_fi_fail");                         // il faut au moins un chiffre
+        e.JrNzLabel("rt_fi_some");
+        e.LdAMem("rt_fi_mode");
+        e.OrA();
+        e.JpZLabel("rt_fi_fail");                         // INPUT : il faut au moins un chiffre
+        e.JpLabel("rt_fi_sgn");                           // VAL : sans chiffre, 0
+        e.Label("rt_fi_some");
         e.LdHlMem("rt_fi_p");
         e.LdAHl();
         e.CpImm('E');
@@ -973,7 +1090,11 @@ internal static class RealRuntime
         e.LdAHl();
         e.SubImm('0');
         e.CpImm(10);
-        e.JpNcLabel("rt_fi_fail");                        // E sans chiffre
+        e.JrCLabel("rt_fi_eloop");
+        e.LdAMem("rt_fi_mode");
+        e.OrA();
+        e.JpZLabel("rt_fi_fail");                         // INPUT : E sans chiffre
+        e.JpLabel("rt_fi_powcalc");                       // VAL : « 1E » vaut 1
         e.Label("rt_fi_eloop");
         e.LdAHl();
         e.SubImm('0');
@@ -1011,6 +1132,9 @@ internal static class RealRuntime
 
         // Après le nombre : espaces, puis « , » ou la fin
         e.Label("rt_fi_tail");
+        e.LdAMem("rt_fi_mode");
+        e.OrA();
+        e.JpNzLabel("rt_fi_powcalc");                     // VAL : la suite du texte est ignorée
         e.LdHlMem("rt_fi_p");
         e.Label("rt_fi_sp2");
         e.LdAHl();
@@ -1025,7 +1149,8 @@ internal static class RealRuntime
         e.JpNzLabel("rt_fi_fail");
         e.IncHl();
         e.Label("rt_fi_ok");
-        e.LdMemHl("rt_inp_ptr");
+        e.LdMemHl("rt_fi_p");
+        e.Label("rt_fi_powcalc");
 
         // Puissance de 10 : exposant - décimales, ramenée entre -127 et 127
         e.LdHlMem("rt_fi_e");
@@ -1073,10 +1198,22 @@ internal static class RealRuntime
         e.LdDeMem("rt_fi_dst");
         e.LdBcImm(5);
         e.Ldir();
+        e.LdHlMem("rt_fi_p");
         e.OrA();                                          // retenue à 0 : tout va bien
         e.Ret();
         e.Label("rt_fi_fail");
-        e.Scf();
+        e.LdAMem("rt_fi_mode");
+        e.OrA();
+        e.JrNzLabel("rt_fi_vovf");
+        e.Scf();                                          // INPUT : « ?Redo from start »
+        e.Ret();
+        e.Label("rt_fi_vovf");                            // VAL trop grand : « Overflow », ±1.70141E+38
+        e.LdAMem("rt_fi_neg");
+        e.LdMemA("rt_fsign");
+        e.LdHlMem("rt_fi_dst");
+        e.CallLabel("rt_fovf");
+        e.LdHlMem("rt_fi_p");
+        e.OrA();
         e.Ret();
 
         // A = chiffre : x = x * 10 + chiffre ; retenue à 1 si le nombre devient trop grand
@@ -1123,7 +1260,7 @@ internal static class RealRuntime
         e.Reserve(2);
         e.Label("rt_fi_e");
         e.Reserve(2);
-        foreach (string label in new[] { "rt_fi_neg", "rt_fi_dec", "rt_fi_nd", "rt_fi_pt" })
+        foreach (string label in new[] { "rt_fi_neg", "rt_fi_dec", "rt_fi_nd", "rt_fi_pt", "rt_fi_mode" })
         {
             e.Label(label);
             e.Reserve(1);

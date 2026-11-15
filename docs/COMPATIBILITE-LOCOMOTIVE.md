@@ -193,8 +193,8 @@ Tout cela attend les variables chaînes (A$).
 | `LEN` | longueur | Faite | D062. |
 | `INSTR` | cherche un texte dans un autre | Faite | D063. |
 | `LOWER$ / UPPER$` | minuscules / majuscules | Faite | Lettres de A à Z. D063. |
-| `STR$` | nombre en texte | Faite | D063. |
-| `VAL` | texte en nombre | Faite | Décimal, &hexadécimal, &Xbinaire ; entier sur 16 bits (réels avec le lot F). D063. |
+| `STR$` | nombre en texte | Faite | D063 ; nombres à virgule : D070. |
+| `VAL` | texte en nombre | Faite | Décimal, &hexadécimal, &Xbinaire (D063) ; nombre à virgule depuis D070, lu comme le vrai BASIC. |
 | `STRING$` | répète un caractère | Faite | D063. |
 | `SPACE$` | suite d'espaces | Faite | D063. |
 | `BIN$` | nombre en binaire | Faite | D063. |

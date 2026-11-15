@@ -67,11 +67,11 @@ Documents de référence :
 - **Lot C, tableaux (D058) :** `DIM` (une ou plusieurs dimensions, taille écrite ou calculée, création automatique 0 à 10 sans DIM), vérification des cases avec les messages du Locomotive (« Subscript out of range in 80 », « Array already dimensioned », « Memory full »). `examples\tableaux.bas`, `examples\horstab.bas`.
 - **Lot C, première partie (D056, D057) :** `POKE`, `PEEK` (relit bien la RAM au-dessus de &C000, vérifié dans SugarBox), `CALL`, `OUT`, `INP`, `MEMORY` (protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous). `examples\machine.bas`.
 
-### Prochaine étape : fin du lot C
+### Prochaine étape
 
-1. lot F : F1a faite ; F1b faite (nombres à virgule : écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, réglage F8, FOR X!, INPUT A!, @A!, D068) ; F2 faite (fonctions mathématiques, DEG/RAD, RND, D069), F3a faite (tableaux à virgule, DATA et READ, D070) ; F3b (VAL et STR$ avec les nombres à virgule) à faire : chaînes de caractères (A$, textes dans DATA, MID$, VAL, +…), indispensable au programme RSX de référence.
-
-Puis lot D (nombres `&` hexadécimaux et `&X` binaires, `XOR`, `NOT`, `^`, comparaisons comme valeurs), lot E (chaînes), F (réels et fonctions mathématiques), G (son), H (fenêtres et mise en forme), I (interruptions et erreurs), J (disquette et cassette).
+- **Lot F (nombres à virgule) terminé et validé le 15 nov. 2026** : F1a (réglages F7/F8, D066), F1b (écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, FOR X!, INPUT A!, @A!, D068), F2 (fonctions mathématiques, DEG/RAD, RND, D069), F3a (tableaux à virgule, DATA, READ) et F3b (VAL et STR$, D070). Chaque étape comparée écran par écran avec le vrai BASIC (SugarBox).
+- **Suite :** lot G (son : SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB), puis H (fenêtres et mise en forme ; y ajouter l'édition complète de la ligne d'INPUT avec la touche COPY, voir IDEES), I (interruptions et erreurs), J (disquette et cassette).
+- **Méthode qui marche bien :** avant d'écrire une étape, faire taper à l'utilisateur un petit programme dans le vrai BASIC (SugarBox ; WinAPE déforme le collage) pour relever les affichages exacts, puis comparer l'exemple compilé avec ce même programme.
 
 ### Questions en attente (à reposer au bon moment)
 

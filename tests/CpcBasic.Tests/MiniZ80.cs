@@ -442,6 +442,11 @@ internal sealed class MiniZ80
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
                     pc = Pop();
                 }
+                else if (target == 0xBB5A)
+                {
+                    Output.Append((char)A);                            // JP TXT OUTPUT (sortie de rt_fp_out, D070)
+                    pc = Pop();
+                }
                 else if (FirmwareMathsCall(target))
                 {
                     pc = Pop();                                        // routine de calcul : retour à l'appelant
