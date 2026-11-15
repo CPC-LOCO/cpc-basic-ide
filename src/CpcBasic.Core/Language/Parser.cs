@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -103,7 +103,9 @@ public static class Parser
         ["CINT"] = new("CINT(valeur)", 1, 1),
         ["CREAL"] = new("CREAL(valeur)", 1, 1),
         ["ROUND"] = new("ROUND(valeur [, décimales])", 1, 2),
-        ["RND"] = new("RND[(valeur)]", 0, 1)
+        ["RND"] = new("RND[(valeur)]", 0, 1),
+        // Lot G1 (D071) : état d'un canal sonore
+        ["SQ"] = new("SQ(canal : 1, 2 ou 4)", 1, 1)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
@@ -115,6 +117,7 @@ public static class Parser
         ["MODE"] = new("MODE mode (0, 1 ou 2)", 1, [0], [2]),
         ["CLS"] = new("CLS", 0, [], []),
         ["DEG"] = new("DEG", 0, [], []),                // angles en degrés (D069)
+        ["RELEASE"] = new("RELEASE canaux (0 à 7)", 1, [0], [7]),   // libère les canaux sonores en attente (D071)
         ["RAD"] = new("RAD", 0, [], []),                // angles en radians (D069)
         ["LOCATE"] = new("LOCATE colonne, ligne", 2, [1, 1], [80, 25]),
         ["PEN"] = new("PEN stylo (0 à 15)", 1, [0], [15]),
@@ -423,7 +426,13 @@ public static class Parser
             case "CONTINUE":
                 return ParseLoopControl(tokens, pos, statements, isExit: false);
 
-            case "DEG" or "RAD" or "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "SOUND":
+                return ParseSound(tokens, pos, statements, diagnostics);
+
+            case "ENV" or "ENT":
+                return ParseEnvelope(tokens, pos, statements, diagnostics);
+
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -1131,6 +1140,127 @@ public static class Parser
         }
 
         statements.Add(new ScreenStatement(name.Line, name.Text, arguments));
+        return pos;
+    }
+
+    const string SoundSignature = "SOUND canal, période [, durée [, volume [, env. volume [, env. ton [, bruit]]]]]";
+
+    // SOUND (lot G1, D071) : les valeurs absentes (même au milieu : SOUND 1, 200, , 5) prennent la valeur du Locomotive :
+    // durée 20 (centièmes de seconde), volume 12, enveloppes 0, bruit 0.
+    static int ParseSound(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        pos++;
+
+        var given = new List<Expression?>();
+        while (true)
+        {
+            if (tokens[pos].Kind == TokenKind.Comma || IsStatementEnd(tokens[pos]) || IsElse(tokens[pos]))
+            {
+                given.Add(null);
+            }
+            else
+            {
+                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                if (value is null)
+                    return SkipToStatementEnd(tokens, pos);
+                given.Add(value);
+            }
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+
+        if (given.Count < 2 || given.Count > 7 || given[0] is null || given[1] is null)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, SoundSignature));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        int[] defaults = [0, 0, 20, 12, 0, 0, 0];
+        int[] min = [1, 0, -32768, 0, 0, 0, 0];
+        int[] max = [255, 4095, 32767, 15, 15, 15, 31];
+        var arguments = new List<Expression>();
+        for (int i = 0; i < 7; i++)
+        {
+            Expression value = i < given.Count && given[i] is Expression e ? e : new NumberExpression(defaults[i]);
+            if (value is NumberExpression number && (number.Value < min[i] || number.Value > max[i]))
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line, $"{number.Value}|{min[i]} à {max[i]}"));
+            arguments.Add(value);
+        }
+
+        statements.Add(new ScreenStatement(name.Line, "SOUND", arguments));
+        return pos;
+    }
+
+    // ENV numéro [, pas, taille, pause | , =forme, période] (5 parties au plus) ;
+    // ENT numéro [, pas, taille, pause | , =période, pause] (numéro négatif : l'enveloppe se répète). Lot G1 (D071).
+    static int ParseEnvelope(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        bool tone = name.Text == "ENT";
+        string signature = tone
+            ? "ENT numéro, pas, taille, pause [, ...] (ou =période, pause), 5 parties au plus"
+            : "ENV numéro, pas, taille, pause [, ...] (ou =forme, période), 5 parties au plus";
+        pos++;
+
+        Expression? number = ParseExpression(tokens, ref pos, diagnostics);
+        if (number is null)
+            return SkipToStatementEnd(tokens, pos);
+        if (number is NumberExpression n && (tone ? n.Value is < -15 or > 15 or 0 : n.Value is < 1 or > 15))
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line,
+                                           $"{n.Value}|{(tone ? "-15 à 15, sauf 0" : "1 à 15")}"));
+
+        var sections = new List<EnvelopeSection>();
+        while (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            bool absolute = tokens[pos].Kind == TokenKind.Equals;
+            if (absolute)
+                pos++;
+            var values = new List<Expression>();
+            for (int k = 0; k < (absolute ? 2 : 3); k++)
+            {
+                if (k > 0)
+                {
+                    if (tokens[pos].Kind != TokenKind.Comma)
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, signature));
+                        return SkipToStatementEnd(tokens, pos);
+                    }
+                    pos++;
+                }
+                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                if (value is null)
+                    return SkipToStatementEnd(tokens, pos);
+                values.Add(value);
+            }
+
+            // Valeurs permises (écrites en nombres) : pas 0 à 127 (ENV) ou 239 (ENT), taille -128 à 127, pause 0 à 255 ;
+            // =forme 0 à 15, =période 0 à 65535 (ENV) ; =période 0 à 4095, pause 0 à 255 (ENT)
+            int[] min = absolute ? (tone ? new[] { 0, 0 } : new[] { 0, -32768 }) : new[] { 0, -128, 0 };
+            int[] max = absolute ? (tone ? new[] { 4095, 255 } : new[] { 15, 32767 }) : new[] { tone ? 239 : 127, 127, 255 };
+            for (int k = 0; k < values.Count; k++)
+            {
+                if (values[k] is NumberExpression v && (v.Value < min[k] || v.Value > max[k]))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line, $"{v.Value}|{min[k]} à {max[k]}"));
+            }
+
+            sections.Add(new EnvelopeSection(absolute, values[0], values[1], absolute ? null : values[2]));
+            if (sections.Count > 5)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, signature));
+                return SkipToStatementEnd(tokens, pos);
+            }
+        }
+
+        if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, tokens[pos].Line, tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        statements.Add(new EnvelopeStatement(name.Line, tone, number, sections));
         return pos;
     }
 

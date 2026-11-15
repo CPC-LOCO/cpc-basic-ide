@@ -43,6 +43,18 @@ internal sealed class MiniZ80
     /// Elle choisit aussi les adresses des routines de calcul à virgule simulées (464 ou 664/6128).</summary>
     public byte FirmwareVersion = 2;
 
+    /// <summary>Son (D071) : blocs de 9 octets reçus par SOUND QUEUE (&amp;BCAA), dans l'ordre.</summary>
+    public readonly List<byte[]> Sounds = new();
+
+    /// <summary>Enveloppes reçues : Tone = ENT (&amp;BCBF), sinon ENV (&amp;BCBC) ; numéro (A) et les 16 octets du bloc.</summary>
+    public readonly List<(bool Tone, byte Number, byte[] Block)> Envelopes = new();
+
+    /// <summary>Canaux libérés par SOUND RELEASE (&amp;BCB3).</summary>
+    public readonly List<byte> Released = new();
+
+    /// <summary>État rendu par SOUND CHECK (&amp;BCAD) : 4 places libres, canal arrêté.</summary>
+    public byte SoundStatus = 4;
+
     /// <summary>Angles en degrés (SET ANGLE MODE avec A différent de 0), sinon en radians.</summary>
     public bool AngleDegrees;
 
@@ -504,6 +516,23 @@ internal sealed class MiniZ80
                     string shown = Output.ToString();                  // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = 1;
+                }
+                else if (address == 0xBCAA)
+                {
+                    Sounds.Add(Memory[HL..(HL + 9)]);                  // SOUND QUEUE : toujours une place
+                    CarryFlag = true;
+                }
+                else if (address == 0xBCAD)
+                {
+                    A = SoundStatus;                                   // SOUND CHECK
+                }
+                else if (address == 0xBCB3)
+                {
+                    Released.Add(A);                                   // SOUND RELEASE
+                }
+                else if (address == 0xBCBC || address == 0xBCBF)
+                {
+                    Envelopes.Add((address == 0xBCBF, A, Memory[HL..(HL + 16)]));   // ENV / ENT
                 }
                 else if (address == FirmwareMaths.KlProbeRom)
                 {

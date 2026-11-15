@@ -145,11 +145,11 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `SOUND` | joue un son | À faire |  |
-| `ENT` | enveloppe de hauteur | À faire |  |
-| `ENV` | enveloppe de volume | À faire |  |
-| `RELEASE` | libère les files de son | À faire |  |
-| `SQ (fonction)` | état d'une file de son | À faire |  |
+| `SOUND` | joue un son | Fait | Lot G1 (D071), par la ROM ; valeurs vides permises. |
+| `ENT` | enveloppe de hauteur | Fait | Lot G1 (D071), avec la forme « = » ; négatif : se répète. |
+| `ENV` | enveloppe de volume | Fait | Lot G1 (D071), avec la forme « = ». |
+| `RELEASE` | libère les files de son | Fait | Lot G1 (D071). |
+| `SQ (fonction)` | état d'une file de son | Fait | Lot G1 (D071). ON SQ GOSUB : avec le lot I. |
 | `ON SQ GOSUB` | appel quand une file se libère | À faire |  |
 
 ## 6. Clavier, manettes et saisie

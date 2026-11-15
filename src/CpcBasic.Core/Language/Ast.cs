@@ -126,6 +126,16 @@ public sealed record ScreenStatement(int SourceLine, string Command, IReadOnlyLi
     : Statement(SourceLine);
 
 /// <summary>
+/// Une partie d'enveloppe (lot G1, D071) : nombre de pas, taille d'un pas, pause ; ou, avec « = » (Absolute),
+/// ENV : forme et période de l'enveloppe matérielle, ENT : période du son et pause (C vaut alors null).
+/// </summary>
+public sealed record EnvelopeSection(bool Absolute, Expression A, Expression B, Expression? C);
+
+/// <summary>ENV numéro, parties (volume) ou ENT numéro, parties (ton ; numéro négatif : l'enveloppe se répète).</summary>
+public sealed record EnvelopeStatement(int SourceLine, bool Tone, Expression Number, IReadOnlyList<EnvelopeSection> Sections)
+    : Statement(SourceLine);
+
+/// <summary>
 /// Tracé du Locomotive BASIC : MOVE, MOVER, PLOT, PLOTR, DRAW, DRAWR (décision D047).
 /// X et Y sont des coordonnées (ou des écarts pour les commandes en « R »). Pen (le stylo) et Mode
 /// (0 normal, 1 XOR, 2 AND, 3 OR) sont facultatifs : null s'ils sont omis.
@@ -362,6 +372,7 @@ public static class AstWalker
         IfStatement i => Of(i.Condition),
         RandomizeStatement r when r.Seed is not null => [r.Seed],
         ScreenStatement s => s.Arguments,
+        EnvelopeStatement env => env.Sections.SelectMany(x => new[] { x.A, x.B, x.C }).OfType<Expression>().Prepend(env.Number),
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
         OnStatement o => [o.Selector],
         ReadStatement r => r.Targets,

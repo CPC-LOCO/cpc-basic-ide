@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D070 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D071 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -70,7 +70,8 @@ Documents de référence :
 ### Prochaine étape
 
 - **Lot F (nombres à virgule) terminé et validé le 15 nov. 2026** : F1a (réglages F7/F8, D066), F1b (écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, FOR X!, INPUT A!, @A!, D068), F2 (fonctions mathématiques, DEG/RAD, RND, D069), F3a (tableaux à virgule, DATA, READ) et F3b (VAL et STR$, D070). Chaque étape comparée écran par écran avec le vrai BASIC (SugarBox).
-- **Suite :** lot G (son : SOUND, ENT, ENV, RELEASE, SQ, ON SQ GOSUB), puis H (fenêtres et mise en forme ; y ajouter l'édition complète de la ligne d'INPUT avec la touche COPY, voir IDEES), I (interruptions et erreurs), J (disquette et cassette).
+- **Lot G1 (son) fait et validé le 15 nov. 2026** : SOUND, ENV, ENT, RELEASE, SQ (D071). ON SQ GOSUB est reporté au lot I (interruptions).
+- **Suite :** lot H (fenêtres et mise en forme ; y ajouter l'édition complète de la ligne d'INPUT avec la touche COPY, voir IDEES), I (interruptions et erreurs), J (disquette et cassette).
 - **Méthode qui marche bien :** avant d'écrire une étape, faire taper à l'utilisateur un petit programme dans le vrai BASIC (SugarBox ; WinAPE déforme le collage) pour relever les affichages exacts, puis comparer l'exemple compilé avec ce même programme.
 
 ### Questions en attente (à reposer au bon moment)

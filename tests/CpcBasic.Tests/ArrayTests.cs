@@ -106,7 +106,7 @@ public class ArrayTests
     [Theory]
     [InlineData("10 A = FRE(3)")]   // SIN existe depuis le lot F2 (D069)
     [InlineData("10 DIM ERASE(3)")]
-    [InlineData("10 SOUND(1) = 2")]
+    [InlineData("10 WINDOW(1) = 2")]   // SOUND existe depuis le lot G1 (D071)
     public void Un_mot_du_Locomotive_pas_encore_disponible_ne_devient_pas_un_tableau(string source)
     {
         Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.NotYetAvailable);

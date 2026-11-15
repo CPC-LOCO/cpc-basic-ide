@@ -157,6 +157,8 @@ public static class CodeGenerator
         // Cases de calcul des nombres à virgule (voir EmitRealInto) : déclarées ici, avant EmitString qui s'en sert (STR$)
         int realFree = 0;
         int realTemps = 0;
+        bool usesSound = false;                 // SOUND (D071)
+        int envelopeBlocks = 0;                 // ENV et ENT (D071)
         var realLiterals = new Dictionary<double, string>();
 
         // HL = adresse de la fiche du texte
@@ -734,6 +736,14 @@ public static class CodeGenerator
                             emitter.CallLabel(RuntimeLibrary.Abs16Label);
                             break;
 
+                        case "SQ":                          // SQ(canal) : état du canal sonore (D071)
+                            EmitExpression(call.Arguments[0]);
+                            emitter.LdAL();
+                            emitter.CallAddress(SoundCheck);
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            break;
+
                         case "SGN" when Types.IsReal(call.Arguments[0]):
                             EmitRealInto(call.Arguments[0], realFree);  // SGN(2.5) : 1, 0 ou -1 (D069)
                             emitter.LdHlLabel(RealTemp(realFree));
@@ -1119,6 +1129,41 @@ public static class CodeGenerator
             {
                 case "CLS":
                     emitter.CallAddress(TxtClearWindow);
+                    break;
+
+                case "SOUND":
+                {
+                    // SOUND (D071) : bloc de 9 octets pour SOUND QUEUE : canal, env. volume, env. ton, période (2),
+                    // bruit, volume, durée (2). File pleine : on attend qu'une place se libère, comme le BASIC.
+                    usesSound = true;
+                    void Store(int index, int byteIndex, bool word)
+                    {
+                        EmitExpression(a[index]);
+                        emitter.LdAL();
+                        emitter.LdMemA($"snd_b{byteIndex}");
+                        if (word)
+                        {
+                            emitter.LdAH();
+                            emitter.LdMemA($"snd_b{byteIndex + 1}");
+                        }
+                    }
+                    Store(0, 0, false);
+                    Store(4, 1, false);
+                    Store(5, 2, false);
+                    Store(1, 3, true);
+                    Store(6, 5, false);
+                    Store(3, 6, false);
+                    Store(2, 7, true);
+                    string wait = $"snd_{labelCount++}";
+                    emitter.Label(wait);
+                    emitter.LdHlLabel("snd_b0");
+                    emitter.CallAddress(SoundQueue);
+                    emitter.JpNcLabel(wait);
+                    break;
+                }
+
+                case "RELEASE":                     // RELEASE canaux (D071)
+                    EmitCallWithA(a[0], SoundRelease);
                     break;
 
                 case "DEG" or "RAD":                // angles de SIN, COS, TAN et ATN (D069)
@@ -1891,6 +1936,73 @@ public static class CodeGenerator
                     required.Add(RuntimeLibrary.RandomizeName);
                     break;
 
+                case EnvelopeStatement envelope:
+                {
+                    // ENV / ENT (D071) : bloc de la ROM = nombre de parties (ENT qui se répète : + &80), puis 3 octets
+                    // par partie. Partie « = » : ENV &80 + forme, période (2 octets) ; ENT &F0 + haut de la période,
+                    // bas de la période, pause.
+                    string block = $"env_{envelopeBlocks++}";
+                    for (int i = 0; i < envelope.Sections.Count; i++)
+                    {
+                        EnvelopeSection section = envelope.Sections[i];
+                        string at = $"{block}_{1 + 3 * i}";
+                        if (!section.Absolute)
+                        {
+                            EmitExpression(section.A);
+                            emitter.LdAL();
+                            emitter.LdMemA(at);
+                            EmitExpression(section.B);
+                            emitter.LdAL();
+                            emitter.LdMemA($"{block}_{2 + 3 * i}");
+                            EmitExpression(section.C!);
+                            emitter.LdAL();
+                            emitter.LdMemA($"{block}_{3 + 3 * i}");
+                        }
+                        else if (!envelope.Tone)
+                        {
+                            EmitExpression(section.A);              // =forme, période
+                            emitter.LdAL();
+                            emitter.OrImm(0x80);
+                            emitter.LdMemA(at);
+                            EmitExpression(section.B);
+                            emitter.LdAL();
+                            emitter.LdMemA($"{block}_{2 + 3 * i}");
+                            emitter.LdAH();
+                            emitter.LdMemA($"{block}_{3 + 3 * i}");
+                        }
+                        else
+                        {
+                            EmitExpression(section.A);              // =période, pause
+                            emitter.LdAH();
+                            emitter.AndImm(0x0F);
+                            emitter.OrImm(0xF0);
+                            emitter.LdMemA(at);
+                            emitter.LdAL();
+                            emitter.LdMemA($"{block}_{2 + 3 * i}");
+                            EmitExpression(section.B);
+                            emitter.LdAL();
+                            emitter.LdMemA($"{block}_{3 + 3 * i}");
+                        }
+                    }
+                    EmitExpression(envelope.Number);
+                    string positive = $"env_{labelCount++}";
+                    emitter.LdAH();
+                    emitter.AndImm(0x80);
+                    emitter.JrZLabel(positive);
+                    emitter.LdAL();                                 // ENT négatif : se répète
+                    emitter.Cpl();
+                    emitter.IncA();
+                    emitter.LdLA();
+                    emitter.LdAImm(0x80);
+                    emitter.Label(positive);
+                    emitter.OrImm(envelope.Sections.Count);
+                    emitter.LdMemA($"{block}_0");
+                    emitter.LdAL();
+                    emitter.LdHlLabel($"{block}_0");
+                    emitter.CallAddress(envelope.Tone ? SoundToneEnvelope : SoundAmplEnvelope);
+                    break;
+                }
+
                 case ScreenStatement screen:
                     EmitScreen(screen);
                     break;
@@ -1964,6 +2076,24 @@ public static class CodeGenerator
             emitter.Label(RuntimeLibrary.DataEndLabel);
         }
 
+        // Son (D071) : bloc de SOUND, et un bloc de 16 octets par ENV ou ENT
+        if (usesSound)
+        {
+            for (int k = 0; k < 9; k++)
+            {
+                emitter.Label($"snd_b{k}");
+                emitter.Reserve(1);
+            }
+        }
+        for (int b = 0; b < envelopeBlocks; b++)
+        {
+            for (int k = 0; k < 16; k++)
+            {
+                emitter.Label($"env_{b}_{k}");
+                emitter.Reserve(1);
+            }
+        }
+
         // Variables, à 0 au départ : 1 octet pour un octet, 2 pour un entier
         foreach (VariableSlot slot in slots)
         {
@@ -2001,6 +2131,12 @@ public static class CodeGenerator
     }
 
     // Routines du firmware appelées par les commandes d'écran (décision D046)
+    // Son (D071)
+    const int SoundQueue = 0xBCAA;          // SOUND QUEUE : HL = bloc de 9 octets ; retenue à 0 si la file est pleine
+    const int SoundCheck = 0xBCAD;          // SOUND CHECK : A = canal (1, 2 ou 4) -> A = état
+    const int SoundRelease = 0xBCB3;        // SOUND RELEASE : A = canaux
+    const int SoundAmplEnvelope = 0xBCBC;   // SOUND AMPL ENVELOPE : A = numéro, HL = bloc (ENV)
+    const int SoundToneEnvelope = 0xBCBF;   // SOUND TONE ENVELOPE : A = numéro, HL = bloc (ENT)
     const int ScrSetMode = 0xBC0E;      // SCR SET MODE : A = mode
     const int TxtClearWindow = 0xBB6C;  // TXT CLEAR WINDOW : efface la fenêtre de texte
     const int TxtSetCursor = 0xBB75;    // TXT SET CURSOR : H = colonne, L = ligne

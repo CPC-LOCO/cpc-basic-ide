@@ -523,6 +523,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
   - La lecture des nombres (INPUT A!) et VAL partagent le même module RealParse ; INPUT A! accepte aussi « - 5 ».
   - Fichiers : RealRuntime.cs (RealParse, RealVal, RealStr, message sans retour à la ligne avant), Ast.cs, CodeGenerator.cs, RuntimeLibrary.cs, MiniZ80.cs (JP &BB5A), `tests\CpcBasic.Tests\RealStrValTests.cs` (nouveau) ; exemple `examples\valstr.bas`.
 
+## D071 : lot G1, le son (Validé le 15 nov. 2026 : 909 tests réussis ; `musique.bas` compilé sonne comme le même programme dans le vrai BASIC, dans plusieurs émulateurs ; écran « FINI. SQ(1) = 4 »)
+- **Découpage :** G1 = SOUND, ENV, ENT, RELEASE, SQ. ON SQ GOSUB est reporté au lot I (interruptions : même mécanisme qu'EVERY, AFTER, ON BREAK) ; il reste refusé pour l'instant.
+- **Par la ROM, comme le vrai BASIC :** SOUND QUEUE (&BCAA, bloc de 9 octets : canal, enveloppe de volume, enveloppe de ton, période, bruit, volume, durée), SOUND CHECK (&BCAD, SQ), SOUND RELEASE (&BCB3), SOUND AMPL ENVELOPE (&BCBC, ENV), SOUND TONE ENVELOPE (&BCBF, ENT). Si la file du canal est pleine, SOUND attend qu'une place se libère.
+- **SOUND canal, période [, durée [, volume [, env. volume [, env. ton [, bruit]]]]]** : valeurs vides permises même au milieu (SOUND 1,200,,5) ; par défaut durée 20 (centièmes de seconde), volume 12, enveloppes 0, bruit 0. Valeurs écrites vérifiées à la compilation : canal 1 à 255, période 0 à 4095, volume 0 à 15, enveloppes 0 à 15, bruit 0 à 31.
+- **ENV n, parties / ENT n, parties** : 5 parties au plus, de 3 valeurs (pas, taille, pause) ; ENV n de 1 à 15, ENT n de -15 à 15 sauf 0 (négatif : l'enveloppe se répète, bit 7 du nombre de parties). Parties avec « = » : ENV =forme, période (octet &80 + forme, puis la période sur 2 octets) ; ENT =période, pause (octet &F0 + haut de la période, bas, pause). Chaque ENV/ENT a son bloc de 16 octets dans le programme.
+- **RELEASE canaux** (0 à 7) ; **SQ(canal)** (1, 2 ou 4) : l'octet d'état de la ROM (places libres, rendez-vous, attente, canal actif en bit 7).
+- **Vérification :** le simulateur des tests note les blocs envoyés à la ROM ; la vraie vérification est à l'oreille : `examples\musique.bas` (Frère Jacques à deux voix, avec une enveloppe de volume et un vibrato), compilé dans WinAPE, comparé au même programme tapé dans SugarBox.
+- **Fichiers :** Ast.cs (EnvelopeStatement), Parser.cs, CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\SoundTests.cs` (nouveau) ; exemple `examples\musique.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)
