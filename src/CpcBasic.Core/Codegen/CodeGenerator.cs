@@ -1687,7 +1687,8 @@ public static class CodeGenerator
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
-                || statement is FileStatement || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
+                || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement
+                || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
@@ -2571,6 +2572,51 @@ public static class CodeGenerator
                         break;
                     }
                     EmitSelectStream(stream.Stream);
+                    break;
+
+                case FileStatement { Command: "CAT" }:  // CAT (D085)
+                    required.Add(RuntimeLibrary.FileBinaryName);
+                    emitter.CallLabel("rt_fb_cat");
+                    break;
+
+                case SaveStatement save:                // SAVE nom,B,début,longueur[,lancement] (D085)
+                    required.Add(RuntimeLibrary.FileBinaryName);
+                    EmitExpression(save.Start);
+                    emitter.LdMemHl("rt_fb_a");
+                    EmitExpression(save.Length);
+                    emitter.LdMemHl("rt_fb_l");
+                    if (save.Entry is not null)
+                        EmitExpression(save.Entry);
+                    else
+                        emitter.LdHlImm(0);
+                    emitter.LdMemHl("rt_fb_e");
+                    EmitString(save.Name);
+                    emitter.CallLabel("rt_fb_save");
+                    break;
+
+                case LoadStatement load:                // LOAD nom[,adresse] (D085)
+                    required.Add(RuntimeLibrary.FileBinaryName);
+                    if (load.Address is not null)
+                    {
+                        EmitExpression(load.Address);
+                        emitter.LdMemHl("rt_fb_a");
+                    }
+                    emitter.LdAImm(load.Address is null ? 0 : 1);
+                    emitter.LdMemA("rt_fb_has");
+                    // Comme le vrai BASIC : on ne charge qu'au-dessus de la mémoire du programme (MEMORY), sinon « Memory full »
+                    if (arrays.Count > 0 || usesStrings)
+                        emitter.LdHlMem(RuntimeLibrary.ArrayHeapLimitLabel);
+                    else
+                        emitter.LdHlImm(memoryLimit < 0 ? RuntimeLibrary.DefaultHeapLimit : (memoryLimit + 1) & 0xFFFF);
+                    emitter.LdMemHl("rt_fb_lim");
+                    EmitString(load.Name);
+                    emitter.CallLabel("rt_fb_load");
+                    break;
+
+                case SpeedWriteStatement speedWrite:    // SPEED WRITE 0 ou 1 (D085)
+                    required.Add(RuntimeLibrary.FileBinaryName);
+                    EmitExpression(speedWrite.Value);
+                    emitter.CallLabel("rt_fb_speed");
                     break;
 
                 case FileStatement file:                // OPENOUT, OPENIN, CLOSEOUT, CLOSEIN (D084)

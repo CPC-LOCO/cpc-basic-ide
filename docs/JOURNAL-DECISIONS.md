@@ -660,6 +660,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\fichiers.bas` (scores écrits avec WRITE #9 puis relus avec INPUT #9).
 - **Fichiers :** Ast.cs (FileStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules FileCommon, FileOut, FileIn), Z80Emitter.cs (INC B), MiniZ80.cs (disque simulé, entrées détournées), `tests\CpcBasic.Tests\FileTests.cs` (nouveau).
 
+## D085 : lot J2, CAT, SAVE et LOAD binaires, SPEED WRITE (Validé le 16 nov. 2026 : 1150 tests réussis ; `binaire.bas` dans WinAPE : `ECRAN.BIN` de 17K, l'écran revient à l'identique)
+- **Références (SugarBox, 16 nov. 2026) :** sans MEMORY, `LOAD "DONNEES",&9000` donne « Memory full in 50 » (le vrai BASIC ne charge qu'au-dessus de HIMEM) ; avec `MEMORY &7FFF` : SAVE, LOAD à une autre adresse, puis LOAD sans adresse (à l'adresse d'origine) fonctionnent ; AMSDOS nomme le fichier `DONNEES.BIN` et garde l'ancien en `.BAK`. LOAD d'un fichier absent : « not found » d'AMSDOS, arrêt sans « in N ». OPENIN d'un fichier binaire : « File type error in 10 ».
+- **Choix (accepté par l'utilisateur) :** `SAVE "nom"` sans `,B` (ou `,A`, `,P`) enregistrerait le programme BASIC, qui n'existe plus une fois compilé : refusé à la compilation avec une explication. LOAD d'un programme BASIC ou d'un fichier texte : « File type error ».
+- **Réalisation :** SAVE : CAS OUT OPEN, CAS OUT DIRECT (type binaire), CAS OUT CLOSE. LOAD : CAS IN OPEN (type et adresse d'origine), vérification de l'adresse (au moins la limite de MEMORY, ou &A67C par défaut, sinon « Memory full »), CAS IN DIRECT, CAS IN CLOSE. CAT : CAS CATALOG ; refusé (« File already open ») si un fichier est ouvert en lecture, comme le firmware (pas vérifié sur le vrai BASIC). SPEED WRITE 0 : 1000 bauds, 1 : 2000 bauds (CAS SET SPEED). OPENIN (J1) refuse maintenant un fichier qui n'est pas un texte (« File type error »).
+- **Exemple :** `examples\binaire.bas` (l'écran est enregistré, effacé, puis rechargé).
+- **Fichiers :** Ast.cs (SaveStatement, LoadStatement, SpeedWriteStatement), Diagnostic.cs (SaveProgram), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module FileBinary ; FileCommon garde les fichiers ouverts), MiniZ80.cs, `tests\CpcBasic.Tests\FileBinaryTests.cs` (nouveau).
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -148,6 +148,7 @@ public static class RuntimeLibrary
     public const string FileCommonName = "FileCommon";
     public const string FileOutName = "FileOut";
     public const string FileInName = "FileIn";
+    public const string FileBinaryName = "FileBinary";          // CAT, SAVE, LOAD, SPEED WRITE (D085)
     public const string FileOutOnLabel = "rt_fo_on";            // début de PRINT #9 : les caractères vont dans le fichier
     public const string FileOutOffLabel = "rt_fo_off";          // fin de PRINT #9 : retour à l'écran
     public const int FileInBuffer = 0x3000;                     // zones de 2 Ko demandées par le firmware, sous le programme
@@ -939,6 +940,17 @@ public static class RuntimeLibrary
             e.Label("rt_file_quiet");
             e.CallAddress(KmWaitKey);
             e.JpAddress(0);
+            // Fichier qui n'est pas du bon type (OPENIN d'un binaire, LOAD d'un texte ou d'un programme BASIC, D085)
+            e.Label("rt_file_typeerr");
+            e.CallAddress(0xBC7D);                   // CAS IN ABANDON
+            e.LdHlLabel("rt_file_m5");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_file_m5");
+            e.Data(Ascii("File type error"));
+            e.Label("rt_fo_isopen");                 // fichier ouvert en écriture, en lecture
+            e.Reserve(1);
+            e.Label("rt_fl_isopen");
+            e.Reserve(1);
             e.Label("rt_file_m1");
             e.Data(Ascii("File not open"));
             e.Label("rt_file_m2");
@@ -1075,8 +1087,6 @@ public static class RuntimeLibrary
             e.LdDeImm((254 << 8) | 24);
             e.Ret();
 
-            e.Label("rt_fo_isopen");
-            e.Reserve(1);
             e.Label("rt_fo_col");
             e.Reserve(1);
             for (int k = 0; k < patches.Length; k++)
@@ -1099,6 +1109,9 @@ public static class RuntimeLibrary
             e.LdDeImm(FileInBuffer);
             e.CallAddress(0xBC77);                   // CAS IN OPEN
             e.JpNcLabel("rt_file_fail");
+            e.AndImm(0x0E);                          // seulement un fichier texte (D085)
+            e.CpImm(0x06);
+            e.JpNzLabel("rt_file_typeerr");
             e.LdAImm(1);
             e.LdMemA("rt_fl_isopen");
             e.Ret();
@@ -1302,10 +1315,108 @@ public static class RuntimeLibrary
             e.RetC();
             e.JpLabel("rt_fl_skip");
 
-            e.Label("rt_fl_isopen");
-            e.Reserve(1);
             e.Label("rt_fl_save");
             e.Reserve(2);
+        }),
+
+        // CAT, SAVE nom,B,..., LOAD nom[,adresse], SPEED WRITE (lot J2, D085), comme le vrai BASIC (SugarBox, 16 nov. 2026).
+        // LOAD : seulement un fichier binaire, et seulement au-dessus de la mémoire du programme (« Memory full » sinon,
+        // comme le vrai BASIC avant MEMORY) ; sans adresse, à l'adresse où il a été enregistré.
+        [FileBinaryName] = new RuntimeModule(FileBinaryName, [FileCommonName], e =>
+        {
+            e.Label("rt_fb_save");                   // HL = fiche du nom ; rt_fb_a, rt_fb_l, rt_fb_e
+            e.LdAMem("rt_fo_isopen");
+            e.OrA();
+            e.JpNzLabel("rt_file_already");
+            e.CallLabel("rt_file_name");
+            e.LdDeImm(FileOutBuffer);
+            e.CallAddress(0xBC8C);                   // CAS OUT OPEN
+            e.JpNcLabel("rt_file_fail");
+            e.LdHlMem("rt_fb_e");
+            e.PushHl();
+            e.PopBc();                               // BC = adresse de lancement
+            e.LdDeMem("rt_fb_l");
+            e.LdHlMem("rt_fb_a");
+            e.LdAImm(2);                             // fichier binaire
+            e.CallAddress(0xBC98);                   // CAS OUT DIRECT
+            e.JpNcLabel("rt_file_fail");
+            e.CallAddress(0xBC8F);                   // CAS OUT CLOSE
+            e.JpNcLabel("rt_file_fail");
+            e.Ret();
+
+            e.Label("rt_fb_load");                   // HL = fiche du nom ; rt_fb_has, rt_fb_a, rt_fb_lim
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.JpNzLabel("rt_file_already");
+            e.CallLabel("rt_file_name");
+            e.LdDeImm(FileInBuffer);
+            e.CallAddress(0xBC77);                   // CAS IN OPEN : A = type, DE = adresse d'origine
+            e.JpNcLabel("rt_file_fail");
+            e.AndImm(0x0E);
+            e.JpZLabel("rt_file_typeerr");           // programme BASIC
+            e.CpImm(0x06);
+            e.JpZLabel("rt_file_typeerr");           // fichier texte
+            e.LdAMem("rt_fb_has");
+            e.OrA();
+            e.JrNzLabel("rt_fb_where");
+            e.ExDeHl();
+            e.LdMemHl("rt_fb_a");
+            e.Label("rt_fb_where");
+            e.LdHlMem("rt_fb_a");
+            e.LdDeMem("rt_fb_lim");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_fb_full");
+            e.LdHlMem("rt_fb_a");
+            e.CallAddress(0xBC83);                   // CAS IN DIRECT
+            e.JpNcLabel("rt_file_fail");
+            e.CallAddress(0xBC7A);                   // CAS IN CLOSE
+            e.Ret();
+            e.Label("rt_fb_full");
+            e.CallAddress(0xBC7D);                   // CAS IN ABANDON
+            e.LdHlLabel("rt_fb_m1");
+            e.JpLabel(ErrorLabel);
+
+            e.Label("rt_fb_cat");                    // le firmware refuse le catalogue si un fichier est ouvert en lecture
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.JpNzLabel("rt_file_already");
+            e.LdDeImm(FileInBuffer);
+            e.CallAddress(0xBC9B);                   // CAS CATALOG
+            e.Ret();
+
+            e.Label("rt_fb_speed");                  // HL = 0 (1000 bauds) ou 1 (2000 bauds)
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_fb_bad");
+            e.OrL();
+            e.JrZLabel("rt_fb_s0");
+            e.DecA();
+            e.JrNzLabel("rt_fb_bad");
+            e.LdHlImm(167);
+            e.LdAImm(50);
+            e.JrLabel("rt_fb_set");
+            e.Label("rt_fb_s0");
+            e.LdHlImm(333);
+            e.LdAImm(25);
+            e.Label("rt_fb_set");
+            e.CallAddress(0xBC68);                   // CAS SET SPEED
+            e.Ret();
+            e.Label("rt_fb_bad");
+            e.LdHlLabel("rt_fb_m2");
+            e.JpLabel(ErrorLabel);
+
+            e.Label("rt_fb_m1");
+            e.Data(Ascii("Memory full"));
+            e.Label("rt_fb_m2");
+            e.Data(Ascii("Improper argument"));
+            foreach (string name in new[] { "rt_fb_a", "rt_fb_l", "rt_fb_e", "rt_fb_lim" })
+            {
+                e.Label(name);
+                e.Reserve(2);
+            }
+            e.Label("rt_fb_has");
+            e.Reserve(1);
         }),
 
         // GOSUB compte les appels en cours ; RETURN sans appel en cours : « Unexpected RETURN in N », comme le vrai BASIC

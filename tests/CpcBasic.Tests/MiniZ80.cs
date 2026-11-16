@@ -74,6 +74,11 @@ internal sealed class MiniZ80
 
     // Fichiers de données (D084) : le disque, rempli par CAS OUT et lu par CAS IN (noms en majuscules)
     public readonly Dictionary<string, List<byte>> Files = new();
+    public readonly Dictionary<string, (byte Type, int Address)> FileHeaders = new();   // fichiers binaires (D085)
+    public int Catalogs;
+    public readonly List<(int HalfBit, byte Precompensation)> TapeSpeeds = new();
+    string outFileName = "";
+    string inFileName = "";
     List<byte>? fileOut;
     List<byte>? fileIn;
     int fileInPos;
@@ -632,16 +637,41 @@ internal sealed class MiniZ80
                     pc = address;
                     break;
                 }
-                if (address is >= 0xBC77 and <= 0xBC95)
+                if (address is >= 0xBC77 and <= 0xBC9B or 0xBC68)
                 {
                     switch (address)                                   // CAS ... (fichiers, D084) : retenue = réussi
                     {
-                        case 0xBC8C: fileOut = Files[FileName()] = new(); CarryFlag = true; break;      // CAS OUT OPEN
+                        case 0xBC8C:                                                                    // CAS OUT OPEN
+                            outFileName = FileName();
+                            fileOut = Files[outFileName] = new();
+                            FileHeaders.Remove(outFileName);
+                            CarryFlag = true;
+                            break;
+                        case 0xBC98:                                                                    // CAS OUT DIRECT (D085)
+                            fileOut!.AddRange(Memory[HL..(HL + DE)]);
+                            FileHeaders[outFileName] = (A, HL);
+                            CarryFlag = true;
+                            break;
+                        case 0xBC83:                                                                    // CAS IN DIRECT (D085)
+                            fileIn!.ToArray().CopyTo(Memory, HL);
+                            CarryFlag = true;
+                            break;
+                        case 0xBC7D: fileIn = null; CarryFlag = true; break;                            // CAS IN ABANDON
+                        case 0xBC9B: Catalogs++; CarryFlag = true; break;                               // CAS CATALOG
+                        case 0xBC68: TapeSpeeds.Add((HL, A)); break;                                    // CAS SET SPEED
                         case 0xBC95: fileOut!.Add(A); CarryFlag = true; break;                          // CAS OUT CHAR
                         case 0xBC8F: fileOut = null; CarryFlag = true; break;                           // CAS OUT CLOSE
                         case 0xBC77:                                                                    // CAS IN OPEN
-                            CarryFlag = Files.TryGetValue(FileName(), out fileIn);
+                            inFileName = FileName();
+                            CarryFlag = Files.TryGetValue(inFileName, out fileIn);
                             fileInPos = 0;
+                            if (CarryFlag)
+                            {
+                                (byte type, int start) = FileHeaders.TryGetValue(inFileName, out var header) ? header : ((byte)0x16, 0);
+                                A = type;                              // texte : &16
+                                DE = (ushort)start;
+                                BC = (ushort)fileIn!.Count;
+                            }
                             break;
                         case 0xBC80:                                                                    // CAS IN CHAR
                             CarryFlag = fileInPos < fileIn!.Count;

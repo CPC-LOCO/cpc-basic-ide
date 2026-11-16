@@ -291,6 +291,16 @@ public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnly
     public bool IsStart(Statement statement) => Starts is null || Starts.Contains(statement);
 }
 
+/// <summary>SAVE nom,B,début,longueur[,lancement] : enregistre une zone de mémoire (lot J2, D085).</summary>
+public sealed record SaveStatement(int SourceLine, Expression Name, Expression Start, Expression Length, Expression? Entry)
+    : Statement(SourceLine);
+
+/// <summary>LOAD nom[,adresse] : charge un fichier binaire (lot J2, D085).</summary>
+public sealed record LoadStatement(int SourceLine, Expression Name, Expression? Address) : Statement(SourceLine);
+
+/// <summary>SPEED WRITE 0 ou 1 : vitesse d'écriture sur cassette (lot J2, D085).</summary>
+public sealed record SpeedWriteStatement(int SourceLine, Expression Value) : Statement(SourceLine);
+
 /// <summary>OPENOUT nom, OPENIN nom, CLOSEOUT, CLOSEIN : fichiers de données sur disquette ou cassette (lot J1, D084).</summary>
 public sealed record FileStatement(int SourceLine, string Command, Expression? Name = null) : Statement(SourceLine);
 
@@ -451,6 +461,9 @@ public static class AstWalker
         ErrorStatement e => [e.Code],
         OnSqStatement q => [q.Channel],
         FileStatement { Name: not null } f => [f.Name],
+        SaveStatement sv => new[] { sv.Name, sv.Start, sv.Length, sv.Entry }.OfType<Expression>(),
+        LoadStatement ld => new[] { ld.Name, ld.Address }.OfType<Expression>(),
+        SpeedWriteStatement sw => [sw.Value],
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

@@ -169,15 +169,15 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `CAT` | catalogue | À faire |  |
-| `LOAD` | charge un fichier | À faire |  |
-| `SAVE` | enregistre un fichier | À faire |  |
+| `CAT` | catalogue | Faite | D085. |
+| `LOAD` | charge un fichier | Faite | Fichiers binaires (écrans…), D085. Un programme BASIC : « File type error ». |
+| `SAVE` | enregistre un fichier | Faite | `SAVE "nom",B,début,longueur`, D085. Sans `,B` : refusé (le programme BASIC n'existe plus). |
 | `MERGE` | fusionne un programme | À faire |  |
 | `OPENIN / CLOSEIN` | ouvre / ferme un fichier en lecture | Faite | D084. |
 | `OPENOUT / CLOSEOUT` | ouvre / ferme un fichier en écriture | Faite | D084. CLOSEOUT nécessaire avant la fin. |
 | `EOF` | fin de fichier | Faite | D084. |
 | `PRINT # / INPUT # / LINE INPUT # / WRITE #` | lecture et écriture dans un flux | Faite | #9 (fichier), D084. #8 (imprimante) : plus tard. |
-| `SPEED WRITE` | vitesse d'écriture sur cassette | À faire |  |
+| `SPEED WRITE` | vitesse d'écriture sur cassette | Faite | D085. |
 
 ## 8. Chaînes de caractères
 

@@ -29,7 +29,7 @@ public static class Parser
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
-        "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF"];
+        "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -405,6 +405,78 @@ public static class Parser
                     return SkipToStatementEnd(tokens, pos);
                 }
                 statements.Add(new FileStatement(t.Line, t.Text, fileName));
+                return pos;
+            }
+
+            case "CAT":                                 // lot J2 (D085)
+                statements.Add(new FileStatement(t.Line, "CAT"));
+                return pos + 1;
+
+            case "SAVE" or "LOAD":                      // lot J2 (D085)
+            {
+                pos++;
+                Token nameStart = tokens[pos];
+                Expression? fileName = ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (fileName is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (!Types.IsString(fileName))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, nameStart.Line,
+                                                   $"{t.Text} attend le nom du fichier, entre guillemets"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                if (t.Text == "LOAD")
+                {
+                    Expression? address = null;
+                    if (tokens[pos].Kind == TokenKind.Comma)
+                    {
+                        pos++;
+                        address = ParseExpression(tokens, ref pos, diagnostics);
+                        if (address is null)
+                            return SkipToStatementEnd(tokens, pos);
+                    }
+                    statements.Add(new LoadStatement(t.Line, fileName, address));
+                    return pos;
+                }
+                // SAVE nom,B,début,longueur[,lancement] ; sans ,B (ou ,A ,P) : le programme BASIC, qui n'existe plus
+                if (tokens[pos].Kind != TokenKind.Comma || !IsWord(tokens[pos + 1], "B"))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.SaveProgram, t.Line, "", "SAVE"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos += 2;
+                var values = new List<Expression>();
+                while (tokens[pos].Kind == TokenKind.Comma && values.Count < 3)
+                {
+                    pos++;
+                    Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                    if (value is null)
+                        return SkipToStatementEnd(tokens, pos);
+                    values.Add(value);
+                }
+                if (values.Count < 2)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, tokens[pos].Text, "SAVE"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new SaveStatement(t.Line, fileName, values[0], values[1], values.Count > 2 ? values[2] : null));
+                return pos;
+            }
+
+            case "SPEED":                               // SPEED WRITE (lot J2, D085) ; SPEED INK et SPEED KEY : plus tard
+            {
+                if (!IsWord(tokens[pos + 1], "WRITE"))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, t.Line, "SPEED " + tokens[pos + 1].Text));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos += 2;
+                Expression? speed = ParseExpression(tokens, ref pos, diagnostics);
+                if (speed is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (speed is NumberExpression number && number.Value is not (0 or 1))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, t.Line, $"{number.Value}|0 ou 1", "SPEED WRITE"));
+                statements.Add(new SpeedWriteStatement(t.Line, speed));
                 return pos;
             }
 
@@ -2762,6 +2834,24 @@ public static class Parser
 
                 case FileStatement { Name: not null } file:
                     Uses(file.Name);
+                    break;
+
+                case SaveStatement save:
+                    Uses(save.Name);
+                    Uses(save.Start);
+                    Uses(save.Length);
+                    if (save.Entry is not null)
+                        Uses(save.Entry);
+                    break;
+
+                case LoadStatement load:
+                    Uses(load.Name);
+                    if (load.Address is not null)
+                        Uses(load.Address);
+                    break;
+
+                case SpeedWriteStatement speedWrite:
+                    Uses(speedWrite.Value);
                     break;
 
                 case TimerStatement timer:
