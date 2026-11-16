@@ -185,15 +185,17 @@ public class ArithmeticCodeGeneratorTests
     [Fact]
     public void Division_and_mod_link_the_same_module()
     {
-        Assert.Equal(new[] { "Div16" }, Generate("10 A = 7 / 2").Modules);
-        Assert.Equal(new[] { "Div16" }, Generate("10 A = 7 MOD 2").Modules);
-        Assert.Equal(new[] { "Div16" }, Generate("10 A = 7 / 2 + 9 MOD 4").Modules);
+        // D080 : une division par une valeur nulle affiche « Division by zero » (modules RunError et PrintString)
+        string[] expected = ["Div16", "PrintString", "RunError"];
+        Assert.Equal(expected, Generate("10 A = 7 / 2").Modules.OrderBy(m => m));
+        Assert.Equal(expected, Generate("10 A = 7 MOD 2").Modules.OrderBy(m => m));
+        Assert.Equal(expected, Generate("10 A = 7 / 2 + 9 MOD 4").Modules.OrderBy(m => m));
     }
 
     [Fact]
     public void Multiplication_and_division_link_both_modules_once()
     {
-        Assert.Equal(new[] { "Div16", "Mul16" }, Generate("10 A = 2 * 3 / 4 * 5").Modules);
+        Assert.Equal(new[] { "Div16", "Mul16", "PrintString", "RunError" }, Generate("10 A = 2 * 3 / 4 * 5").Modules.OrderBy(m => m));   // D080
     }
 
     [Fact]
@@ -232,6 +234,19 @@ public class ArithmeticModuleTests
     {
         var emitter = new Z80Emitter(0x4000);
         RuntimeLibrary.Get(module).Emit(emitter);
+        // les modules dont il a besoin, placés après lui (Div16 : RunError depuis D080)
+        var linked = new HashSet<string> { module };
+        var waiting = new Queue<string>(RuntimeLibrary.Get(module).Dependencies);
+        while (waiting.Count > 0)
+        {
+            string name = waiting.Dequeue();
+            if (!linked.Add(name))
+                continue;
+            RuntimeModule needed = RuntimeLibrary.Get(name);
+            needed.Emit(emitter);
+            foreach (string next in needed.Dependencies)
+                waiting.Enqueue(next);
+        }
 
         var cpu = new MiniZ80();
         cpu.Load(emitter.ToBytes(), 0x4000);

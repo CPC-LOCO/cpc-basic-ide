@@ -97,7 +97,8 @@ public class RandomCodeGeneratorTests
     [Fact]
     public void Random_links_the_generator_the_division_and_the_range_module()
     {
-        Assert.Equal(new[] { "Div16", "Rand16", "RandomRange" }, Generate("10 a = RANDOM(1, 6)").Modules);
+        Assert.Equal(new[] { "Div16", "PrintString", "Rand16", "RandomRange", "RunError" },
+                     Generate("10 a = RANDOM(1, 6)").Modules.OrderBy(m => m));   // Div16 a besoin de RunError (D080)
     }
 
     [Fact]

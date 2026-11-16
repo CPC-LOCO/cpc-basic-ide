@@ -841,6 +841,19 @@ internal sealed class MiniZ80
         {
             case 0x78: A = Ports.TryGetValue(BC, out byte read) ? read : (byte)0xFF; break;   // IN A,(C)
             case 0x79: PortWrites.Add((BC, A)); break;                                       // OUT (C),A
+            case 0x73:                                                 // LD (nn),SP (D080)
+            {
+                int at = Fetch16();
+                Memory[at] = (byte)(sp & 0xFF);
+                Memory[(at + 1) & 0xFFFF] = (byte)(sp >> 8);
+                break;
+            }
+            case 0x7B:                                                 // LD SP,(nn) (D080)
+            {
+                int at = Fetch16();
+                sp = Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8);
+                break;
+            }
             case 0x5B:                                                 // LD DE,(nn)
             {
                 int at = Fetch16();

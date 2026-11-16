@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -174,6 +174,7 @@ public static class Parser
         realDivision = realByDefault;
         tokens = ApplyDefaultTypes(tokens, realByDefault);
         var statements = new List<Statement>();
+        statementStarts = new HashSet<Statement>(ReferenceEqualityComparer.Instance);
         var lines = new Dictionary<int, int>();   // numéro de ligne -> rang de l'instruction qui la suit
         int pos = 0;
 
@@ -184,8 +185,13 @@ public static class Parser
         CheckArrays(statements, diagnostics);
         CheckBlocks(statements, diagnostics);
         CheckLineTargets(statements, lines, diagnostics);
-        return new BasicProgram(statements, lines);
+        HashSet<Statement> starts = statementStarts!;
+        statementStarts = null;
+        return new BasicProgram(statements, lines, starts);
     }
+
+    // Début de chaque instruction BASIC, noté pendant la lecture (D080). Une lecture par fil d'exécution.
+    [ThreadStatic] static HashSet<Statement>? statementStarts;
 
     // Réglage « Sans signe : à virgule » (F8) : 7/2 donne 3.5 comme dans le Locomotive, même entre deux entiers (D066)
     [ThreadStatic] static bool realDivision;
@@ -347,7 +353,10 @@ public static class Parser
     {
         Token first = tokens[pos];
         int before = diagnostics.Count;
+        int firstStatement = statements.Count;
         int next = ParseStatementCore(tokens, pos, statements, diagnostics);
+        if (statements.Count > firstStatement)
+            statementStarts?.Add(statements[firstStatement]);
 
         if (first.Kind == TokenKind.Word && Commands.Contains(first.Text))
         {
@@ -380,6 +389,42 @@ public static class Parser
             case "PRINT":
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "PRINT", false,
                                           rest => ParsePrint(tokens, pos, statements, diagnostics, rest));
+
+            case "RESUME":                              // lot I2 (D080)
+            {
+                pos++;
+                if (IsWord(tokens[pos], "NEXT"))
+                {
+                    statements.Add(new ResumeStatement(t.Line, ResumeKind.Next));
+                    return pos + 1;
+                }
+                if (tokens[pos].Kind == TokenKind.Number && tokens[pos].Text == "0")
+                {
+                    statements.Add(new ResumeStatement(t.Line, ResumeKind.Same));   // RESUME 0 : comme RESUME
+                    return pos + 1;
+                }
+                if (tokens[pos].Kind == TokenKind.Number)
+                {
+                    if (!TryParseTarget(tokens, ref pos, diagnostics, out int resumeLine))
+                        return SkipToStatementEnd(tokens, pos);
+                    statements.Add(new ResumeStatement(t.Line, ResumeKind.Line, resumeLine));
+                    return pos;
+                }
+                statements.Add(new ResumeStatement(t.Line, ResumeKind.Same));
+                return pos;
+            }
+
+            case "ERROR":                               // lot I2 (D080)
+            {
+                pos++;
+                Expression? code = ParseExpression(tokens, ref pos, diagnostics);
+                if (code is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (code is NumberExpression number && (number.Value < 1 || number.Value > 255))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, t.Line, $"{number.Value}|1 à 255", "ERROR"));
+                statements.Add(new ErrorStatement(t.Line, code));
+                return pos;
+            }
 
             case "AFTER" or "EVERY":                    // lot I1 (D079)
                 return ParseTimer(tokens, pos, statements, diagnostics);
@@ -2086,8 +2131,32 @@ public static class Parser
     {
         int line = tokens[pos].Line;
 
-        // ON BREAK, ON ERROR et ON SQ ne sont pas encore gérés
-        if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "BREAK" or "ERROR" or "SQ")
+        // ON ERROR GOTO ligne | ON ERROR GOTO 0 (lot I2, D080)
+        if (IsWord(tokens[pos + 1], "ERROR"))
+        {
+            pos += 2;
+            if (IsWord(tokens[pos], "GOTO"))
+                pos++;
+            else if (IsWord(tokens[pos], "GO") && IsWord(tokens[pos + 1], "TO"))
+                pos += 2;
+            else
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, line, tokens[pos].Text, "ON ERROR"));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            if (tokens[pos].Kind == TokenKind.Number && tokens[pos].Text == "0")
+            {
+                statements.Add(new OnErrorStatement(line, 0));
+                return pos + 1;
+            }
+            if (!TryParseTarget(tokens, ref pos, diagnostics, out int handler))
+                return SkipToStatementEnd(tokens, pos);
+            statements.Add(new OnErrorStatement(line, handler));
+            return pos;
+        }
+
+        // ON BREAK et ON SQ ne sont pas encore gérés
+        if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "BREAK" or "SQ")
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, line, "ON " + tokens[pos + 1].Text));
             return SkipToStatementEnd(tokens, pos);
@@ -2153,6 +2222,12 @@ public static class Parser
                     break;
                 case TimerStatement timer:
                     Check(timer.SourceLine, timer.Target, timer.Every ? "EVERY" : "AFTER");
+                    break;
+                case OnErrorStatement { Target: > 0 } onError:
+                    Check(onError.SourceLine, onError.Target, "ON ERROR GOTO");
+                    break;
+                case ResumeStatement { Kind: ResumeKind.Line } resume:
+                    Check(resume.SourceLine, resume.Target, "RESUME");
                     break;
                 case OnStatement on:
                     foreach (int target in on.Targets)
@@ -2593,6 +2668,10 @@ public static class Parser
                     UsesCondition(loopStatement.Condition);
                     break;
 
+                case ErrorStatement error:
+                    Uses(error.Code);
+                    break;
+
                 case TimerStatement timer:
                     Uses(timer.Time);
                     Uses(timer.Timer);
@@ -2951,10 +3030,10 @@ public static class Parser
                     pos++;                              // PI et RND s'écrivent sans parenthèses (D069)
                     return new CallExpression(t.Text, []);
                 }
-                if (t.Text == "TIME")
+                if (t.Text is "TIME" or "ERR" or "ERL")
                 {
-                    pos++;                              // TIME s'écrit sans parenthèses, comme sur le CPC
-                    return new CallExpression("TIME", []);
+                    pos++;                              // TIME, ERR et ERL s'écrivent sans parenthèses, comme sur le CPC (D080)
+                    return new CallExpression(t.Text, []);
                 }
                 if (Functions.TryGetValue(t.Text, out FunctionInfo? function))
                     return ParseFunctionCall(tokens, ref pos, diagnostics, function);

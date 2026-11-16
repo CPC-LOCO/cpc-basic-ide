@@ -201,10 +201,9 @@ internal static class RealRuntime
 
         // HL = message, puis passage à la ligne
         // (là où est le curseur, comme le vrai BASIC : « 40000 Overflow », capture du 15 nov. 2026, D070)
+        // ON ERROR GOTO l'intercepte comme une erreur (D080)
         e.Label("rt_fwarn");
-        e.CallLabel(RuntimeLibrary.PrintStringLabel);
-        e.LdHlLabel("rt_fr_crlf");
-        e.JpLabel(RuntimeLibrary.PrintStringLabel);
+        e.JpLabel(RuntimeLibrary.ErrorSoftLabel);
 
         // ---- fonctions (lot F2, D069) ----
         e.Label(OverflowPositiveLabel);

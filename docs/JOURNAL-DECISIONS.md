@@ -614,6 +614,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** AFTER, EVERY, REMAIN, DI, EI.
 - **Fichiers :** Ast.cs (TimerStatement), Diagnostic.cs, Parser.cs, Z80Emitter.cs (CALL NZ, DI, EI), CodeGenerator.cs, RuntimeLibrary.cs (module Events), MiniZ80.cs (« tops » simulés), `tests\CpcBasic.Tests\TimerTests.cs` (nouveau) ; exemple `examples\minuter.bas`.
 
+## D080 : lot I2a, ON ERROR GOTO, RESUME, ERROR, ERR, ERL (Validé le 16 nov. 2026 : 1091 tests réussis ; `erreurs.bas` compilé identique au vrai BASIC de SugarBox)
+- **Découpage de I2 :** I2a (ici) ; I2b : « Break in N » de STOP et « Unexpected RETURN in N » (vus dans SugarBox).
+- **Référence (SugarBox, 16 nov. 2026, `examples\erreurs.bas`) :** ERR= 9 ERL= 40 puis RESUME NEXT ; ERR= 11 ERL= 60 puis RESUME 70 ; ERROR 200 : ERR= 200 ; ERR= 11 ERL= 110, N corrigé puis RESUME (l'instruction est refaite : 5) ; après ON ERROR GOTO 0, ERROR 5 : « Improper argument in 140 ». Dans l'exemple, 1/0 devient 1/Z (Z=0) : une division par zéro écrite en nombres reste refusée à la compilation.
+- **Réalisation :** chaque instruction BASIC (début de ligne ou après « : », noté par le parser : BasicProgram.Starts) range à son début la pile et l'adresse de sa fiche (ligne, début, instruction suivante) — 10 octets, seulement dans un programme qui contient ON ERROR GOTO. Toute erreur passe par rt_error, qui saute à l'adresse d'interception si elle est rangée. Le numéro est retrouvé par le texte du message dans le tableau des 32 messages du Locomotive (module ErrorCodes) ; ERROR n garde son numéro. La pile est remise comme au début de l'instruction, puis saut à la ligne du ON ERROR GOTO. Erreur pendant le traitement d'une erreur : message et arrêt. La fiche et la pile de l'instruction fautive sont mises de côté au moment de l'erreur (rt_oe_failrec, rt_oe_failsp) : RESUME et RESUME NEXT s'en servent (premier essai : le RESUME écrasait la fiche). RESUME sans erreur : « Unexpected RESUME ».
+- **Erreurs qui laissent continuer :** Overflow et Division by zero (nombres à virgule, et maintenant aussi la division entière par une valeur nulle) : interceptées par ON ERROR GOTO, sinon le message s'écrit et le programme continue (division entière : résultat 0).
+- **ERROR n** (1 à 255) : message du Locomotive, « Unknown error » s'il n'y en a pas.
+- **Minuteries (D079) :** l'appel regarde maintenant au début de chaque instruction BASIC (et en fin de boucle), comme le vrai BASIC.
+- **Mots réservés :** ERROR, RESUME, ERR, ERL.
+- **Fichiers :** Ast.cs (OnErrorStatement, ResumeStatement, ErrorStatement, BasicProgram.Starts), Parser.cs, Z80Emitter.cs (LD (nn),SP ; LD SP,(nn)), CodeGenerator.cs, RuntimeLibrary.cs (RunError, Div16, ErrorCodes, OnError), RealRuntime.cs, MiniZ80.cs, `tests\CpcBasic.Tests\OnErrorTests.cs` (nouveau), JumpTests.cs ; exemple `examples\erreurs.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

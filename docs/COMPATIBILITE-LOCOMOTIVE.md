@@ -55,11 +55,11 @@ Mise à jour le 16 nov. 2026 :
 | `CLEAR INPUT` | vide le tampon du clavier | Faite |  |
 | `TRON / TROFF` | suivi des lignes (débogage) | À faire | Utilité à décider. |
 | `ON BREAK CONT / GOSUB / STOP` | réaction à la touche ESC | À faire |  |
-| `ON ERROR GOTO` | réaction à une erreur | À faire |  |
-| `RESUME` | reprise après une erreur | À faire |  |
-| `ERROR` | provoque une erreur | À faire |  |
-| `ERL` | numéro de la ligne en erreur | À faire |  |
-| `ERR` | numéro de l'erreur | À faire |  |
+| `ON ERROR GOTO` | réaction à une erreur | Faite | D080. |
+| `RESUME` | reprise après une erreur | Faite | RESUME, RESUME NEXT, RESUME ligne (D080). |
+| `ERROR` | provoque une erreur | Faite | D080. |
+| `ERL` | numéro de la ligne en erreur | Faite | D080. |
+| `ERR` | numéro de l'erreur | Faite | D080. |
 | `DERR` | erreur du disque | À faire | BASIC 1.1 seulement (664, 6128). |
 
 ## 2. Variables, constantes, données et mémoire

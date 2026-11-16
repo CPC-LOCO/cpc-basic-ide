@@ -104,6 +104,20 @@ public static class RuntimeLibrary
     public const string ErrorName = "RunError";
     public const string ErrorLabel = "rt_error";                // HL = adresse du message (terminé par 0)
     public const string ErrorLineLabel = "rt_err_line";         // numéro de la ligne en cours, rangé par le programme
+    public const string ErrorTrapLabel = "rt_err_trap";         // 0, ou adresse qui intercepte les erreurs (ON ERROR, D080)
+    public const string ErrorSoftLabel = "rt_err_soft";         // erreur qui laisse continuer (Overflow, Division by zero)
+    public const string ErrorShowLabel = "rt_err_show";         // affiche « message in N » sans interception
+
+    // ON ERROR GOTO, RESUME, ERROR, ERR, ERL (lot I2, D080)
+    public const string OnErrorName = "OnError";
+    public const string ErrorCodesName = "ErrorCodes";
+    public const string OnErrorTrapLabel = "rt_oe_trap";
+    public const string OnErrorHandlerLabel = "rt_oe_handler";  // adresse de la ligne du ON ERROR GOTO
+    public const string OnErrorSpLabel = "rt_oe_sp";            // pile au début de l'instruction en cours
+    public const string OnErrorRecordLabel = "rt_oe_rec";       // fiche de l'instruction en cours : ligne, début, suivante
+    public const string ErrLabel = "rt_oe_err";                 // ERR
+    public const string ErlLabel = "rt_oe_erl";                 // ERL
+    public const string RaiseLabel = "rt_raise";                // ERROR : HL = numéro
 
     // Fenêtres (lot H1, D072)
     /// <summary>TXT STR SELECT : A = fenêtre (flux 0 à 7) -> A = fenêtre choisie avant.</summary>
@@ -871,6 +885,178 @@ public static class RuntimeLibrary
         // espaces (ou étoiles) à gauche ; plus long : « % » puis le nombre entier.
         [PrintUsingName] = new RuntimeModule(PrintUsingName, [RealPrintName, PrintFitName], EmitUsingNumber),
 
+        // Les messages d'erreur du Locomotive et leur numéro (lot I2, D080).
+        //  rt_ec_code : HL = message -> A = numéro (0 s'il est inconnu).
+        //  rt_raise   : ERROR numéro. HL = numéro (1 à 255, sinon Improper argument) : erreur de ce numéro, avec son
+        //               message (« Unknown error » s'il n'en a pas) ; rt_ec_forced garde le numéro pour ERR.
+        [ErrorCodesName] = new RuntimeModule(ErrorCodesName, [ErrorName], e =>
+        {
+            e.Label("rt_ec_code");
+            e.LdDeLabel("rt_ec_table");
+            e.Label("rt_ec_next");
+            e.LdADe();
+            e.OrA();
+            e.RetZ();                                // fin du tableau : inconnu
+            e.LdCA();                                // C = numéro de cette entrée
+            e.IncDe();
+            e.PushHl();
+            e.Label("rt_ec_cmp");
+            e.LdADe();
+            e.CpMemHl();
+            e.JrNzLabel("rt_ec_diff");
+            e.OrA();
+            e.JrZLabel("rt_ec_same");
+            e.IncHl();
+            e.IncDe();
+            e.JrLabel("rt_ec_cmp");
+            e.Label("rt_ec_same");
+            e.PopHl();
+            e.LdAC();
+            e.Ret();
+            e.Label("rt_ec_diff");                   // passe le reste du texte de l'entrée
+            e.LdADe();
+            e.IncDe();
+            e.OrA();
+            e.JrNzLabel("rt_ec_diff");
+            e.PopHl();
+            e.JrLabel("rt_ec_next");
+
+            e.Label(RaiseLabel);
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_ec_bad");
+            e.OrL();
+            e.JrZLabel("rt_ec_bad");
+            e.LdAL();
+            e.LdMemA("rt_ec_forced");
+            e.LdCA();
+            e.LdHlLabel("rt_ec_table");
+            e.Label("rt_ec_find");
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_ec_unknown");
+            e.CpC();
+            e.IncHl();
+            e.JpZLabel(ErrorLabel);                  // HL = texte du message
+            e.Label("rt_ec_skip");
+            e.LdAHl();
+            e.IncHl();
+            e.OrA();
+            e.JrNzLabel("rt_ec_skip");
+            e.JrLabel("rt_ec_find");
+            e.Label("rt_ec_unknown");
+            e.LdHlLabel("rt_ec_msg_unknown");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_ec_bad");
+            e.LdHlLabel("rt_ec_msg_improper");
+            e.JpLabel(ErrorLabel);
+
+            e.Label("rt_ec_forced");
+            e.Reserve(1);
+            e.Label("rt_ec_msg_unknown");
+            e.Data(Ascii("Unknown error"));
+            e.Label("rt_ec_table");
+            string[] messages =
+            [
+                "Unexpected NEXT", "Syntax error", "Unexpected RETURN", "DATA exhausted", "Improper argument",
+                "Overflow", "Memory full", "Line does not exist", "Subscript out of range", "Array already dimensioned",
+                "Division by zero", "Invalid direct command", "Type mismatch", "String space full", "String too long",
+                "String expression too complex", "Cannot CONTinue", "Unknown user function", "RESUME missing",
+                "Unexpected RESUME", "Direct command found", "Operand missing", "Line too long", "EOF met",
+                "File type error", "NEXT missing", "File already open", "Unknown command", "WEND missing",
+                "Unexpected WEND", "File not open", "Broken in"
+            ];
+            for (int k = 0; k < messages.Length; k++)
+            {
+                if (k == 4)
+                    e.Label("rt_ec_msg_improper");   // texte de l'entrée 5, réutilisé
+                e.Data([(byte)(k + 1)]);
+                e.Data(Ascii(messages[k]));
+            }
+            e.Data([0]);
+        }),
+
+        // ON ERROR GOTO, RESUME, ERR, ERL (lot I2, D080), comme le vrai BASIC (SugarBox, 16 nov. 2026).
+        // Chaque instruction BASIC range, à son début, la pile et l'adresse de sa fiche (ligne, début, instruction
+        // suivante). Une erreur (DE = message) : si une erreur est déjà en cours de traitement, elle s'affiche et le
+        // programme s'arrête ; sinon ERR et ERL sont rangés, la pile est remise comme au début de l'instruction, et le
+        // programme saute à la ligne du ON ERROR GOTO. RESUME : refait l'instruction, RESUME NEXT : la suivante.
+        [OnErrorName] = new RuntimeModule(OnErrorName, [ErrorName, ErrorCodesName], e =>
+        {
+            e.Label(OnErrorTrapLabel);
+            e.LdAMem("rt_oe_active");
+            e.OrA();
+            e.JrZLabel("rt_oe_go");
+            e.ExDeHl();
+            e.JpLabel(ErrorShowLabel);               // erreur pendant le traitement d'une erreur : arrêt
+            e.Label("rt_oe_go");
+            e.IncA();
+            e.LdMemA("rt_oe_active");
+            e.LdAMem("rt_ec_forced");                // ERROR n : numéro donné
+            e.OrA();
+            e.JrNzLabel("rt_oe_have");
+            e.ExDeHl();
+            e.CallLabel("rt_ec_code");
+            e.Label("rt_oe_have");
+            e.LdLA();
+            e.LdHZero();
+            e.LdMemHl(ErrLabel);
+            e.XorA();
+            e.LdMemA("rt_ec_forced");
+            e.LdHlMem(OnErrorRecordLabel);           // fiche et pile de l'instruction fautive, mises de côté : les
+            e.LdMemHl("rt_oe_failrec");              // instructions du sous-programme d'erreur rangent les leurs
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.LdMemDe(ErlLabel);
+            e.LdHlMem(OnErrorSpLabel);
+            e.LdMemHl("rt_oe_failsp");
+            e.LdSpMem(OnErrorSpLabel);
+            e.LdHlMem(OnErrorHandlerLabel);
+            e.JpHl();
+
+            // RESUME : refait l'instruction en erreur ; RESUME NEXT : passe à la suivante
+            e.Label("rt_oe_resume");
+            e.CallLabel("rt_oe_resume_line");
+            e.LdDeImm(2);
+            e.JrLabel("rt_oe_jump");
+            e.Label("rt_oe_resume_next");
+            e.CallLabel("rt_oe_resume_line");
+            e.LdDeImm(4);
+            e.Label("rt_oe_jump");
+            e.LdHlMem("rt_oe_failrec");
+            e.AddHlDe();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.ExDeHl();
+            e.LdSpMem("rt_oe_failsp");               // pile comme au début de l'instruction fautive
+            e.JpHl();
+
+            // RESUME ligne (et début des deux autres) : il faut une erreur en cours, sinon « Unexpected RESUME »
+            e.Label("rt_oe_resume_line");
+            e.LdAMem("rt_oe_active");
+            e.OrA();
+            e.JrZLabel("rt_oe_unexpected");
+            e.XorA();
+            e.LdMemA("rt_oe_active");
+            e.Ret();
+            e.Label("rt_oe_unexpected");
+            e.LdHlLabel("rt_oe_msg_resume");
+            e.JpLabel(ErrorLabel);
+
+            e.Label("rt_oe_active");
+            e.Reserve(1);
+            foreach (string name in new[] { ErrLabel, ErlLabel, OnErrorSpLabel, OnErrorRecordLabel, OnErrorHandlerLabel,
+                                            "rt_oe_failrec", "rt_oe_failsp" })
+            {
+                e.Label(name);
+                e.Reserve(2);
+            }
+            e.Label("rt_oe_msg_resume");
+            e.Data(Ascii("Unexpected RESUME"));
+        }),
+
         // Minuteries (lot I1, D079), comme le vrai BASIC (SugarBox, 16 nov. 2026). Un compteur du firmware (KL ADD TICKER,
         // tous les 1/50 s, événement express) fait descendre les 4 minuteries ; au bout, la minuterie est marquée et
         // rechargée (EVERY) ou arrêtée (AFTER). Entre deux instructions, le programme appelle rt_ev_run si rt_ev_pending :
@@ -1258,7 +1444,30 @@ public static class RuntimeLibrary
 
         [ErrorName] = new RuntimeModule(ErrorName, [PrintStringName], e =>
         {
+            // ON ERROR GOTO (D080) : si une adresse d'interception est rangée, on y va avec DE = message
             e.Label(ErrorLabel);
+            e.LdDeMem(ErrorTrapLabel);
+            e.LdAD();
+            e.OrE();
+            e.JrZLabel(ErrorShowLabel);
+            e.ExDeHl();
+            e.JpHl();
+
+            // Erreur qui laisse continuer (Overflow, Division by zero) : interceptée par ON ERROR, sinon le message
+            // s'écrit là où est le curseur, puis on passe à la ligne et le programme continue (D080)
+            e.Label(ErrorSoftLabel);
+            e.LdDeMem(ErrorTrapLabel);
+            e.LdAD();
+            e.OrE();
+            e.JrZLabel("rt_err_warn");
+            e.ExDeHl();
+            e.JpHl();
+            e.Label("rt_err_warn");
+            e.CallLabel(PrintStringLabel);
+            e.LdHlLabel("rt_err_crlf");
+            e.JpLabel(PrintStringLabel);
+
+            e.Label(ErrorShowLabel);
             e.PushHl();
             e.XorA();                                // le message s'affiche dans la fenêtre #0, comme le Locomotive (D072)
             e.CallAddress(TxtStrSelect);
@@ -1312,6 +1521,8 @@ public static class RuntimeLibrary
             e.Ret();
 
             e.Label(ErrorLineLabel);
+            e.Reserve(2);
+            e.Label(ErrorTrapLabel);
             e.Reserve(2);
             e.Label("rt_err_in");
             e.Data(Ascii(" in "));
@@ -3147,15 +3358,20 @@ public static class RuntimeLibrary
         // Le quotient est tronqué vers 0 et le reste a le signe du dividende (-7 MOD 3 = -1).
         // Diviseur à 0 : quotient 0 et reste = dividende (pas d'erreur à l'exécution pour l'instant).
         // Détruit AF, BC, DE, HL.
-        [Div16Name] = new RuntimeModule(Div16Name, [], e =>
+        [Div16Name] = new RuntimeModule(Div16Name, [ErrorName], e =>
         {
             e.Label(Div16Label);
             e.LdAD();
             e.OrE();
             e.JrNzLabel("rt_div_ok");
-            e.ExDeHl();                          // diviseur 0 : DE = dividende
+            e.PushHl();                          // diviseur 0 : « Division by zero » (le programme continue, ou ON ERROR,
+            e.LdHlLabel("rt_div_msg");           // D080), puis DE = dividende, HL = 0
+            e.CallLabel(ErrorSoftLabel);
+            e.PopDe();
             e.LdHlImm(0);
             e.Ret();
+            e.Label("rt_div_msg");
+            e.Data(Ascii("Division by zero"));
 
             // B : bit 0 = dividende négatif (reste négatif), bit 1 = quotient négatif
             e.Label("rt_div_ok");

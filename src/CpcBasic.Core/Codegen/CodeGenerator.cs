@@ -757,6 +757,11 @@ public static class CodeGenerator
                             break;
                         }
 
+                        case "ERR" or "ERL":                // numéro et ligne de la dernière erreur (D080)
+                            required.Add(RuntimeLibrary.OnErrorName);
+                            emitter.LdHlMem(call.Function == "ERR" ? RuntimeLibrary.ErrLabel : RuntimeLibrary.ErlLabel);
+                            break;
+
                         case "REMAIN":                      // REMAIN(minuterie) : temps restant, minuterie arrêtée (D079)
                             EmitExpression(call.Arguments[0]);
                             required.Add(RuntimeLibrary.EventsName);
@@ -1600,6 +1605,8 @@ public static class CodeGenerator
 
         // Minuteries (lot I1, D079) : le compteur du firmware est branché au départ
         bool usesEvents = program.Statements.Any(st => st is TimerStatement);
+        bool usesOnError = program.Statements.Any(st => st is OnErrorStatement);   // D080
+        var errorRecords = new List<(int Index, int Line)>();
         if (usesEvents)
         {
             required.Add(RuntimeLibrary.EventsName);
@@ -1608,7 +1615,6 @@ public static class CodeGenerator
 
         int statementIndex = 0;
         int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
-        int previousSourceLine = -1;
         bool insideStream = false;
         foreach (Statement statement in program.Statements)
         {
@@ -1619,16 +1625,27 @@ public static class CodeGenerator
             // Minuteries (D079) : au début de chaque ligne et avant chaque fin de boucle, on regarde si une minuterie
             // est arrivée au bout (7 octets ; pas au milieu d'un PRINT #n). Seulement si le programme utilise AFTER, EVERY.
             if (usesEvents && !insideStream
-                && (statement.SourceLine != previousSourceLine
+                && (program.IsStart(statement)
                     || statement is NextStatement or WendStatement or UntilStatement or LoopStatement))
             {
                 emitter.LdAMem(RuntimeLibrary.EventsPendingLabel);
                 emitter.OrA();
                 emitter.CallNzLabel(RuntimeLibrary.EventsRunLabel);
             }
-            previousSourceLine = statement.SourceLine;
             if (statement is StreamStatement streamMark)
                 insideStream = streamMark.Stream is not null;
+
+            // ON ERROR GOTO (D080) : au début de chaque instruction BASIC, la pile et la fiche de l'instruction
+            // (ligne, début, instruction suivante) sont rangées pour ERL, RESUME et RESUME NEXT (10 octets)
+            if (usesOnError && program.IsStart(statement))
+            {
+                int index = statementIndex - 1;
+                emitter.Label($"stmt_{index}");
+                emitter.LdMemSp(RuntimeLibrary.OnErrorSpLabel);
+                emitter.LdHlLabel($"erec_{index}");
+                emitter.LdMemHl(RuntimeLibrary.OnErrorRecordLabel);
+                errorRecords.Add((index, program.LineTable.Count > 0 ? basicLine : statement.SourceLine));
+            }
 
             // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
             // sans numéros de ligne, c'est la ligne de l'éditeur.
@@ -1642,7 +1659,7 @@ public static class CodeGenerator
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
-                || statement is TimerStatement
+                || statement is TimerStatement or ErrorStatement or ResumeStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
@@ -1657,6 +1674,44 @@ public static class CodeGenerator
 
                 case GosubStatement call:
                     emitter.CallLabel(LineLabel(call.Target));
+                    break;
+
+                case OnErrorStatement onError:                      // ON ERROR GOTO ligne / 0 (D080)
+                    required.Add(RuntimeLibrary.OnErrorName);
+                    if (onError.Target == 0)
+                    {
+                        emitter.LdHlImm(0);
+                    }
+                    else
+                    {
+                        emitter.LdHlLabel(LineLabel(onError.Target));
+                        emitter.LdMemHl(RuntimeLibrary.OnErrorHandlerLabel);
+                        emitter.LdHlLabel(RuntimeLibrary.OnErrorTrapLabel);
+                    }
+                    emitter.LdMemHl(RuntimeLibrary.ErrorTrapLabel);
+                    break;
+
+                case ResumeStatement resume:                        // RESUME, RESUME NEXT, RESUME ligne (D080)
+                    required.Add(RuntimeLibrary.OnErrorName);
+                    switch (resume.Kind)
+                    {
+                        case ResumeKind.Same:
+                            emitter.JpLabel("rt_oe_resume");
+                            break;
+                        case ResumeKind.Next:
+                            emitter.JpLabel("rt_oe_resume_next");
+                            break;
+                        default:
+                            emitter.CallLabel("rt_oe_resume_line");
+                            emitter.JpLabel(LineLabel(resume.Target));
+                            break;
+                    }
+                    break;
+
+                case ErrorStatement error:                          // ERROR numéro (D080)
+                    EmitExpression(error.Code);
+                    required.Add(RuntimeLibrary.ErrorCodesName);
+                    emitter.JpLabel(RuntimeLibrary.RaiseLabel);
                     break;
 
                 case TimerStatement timer:                          // AFTER / EVERY durée, minuterie GOSUB ligne (D079)
@@ -2478,6 +2533,15 @@ public static class CodeGenerator
                 emitter.Reserve(2);
             }
         }
+        // Fiches des instructions pour ON ERROR (D080) : ligne, début, instruction suivante (la fin pour la dernière)
+        for (int k = 0; k < errorRecords.Count; k++)
+        {
+            emitter.Label($"erec_{errorRecords[k].Index}");
+            emitter.Word(errorRecords[k].Line);
+            emitter.Word($"stmt_{errorRecords[k].Index}");
+            emitter.Word(k + 1 < errorRecords.Count ? $"stmt_{errorRecords[k + 1].Index}" : EndLabel);
+        }
+
         // Table des caractères redessinables (SYMBOL AFTER, D075) : (256 - plus petit premier caractère) x 8 octets ;
         // premier caractère calculé : la table complète (2 Ko)
         var symbolAfters = program.Statements.OfType<ScreenStatement>().Where(sa => sa.Command == "SYMBOL AFTER").ToList();

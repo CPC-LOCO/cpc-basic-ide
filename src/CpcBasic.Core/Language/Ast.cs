@@ -279,11 +279,29 @@ public sealed record BinaryExpression(BinaryOperator Operator, Expression Left, 
 /// Le programme complet : la suite de ses instructions, et la table des lignes numérotées (numéro de ligne BASIC
 /// -> rang de la première instruction qui la suit), utile pour GOTO, GOSUB et ON (D054).
 /// </summary>
-public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnlyDictionary<int, int>? Lines = null)
+/// <param name="Starts">Les instructions qui commencent une instruction BASIC (après « : » ou en début de ligne) ;
+/// une instruction BASIC peut en donner plusieurs ici (PRINT "A"; B). D080 : RESUME NEXT, minuteries.</param>
+public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnlyDictionary<int, int>? Lines = null,
+                                  IReadOnlySet<Statement>? Starts = null)
 {
     /// <summary>Les lignes numérotées du programme (vide si aucune).</summary>
     public IReadOnlyDictionary<int, int> LineTable => Lines ?? new Dictionary<int, int>();
+
+    /// <summary>Vrai si l'instruction commence une instruction BASIC (toujours vrai si l'information manque).</summary>
+    public bool IsStart(Statement statement) => Starts is null || Starts.Contains(statement);
 }
+
+/// <summary>ON ERROR GOTO ligne ; Target = 0 : ON ERROR GOTO 0, plus de traitement d'erreur (lot I2, D080).</summary>
+public sealed record OnErrorStatement(int SourceLine, int Target) : Statement(SourceLine);
+
+/// <summary>Les trois RESUME (D080) : refaire l'instruction en erreur, passer à la suivante, ou aller à une ligne.</summary>
+public enum ResumeKind { Same, Next, Line }
+
+/// <summary>RESUME, RESUME NEXT, RESUME ligne (lot I2, D080).</summary>
+public sealed record ResumeStatement(int SourceLine, ResumeKind Kind, int Target = 0) : Statement(SourceLine);
+
+/// <summary>ERROR numéro : provoque l'erreur de ce numéro (1 à 255) (lot I2, D080).</summary>
+public sealed record ErrorStatement(int SourceLine, Expression Code) : Statement(SourceLine);
 
 /// <summary>GOTO ligne : saut à une ligne numérotée. Target est le numéro de ligne BASIC (D054).</summary>
 public sealed record GotoStatement(int SourceLine, int Target) : Statement(SourceLine);
@@ -418,6 +436,7 @@ public static class AstWalker
         DimStatement d => d.Arrays.SelectMany(x => x.Sizes),
         ForStatement f => new[] { f.Start, f.LimitValue, f.StepValue }.OfType<Expression>(),
         TimerStatement t => [t.Time, t.Timer],
+        ErrorStatement e => [e.Code],
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),
