@@ -674,6 +674,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\enchaine.bas` : compte ses lancements dans un fichier et se relance lui-même deux fois (au premier lancement, AMSDOS écrit « COMPTE . not found », intercepté par ON ERROR GOTO).
 - **Fichiers :** Ast.cs (RunFileStatement), Diagnostic.cs (NotForCompiled), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (rt_fb_run, rt_ev_stop), Z80Emitter.cs (LD C,B), MiniZ80.cs, `tests\CpcBasic.Tests\RunFileTests.cs` (nouveau).
 
+## D087 : lot J4, compilation en chaîne (idée de l'utilisateur ; Validé le 16 nov. 2026 : 1167 tests réussis ; F5 sur partie1.bas met PARTIE1 et PARTIE2 sur la disquette, et la partie 2 reçoit le score 1200 dans WinAPE)
+- **Idée de l'utilisateur (16 nov. 2026) :** quand le programme contient RUN "nom", le compilateur compile aussi « nom » et met tout sur la même disquette (un jeu en plusieurs parties).
+- **Réalisation :** Compiler.CompileWithLinked. Chaque RUN "nom" écrit en clair (sans point, ou en .BIN) fait chercher nom.BAS dans le dossier du programme (F5, sans tenir compte des majuscules) ; il est compilé avec ses propres réglages F8 et F9, puis ceux qu'il lance à son tour, chacun une seule fois (même s'ils se relancent entre eux). Tous vont sur la disquette du programme de l'éditeur (nom.DSK), chacun avec son chargeur .BAS et son .BIN. Un programme introuvable est seulement signalé dans les messages ; une erreur dans un autre programme est donnée avec son nom (« ERREUR dans PARTIE2.BAS, ligne 1 : … », ligne du fichier comme dans l'éditeur) et aucune disquette n'est écrite.
+- **Limites :** un nom calculé (RUN N$) n'est pas repéré ; RUN "nom.BAS" non plus (ce n'est pas un programme compilé). Les fichiers binaires prêts (LOAD "ECRAN" -> ECRAN.BIN du dossier) : pas encore (idée notée).
+- **Exemple :** `examples\partie1.bas` (écrit un score dans un fichier puis RUN "PARTIE2") et `examples\partie2.bas` (relit le score).
+- **Fichiers :** Compiler.cs (CompileWithLinked, LaunchedPrograms, ProgramSource, LinkedProgram), Diagnostic.cs (File), DiskImage.cs (FileNames), `src\CpcIde\MainWindow.axaml.cs`, `tests\CpcBasic.Tests\LinkedCompileTests.cs` (nouveau).
+
 ---
 
 ## Notes de fin de session (modèle)

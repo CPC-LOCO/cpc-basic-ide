@@ -86,7 +86,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         : $" « {Argument} » ne convient pas ici.";
 
     /// <summary>Le message complet, précédé de « ERREUR en ligne N : ».</summary>
-    public string Message => $"ERREUR en ligne {Line} : {Body}";
+    /// <summary>Fichier où est l'erreur, pour un programme compilé en même temps (RUN "nom", D087) ; null : celui de l'éditeur.</summary>
+    public string? File { get; init; }
+
+    public string Message => File is null ? $"ERREUR en ligne {Line} : {Body}" : $"ERREUR dans {File}, ligne {Line} : {Body}";
 
     string Body => Code switch
     {

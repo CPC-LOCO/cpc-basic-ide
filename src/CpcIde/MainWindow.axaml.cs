@@ -481,9 +481,20 @@ public partial class MainWindow : Window
         CompileResult result;
         try
         {
-            result = Compiler.CompileToDisk(Editor.Text, name, new CompilerOptions(settings.Machine, realByDefault, breakKey));
+            // RUN "nom" écrit en clair : nom.BAS du même dossier est compilé aussi, sur la même disquette (D087)
+            string folder = Path.GetDirectoryName(path) ?? ".";
+            ProgramSource? Find(string program)
+            {
+                string? file = Directory.EnumerateFiles(folder, "*.bas")
+                    .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(program, StringComparison.OrdinalIgnoreCase));
+                if (file is null)
+                    return null;
+                return new ProgramSource(File.ReadAllText(file),
+                                         new CompilerOptions(settings.Machine, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file)));
+            }
+            result = Compiler.CompileWithLinked(Editor.Text, name, new CompilerOptions(settings.Machine, realByDefault, breakKey), Find);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             ShowMessage($"Compilation impossible : {ex.Message}");
             return;
@@ -491,7 +502,8 @@ public partial class MainWindow : Window
 
         if (!result.Success)
         {
-            var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.Line)).ToList();
+            // une erreur dans un autre programme (RUN "nom", D087) ne mène pas à une ligne de celui-ci
+            var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0)).ToList();
             items.Add(new MessageItem($"{result.Diagnostics.Count} erreur(s). Aucun fichier n'a été créé.", 0));
             ShowMessages(items);
             return;
@@ -515,16 +527,21 @@ public partial class MainWindow : Window
         }
 
         string modules = result.Modules.Count == 0 ? "aucun" : string.Join(", ", result.Modules);
-        ShowMessages(new[]
+        var done = new List<MessageItem>
         {
             new MessageItem($"Compilation réussie : {dskPath}", 0),
             new MessageItem($"Programme Z80 : {result.BinarySize} octets. Modules liés : {modules}.", 0),
             new MessageItem($"Machine : {CompilerOptions.MachineName(settings.Machine)}. " +
                             $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}. " +
-                            $"Touche ESC : {(breakKey ? "comme le CPC" : "ignorée")}.", 0),
-            new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0),
-            new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0)
-        });
+                            $"Touche ESC : {(breakKey ? "comme le CPC" : "ignorée")}.", 0)
+        };
+        foreach (LinkedProgram linked in result.Linked)   // D087
+            done.Add(new MessageItem($"Aussi compilé et mis sur la disquette (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.", 0));
+        foreach (string absent in result.Missing)
+            done.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier ; ce programme n'est pas sur la disquette.", 0));
+        done.Add(new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0));
+        done.Add(new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0));
+        ShowMessages(done);
     }
 
     // ---------- Panneau de messages ----------

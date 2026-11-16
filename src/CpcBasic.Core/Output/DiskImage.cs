@@ -42,6 +42,11 @@ public sealed class DiskImage
 
     public DiskImage() => Array.Fill(data, (byte)0xE5);   // 0xE5 = octet « vide » des disquettes CPC
 
+    readonly List<string> fileNames = new();
+
+    /// <summary>Les fichiers de la disquette, « NOM.EXT », dans l'ordre où ils ont été ajoutés.</summary>
+    public IReadOnlyList<string> FileNames => fileNames;
+
     /// <summary>Ajoute un fichier à la disquette.</summary>
     /// <param name="name">Nom, 8 caractères au plus (mis en majuscules).</param>
     /// <param name="extension">Extension, 3 caractères au plus (mise en majuscules).</param>
@@ -50,6 +55,7 @@ public sealed class DiskImage
     {
         string cleanName = CleanName(name, 8, nameof(name));
         string cleanExt = CleanName(extension, 3, nameof(extension));
+        fileNames.Add($"{cleanName}.{cleanExt}");
 
         byte[] header = BuildHeader(cleanName, cleanExt, type, loadAddress, execAddress, content.Length);
         byte[] file = [.. header, .. content];
