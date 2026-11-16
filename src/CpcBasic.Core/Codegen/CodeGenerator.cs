@@ -280,6 +280,11 @@ public static class CodeGenerator
                     break;
                 }
 
+                case UserFunctionExpression user:                   // FNA$(...) (D095)
+                    EmitUserArguments(user, realFree);
+                    EmitString(user.Function.Body!);
+                    break;
+
                 default:
                     throw new NotSupportedException($"Texte non géré : {expression.GetType().Name}");
             }
@@ -311,6 +316,63 @@ public static class CodeGenerator
             emitter.LdDeLabel(to);
             emitter.LdBcImm(5);
             emitter.Ldir();
+        }
+
+        // Fonction du programmeur (DEF FN, D095) : les valeurs vont dans les variables cachées de la fonction, puis le
+        // calcul est fait sur place. Si une valeur après la première appelle une FN, elle pourrait changer les valeurs
+        // déjà rangées : on passe alors par des variables propres à cet appel. free : première case à virgule libre.
+        void EmitUserArguments(UserFunctionExpression user, int free)
+        {
+            UserFunction f = user.Function;
+            IReadOnlyList<Expression> args = user.Arguments;
+            int saved = realFree;
+            realFree = free;
+            bool viaTemps = args.Skip(1).Any(x => AstWalker.Flatten(x).Any(e => e is UserFunctionExpression));
+            int site = labelCount++;
+            for (int i = 0; i < args.Count; i++)
+            {
+                VariableSlot slot = Slot(viaTemps ? $"FN#{site}.{f.Parameters[i]}" : f.Parameters[i]);
+                switch (slot.Type)
+                {
+                    case VarType.String:
+                        EmitString(args[i]);
+                        emitter.LdDeLabel(slot.Label);
+                        emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                        break;
+                    case VarType.Real:
+                        EmitRealInto(args[i], free);
+                        EmitCopyReal(RealTemp(free), slot.Label);
+                        break;
+                    default:
+                        EmitExpression(args[i]);
+                        EmitStore(slot);
+                        break;
+                }
+            }
+            if (viaTemps)
+            {
+                for (int i = 0; i < args.Count; i++)
+                {
+                    VariableSlot from = Slot($"FN#{site}.{f.Parameters[i]}");
+                    VariableSlot to = Slot(f.Parameters[i]);
+                    switch (to.Type)
+                    {
+                        case VarType.String:
+                            emitter.LdHlLabel(from.Label);
+                            emitter.LdDeLabel(to.Label);
+                            emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                            break;
+                        case VarType.Real:
+                            EmitCopyReal(from.Label, to.Label);
+                            break;
+                        default:
+                            EmitLoad(from);
+                            EmitStore(to);
+                            break;
+                    }
+                }
+            }
+            realFree = saved;
         }
 
         // Calcule l'expression comme nombre à virgule dans la case k
@@ -363,6 +425,11 @@ public static class CodeGenerator
                         BinaryOperator.Divide => RealRuntime.DivLabel,
                         _ => RealRuntime.PowLabel
                     });
+                    break;
+
+                case UserFunctionExpression user when Types.IsReal(user):
+                    EmitUserArguments(user, k);                     // FNR!(...) (D095)
+                    EmitRealInto(user.Function.Body!, k);
                     break;
 
                 case CallExpression call when Types.IsReal(call):
@@ -1003,6 +1070,11 @@ public static class CodeGenerator
                     emitter.IncHl();
                     emitter.LoadHFromHl();
                     emitter.LdLA();
+                    break;
+
+                case UserFunctionExpression user:                   // FNDOUBLE(...) (D095)
+                    EmitUserArguments(user, realFree);
+                    EmitExpression(user.Function.Body!);
                     break;
 
                 default:
@@ -2926,6 +2998,9 @@ public static class CodeGenerator
 
                 case EndStatement:
                     emitter.JpLabel(EndLabel);
+                    break;
+
+                case DefFnStatement:                    // DEF FN : rien à faire ici, le calcul est recopié à chaque appel (D095)
                     break;
 
                 default:

@@ -725,6 +725,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** aucun nouveau (mots du Locomotive).
 - **Fichiers :** Parser.cs, Ast.cs (HIMEM et FRE sont à virgule), CodeGenerator.cs (EmitAddress, usesHeap, WAIT, UNT, HIMEM, FRE), RealRuntime.cs (rt_fr2a), `tests\CpcBasic.Tests\MemoryInfoTests.cs` (nouveau), ArrayTests.cs (FRE remplacé par DERR). Exemple : `examples\memoire.bas`.
 
+## D095 : lot K7, DEF FN et FN (Validé le 16 nov. 2026 : 1238 tests réussis ; `fonctfn.bas` dans WinAPE : 42 100, BONJOUR!, 101 101, 106, 1.5, 302)
+- **Référence (SugarBox, 16 nov. 2026) :** `X=100`, `DEF FNDOUBLE(X)=X*2`, `DEF FNA$(N$)=N$+"!"`, `DEF FNR=X+1`, `DEF FNM(A,B)=A*B+X` : `FNDOUBLE(21);X` = 42 100 ; `FNA$("BONJOUR")` = BONJOUR! ; `FNR;FN R` = 101 101 ; `FNM(2,3)` = 106 ; `FNDOUBLE(1.5)` = 3.
+- **Conception :** DEF FN ne fait rien à l'exécution. À chaque appel, les valeurs sont rangées dans des variables cachées propres à la fonction (`FNDOUBLE.X`), puis le calcul est recopié sur place. Le X de la fonction ne touche donc pas le X du programme. Le calcul peut utiliser les variables du programme. Si une valeur après la première appelle une FN (`FNP(FNP(2,3),FNP(4,5))`), les valeurs passent d'abord par des variables propres à cet appel.
+- **Écriture :** `FNNOM` ou `FN NOM` ; le lecteur coupe tout mot qui commence par FN (FNDOUBLE = FN DOUBLE), comme le Locomotive. Le type vient du nom, comme une variable : `FNA$` texte, `FNR!` à virgule ; DEFINT, DEFREAL, DEFSTR et F8 s'appliquent au nom (première lettre après FN) et aux valeurs.
+- **Écarts voulus (validés par l'utilisateur) :** (1) sans signe, une valeur ou un nom de FN est entier (D026) : `FNDOUBLE(1.5)` est refusé à la compilation ; (2) fonction jamais définie, ou définie deux fois : erreur à la compilation (le Locomotive : « Unknown user function » à l'exécution) ; DEF FN peut être placé avant ou après l'appel ; (3) une FN qui s'appelle elle-même, même par une autre FN, est refusée.
+- **Demande de l'utilisateur :** quand une virgule serait perdue, le message donne la solution : « FNDOUBLE reçoit un nombre à virgule pour X, mais X est un entier… écrivez DEF FNDOUBLE(X!)=…, et X! dans le calcul ». Même conseil quand le calcul d'une FN entière donne un nombre à virgule (écrire FNNOM!).
+- **Mots réservés :** DEF et FN (déjà réservés par le Locomotive). Aucune variable ne peut commencer par FN (FNX se lit FN X), comme sur le CPC.
+- **Fichiers :** Lexer.cs (FN coupé), Ast.cs (UserFunction, UserFunctionExpression, DefFnStatement ; IsReal, IsString, AstWalker), Parser.cs (ParseDefFn, ParseUserFunctionCall, CheckUserFunctions), Diagnostic.cs (6 messages), CodeGenerator.cs (EmitUserArguments), `tests\CpcBasic.Tests\UserFunctionTests.cs` (nouveau). Exemple : `examples\fonctfn.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

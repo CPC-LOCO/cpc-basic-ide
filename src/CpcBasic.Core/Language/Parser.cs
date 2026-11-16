@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -186,12 +186,15 @@ public static class Parser
         tokens = ApplyDefaultTypes(tokens, realByDefault);
         var statements = new List<Statement>();
         statementStarts = new HashSet<Statement>(ReferenceEqualityComparer.Instance);
+        userFunctions = new Dictionary<string, UserFunction>();
         var lines = new Dictionary<int, int>();   // numéro de ligne -> rang de l'instruction qui la suit
         int pos = 0;
 
         while (tokens[pos].Kind != TokenKind.EndOfFile)
             pos = ParseLine(tokens, pos, statements, diagnostics, lines);
 
+        CheckUserFunctions(statements, diagnostics);    // d'abord : le calcul des FN est ensuite vérifié à chaque appel (D095)
+        userFunctions = null;
         CheckDeclarations(statements, diagnostics);
         CheckArrays(statements, diagnostics);
         CheckBlocks(statements, diagnostics);
@@ -199,6 +202,207 @@ public static class Parser
         HashSet<Statement> starts = statementStarts!;
         statementStarts = null;
         return new BasicProgram(statements, lines, starts);
+    }
+
+    // Fonctions du programmeur (DEF FN, lot K7, D095) : une fiche par nom, créée au premier appel ou à DEF FN.
+    // fnRename : pendant la lecture du calcul de DEF FN, les valeurs de la fonction prennent leur nom caché.
+    [ThreadStatic] static Dictionary<string, UserFunction>? userFunctions;
+    [ThreadStatic] static Dictionary<string, string>? fnRename;
+
+    static UserFunction GetUserFunction(string name)
+    {
+        userFunctions ??= new Dictionary<string, UserFunction>();
+        if (!userFunctions.TryGetValue(name, out UserFunction? function))
+        {
+            function = new UserFunction(name);
+            userFunctions[name] = function;
+        }
+        return function;
+    }
+
+    static bool IsUserName(Token t) =>
+        t.Kind == TokenKind.Word && t.Text[0] is >= 'A' and <= 'Z' && !Commands.Contains(t.Text)
+        && !LocomotiveWords.Contains(t.Text) && !Functions.ContainsKey(t.Text) && !OtherKeywords.Contains(t.Text);
+
+    // DEF FNNOM[(valeur, ...)] = calcul (D095)
+    static int ParseDefFn(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token def = tokens[pos];
+        pos++;
+        if (!IsWord(tokens[pos], "FN") || !IsUserName(tokens[pos + 1]))
+        {
+            Token wrong = IsWord(tokens[pos], "FN") ? tokens[pos + 1] : tokens[pos];
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionName, def.Line, IsLineEnd(wrong) ? "" : wrong.Text, "DEF FN"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        string name = tokens[pos + 1].Text;
+        pos += 2;
+
+        var written = new List<string>();
+        if (tokens[pos].Kind == TokenKind.LeftParen)
+        {
+            pos++;
+            while (true)
+            {
+                if (!IsUserName(tokens[pos]) || written.Contains(tokens[pos].Text))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionParameter, def.Line,
+                                                   IsLineEnd(tokens[pos]) ? "" : tokens[pos].Text));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                written.Add(tokens[pos].Text);
+                pos++;
+                if (tokens[pos].Kind == TokenKind.Comma)
+                {
+                    pos++;
+                    continue;
+                }
+                if (tokens[pos].Kind != TokenKind.RightParen)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, def.Line, "", "DEF FN"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos++;
+                break;
+            }
+        }
+        if (tokens[pos].Kind != TokenKind.Equals)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedEquals, def.Line, IsLineEnd(tokens[pos]) ? "" : tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+
+        UserFunction function = GetUserFunction(name);
+        if (function.Body is not null)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionTwice, def.Line, name));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        // Les valeurs de la fonction ont un nom caché : le X de FNDOUBLE(X) n'est pas le X du programme
+        List<string> hidden = written.Select(p => $"FN{name}.{p}").ToList();
+        fnRename = written.Zip(hidden).ToDictionary(x => x.First, x => x.Second);
+        Expression? body;
+        try
+        {
+            body = ParseAnyExpression(tokens, ref pos, diagnostics);
+        }
+        finally
+        {
+            fnRename = null;
+        }
+        if (body is null)
+            return SkipToStatementEnd(tokens, pos);
+
+        if (VariableNames.IsString(name) != Types.IsString(body))
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, def.Line, $"FN{name}", "DEF FN"));
+        else if (!VariableNames.IsReal(name) && !VariableNames.IsString(name) && Types.IsReal(body))
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionNeedsReal, def.Line, $"{name}|"));
+
+        function.Body = body;
+        function.Parameters = hidden;
+        function.WrittenParameters = written;
+        function.Line = def.Line;
+        statements.Add(new DefFnStatement(def.Line, function));
+        return pos;
+    }
+
+    // FNNOM[(valeur, ...)] dans un calcul (D095) ; « FN NOM » s'écrit aussi avec un espace
+    static Expression? ParseUserFunctionCall(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    {
+        Token fn = tokens[pos];
+        pos++;
+        if (!IsUserName(tokens[pos]))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionName, fn.Line, IsLineEnd(tokens[pos]) ? "" : tokens[pos].Text));
+            return null;
+        }
+        string name = tokens[pos].Text;
+        pos++;
+        var arguments = new List<Expression>();
+        if (tokens[pos].Kind == TokenKind.LeftParen)
+        {
+            pos++;
+            while (true)
+            {
+                Expression? argument = ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (argument is null)
+                    return null;
+                arguments.Add(argument);
+                if (tokens[pos].Kind == TokenKind.Comma)
+                {
+                    pos++;
+                    continue;
+                }
+                if (tokens[pos].Kind != TokenKind.RightParen)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, fn.Line, "", $"FN{name}"));
+                    return null;
+                }
+                pos++;
+                break;
+            }
+        }
+        return new UserFunctionExpression(GetUserFunction(name), arguments);
+    }
+
+    // Après la lecture (D095) : fonctions définies, nombre et genre des valeurs, pas d'appel à soi-même
+    static void CheckUserFunctions(List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        foreach (Statement statement in statements)
+        {
+            IEnumerable<Expression> all = AstWalker.All(statement);
+            if (statement is DefFnStatement { Function.Body: not null } def)
+                all = all.Concat(AstWalker.Flatten(def.Function.Body));
+            foreach (UserFunctionExpression call in all.OfType<UserFunctionExpression>().ToList())
+            {
+                UserFunction f = call.Function;
+                if (f.Body is null)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionUnknown, statement.SourceLine, f.Name));
+                    continue;
+                }
+                if (call.Arguments.Count != f.Parameters.Count)
+                {
+                    string signature = f.WrittenParameters.Count == 0 ? $"FN{f.Name}" : $"FN{f.Name}({string.Join(", ", f.WrittenParameters)})";
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, statement.SourceLine, signature));
+                    continue;
+                }
+                for (int i = 0; i < call.Arguments.Count; i++)
+                {
+                    string p = f.WrittenParameters[i];
+                    Expression argument = call.Arguments[i];
+                    if (VariableNames.IsString(p) != Types.IsString(argument))
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, statement.SourceLine, $"{p} de FN{f.Name}"));
+                    else if (!VariableNames.IsReal(p) && !VariableNames.IsString(p) && Types.IsReal(argument))
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionNeedsReal, statement.SourceLine, $"{f.Name}|{p}"));
+                }
+            }
+        }
+
+        // Une fonction qui s'appelle elle-même, même par un détour, est refusée
+        IEnumerable<UserFunction> Callees(UserFunction f) =>
+            AstWalker.Flatten(f.Body!).OfType<UserFunctionExpression>().Select(c => c.Function).Where(c => c.Body is not null);
+
+        bool Reaches(UserFunction from, UserFunction target, HashSet<UserFunction> seen)
+        {
+            foreach (UserFunction callee in Callees(from))
+            {
+                if (callee == target)
+                    return true;
+                if (seen.Add(callee) && Reaches(callee, target, seen))
+                    return true;
+            }
+            return false;
+        }
+
+        List<UserFunction> defined = statements.OfType<DefFnStatement>().Select(d => d.Function).Distinct().ToList();
+        var recursive = defined.Where(f => Reaches(f, f, [])).ToList();
+        foreach (UserFunction f in recursive)
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UserFunctionRecursive, f.Line, f.Name));
+        foreach (UserFunction f in defined.Except(recursive))
+            f.Ready = true;
     }
 
     // Début de chaque instruction BASIC, noté pendant la lecture (D080). Une lecture par fil d'exécution.
@@ -672,6 +876,9 @@ public static class Parser
             case "WINDOW" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "TAG" or "TAGOFF":
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, t.Text, t.Text is not ("CLS" or "TAG" or "TAGOFF"),
                                           rest => ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text], rest));
+
+            case "DEF":                                     // DEF FN (lot K7, D095)
+                return ParseDefFn(tokens, pos, statements, diagnostics);
 
             case "DEFINT" or "DEFREAL" or "DEFSTR":
             {
@@ -3453,6 +3660,8 @@ public static class Parser
                     pos++;                              // TIME, ERR, ERL et EOF s'écrivent sans parenthèses, comme sur le CPC (D080, D084)
                     return new CallExpression(t.Text, []);
                 }
+                if (t.Text == "FN")
+                    return ParseUserFunctionCall(tokens, ref pos, diagnostics);   // D095
                 if (Functions.TryGetValue(t.Text, out FunctionInfo? function))
                     return ParseFunctionCall(tokens, ref pos, diagnostics, function);
                 if (Commands.Contains(t.Text))
@@ -3477,6 +3686,8 @@ public static class Parser
                         : null;
                 }
                 pos++;
+                if (fnRename is not null && fnRename.TryGetValue(t.Text, out string? hiddenName))
+                    return new VariableExpression(hiddenName);              // valeur de DEF FN (D095)
                 return new VariableExpression(t.Text);
 
             case TokenKind.LeftParen:

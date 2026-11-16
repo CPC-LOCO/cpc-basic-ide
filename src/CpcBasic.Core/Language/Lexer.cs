@@ -177,6 +177,14 @@ public static class Lexer
                 if (word == "REM")
                     return;   // commentaire : le reste de la ligne est ignoré
 
+                if (word.Length > 2 && word.StartsWith("FN", StringComparison.Ordinal))
+                {
+                    // FNDOUBLE = FN DOUBLE, comme le Locomotive qui lit FN comme un mot à part (lot K7, D095)
+                    tokens.Add(new Token(TokenKind.Word, "FN", line, column));
+                    tokens.Add(new Token(TokenKind.Word, word[2..], line, column + 2));
+                    first = false;
+                    continue;
+                }
                 tokens.Add(new Token(TokenKind.Word, word, line, column));
                 first = false;
                 if (word == "DATA")

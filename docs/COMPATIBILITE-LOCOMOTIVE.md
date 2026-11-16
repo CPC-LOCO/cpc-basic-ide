@@ -78,7 +78,7 @@ Mise à jour le 16 nov. 2026 :
 | `DATA` | données dans le programme | Faite | Nombres entiers (-32768 à 65535, &hexadécimal), textes entre guillemets ou non, éléments vides (D059, D060, D064). Réels avec le lot F. |
 | `READ` | lit les données | Faite | Dans une variable, une case de tableau ou une variable texte (READ A$ rend un nombre tel qu'il est écrit) ; « DATA exhausted », « Type mismatch ». D059, D064. |
 | `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |
-| `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
+| `DEF FN / FN` | fonction définie par le programmeur | Faite | Lot K7 (D095) : FNNOM ou FN NOM, valeurs locales, textes et nombres à virgule. Écarts : sans signe, valeurs entières (D026, message avec la solution) ; fonction inconnue, en double ou qui s'appelle elle-même : refusée à la compilation. |
 | `SWAP` | échange deux variables | Écart voulu | N'existe pas dans le Locomotive BASIC (SugarBox, 16 nov. 2026 : « Syntax error ») ; seul WINDOW SWAP existe (fait, D072). |
 | `MEMORY` | limite la mémoire du BASIC | Partielle | Protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous (si l'adresse est un nombre écrit). D057. Adresse calculée à virgule permise (MEMORY HIMEM-1000, D094). |
 | `HIMEM` | haut de la mémoire du BASIC | Faite | Lot K6 (D094) : nombre à virgule (42619, ou l'adresse de MEMORY). |

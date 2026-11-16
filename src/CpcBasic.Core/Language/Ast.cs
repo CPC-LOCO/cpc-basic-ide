@@ -231,6 +231,28 @@ public sealed record StringLiteralExpression(string Text) : Expression;
 /// <summary>A$ + B$ : les deux textes mis bout à bout (lot E, D062).</summary>
 public sealed record ConcatExpression(Expression Left, Expression Right) : Expression;
 
+/// <summary>
+/// Fonction du programmeur, DEF FN (lot K7, D095). Name : le nom écrit après FN, avec son signe (DOUBLE, A$, R!) ;
+/// Parameters : les noms cachés des valeurs (FNDOUBLE.X), propres à la fonction ; WrittenParameters : les noms écrits.
+/// Body : le calcul (null tant que DEF FN n'a pas été lu). Ready : définie et sans appel à elle-même ; seul alors le
+/// calcul est parcouru avec les expressions qui l'appellent.
+/// </summary>
+public sealed class UserFunction(string name)
+{
+    public string Name { get; } = name;
+    public IReadOnlyList<string> Parameters { get; set; } = [];
+    public IReadOnlyList<string> WrittenParameters { get; set; } = [];
+    public Expression? Body { get; set; }
+    public int Line { get; set; }
+    public bool Ready { get; set; }
+}
+
+/// <summary>FNNOM(valeurs) : appel d'une fonction du programmeur (lot K7, D095).</summary>
+public sealed record UserFunctionExpression(UserFunction Function, IReadOnlyList<Expression> Arguments) : Expression;
+
+/// <summary>DEF FNNOM(valeurs)=calcul : rien à faire à l'exécution, le calcul est recopié à chaque appel (D095).</summary>
+public sealed record DefFnStatement(int SourceLine, UserFunction Function) : Statement(SourceLine);
+
 /// <summary>Le type d'une expression : texte ou nombre (lot E, D062).</summary>
 public static class Types
 {
@@ -256,6 +278,7 @@ public static class Types
             "MIN" or "MAX" => call.Arguments.Any(IsReal),
             _ => false
         },
+        UserFunctionExpression user => VariableNames.IsReal(user.Function.Name),   // FNR! (D095)
         _ => false
     };
 
@@ -264,6 +287,7 @@ public static class Types
     {
         StringLiteralExpression or ConcatExpression => true,
         CallExpression call => call.Function.EndsWith('$'),   // LEFT$, MID$, CHR$... (D063)
+        UserFunctionExpression user => VariableNames.IsString(user.Function.Name),   // FNA$ (D095)
         VariableExpression variable => VariableNames.IsString(variable.Name),
         ArrayElementExpression element => VariableNames.IsString(element.Name),
         _ => false
@@ -463,6 +487,9 @@ public static class AstWalker
             NotExpression negation => [negation.Operand],
             AddressOfExpression address => [address.Target],
             ConcatExpression concat => [concat.Left, concat.Right],
+            UserFunctionExpression { Function: { Ready: true, Body: not null } } user =>
+                user.Arguments.Append(user.Function.Body),   // le calcul de FN est recopié à l'appel (D095)
+            UserFunctionExpression user => user.Arguments,
             _ => []
         };
         foreach (Expression child in inner)

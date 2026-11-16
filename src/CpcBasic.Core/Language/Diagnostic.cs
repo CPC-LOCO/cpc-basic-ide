@@ -67,7 +67,13 @@ public enum DiagnosticCode
     UsingFormatNotLiteral,   // lot H3 (D074) : PRINT USING F$; X (format pas entre guillemets)
     UsingWithoutField,       // lot H3 (D074) : format sans aucun emplacement
     SaveProgram,             // lot J2 (D085) : SAVE sans ,B (le programme BASIC n'existe plus une fois compilé)
-    NotForCompiled           // lot J3 (D086) : commande qui n'a pas de sens une fois compilé (CHAIN, MERGE...)
+    NotForCompiled,          // lot J3 (D086) : commande qui n'a pas de sens une fois compilé (CHAIN, MERGE...)
+    UserFunctionName,        // lot K7 (D095) : FN ou DEF FN sans nom de fonction
+    UserFunctionParameter,   // DEF FNM(A,3) : une valeur de DEF FN doit être un nom de variable
+    UserFunctionUnknown,     // FNX appelée mais jamais définie (le Locomotive : « Unknown user function »)
+    UserFunctionTwice,       // deux DEF FN pour le même nom
+    UserFunctionRecursive,   // FNA s'appelle elle-même (directement ou par une autre FN)
+    UserFunctionNeedsReal    // une virgule serait perdue : nombre à virgule donné à un entier (conseil : le signe !)
 }
 
 /// <summary>
@@ -217,6 +223,21 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.UsingWithoutField =>
             $"PRINT USING : le format « {Argument} » ne contient aucun emplacement (# pour un nombre, ! & ou \\  \\ pour un texte). Le vrai BASIC répondrait « Improper argument ».",
         DiagnosticCode.NotForCompiled => Argument,
+        DiagnosticCode.UserFunctionName =>
+            $"{(Context.Length == 0 ? "FN" : Context)} attend le nom de la fonction, par exemple FNDOUBLE(3) ou DEF FNDOUBLE(X)=X*2.{Why}",
+        DiagnosticCode.UserFunctionParameter =>
+            $"DEF FN attend entre parenthèses des noms de variables séparés par des virgules, par exemple DEF FNM(A,B)=A*B.{Why}",
+        DiagnosticCode.UserFunctionUnknown =>
+            $"la fonction FN{Argument} n'est définie nulle part. Ajoutez une ligne DEF FN{Argument}(...)=calcul (le vrai BASIC répondrait « Unknown user function »).",
+        DiagnosticCode.UserFunctionTwice =>
+            $"la fonction FN{Argument} est déjà définie plus haut par DEF FN. Donnez un autre nom à l'une des deux.",
+        DiagnosticCode.UserFunctionRecursive =>
+            $"la fonction FN{Argument} s'appelle elle-même (directement ou par une autre fonction FN). Ce n'est pas possible : sur le vrai CPC, le programme finirait par planter.",
+        DiagnosticCode.UserFunctionNeedsReal => Argument.Split('|') is [string f, string p] && p.Length > 0
+            ? $"FN{f} reçoit un nombre à virgule pour {p}, mais {p} est un entier : la virgule serait perdue (le vrai BASIC la garde). " +
+              $"Dans l'instruction DEF FN, écrivez la valeur avec le signe « ! » : DEF FN{f}({p}!)=..., et {p}! dans le calcul."
+            : $"le calcul de FN{Argument.Split('|')[0]} donne un nombre à virgule, mais FN{Argument.Split('|')[0]} rend un entier : la virgule serait perdue (le vrai BASIC la garde). " +
+              $"Dans l'instruction DEF FN, écrivez le nom avec le signe « ! » : DEF FN{Argument.Split('|')[0]}!(...)=..., et appelez FN{Argument.Split('|')[0]}!.",
         DiagnosticCode.SaveProgram =>
             "SAVE sans « ,B » enregistrerait le programme BASIC, qui n'existe plus une fois compilé. Pour une zone de mémoire : SAVE \"nom\",B,début,longueur (exemple : SAVE \"ECRAN\",B,&C000,&4000).",
         _ => $"problème inconnu ({Code})."
