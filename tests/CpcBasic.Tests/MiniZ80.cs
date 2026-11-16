@@ -72,6 +72,10 @@ internal sealed class MiniZ80
     // 4 en attente ; SOUND ARM EVENT appelle la routine de l'événement dès qu'il y a une place, une seule fois.
     public bool SoundQueueModel;
 
+    // Commandes RSX (D089) : nom -> adresse de la routine (KL FIND COMMAND)
+    public readonly Dictionary<string, ushort> RsxCommands = new();
+    public ushort IX;
+
     // Fichiers de données (D084) : le disque, rempli par CAS OUT et lu par CAS IN (noms en majuscules)
     public readonly Dictionary<string, List<byte>> Files = new();
     public readonly Dictionary<string, (byte Type, int Address)> FileHeaders = new();   // fichiers binaires (D085)
@@ -632,6 +636,29 @@ internal sealed class MiniZ80
             case 0xCD:                                                 // CALL nn
             {
                 ushort address = Fetch16();
+                if (address == 0x001B)
+                {
+                    Push((ushort)pc);                                  // KL FAR PCHL : appel de HL (D089)
+                    pc = HL;
+                    break;
+                }
+                if (address == 0xBCD4)
+                {
+                    var name = new System.Text.StringBuilder();         // KL FIND COMMAND : dernière lettre avec le bit 7 (D089)
+                    for (int at = HL; ; at++)
+                    {
+                        name.Append((char)(Memory[at] & 0x7F));
+                        if ((Memory[at] & 0x80) != 0)
+                            break;
+                    }
+                    CarryFlag = RsxCommands.TryGetValue(name.ToString(), out ushort routine);
+                    if (CarryFlag)
+                    {
+                        HL = routine;
+                        C = 0xFF;
+                    }
+                    break;
+                }
                 if (address >= 0xB900 && Memory[address] == 0xC3)
                 {
                     Push((ushort)pc);                                  // entrée du firmware détournée (PRINT #9, D084)
@@ -963,6 +990,26 @@ internal sealed class MiniZ80
             case 0xED:
                 StepEd(opcodeAddress);
                 break;
+            case 0xDD:                                                 // IX (commandes RSX, D089)
+            {
+                byte next = Fetch();
+                int At() => (IX + (sbyte)Fetch()) & 0xFFFF;
+                switch (next)
+                {
+                    case 0x21: IX = Fetch16(); break;                  // LD IX,nn
+                    case 0x39: IX = (ushort)(IX + sp); break;          // ADD IX,SP
+                    case 0xE5: Push(IX); break;                        // PUSH IX
+                    case 0xE1: IX = Pop(); break;                      // POP IX
+                    case 0x7E: A = Memory[At()]; break;                // LD A,(IX+d)
+                    case 0x6E: L = Memory[At()]; break;                // LD L,(IX+d)
+                    case 0x66: H = Memory[At()]; break;                // LD H,(IX+d)
+                    case 0x5E: E = Memory[At()]; break;                // LD E,(IX+d)
+                    case 0x56: D = Memory[At()]; break;                // LD D,(IX+d)
+                    default:
+                        throw new NotSupportedException($"Instruction &DD &{next:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
+                }
+                break;
+            }
 
             default:
                 throw new NotSupportedException($"Instruction &{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");

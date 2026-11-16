@@ -72,7 +72,7 @@ public class MachineTests
     [Theory]
     [InlineData("10 POKE 1")]
     [InlineData("10 CALL")]
-    [InlineData("10 CALL 1, 2")]
+    // « CALL 1, 2 » est permis depuis le lot K2 (D089) : CALL adresse, valeurs
     [InlineData("10 OUT 1")]
     public void Le_mauvais_nombre_de_valeurs_est_signale(string source)
     {

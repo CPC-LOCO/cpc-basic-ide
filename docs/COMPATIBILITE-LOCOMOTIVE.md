@@ -47,7 +47,7 @@ Mise à jour le 16 nov. 2026 :
 | `RETURN` | retour d'un sous-programme | Faite | RETURN sans GOSUB : « Unexpected RETURN in N » (D081). |
 | `ON x GOTO` | saut selon une valeur | Partielle | Valeur hors de 1 à N : le programme continue (pas d'erreur pour une valeur négative). |
 | `ON x GOSUB` | appel selon une valeur | Partielle | Comme ON x GOTO. |
-| `CALL` | appelle un programme en langage machine | Partielle | Adresse seule, sans paramètres. |
+| `CALL` | appelle un programme en langage machine | Faite | Avec valeurs : CALL adresse, v1, v2… (D089). |
 | `CHAIN` | charge et lance un autre programme | Écart voulu | Refusé à la compilation (les variables ne peuvent pas passer d'un programme compilé à l'autre) : RUN "nom" et un fichier (D086). |
 | `CHAIN MERGE` | charge un autre programme en gardant les variables | Écart voulu | Refusé : ajoute des lignes BASIC (D086). |
 | `RUN` | lance un programme (aussi RUN "fichier") | Partielle | RUN "nom" lance un autre programme compilé (nom.BIN), D086. RUN et RUN ligne : à faire. |
@@ -89,7 +89,7 @@ Mise à jour le 16 nov. 2026 :
 | `OUT` | écrit sur un port | Faite | Valeur de 0 à 255. |
 | `WAIT` | attend un état sur un port | À faire |  |
 | `UNT` | convertit une adresse en entier signé | À faire |  |
-| `| (commandes RSX)` | appelle une extension | À faire |  |
+| `| (commandes RSX)` | appelle une extension | Faite | |NOM, valeurs (D089) ; inconnue : « Unknown command ». |
 | `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061), `@A$` = adresse de la fiche de 3 octets (D064). Passage à CALL et aux RSX à venir. |
 | `DI / EI` | coupe / remet les interruptions | Faite | Retient / laisse partir les appels des minuteries (D079). |
 | `SYMBOL` | redéfinit un caractère | Faite | D075. |

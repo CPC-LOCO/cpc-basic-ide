@@ -146,6 +146,7 @@ public static class RuntimeLibrary
     public const string SoundEventSetLabel = "rt_sq_set";       // ON SQ : HL = canal, DE = ligne
     // Fichiers de données (lot J1, D084)
     public const string TraceName = "Trace";                    // TRON, TROFF (D088)
+    public const string RsxName = "Rsx";                        // commandes RSX : |NOM (D089)
     public const string FileCommonName = "FileCommon";
     public const string FileOutName = "FileOut";
     public const string FileInName = "FileIn";
@@ -1501,6 +1502,16 @@ public static class RuntimeLibrary
             }
             e.Label("rt_fb_has");
             e.Reserve(1);
+        }),
+
+        // Commande RSX inconnue (lot K2, D089) : message du Locomotive
+        [RsxName] = new RuntimeModule(RsxName, [ErrorName], e =>
+        {
+            e.Label("rt_rsx_unknown");
+            e.LdHlLabel("rt_rsx_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_rsx_msg");
+            e.Data(Ascii("Unknown command"));
         }),
 
         // TRON (lot K1, D088) : HL = numéro de la ligne qui commence ; affiché « [20] » si TRON est en marche

@@ -1,6 +1,6 @@
 # Programme de référence : RSX en deux lignes (concours)
 
-Programme de l'utilisateur (RetroPoke), gardé ici comme **cas d'essai de compatibilité maximale**. Il ne se compile pas encore : il sert de but. Il ne doit **pas** être mis dans `examples\` (les exemples publiés doivent tous compiler).
+Programme de l'utilisateur (RetroPoke), gardé ici comme **cas d'essai de compatibilité maximale**. **But atteint le 16 nov. 2026 (lot K2, D089) : il se compile et donne dans WinAPE le même dessin que le vrai BASIC ; le fichier PACK-GPH.BIN qu'il enregistre marche aussi depuis le BASIC.** Il ne doit **pas** être mis dans `examples\` (les exemples publiés doivent tous compiler).
 
 ```
 10 MODE 1:p=&A400:MEMORY p-1:READ a$:FOR a=0 TO &74:POKE p+a,VAL("&"+MID$(a$,a*2+1,2)):NEXT:SAVE"pack-gph",b,&A400,&74:CALL &A400:|GPEN,3:a$="DEUULIGNE RSX 01":FOR l=-6 TO 8:|GPAS,l,8:MOVE 150-l*4,170-l*16:|GPRINT,@a$:NEXT:LOCATE 28,23:PRINT"RSX PACK #01"

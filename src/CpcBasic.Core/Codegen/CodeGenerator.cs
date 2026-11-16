@@ -1703,6 +1703,7 @@ public static class CodeGenerator
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
+                || statement is ExternalCallStatement { Rsx: not null }
                 || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
@@ -2627,6 +2628,64 @@ public static class CodeGenerator
                     EmitString(load.Name);
                     emitter.CallLabel("rt_fb_load");
                     break;
+
+                case ExternalCallStatement external:    // |NOM, valeurs ou CALL adresse, valeurs (D089)
+                {
+                    // Les valeurs sont posées sur la pile dans l'ordre : IX = pile = la dernière valeur, comme le BASIC
+                    foreach (Expression argument in external.Arguments)
+                    {
+                        if (Types.IsString(argument))
+                            EmitString(argument);                      // un texte : l'adresse de sa fiche (comme @a$)
+                        else
+                            EmitExpression(argument);
+                        emitter.PushHl();
+                    }
+                    string extTarget = $"ext_{labelCount++}";
+                    string extAfter = $"ext_{labelCount++}";
+                    if (external.Rsx is not null)
+                    {
+                        // KL FIND COMMAND : le nom, sa dernière lettre avec le bit 7 ; pas trouvée : « Unknown command »
+                        string rsxLabel = $"rsx_{labelCount++}";
+                        required.Add(RuntimeLibrary.RsxName);
+                        emitter.LdHlLabel(rsxLabel);
+                        emitter.CallAddress(0xBCD4);
+                        emitter.JpNcLabel("rt_rsx_unknown");
+                        if (external.Arguments.Count > 0)
+                        {
+                            emitter.PopDe();                            // DE = la dernière valeur, comme le BASIC
+                            emitter.PushDe();                           // (|GPRINT, |GPEN... la prennent là)
+                        }
+                        emitter.LdAImm(external.Arguments.Count);
+                        emitter.LdIxImm(0);
+                        emitter.AddIxSp();
+                        emitter.CallAddress(0x001B);                    // KL FAR PCHL : HL = adresse, C = ROM
+                        emitter.JpLabel(extAfter);
+                        emitter.Label(rsxLabel);
+                        byte[] rsxLetters = System.Text.Encoding.ASCII.GetBytes(external.Rsx);
+                        rsxLetters[^1] |= 0x80;
+                        emitter.Data(rsxLetters);
+                    }
+                    else
+                    {
+                        EmitExpression(external.Address!);
+                        if (external.Arguments.Count > 0)
+                        {
+                            emitter.PopDe();                            // DE = la dernière valeur, comme le BASIC
+                            emitter.PushDe();
+                        }
+                        emitter.LdAImm(external.Arguments.Count);
+                        emitter.LdIxImm(0);
+                        emitter.AddIxSp();
+                        emitter.CallLabel(extTarget);
+                        emitter.JpLabel(extAfter);
+                        emitter.Label(extTarget);
+                        emitter.JpHl();
+                    }
+                    emitter.Label(extAfter);
+                    for (int k = 0; k < external.Arguments.Count; k++)
+                        emitter.PopDe();                               // les valeurs quittent la pile
+                    break;
+                }
 
                 case TraceStatement trace:              // TRON / TROFF (D088)
                     required.Add(RuntimeLibrary.TraceName);

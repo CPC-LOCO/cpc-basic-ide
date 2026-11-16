@@ -298,6 +298,13 @@ public sealed record SaveStatement(int SourceLine, Expression Name, Expression S
 /// <summary>LOAD nom[,adresse] : charge un fichier binaire (lot J2, D085).</summary>
 public sealed record LoadStatement(int SourceLine, Expression Name, Expression? Address) : Statement(SourceLine);
 
+/// <summary>
+/// |NOM [, valeurs] (commande RSX, Rsx = nom) ou CALL adresse, valeurs (lot K2, D089) : comme le firmware, A = nombre de
+/// valeurs, IX = la liste (2 octets chacune, la dernière en premier). Un texte passe l'adresse de sa fiche (comme @a$).
+/// </summary>
+public sealed record ExternalCallStatement(int SourceLine, string? Rsx, Expression? Address, IReadOnlyList<Expression> Arguments)
+    : Statement(SourceLine);
+
 /// <summary>TRON / TROFF : le numéro de chaque ligne exécutée s'affiche entre crochets (lot K1, D088).</summary>
 public sealed record TraceStatement(int SourceLine, bool On) : Statement(SourceLine);
 
@@ -471,6 +478,7 @@ public static class AstWalker
         LoadStatement ld => new[] { ld.Name, ld.Address }.OfType<Expression>(),
         SpeedWriteStatement sw => [sw.Value],
         RunFileStatement rf => [rf.Name],
+        ExternalCallStatement ec => ec.Arguments.Prepend(ec.Address).OfType<Expression>(),
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

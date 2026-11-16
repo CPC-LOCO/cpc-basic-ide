@@ -687,6 +687,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\trace.bas`.
 - **Fichiers :** Ast.cs (TraceStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs, `tests\CpcBasic.Tests\TraceTests.cs` (nouveau).
 
+## D089 : lot K2, commandes RSX et CALL avec valeurs (Validé dans WinAPE le 16 nov. 2026 : **le programme de référence de l'utilisateur se compile et donne le bon dessin** ; le fichier PACK-GPH.BIN qu'il enregistre fonctionne aussi depuis le BASIC : LOAD, CALL &A400, |GPRINT, |GPEN, |GPAS)
+- **But :** compiler le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md` : |GPEN,3, |GPAS,l,8, |GPRINT,@a$).
+- **Règle du firmware (comme le Locomotive) :** les valeurs sont posées sur la pile dans l'ordre, IX pointe sur la dernière (2 octets chacune, la dernière en premier), A = nombre de valeurs (32 au plus), et **DE = la dernière valeur** (premier essai du programme de référence : sans DE, |GPRINT dessinait des carrés, car ses routines prennent l'adresse du texte dans DE, |GPEN la couleur dans E). Un texte passe l'adresse de sa fiche de 3 octets (comme @a$). Au retour, les valeurs quittent la pile.
+- **|NOM :** le nom (dernière lettre avec le bit 7) est cherché par KL FIND COMMAND (&BCD4), puis appelé par KL FAR PCHL (&001B, HL = adresse, C = ROM) ; pas trouvé : « Unknown command » (erreur 28, interceptable par ON ERROR GOTO). **CALL adresse, valeurs :** même règle ; CALL adresse seul ne change pas.
+- **Fichiers :** Lexer.cs (TokenKind.Bar), Ast.cs (ExternalCallStatement), Parser.cs (ParseRsx, TryParseExternalArguments, HasTopLevelComma), CodeGenerator.cs, RuntimeLibrary.cs (module Rsx), Z80Emitter.cs (LD IX,nn ; ADD IX,SP), MiniZ80.cs (IX, KL FIND COMMAND, KL FAR PCHL), `tests\CpcBasic.Tests\RsxTests.cs` (nouveau).
+
 ---
 
 ## Notes de fin de session (modèle)

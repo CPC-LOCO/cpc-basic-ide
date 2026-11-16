@@ -15,6 +15,7 @@ public enum TokenKind
     Caret,        // ^ : puissance (lot D, D060)
     At,           // @ : adresse d'une variable (D061)
     Hash,         // # : numéro de fenêtre (flux) dans PRINT #1, WINDOW #1... (lot H1, D072)
+    Bar,          // | : commande RSX (|DISC, |GPEN,3...) (lot K2, D089)
     DataItem,     // un élément de DATA, tel qu'il est écrit (sans les espaces autour ; guillemets gardés) (D064)
     Colon,
     Semicolon,
@@ -227,6 +228,7 @@ public static class Lexer
                 '^' => TokenKind.Caret,
                 '@' => TokenKind.At,
                 '#' => TokenKind.Hash,
+                '|' => TokenKind.Bar,
                 '(' => TokenKind.LeftParen,
                 ')' => TokenKind.RightParen,
                 _ => null

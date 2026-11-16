@@ -380,6 +380,9 @@ public static class Parser
         if (t.Kind == TokenKind.Colon)
             return pos;   // instruction vide : le « : » est traité par l'appelant
 
+        if (t.Kind == TokenKind.Bar)
+            return ParseRsx(tokens, pos, statements, diagnostics);   // |NOM, valeurs (lot K2, D089)
+
         if (t.Kind != TokenKind.Word)
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, t.Line, t.Text));
@@ -653,6 +656,18 @@ public static class Parser
             case "ENV" or "ENT":
                 return ParseEnvelope(tokens, pos, statements, diagnostics);
 
+            case "CALL" when HasTopLevelComma(tokens, pos + 1):       // CALL adresse, valeurs (lot K2, D089)
+            {
+                pos++;
+                Expression? address = ParseExpression(tokens, ref pos, diagnostics);
+                if (address is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (!TryParseExternalArguments(tokens, ref pos, diagnostics, "CALL", out List<Expression> callArguments))
+                    return SkipToStatementEnd(tokens, pos);
+                statements.Add(new ExternalCallStatement(t.Line, null, address, callArguments));
+                return pos;
+            }
+
             case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
@@ -721,6 +736,61 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, t.Line, t.Text));
                 return SkipToStatementEnd(tokens, pos);
         }
+    }
+
+    // |NOM [, valeurs] : commande RSX (lot K2, D089). Le nom est un mot (lettres et chiffres), comme |DISC ou |GPEN.
+    static int ParseRsx(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+        if (tokens[pos].Kind != TokenKind.Word)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, line, IsLineEnd(tokens[pos]) ? "|" : tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        string name = tokens[pos].Text;
+        pos++;
+        if (!TryParseExternalArguments(tokens, ref pos, diagnostics, "|" + name, out List<Expression> arguments))
+            return SkipToStatementEnd(tokens, pos);
+        statements.Add(new ExternalCallStatement(line, name, null, arguments));
+        return pos;
+    }
+
+    // « , valeur » répété (32 au plus) : nombre, calcul, @variable ou texte (D089)
+    static bool TryParseExternalArguments(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
+                                          string command, out List<Expression> arguments)
+    {
+        arguments = new List<Expression>();
+        while (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+            if (value is null)
+                return false;
+            arguments.Add(value);
+        }
+        if (arguments.Count > 32)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, tokens[pos].Line, $"{arguments.Count}|32 valeurs au plus", command));
+            return false;
+        }
+        return true;
+    }
+
+    // Une virgule avant la fin de l'instruction, hors des parenthèses (CALL adresse, valeurs)
+    static bool HasTopLevelComma(IReadOnlyList<Token> tokens, int pos)
+    {
+        int depth = 0;
+        for (; !IsLineEnd(tokens[pos]) && tokens[pos].Kind != TokenKind.Colon && !IsWord(tokens[pos], "ELSE"); pos++)
+        {
+            if (tokens[pos].Kind == TokenKind.LeftParen)
+                depth++;
+            else if (tokens[pos].Kind == TokenKind.RightParen)
+                depth--;
+            else if (tokens[pos].Kind == TokenKind.Comma && depth == 0)
+                return true;
+        }
+        return false;
     }
 
     // INPUT [;] ["texte" ; ou ,] variable [, variable ...]
@@ -2896,6 +2966,13 @@ public static class Parser
 
                 case RunFileStatement runFile:
                     Uses(runFile.Name);
+                    break;
+
+                case ExternalCallStatement external:
+                    if (external.Address is not null)
+                        Uses(external.Address);
+                    foreach (Expression argument in external.Arguments)
+                        Uses(argument);
                     break;
 
                 case TimerStatement timer:
