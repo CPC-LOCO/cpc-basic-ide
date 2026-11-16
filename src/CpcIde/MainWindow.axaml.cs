@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     int visibleColumns;      // nombre de colonnes de caractères visibles dans la fenêtre d'édition
     bool closeConfirmed;   // vrai quand on a déjà demandé quoi faire des modifications avant de fermer
     bool realByDefault;    // ce programme : variables sans signe à virgule, comme le Locomotive (D066)
+    bool breakKey = true;  // ce programme : touche ESC comme le vrai BASIC (pause, « Break in N ») (D083)
 
     public MainWindow()
     {
@@ -110,6 +111,7 @@ public partial class MainWindow : Window
     void OnContrastClick(object? sender, RoutedEventArgs e) => ToggleContrast();
     void OnMachineClick(object? sender, RoutedEventArgs e) => NextMachine();
     void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
+    void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
 
     async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
@@ -194,6 +196,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleRealByDefault();
         }
+        else if (e.Key == Key.F9)
+        {
+            e.Handled = true;
+            ToggleBreakKey();
+        }
     }
 
     // Ctrl + molette : taille du texte
@@ -255,8 +262,24 @@ public partial class MainWindow : Window
             : "Variables sans signe (A, B...) : nombres entiers, plus rapides. A! sera un nombre à virgule.");
     }
 
+    // F9 : touche ESC comme le vrai BASIC, ou ignorée ; mémorisé pour ce programme (D083)
+    void ToggleBreakKey()
+    {
+        breakKey = !breakKey;
+        if (currentPath is not null)
+        {
+            settings.SetBreakIgnored(currentPath, !breakKey);
+            settings.Save();
+        }
+        UpdateOptionButtons();
+        ShowMessage(breakKey
+            ? "Touche ESC comme le vrai BASIC : une fois = pause, deux fois = « Break in … » et arrêt (sauf ON BREAK)."
+            : "Touche ESC ignorée (sauf ON BREAK dans le programme) : programme un peu plus petit et plus rapide.");
+    }
+
     void UpdateOptionButtons()
     {
+        BreakButton.Content = breakKey ? "ESC : comme le CPC (F9)" : "ESC : ignorée (F9)";
         MachineButton.Content = $"Machine : {CompilerOptions.MachineName(settings.Machine)} (F7)";
         RealButton.Content = realByDefault ? "Sans signe : à virgule (F8)" : "Sans signe : entiers (F8)";
         UpdateStatus();
@@ -384,6 +407,7 @@ public partial class MainWindow : Window
             SetText(text);
             currentPath = path;
             realByDefault = settings.IsRealByDefault(path);   // réglage mémorisé pour ce programme (D066)
+            breakKey = !settings.IsBreakIgnored(path);        // D083
             UpdateOptionButtons();
             UpdateTitle();
             ShowMessage($"Fichier ouvert : {path}");
@@ -416,9 +440,10 @@ public partial class MainWindow : Window
                 return false;
             }
             currentPath = chosen;
-            if (realByDefault)
+            if (realByDefault || !breakKey)
             {
-                settings.SetRealByDefault(chosen, true);       // le réglage suit le programme (D066)
+                settings.SetRealByDefault(chosen, realByDefault);   // les réglages suivent le programme (D066, D083)
+                settings.SetBreakIgnored(chosen, !breakKey);
                 settings.Save();
             }
         }
@@ -456,7 +481,7 @@ public partial class MainWindow : Window
         CompileResult result;
         try
         {
-            result = Compiler.CompileToDisk(Editor.Text, name, new CompilerOptions(settings.Machine, realByDefault));
+            result = Compiler.CompileToDisk(Editor.Text, name, new CompilerOptions(settings.Machine, realByDefault, breakKey));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -495,7 +520,8 @@ public partial class MainWindow : Window
             new MessageItem($"Compilation réussie : {dskPath}", 0),
             new MessageItem($"Programme Z80 : {result.BinarySize} octets. Modules liés : {modules}.", 0),
             new MessageItem($"Machine : {CompilerOptions.MachineName(settings.Machine)}. " +
-                            $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}.", 0),
+                            $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}. " +
+                            $"Touche ESC : {(breakKey ? "comme le CPC" : "ignorée")}.", 0),
             new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0),
             new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0)
         });
@@ -571,6 +597,7 @@ public partial class MainWindow : Window
         StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   [Larg : {visibleColumns}]   |   " +
                           $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}   |   " +
                           $"Machine : {CompilerOptions.MachineName(settings.Machine)}   |   " +
-                          $"Sans signe : {(realByDefault ? "à virgule" : "entiers")}";
+                          $"Sans signe : {(realByDefault ? "à virgule" : "entiers")}   |   " +
+                          $"ESC : {(breakKey ? "comme le CPC" : "ignorée")}";
     }
 }

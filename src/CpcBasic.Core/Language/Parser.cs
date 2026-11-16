@@ -2191,11 +2191,28 @@ public static class Parser
             return pos;
         }
 
-        // ON BREAK n'est pas encore géré
-        if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "BREAK")
+        // ON BREAK CONT | ON BREAK STOP | ON BREAK GOSUB ligne (lot I3b, D083)
+        if (IsWord(tokens[pos + 1], "BREAK"))
         {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, line, "ON " + tokens[pos + 1].Text));
-            return SkipToStatementEnd(tokens, pos);
+            pos += 2;
+            if (IsWord(tokens[pos], "CONT") || IsWord(tokens[pos], "STOP"))
+            {
+                statements.Add(new OnBreakStatement(line, tokens[pos].Text == "CONT" ? BreakMode.Cont : BreakMode.Stop));
+                return pos + 1;
+            }
+            if (IsWord(tokens[pos], "GOSUB"))
+                pos++;
+            else if (IsWord(tokens[pos], "GO") && IsWord(tokens[pos + 1], "SUB"))
+                pos += 2;
+            else
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, line, tokens[pos].Text, "ON BREAK"));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            if (!TryParseTarget(tokens, ref pos, diagnostics, out int breakTarget))
+                return SkipToStatementEnd(tokens, pos);
+            statements.Add(new OnBreakStatement(line, BreakMode.Gosub, breakTarget));
+            return pos;
         }
 
         pos++;
@@ -2261,6 +2278,9 @@ public static class Parser
                     break;
                 case OnSqStatement onSq:
                     Check(onSq.SourceLine, onSq.Target, "ON SQ");
+                    break;
+                case OnBreakStatement { Mode: BreakMode.Gosub } onBreak:
+                    Check(onBreak.SourceLine, onBreak.Target, "ON BREAK GOSUB");
                     break;
                 case OnErrorStatement { Target: > 0 } onError:
                     Check(onError.SourceLine, onError.Target, "ON ERROR GOTO");

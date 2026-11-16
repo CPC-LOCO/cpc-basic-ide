@@ -38,7 +38,22 @@ public sealed class EditorSettings
     /// </summary>
     public List<string> RealByDefaultFiles { get; set; } = new();
 
+    /// <summary>
+    /// Programmes (chemins complets) dont la touche ESC est ignorée (D083). Les autres : ESC comme le vrai BASIC
+    /// (pause, puis « Break in N »), le choix par défaut.
+    /// </summary>
+    public List<string> BreakIgnoredFiles { get; set; } = new();
+
     static string Key(string path) => Path.GetFullPath(path).ToUpperInvariant();
+
+    public bool IsBreakIgnored(string path) => BreakIgnoredFiles.Contains(Key(path));
+
+    public void SetBreakIgnored(string path, bool ignored)
+    {
+        BreakIgnoredFiles.Remove(Key(path));
+        if (ignored)
+            BreakIgnoredFiles.Add(Key(path));
+    }
 
     public bool IsRealByDefault(string path) => RealByDefaultFiles.Contains(Key(path));
 
@@ -65,6 +80,7 @@ public sealed class EditorSettings
                 {
                     settings.FontSize = Math.Clamp(settings.FontSize, MinFontSize, MaxFontSize);
                     settings.RealByDefaultFiles ??= new();
+                    settings.BreakIgnoredFiles ??= new();
                     if (!Enum.IsDefined(settings.Machine))
                         settings.Machine = TargetMachine.AllCpc;
                     return settings;

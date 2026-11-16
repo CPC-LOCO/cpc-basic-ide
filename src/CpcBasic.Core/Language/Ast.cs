@@ -291,6 +291,12 @@ public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnly
     public bool IsStart(Statement statement) => Starts is null || Starts.Contains(statement);
 }
 
+/// <summary>Ce que fait la touche ESC (D083) : rien (CONT), pause puis « Break in N » (STOP), pause puis appel (GOSUB).</summary>
+public enum BreakMode { Cont = 0, Stop = 1, Gosub = 2 }
+
+/// <summary>ON BREAK CONT, ON BREAK STOP, ON BREAK GOSUB ligne (lot I3b, D083).</summary>
+public sealed record OnBreakStatement(int SourceLine, BreakMode Mode, int Target = 0) : Statement(SourceLine);
+
 /// <summary>ON SQ(canal) GOSUB ligne : appel quand la file du canal (1, 2 ou 4) a une place libre (lot I3a, D082).</summary>
 public sealed record OnSqStatement(int SourceLine, Expression Channel, int Target) : Statement(SourceLine);
 

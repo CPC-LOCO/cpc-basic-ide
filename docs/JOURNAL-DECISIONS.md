@@ -640,6 +640,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Référence ON BREAK GOSUB (SugarBox, 16 nov. 2026) :** premier ESC : pause (curseur affiché) ; une autre touche : reprise sans appel ; deuxième ESC : appel du sous-programme, puis le programme continue ; marche à chaque fois (BREAK 1, 2, 3…).
 - **Fichiers :** Ast.cs (OnSqStatement), Parser.cs, Diagnostic.cs (messages de ON ERROR et ON SQ), CodeGenerator.cs, RuntimeLibrary.cs (EmitEvents, EventsSound), MiniZ80.cs (files sonores), `tests\CpcBasic.Tests\OnSqTests.cs` (nouveau), JumpTests.cs.
 
+## D083 : lot I3b, ON BREAK CONT / STOP / GOSUB et réglage de la touche ESC (Validé le 16 nov. 2026 : 1115 tests réussis ; `touchesc.bas` correct dans WinAPE)
+- **Références (SugarBox, 16 nov. 2026) :** ON BREAK GOSUB : premier ESC = pause (curseur affiché), une autre touche = reprise sans appel, ESC encore = appel puis reprise, à chaque fois. ON BREAK CONT : ESC sans aucun effet (pas de pause). ON BREAK STOP : comportement normal, « Break in 30 » à la ligne puis arrêt.
+- **Réglage F9 de l'éditeur (décision de l'utilisateur, D082) :** « ESC : comme le CPC » (par défaut) ou « ESC : ignorée », mémorisé pour chaque programme (comme F8). Ignorée : rien n'est ajouté au programme, sauf s'il contient ON BREAK (alors ESC est ignorée jusqu'au premier ON BREAK). Dans la bibliothèque (CompilerOptions.BreakKey), la valeur par défaut reste « ignorée », pour garder les programmes de test identiques.
+- **Réalisation :** le compteur des minuteries (tous les 1/50 s) regarde la touche ESC (KM TEST KEY 66) ; un nouvel appui est marqué, et traité entre deux instructions avant tout le reste (DI ne le retient pas) : file du clavier vidée ; CONT : rien ; sinon pause (TXT PLACE CURSOR, KM WAIT CHAR) ; ESC : « Break in N » (STOP) ou appel (GOSUB, au-dessus de toutes les minuteries) ; autre touche : on continue. Chaque ligne range son numéro (6 octets par ligne) pour « Break in N ». Modules : EventsBreak, EventsSoundBreak.
+- **Limites :** ESC n'est vue qu'entre deux instructions : pas pendant INPUT, une attente de touche ou un CALL ; après un retour de GOSUB au milieu d'une ligne, « Break in » peut donner la ligne du sous-programme.
+- **Exemple :** `examples\touchesc.bas`. Premier essai : un appel tombé entre `LOCATE 1,5` et `PRINT N` a fait écrire le compteur sous « BREAK » (le vrai BASIC peut faire pareil) ; la ligne 50 place maintenant le curseur et écrit en une seule instruction (PRINT CHR$(31);CHR$(1);CHR$(5);N;).
+- **Fichiers :** CompilerOptions.cs, Ast.cs (OnBreakStatement, BreakMode), Parser.cs, Diagnostic.cs, CodeGenerator.cs, RuntimeLibrary.cs, `src\CpcIde\MainWindow.axaml`, `MainWindow.axaml.cs`, `EditorSettings.cs` ; MiniZ80.cs (touches tapées à un moment donné), `tests\CpcBasic.Tests\BreakTests.cs` (nouveau), JumpTests.cs.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -172,6 +172,7 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
                 "" => $"ON attend GOTO ou GOSUB après la valeur.{Why}",
                 "ON ERROR" => $"ON ERROR attend GOTO puis un numéro de ligne (exemple : ON ERROR GOTO 1000).{Why}",
                 "ON SQ" => $"ON SQ attend GOSUB puis un numéro de ligne (exemple : ON SQ(1) GOSUB 100).{Why}",
+                "ON BREAK" => $"ON BREAK attend CONT, STOP, ou GOSUB puis un numéro de ligne (exemple : ON BREAK GOSUB 100).{Why}",
                 _ => $"{Context} attend GOSUB puis un numéro de ligne (exemple : {Context} 50 GOSUB 100).{Why}"
             },
         DiagnosticCode.ProgramTooLarge =>

@@ -1604,14 +1604,23 @@ public static class CodeGenerator
         }
 
         // Minuteries (lot I1, D079) : le compteur du firmware est branché au départ
-        bool usesEvents = program.Statements.Any(st => st is TimerStatement or OnSqStatement);   // D079, D082
+        // Touche ESC (D083) : réglage F9 de l'éditeur, ou ON BREAK dans le programme
+        bool usesBreak = options.BreakKey || program.Statements.Any(st => st is OnBreakStatement);
+        bool usesEvents = usesBreak || program.Statements.Any(st => st is TimerStatement or OnSqStatement);   // D079, D082
         bool usesOnError = program.Statements.Any(st => st is OnErrorStatement);   // D080
         var errorRecords = new List<(int Index, int Line)>();
         if (usesEvents)
         {
             required.Add(RuntimeLibrary.EventsName);
             emitter.CallLabel(RuntimeLibrary.EventsInitLabel);
+            if (usesBreak)
+            {
+                // Au départ : ESC comme le vrai BASIC (STOP) si le réglage est mis, sinon ignorée (CONT) (D083)
+                emitter.LdAImm(options.BreakKey ? (int)BreakMode.Stop : (int)BreakMode.Cont);
+                emitter.LdMemA(RuntimeLibrary.BreakModeLabel);
+            }
         }
+        int breakLine = -1;   // dernière ligne rangée pour « Break in N » (D083)
 
         int statementIndex = 0;
         int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
@@ -1621,6 +1630,18 @@ public static class CodeGenerator
             if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
                 basicLine = numbersHere.Max();
             EmitLineLabels(statementIndex++);
+
+            // Touche ESC (D083) : chaque ligne range son numéro avant de regarder les événements, pour « Break in N »
+            if (usesBreak && program.IsStart(statement))
+            {
+                int here = program.LineTable.Count > 0 ? basicLine : statement.SourceLine;
+                if (here != breakLine)
+                {
+                    breakLine = here;
+                    emitter.LdHlImm(here);
+                    emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
+                }
+            }
 
             // Minuteries (D079) : au début de chaque ligne et avant chaque fin de boucle, on regarde si une minuterie
             // est arrivée au bout (7 octets ; pas au milieu d'un PRINT #n). Seulement si le programme utilise AFTER, EVERY.
@@ -1715,6 +1736,17 @@ public static class CodeGenerator
                     EmitExpression(error.Code);
                     required.Add(RuntimeLibrary.ErrorCodesName);
                     emitter.JpLabel(RuntimeLibrary.RaiseLabel);
+                    break;
+
+                case OnBreakStatement onBreak:                      // ON BREAK CONT / STOP / GOSUB ligne (D083)
+                    required.Add(RuntimeLibrary.EventsName);
+                    if (onBreak.Mode == BreakMode.Gosub)
+                    {
+                        emitter.LdHlLabel(LineLabel(onBreak.Target));
+                        emitter.LdMemHl(RuntimeLibrary.BreakTargetLabel);
+                    }
+                    emitter.LdAImm((int)onBreak.Mode);
+                    emitter.LdMemA(RuntimeLibrary.BreakModeLabel);
                     break;
 
                 case OnSqStatement onSq:                            // ON SQ(canal) GOSUB ligne (D082)
@@ -2453,11 +2485,11 @@ public static class CodeGenerator
         emitter.JpAddress(0);
 
         // Liaison sélective : seuls les modules utilisés sont écrits dans le binaire
-        // ON SQ : le module des minuteries est remplacé par celui qui gère aussi les canaux sonores (D082)
-        if (required.Contains(RuntimeLibrary.EventsName) && program.Statements.Any(st => st is OnSqStatement))
+        // ON SQ (D082) et touche ESC (D083) : le module des minuteries est remplacé par celui qui les gère aussi
+        if (required.Contains(RuntimeLibrary.EventsName))
         {
             required.Remove(RuntimeLibrary.EventsName);
-            required.Add(RuntimeLibrary.EventsSoundName);
+            required.Add(RuntimeLibrary.EventsModuleName(program.Statements.Any(st => st is OnSqStatement), usesBreak));
         }
         List<RuntimeModule> modules = Linker.Resolve(required);
         foreach (RuntimeModule module in modules)

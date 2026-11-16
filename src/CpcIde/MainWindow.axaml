@@ -64,6 +64,9 @@
                     AutomationProperties.Name="Machine cible" />
             <Button x:Name="RealButton" Content="Sans signe : entiers (F8)" Click="OnRealClick"
                     AutomationProperties.Name="Variables sans signe" />
+            <!-- Touche ESC (D083) : comme le vrai BASIC, ou ignorée -->
+            <Button x:Name="BreakButton" Content="ESC : comme le CPC (F9)" Click="OnBreakClick"
+                    AutomationProperties.Name="Touche ESC" />
         </WrapPanel>
 
         <!-- Barre d'état tout en bas -->

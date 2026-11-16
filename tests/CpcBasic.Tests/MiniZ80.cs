@@ -71,6 +71,37 @@ internal sealed class MiniZ80
     // Files sonores (ON SQ, D082) : si SoundQueueModel, chaque canal joue un son (durée en tops de 1/50 s) et en garde
     // 4 en attente ; SOUND ARM EVENT appelle la routine de l'événement dès qu'il y a une place, une seule fois.
     public bool SoundQueueModel;
+
+    // Touches tapées à un moment donné (D083) : au top Tick, la touche arrive dans la file du clavier ; ESC (&FC) est
+    // aussi enfoncée pendant 2 tops (KM TEST KEY 66). KM WAIT CHAR sans touche prête fait avancer le temps jusqu'à la
+    // prochaine.
+    public readonly List<(int Tick, byte Key)> TimedKeys = new();
+    int escReleaseAt;
+
+    void PressKey(byte key)
+    {
+        if (key == 0xFC)
+        {
+            Keys[66] = 1;
+            escReleaseAt = Ticks + 2;
+        }
+        KeyQueue.Enqueue(key);
+    }
+
+    void TimedKeysTick()
+    {
+        if (escReleaseAt > 0 && Ticks >= escReleaseAt)
+        {
+            Keys.Remove(66);
+            escReleaseAt = 0;
+        }
+        while (TimedKeys.Count > 0 && TimedKeys[0].Tick <= Ticks)
+        {
+            byte key = TimedKeys[0].Key;
+            TimedKeys.RemoveAt(0);
+            PressKey(key);
+        }
+    }
     readonly Dictionary<int, ushort> eventBlocks = new();
     readonly int[] soundPlaying = new int[3];
     readonly Queue<int>[] soundWaiting = [new(), new(), new()];
@@ -194,6 +225,7 @@ internal sealed class MiniZ80
             if (TickRoutine != 0 && InterruptsEnabled && steps % TickSteps == 0)
             {
                 Ticks++;
+                TimedKeysTick();                    // touches tapées à ce moment (D083)
                 Push((ushort)pc);                   // un « top » de 1/50 s : la routine du compteur est appelée (D079)
                 pc = TickRoutine;
                 if (SoundQueueModel)
@@ -610,6 +642,13 @@ internal sealed class MiniZ80
                 }
                 else if (address == 0xBB06)
                 {
+                    if (KeyQueue.Count == 0 && TimedKeys.Count > 0)
+                    {
+                        Ticks = Math.Max(Ticks, TimedKeys[0].Tick);   // on attend la prochaine touche tapée (D083)
+                        byte key = TimedKeys[0].Key;
+                        TimedKeys.RemoveAt(0);
+                        PressKey(key);
+                    }
                     if (KeyQueue.Count == 0)
                         throw new InvalidOperationException("Le programme attend une touche, mais il n'y en a plus de prévues.");
                     A = KeyQueue.Dequeue();                            // KM WAIT CHAR

@@ -165,16 +165,6 @@ public class JumpTests
         Assert.Contains(Errors("10 ON X PRINT 1"), e => e.Code == DiagnosticCode.ExpectedGoto);
     }
 
-    [Theory]
-    [InlineData("10 ON BREAK GOSUB 20\n20 RETURN", "ON BREAK")]
-    public void ON_BREAK_n_est_pas_encore_gere(string source, string name)   // ON ERROR : D080, ON SQ : D082
-    {
-        Diagnostic error = Assert.Single(Errors(source));
-
-        Assert.Equal(DiagnosticCode.UnknownCommand, error.Code);
-        Assert.Equal(name, error.Argument);
-    }
-
     [Fact]
     public void Un_ON_utilise_ses_variables_comme_les_autres_instructions()
     {

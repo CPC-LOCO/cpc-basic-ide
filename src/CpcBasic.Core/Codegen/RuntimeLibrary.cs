@@ -144,6 +144,20 @@ public static class RuntimeLibrary
     public const string EventsName = "Events";
     public const string EventsSoundName = "EventsSound";        // Events avec ON SQ GOSUB (D082)
     public const string SoundEventSetLabel = "rt_sq_set";       // ON SQ : HL = canal, DE = ligne
+    public const string EventsBreakName = "EventsBreak";        // Events avec la touche ESC (D083)
+    public const string EventsSoundBreakName = "EventsSoundBreak";
+    public const string BreakModeLabel = "rt_brk_mode";         // 0 : ESC ignorée, 1 : pause puis Break, 2 : pause puis appel
+    public const string BreakTargetLabel = "rt_brk_t";          // ligne de ON BREAK GOSUB
+
+    /// <summary>Le module des événements qui convient : minuteries, avec ou sans ON SQ, avec ou sans la touche ESC.</summary>
+    public static string EventsModuleName(bool sound, bool brk) =>
+        (sound, brk) switch
+        {
+            (false, false) => EventsName,
+            (true, false) => EventsSoundName,
+            (false, true) => EventsBreakName,
+            _ => EventsSoundBreakName
+        };
     public const string EventsInitLabel = "rt_ev_init";         // au départ : branche le compteur du firmware (1/50 s)
     public const string EventsPendingLabel = "rt_ev_pending";   // octet : 1 si une minuterie est arrivée au bout
     public const string EventsRunLabel = "rt_ev_run";           // appelé entre deux instructions si rt_ev_pending
@@ -1091,10 +1105,13 @@ public static class RuntimeLibrary
         // les sous-programmes partent de la minuterie 3 (la plus prioritaire) à 0. Pendant l'un d'eux, seules les
         // minuteries plus prioritaires peuvent partir ; DI les retient toutes jusqu'à EI.
         // Table : 8 octets par minuterie : active, compte (2), recharge (2), cible (2), marquée.
-        [EventsName] = new RuntimeModule(EventsName, [ErrorName, GosubName], e => EmitEvents(e, false)),
+        [EventsName] = new RuntimeModule(EventsName, [ErrorName, GosubName], e => EmitEvents(e, false, false)),
 
-        // Les mêmes, avec ON SQ(canal) GOSUB (lot I3a, D082) : remplace le module Events quand le programme s'en sert
-        [EventsSoundName] = new RuntimeModule(EventsSoundName, [ErrorName, GosubName], e => EmitEvents(e, true)),
+        // Les mêmes, avec ON SQ(canal) GOSUB (lot I3a, D082) et / ou la touche ESC (lot I3b, D083) : remplacent le
+        // module Events quand le programme s'en sert
+        [EventsSoundName] = new RuntimeModule(EventsSoundName, [ErrorName, GosubName], e => EmitEvents(e, true, false)),
+        [EventsBreakName] = new RuntimeModule(EventsBreakName, [ErrorName, GosubName], e => EmitEvents(e, false, true)),
+        [EventsSoundBreakName] = new RuntimeModule(EventsSoundBreakName, [ErrorName, GosubName], e => EmitEvents(e, true, true)),
 
         // SYMBOL caractère, lignes (D075) : TXT SET MATRIX (&BBA8) ; caractère pas redessinable : « Improper argument »
         // (comme le vrai BASIC : SYMBOL 65,255 sans SYMBOL AFTER 65 ou moins).
@@ -4515,8 +4532,8 @@ public static class RuntimeLibrary
             ? module
             : throw new InvalidOperationException($"Module inconnu dans la bibliothèque : {name}");
 
-    // Minuteries (D079) et, si sound, événements des canaux sonores (ON SQ, D082)
-    static void EmitEvents(Z80Emitter e, bool sound)
+    // Minuteries (D079) ; si sound, événements des canaux sonores (ON SQ, D082) ; si brk, la touche ESC (D083)
+    static void EmitEvents(Z80Emitter e, bool sound, bool brk)
     {
         e.Label(EventsInitLabel);
         if (sound)
@@ -4542,6 +4559,31 @@ public static class RuntimeLibrary
         e.Label("rt_ev_tick");
         e.PushAf();
         e.PushHl();
+        if (brk)
+        {
+            // Touche ESC (D083) : un nouvel appui (elle n'était pas enfoncée au top d'avant) est marqué
+            e.PushBc();
+            e.PushDe();
+            e.LdAImm(66);
+            e.CallAddress(0xBB1E);                   // KM TEST KEY : NZ si ESC est enfoncée
+            e.LdAImm(0);
+            e.JrZLabel("rt_brk_up");
+            e.IncA();
+            e.Label("rt_brk_up");
+            e.LdCA();                                // C = enfoncée maintenant
+            e.LdHlLabel("rt_brk_down");
+            e.LdAHl();
+            e.StoreHlC();
+            e.OrA();
+            e.JrNzLabel("rt_brk_held");              // déjà enfoncée : rien de nouveau
+            e.OrC();
+            e.JrZLabel("rt_brk_held");
+            e.LdMemA("rt_brk_p");                    // A = 1
+            e.LdMemA(EventsPendingLabel);
+            e.Label("rt_brk_held");
+            e.PopDe();
+            e.PopBc();
+        }
         for (int t = 0; t < 4; t++)
         {
             e.LdAMem($"rt_ev_a{t}");
@@ -4571,6 +4613,50 @@ public static class RuntimeLibrary
 
         // Entre deux instructions : lance les sous-programmes des minuteries marquées
         e.Label(EventsRunLabel);
+        if (brk)
+        {
+            // Touche ESC (D083), avant tout (DI ne la retient pas). ON BREAK CONT : rien. Sinon : pause (curseur
+            // affiché) jusqu'à une touche ; ESC : « Break in N » (ON BREAK STOP) ou appel (ON BREAK GOSUB) ; une autre
+            // touche : on continue, comme le vrai BASIC (SugarBox, 16 nov. 2026).
+            e.LdAMem("rt_brk_p");
+            e.OrA();
+            e.JrZLabel("rt_brk_none");
+            e.XorA();
+            e.LdMemA("rt_brk_p");
+            e.CallLabel("rt_brk_flush");             // le caractère d'ESC (&FC) quitte la file du clavier
+            e.LdAMem(BreakModeLabel);
+            e.OrA();
+            e.JrZLabel("rt_brk_none");               // ON BREAK CONT
+            e.CallAddress(0xBB8A);                   // TXT PLACE CURSOR
+            e.CallAddress(0xBB06);                   // KM WAIT CHAR
+            e.PushAf();
+            e.CallAddress(0xBB8D);                   // TXT REMOVE CURSOR
+            e.LdAImm(1);
+            e.LdMemA("rt_brk_down");                 // cette touche ne compte pas comme un nouvel appui
+            e.XorA();
+            e.LdMemA("rt_brk_p");
+            e.CallLabel("rt_brk_flush");
+            e.PopAf();
+            e.CpImm(0xFC);                           // ESC ?
+            e.JrNzLabel("rt_brk_none");              // une autre touche : on continue
+            e.LdAMem(BreakModeLabel);
+            e.CpImm(2);
+            e.JrZLabel("rt_brk_gosub");
+            e.LdHlLabel(BreakMessageLabel);          // « Break in N », puis fin comme STOP
+            e.JpLabel(ErrorShowLabel);
+            e.Label("rt_brk_gosub");
+            e.LdAMem("rt_ev_lvl");
+            e.PushAf();
+            e.LdAImm(5);                             // au-dessus de toutes les minuteries
+            e.LdMemA("rt_ev_lvl");
+            e.LdHlLabel(GosubCountLabel);
+            e.IncMemHl();
+            e.LdHlMem(BreakTargetLabel);
+            e.CallLabel("rt_ev_jphl");               // GOSUB ligne : revient ici par RETURN
+            e.PopAf();
+            e.LdMemA("rt_ev_lvl");
+            e.Label("rt_brk_none");
+        }
         e.LdAMem(EventsDiLabel);
         e.OrA();
         e.RetNz();                               // DI : rien pour l'instant
@@ -4705,6 +4791,23 @@ public static class RuntimeLibrary
         e.Reserve(6);
         e.Label("rt_ev_blk_ev");
         e.Reserve(10);
+
+        if (brk)
+        {
+            // Vide la file du clavier (KM READ CHAR jusqu'à ce qu'il n'y ait plus rien)
+            e.Label("rt_brk_flush");
+            e.CallAddress(0xBB09);
+            e.JrCLabel("rt_brk_flush");
+            e.Ret();
+            e.Label(BreakModeLabel);
+            e.Reserve(1);
+            e.Label("rt_brk_p");
+            e.Reserve(1);
+            e.Label("rt_brk_down");
+            e.Reserve(1);
+            e.Label(BreakTargetLabel);
+            e.Reserve(2);
+        }
 
         if (!sound)
             return;

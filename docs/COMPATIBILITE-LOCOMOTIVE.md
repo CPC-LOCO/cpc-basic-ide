@@ -17,7 +17,7 @@ Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État rel
 
 ## Résumé
 
-Mise à jour le 16 nov. 2026, après le lot H. Sur **151 entrées** du Locomotive BASIC (hors mode direct) : **87** faites, **13** partielles, **2** écarts voulus, **49** à faire. Les **7** commandes du mode direct deviennent des commandes de l'éditeur (D077), à faire. Le projet ajoute en plus des entrées nouvelles (section 13).
+Mise à jour le 16 nov. 2026, après le lot I. Sur **151 entrées** du Locomotive BASIC (hors mode direct) : **101** faites, **11** partielles, **2** écarts voulus, **37** à faire. Les **7** commandes du mode direct deviennent des commandes de l'éditeur (D077), à faire. Le projet ajoute en plus des entrées nouvelles (section 13).
 
 Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER ») : ces nombres comptent des lignes du tableau, pas des mots du dictionnaire.
 
@@ -26,7 +26,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 Mise à jour le 16 nov. 2026 :
 
 1. **FOR avec une limite ou un pas calculés** (`FOR I = 1 TO N`) : fait et validé le 16 nov. 2026 (D078).
-2. **Les interruptions et les erreurs** (lot I) : AFTER, EVERY, ON ERROR GOTO, ON BREAK… indispensables aux jeux et aux programmes soignés.
+2. **Les interruptions et les erreurs** (lot I) : AFTER, EVERY, ON ERROR GOTO, ON SQ, ON BREAK : faits le 16 nov. 2026 (D079 à D083).
 3. **La disquette et la cassette** (lot J) : LOAD, SAVE, fichiers de données.
 4. **Les commandes RSX et CALL avec des valeurs** : nécessaires au programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`).
 
@@ -54,7 +54,7 @@ Mise à jour le 16 nov. 2026 :
 | `CLEAR` | efface les variables | À faire |  |
 | `CLEAR INPUT` | vide le tampon du clavier | Faite |  |
 | `TRON / TROFF` | suivi des lignes (débogage) | À faire | Utilité à décider. |
-| `ON BREAK CONT / GOSUB / STOP` | réaction à la touche ESC | À faire |  |
+| `ON BREAK CONT / GOSUB / STOP` | réaction à la touche ESC | Faite | D083. Touche ESC : réglage F9 de l'éditeur (comme le CPC par défaut). |
 | `ON ERROR GOTO` | réaction à une erreur | Faite | D080. |
 | `RESUME` | reprise après une erreur | Faite | RESUME, RESUME NEXT, RESUME ligne (D080). |
 | `ERROR` | provoque une erreur | Faite | D080. |
