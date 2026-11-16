@@ -38,13 +38,13 @@ Mise à jour le 16 nov. 2026 :
 | `:` | sépare deux instructions sur une ligne | Faite |  |
 | `LET (et affectation sans LET)` | donne une valeur à une variable | Faite | Entiers 16 bits seulement. |
 | `END` | termine le programme | Faite | Le programme attend une touche puis redémarre. |
-| `STOP` | arrête le programme | Partielle | Se comporte comme END : pas de message « Break in … ». |
+| `STOP` | arrête le programme | Faite | « Break in N » puis fin (D081). Pas de CONT dans un programme compilé. |
 | `FOR … TO … STEP … NEXT` | boucle comptée | Faite | Limite et pas écrits ou calculés (D078) ; test au début ; après la boucle, la variable vaut la valeur suivante, comme le Locomotive. |
 | `WHILE … WEND` | boucle tant que | Faite | Condition : toute valeur (vraie si elle n'est pas 0), comme le Locomotive. D060. |
 | `IF … THEN … ELSE` | condition | Faite | Condition : toute valeur (vraie si elle n'est pas 0), D060. `THEN 100` et `ELSE 200` (numéro de ligne seul) sont acceptés. Le bloc sur plusieurs lignes avec END IF est un ajout du projet. |
 | `GOTO / GO TO` | saut à une ligne | Faite | Numéro de ligne écrit en chiffres (1 à 65529) ; ligne inexistante refusée à la compilation. |
 | `GOSUB / GO SUB` | appel d'un sous-programme | Faite | Comme GOTO. |
-| `RETURN` | retour d'un sous-programme | Partielle | Un RETURN sans GOSUB n'est pas détecté (le CPC afficherait « Unexpected RETURN »). |
+| `RETURN` | retour d'un sous-programme | Faite | RETURN sans GOSUB : « Unexpected RETURN in N » (D081). |
 | `ON x GOTO` | saut selon une valeur | Partielle | Valeur hors de 1 à N : le programme continue (pas d'erreur pour une valeur négative). |
 | `ON x GOSUB` | appel selon une valeur | Partielle | Comme ON x GOTO. |
 | `CALL` | appelle un programme en langage machine | Partielle | Adresse seule, sans paramètres. |

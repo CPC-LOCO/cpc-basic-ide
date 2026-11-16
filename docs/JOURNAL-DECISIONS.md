@@ -624,6 +624,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** ERROR, RESUME, ERR, ERL.
 - **Fichiers :** Ast.cs (OnErrorStatement, ResumeStatement, ErrorStatement, BasicProgram.Starts), Parser.cs, Z80Emitter.cs (LD (nn),SP ; LD SP,(nn)), CodeGenerator.cs, RuntimeLibrary.cs (RunError, Div16, ErrorCodes, OnError), RealRuntime.cs, MiniZ80.cs, `tests\CpcBasic.Tests\OnErrorTests.cs` (nouveau), JumpTests.cs ; exemple `examples\erreurs.bas`.
 
+## D081 : lot I2b, « Break in N » de STOP et « Unexpected RETURN » (Validé le 16 nov. 2026 : 1093 tests réussis ; `retour.bas` correct dans WinAPE)
+- **Référence (SugarBox, 16 nov. 2026) :** `10 GOSUB 100:PRINT "A"` / `20 STOP` / `30 RETURN` / `100 RETURN` : « A », « Break in 20 » ; après CONT : « Unexpected RETURN in 30 ».
+- **STOP :** affiche « Break in N » (à la ligne si le curseur n'est pas au début), puis attend une touche et termine comme END. Pas intercepté par ON ERROR. Il n'y a pas de CONT dans un programme compilé.
+- **RETURN sans GOSUB :** GOSUB, ON … GOSUB et l'appel d'une minuterie comptent les appels en cours (un octet, module Gosub) ; RETURN sans appel en cours donne l'erreur 3, « Unexpected RETURN in N », que ON ERROR GOTO peut intercepter. Coût : 4 octets par GOSUB, RETURN devient un saut vers rt_return.
+- **Exemple :** `examples\retour.bas` (A, ERREUR 3 LIGNE 40, puis Break in 50).
+- **Fichiers :** CodeGenerator.cs, RuntimeLibrary.cs (module Gosub, message Break), JumpTests.cs (les octets de GOSUB et STOP ont changé).
+
 ---
 
 ## Notes de fin de session (modèle)

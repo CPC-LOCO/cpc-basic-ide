@@ -108,6 +108,12 @@ public static class RuntimeLibrary
     public const string ErrorSoftLabel = "rt_err_soft";         // erreur qui laisse continuer (Overflow, Division by zero)
     public const string ErrorShowLabel = "rt_err_show";         // affiche « message in N » sans interception
 
+    // RETURN sans GOSUB, STOP (lot I2b, D081)
+    public const string GosubName = "Gosub";
+    public const string GosubCountLabel = "rt_gosub_n";         // octet : GOSUB en cours (non revenus)
+    public const string ReturnLabel = "rt_return";              // RETURN : « Unexpected RETURN » s'il n'y a pas de GOSUB en cours
+    public const string BreakMessageLabel = "rt_err_break";     // « Break » (STOP : « Break in 20 »)
+
     // ON ERROR GOTO, RESUME, ERROR, ERR, ERL (lot I2, D080)
     public const string OnErrorName = "OnError";
     public const string ErrorCodesName = "ErrorCodes";
@@ -885,6 +891,26 @@ public static class RuntimeLibrary
         // espaces (ou étoiles) à gauche ; plus long : « % » puis le nombre entier.
         [PrintUsingName] = new RuntimeModule(PrintUsingName, [RealPrintName, PrintFitName], EmitUsingNumber),
 
+        // GOSUB compte les appels en cours ; RETURN sans appel en cours : « Unexpected RETURN in N », comme le vrai BASIC
+        // (lot I2b, D081). Le compteur tient sur un octet.
+        [GosubName] = new RuntimeModule(GosubName, [ErrorName], e =>
+        {
+            e.Label(ReturnLabel);
+            e.LdHlLabel(GosubCountLabel);
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_ret_bad");
+            e.DecMemHl();
+            e.Ret();                                 // retour du GOSUB
+            e.Label("rt_ret_bad");
+            e.LdHlLabel("rt_ret_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_ret_msg");
+            e.Data(Ascii("Unexpected RETURN"));
+            e.Label(GosubCountLabel);
+            e.Reserve(1);
+        }),
+
         // Les messages d'erreur du Locomotive et leur numéro (lot I2, D080).
         //  rt_ec_code : HL = message -> A = numéro (0 s'il est inconnu).
         //  rt_raise   : ERROR numéro. HL = numéro (1 à 255, sinon Improper argument) : erreur de ce numéro, avec son
@@ -1063,7 +1089,7 @@ public static class RuntimeLibrary
         // les sous-programmes partent de la minuterie 3 (la plus prioritaire) à 0. Pendant l'un d'eux, seules les
         // minuteries plus prioritaires peuvent partir ; DI les retient toutes jusqu'à EI.
         // Table : 8 octets par minuterie : active, compte (2), recharge (2), cible (2), marquée.
-        [EventsName] = new RuntimeModule(EventsName, [ErrorName], e =>
+        [EventsName] = new RuntimeModule(EventsName, [ErrorName, GosubName], e =>
         {
             e.Label(EventsInitLabel);
             e.LdHlLabel("rt_ev_blk_ev");
@@ -1130,6 +1156,8 @@ public static class RuntimeLibrary
                 e.LdMemA($"rt_ev_p{t}");
                 e.LdAImm(t + 1);
                 e.LdMemA("rt_ev_lvl");
+                e.LdHlLabel(GosubCountLabel);        // compte comme un GOSUB (son RETURN le décompte, D081)
+                e.IncMemHl();
                 e.LdHlMem($"rt_ev_t{t}");
                 e.CallLabel("rt_ev_jphl");           // GOSUB ligne : revient ici par RETURN
                 e.PopAf();
@@ -1524,6 +1552,8 @@ public static class RuntimeLibrary
             e.Reserve(2);
             e.Label(ErrorTrapLabel);
             e.Reserve(2);
+            e.Label(BreakMessageLabel);
+            e.Data(Ascii("Break"));
             e.Label("rt_err_in");
             e.Data(Ascii(" in "));
             e.Label("rt_err_crlf");

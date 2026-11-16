@@ -194,27 +194,41 @@ public class JumpTests
     }
 
     [Fact]
-    public void GOSUB_appelle_la_ligne_et_RETURN_fait_RET()
+    public void GOSUB_compte_l_appel_puis_appelle_la_ligne()
     {
         byte[] code = Generate("10 GOSUB 30\n20 END\n30 RETURN").Code;
 
-        // CALL 0x4006 / JP fin (0x4007) / RET
-        Assert.Equal(new byte[] { 0xCD, 0x06, 0x40, 0xC3, 0x07, 0x40, 0xC9 }, code.Take(7).ToArray());
+        // LD HL,compteur / INC (HL) / CALL ligne 30 (D081)
+        Assert.Equal(0x21, code[0]);
+        Assert.Equal(0x34, code[3]);
+        Assert.Equal(0xCD, code[4]);
     }
 
     [Fact]
-    public void STOP_saute_a_la_fin_du_programme_comme_END()
+    public void Les_sauts_lient_seulement_le_compteur_des_GOSUB()
     {
-        byte[] stop = Generate("10 STOP").Code;
-        byte[] end = Generate("10 END").Code;
-
-        Assert.Equal(end, stop);
+        Assert.Equal(new[] { "Gosub", "PrintString", "RunError" },
+                     Generate("10 GOSUB 30\n20 END\n30 RETURN").Modules.OrderBy(m => m));   // D081
+        Assert.Empty(Generate("10 GOTO 20\n20 END").Modules);
     }
 
     [Fact]
-    public void Les_sauts_ne_lient_aucun_module()
+    public void RETURN_sans_GOSUB_Unexpected_RETURN()
     {
-        Assert.Empty(Generate("10 GOSUB 30\n20 END\n30 RETURN").Modules);
+        // vrai BASIC (SugarBox, 16 nov. 2026) : « Unexpected RETURN in 30 »
+        Assert.Equal("A\r\nUnexpected RETURN in 20\r\n", Run("10 PRINT \"A\"\n20 RETURN"));
+    }
+
+    [Fact]
+    public void RETURN_sans_GOSUB_est_l_erreur_3()
+    {
+        Assert.Equal(" 3 \r\n", Run("10 ON ERROR GOTO 100\n20 RETURN\n30 END\n100 PRINT ERR\n110 END"));
+    }
+
+    [Fact]
+    public void ON_GOSUB_compte_aussi_l_appel()
+    {
+        Assert.Equal("XFIN\r\n", Run("10 ON 1 GOSUB 100\n20 PRINT \"FIN\"\n30 END\n100 PRINT \"X\";\n110 RETURN"));
     }
 
     // ---------- Exécution sur le mini-Z80 ----------
@@ -244,7 +258,8 @@ public class JumpTests
     [Fact]
     public void STOP_arrete_le_programme()
     {
-        Assert.Equal("A", Run("10 PRINT \"A\";\n20 STOP\n30 PRINT \"B\""));
+        // vrai BASIC (SugarBox, 16 nov. 2026) : « Break in 20 » sur la ligne suivante (D081)
+        Assert.Equal("A\r\nBreak in 20\r\n", Run("10 PRINT \"A\";\n20 STOP\n30 PRINT \"B\""));
     }
 
     [Theory]

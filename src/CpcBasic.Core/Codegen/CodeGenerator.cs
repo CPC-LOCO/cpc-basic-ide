@@ -1659,7 +1659,7 @@ public static class CodeGenerator
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
-                || statement is TimerStatement or ErrorStatement or ResumeStatement
+                || statement is TimerStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
@@ -1672,7 +1672,10 @@ public static class CodeGenerator
                     emitter.JpLabel(LineLabel(jump.Target));
                     break;
 
-                case GosubStatement call:
+                case GosubStatement call:                           // le compteur sert à « Unexpected RETURN » (D081)
+                    required.Add(RuntimeLibrary.GosubName);
+                    emitter.LdHlLabel(RuntimeLibrary.GosubCountLabel);
+                    emitter.IncMemHl();
                     emitter.CallLabel(LineLabel(call.Target));
                     break;
 
@@ -1728,12 +1731,15 @@ public static class CodeGenerator
                     emitter.CallLabel(RuntimeLibrary.EventsSetLabel);
                     break;
 
-                case ReturnStatement:
-                    emitter.Ret();
+                case ReturnStatement:                               // « Unexpected RETURN » sans GOSUB en cours (D081)
+                    required.Add(RuntimeLibrary.GosubName);
+                    emitter.JpLabel(RuntimeLibrary.ReturnLabel);
                     break;
 
-                case StopStatement:
-                    emitter.JpLabel(EndLabel);
+                case StopStatement:                                 // « Break in N », puis fin comme le vrai BASIC (D081)
+                    required.Add(RuntimeLibrary.ErrorName);
+                    emitter.LdHlLabel(RuntimeLibrary.BreakMessageLabel);
+                    emitter.JpLabel(RuntimeLibrary.ErrorShowLabel);
                     break;
 
                 case OnStatement on:
@@ -1751,6 +1757,9 @@ public static class CodeGenerator
                         {
                             string next = $"on_{labelCount++}";
                             emitter.JrNzLabel(next);
+                            required.Add(RuntimeLibrary.GosubName);
+                            emitter.LdHlLabel(RuntimeLibrary.GosubCountLabel);
+                            emitter.IncMemHl();
                             emitter.CallLabel(LineLabel(on.Targets[k]));
                             emitter.JpLabel(done);
                             emitter.Label(next);
