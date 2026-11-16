@@ -35,59 +35,41 @@ Documents de référence :
 - **Push :** après chaque commit, Claude s'occupe aussi de l'envoi sur GitHub. S'il ne peut pas (réseau refusé), le dire et donner la marche à suivre (`packaging\commit.cmd` propose le push).
 - **Accès de Claude (constaté le 13 nov. 2026) :** quand l'application Claude de l'ordinateur est ouverte et le dossier du dépôt ajouté, Claude lit et écrit directement les fichiers. Il ne peut ni lancer `dotnet test` (pas de .NET de son côté), ni faire le commit (git doit effacer des fichiers temporaires, ce qui lui est interdit sans permission) : l'utilisateur garde `packaging\commit.cmd`. Sans ce branchement, Claude peut toujours lire le dépôt public sur GitHub.
 - **Programmes d'exemple :** une attente avant chaque changement d'écran et avant le texte final « APPUYEZ SUR UNE TOUCHE », chacune un peu plus longue que la précédente, mais **courtes** (boucles 1, 2, 3…).
+- **Une chose à la fois (16 nov. 2026) :** l'utilisateur fait ses essais pas à pas ; ne demander qu'une action à la fois (« Prochaine étape, une seule : … ») et ne pas enchaîner plusieurs demandes dans le même message.
+- **Références :** avant chaque étape, faire taper un petit programme dans **SugarBox** (vrai BASIC) et relever l'écran ; les tests et l'exemple doivent donner le même résultat.
+- **Lire les tests :** l'utilisateur lance `dotnet test > essais\tests.txt` ; Claude lit ce fichier (lignes « réussite », « error CS », « Échoué »).
 - **Journal :** on n'efface jamais une entrée ; si une décision change, on en ajoute une nouvelle qui renvoie à l'ancienne.
 - **Mots réservés :** chaque nouveau mot-clé empêche d'utiliser ce nom comme variable ; à signaler et à noter dans le journal.
 
-## 3. État au moment de la reprise (15 novembre 2026)
+## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Reprise a jour apres lot C partie 1 » (13 nov. 2026, 481 tests).
-- **DIM (D058) validé dans WinAPE le 13 nov. 2026** : 534 tests. Commit « Lot C : DIM, tableaux d'entiers ».
-- **DATA, READ, RESTORE, INPUT T(I) (D059) validés le 14 nov. 2026** : 568 tests, `examples\donnees.bas` conforme. **Le lot C est terminé** (sauf ERASE, gardé pour plus tard).
-- **Lot D (D060) validé le 14 nov. 2026** : &C9, &X1010, AND/OR/XOR bit à bit, NOT, ^, comparaisons comme valeurs, `IF A THEN`. 609 tests, `examples\logique.bas` conforme.
-- **`@` (D061) validé le 14 nov. 2026** : adresse d'une variable ou d'une case de tableau. 622 tests, `examples\adresse.bas` conforme.
-- **Lot E, étape E1 (D062) validée le 14 nov. 2026** : textes rangés comme le Locomotive (fiche de 3 octets, ménage), A$, +, comparaisons, LEN, PRINT, INPUT A$. 657 tests, `examples\textes.bas` conforme.
-- **Lot E, étape E2 (D063) validée le 14 nov. 2026** : LEFT$, RIGHT$, MID$, CHR$, ASC, STR$, VAL, STRING$, SPACE$, UPPER$, LOWER$, INSTR, HEX$, BIN$. 685 tests, `examples\textes2.bas` conforme.
-- **Lot E, étape E3a (D064) validée le 14 nov. 2026** : textes dans DATA, READ A$, INKEY$, LINE INPUT, @A$ ; DEL efface maintenant à l'écran pendant INPUT. 700 tests, `examples\textes3.bas` conforme.
-- **Lot E, étape E3b (D065) validée le 14 nov. 2026** : tableaux de textes, MID$(A$, …) = . 721 tests, `examples\tabtexte.bas` conforme. **Le lot E (chaînes) est terminé** (reste DEC$, BASIC 1.1).
-- **Lot F (nombres à virgule), choix faits (D066) :** A reste entier, réglage par programme « Sans signe : à virgule (F8) » ; calculs par les routines de la ROM ; réglage « Machine (F7) » (Tous les CPC par défaut, avec reconnaissance automatique). Découpage F1a, F1b, F2, F3.
-- **Étape F1a (D066) validée le 14 nov. 2026** : les deux réglages dans l'éditeur et le compilateur (726 tests).
-- **Lot F terminé le 15 nov. 2026** (D068 à D070) : nombres à virgule, fonctions mathématiques, tableaux à virgule, DATA, READ, VAL, STR$. Exemples `virgule`, `types`, `fonction`, `tabreel`, `valstr`, tous identiques au vrai BASIC.
-- **Lot G1 (son) validé le 15 nov. 2026** (D071) : SOUND, ENV, ENT, RELEASE, SQ. `examples\musique.bas`.
-- **Lot H1 (fenêtres) validé le 15 nov. 2026** (D072) : WINDOW, WINDOW SWAP, #n, POS, VPOS. `examples\fenetres.bas`. 943 tests.
-- **Lot H2 (mise en page de PRINT) validé le 15 nov. 2026** (D073) : virgule, ZONE, TAB, SPC, WRITE, et un élément qui ne tient pas dans la fin de la ligne passe entier à la ligne suivante. `examples\colonnes.bas`. 977 tests.
-- **Lot H3 (PRINT USING) validé le 15 nov. 2026** (D074) : tous les formats, écrits entre guillemets (un format dans une variable viendra plus tard, Claude décide quand). `examples\format.bas`. 1005 tests.
-- **Lot H4 (caractères) validé le 15 nov. 2026** (D075) : SYMBOL, SYMBOL AFTER (240 à 255 redessinables dès le départ), TAG, TAGOFF. `examples\symboles.bas`. **1023 tests.** Reste du lot H : H5 (édition de la ligne d'INPUT avec COPY) : **validée le 15 nov. 2026**, D076, `examples\edition.bas`, **1040 tests**. **Le lot H est terminé.** **FOR avec limite et pas calculés (D078) validé le 16 nov. 2026, 1060 tests.** **Lot I1 (minuteries AFTER, EVERY, REMAIN, DI, EI ; D079) validé le 16 nov. 2026, 1074 tests** (`examples\minuter.bas`). **Lot I2a (ON ERROR GOTO, RESUME, ERROR, ERR, ERL ; D080) validé le 16 nov. 2026, 1091 tests** (`examples\erreurs.bas`). **Lot I2b (Break in, Unexpected RETURN ; D081) validé le 16 nov. 2026, 1093 tests** (`examples\retour.bas`). **Lot I3a (ON SQ GOSUB ; D082) validé le 16 nov. 2026, 1103 tests** (`examples\sonfile.bas`). **Lot I3b (ON BREAK, réglage F9 de la touche ESC ; D083) validé le 16 nov. 2026, 1115 tests** (`examples\touchesc.bas`). Il termine le lot I. **Lot J1 (fichiers de données : OPENOUT, PRINT #9, WRITE #9, OPENIN, INPUT #9, LINE INPUT #9, EOF ; D084) validé le 16 nov. 2026, 1133 tests** (`examples\fichiers.bas`). **Lot J2 (CAT, SAVE / LOAD binaires, SPEED WRITE ; D085) validé le 16 nov. 2026, 1150 tests** (`examples\binaire.bas`). **Lot J3 (RUN "nom" ; CHAIN et MERGE refusés ; D086) validé le 16 nov. 2026, 1162 tests** (`examples\enchaine.bas`). CHAIN refusé (confirmé). **Lot J4 (compilation en chaîne, idée de l'utilisateur ; D087) validé le 16 nov. 2026, 1167 tests**. **Le lot J est terminé.** **Lot K1 (TRON, TROFF ; D088) validé le 16 nov. 2026, 1170 tests** **Lot K2 (commandes RSX |NOM et CALL avec valeurs ; D089) validé le 16 nov. 2026 : le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) se compile et fonctionne dans WinAPE.** **Lot K3 (CLEAR, RUN, RUN ligne ; D090) validé le 16 nov. 2026, 1187 tests** **Lot K4 (XPOS, YPOS, TEST, TESTR, SPEED INK, SPEED KEY ; D091) validé le 16 nov. 2026, 1195 tests** (`examples\points.bas`). ERASE : à faire à part (déplacer les tableaux et les textes). **Lot K5 (KEY, KEY DEF ; D092) validé le 16 nov. 2026, 1205 tests** **D093 : LINE INPUT affiche « ? » comme INPUT (correction), validé le 16 nov. 2026.** (`examples\touches.bas`). (`examples\relance.bas`). (`examples\trace.bas`). (`examples\partie1.bas`, `partie2.bas`). Reste aussi : RUN et RUN ligne (relancer le programme). Limite connue : PRINT USING avec un format dans une variable (Claude décide quand l'ajouter).
-- **Dernier commit sur GitHub :** « Lot G1 : le son (SOUND, ENV, ENT, RELEASE, SQ) » (15 nov. 2026, **909 tests**).
-- **Règle de l'utilisateur :** le projet doit être 100 % compatible avec le Locomotive BASIC. **Finir tous les lots de l'inventaire (A à J) avant toute commande nouvelle** (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent). On avance lot par lot.
+- **Dernier commit sur GitHub :** « LINE INPUT affiche ? comme INPUT (correction D093) » (16 nov. 2026, **1205 tests**, tous réussis).
+- **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
+- **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
-### Fait et validé
+### Fait et validé (résumé ; le détail est dans le journal)
 
-- **J1, J2, J3 :** `PRINT`, disquette ; variables entières (`A`, `A%`) et octets (`BYTE a`) ; `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP`, `EXIT`, `CONTINUE`, `IF/THEN/ELSE` ; `*`, `/`, `\`, `MOD` ; `ABS`, `SGN`, `MIN`, `MAX`, `HIBYTE`, `LOBYTE`, `CLAMP` ; `RANDOM`, `RANDOMIZE` ; `TIME` (D037 à D040).
-- **Éditeur :** accessibilité (D041 : taille du texte, contraste Ctrl+H, F6, clavier), messages d'erreur qui nomment la commande (D042), confirmation avant de perdre des modifications (D043), `packaging\commit.cmd` et dossier `essais\` (D044), numéros séparés, boutons de 36 points, `[Larg : N]` (D045).
-- **Écran (D046) :** `MODE`, `CLS`, `LOCATE`, `PEN`, `PAPER`, `INK`, `BORDER`.
-- **Tracé Locomotive (D047) :** `MOVE(R)`, `PLOT(R)`, `DRAW(R)`, `CLG`, `ORIGIN`, stylo et mode facultatifs ; le mode graphique (XOR, AND, OR) reste actif jusqu'à `MODE`.
-- **BOX (D048, D051, D052) :** `BOX x1,y1,x2,y2 [,stylo [,remplissage]]`, coordonnées natives (origine en haut à gauche, y 0 à 199, x 0 à 159 / 319 / 639). Modèle à suivre pour toutes les futures formes. Rappel « fermez l'émulateur » (D050). D049 (PAUSE) annulé.
-- **Inventaire (D053) :** `docs\COMPATIBILITE-LOCOMOTIVE.md`, ordre de travail par lots, suivi par l'utilisateur.
-- **Lot A (D054) :** `GOTO`, `GOSUB`, `RETURN`, `ON … GOTO/GOSUB`, `STOP`. `examples\sauts.bas`.
-- **Lot B (D055) :** `INKEY(n)`, `JOY(0/1)`, `CLEAR INPUT`, `INPUT` (nombres entiers). `examples\clavier.bas`, `examples\saisie.bas`. `INKEY$` et `LINE INPUT` attendent les chaînes (lot E).
-- **Lot C, tableaux (D058) :** `DIM` (une ou plusieurs dimensions, taille écrite ou calculée, création automatique 0 à 10 sans DIM), vérification des cases avec les messages du Locomotive (« Subscript out of range in 80 », « Array already dimensioned », « Memory full »). `examples\tableaux.bas`, `examples\horstab.bas`.
-- **Lot C, première partie (D056, D057) :** `POKE`, `PEEK` (relit bien la RAM au-dessus de &C000, vérifié dans SugarBox), `CALL`, `OUT`, `INP`, `MEMORY` (protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous). `examples\machine.bas`.
+- **Lots A à H** : déroulement, saisie, tableaux, DATA, opérateurs, textes, nombres à virgule, son, fenêtres, PRINT (zones, TAB, SPC, WRITE, USING), SYMBOL, TAG, édition de la ligne d'INPUT (D054 à D076). FOR avec limite et pas calculés (D078).
+- **Lot I (interruptions et erreurs, D079 à D083)** : AFTER, EVERY, REMAIN, DI, EI ; ON ERROR GOTO, RESUME (3 formes), ERROR, ERR, ERL ; « Break in N » de STOP, « Unexpected RETURN » ; ON SQ GOSUB ; ON BREAK CONT / STOP / GOSUB et **réglage F9** de l'éditeur (touche ESC comme le CPC, par défaut, ou ignorée).
+- **Lot J (disquette et cassette, D084 à D087)** : OPENOUT, OPENIN, PRINT #9, WRITE #9, INPUT #9, LINE INPUT #9, EOF, CLOSEOUT, CLOSEIN ; SAVE "nom",B,… ; LOAD ; CAT ; SPEED WRITE ; RUN "nom" (lance un autre programme compilé) ; CHAIN et MERGE refusés (écart voulu) ; **compilation en chaîne** (idée de l'utilisateur, D087 : F5 compile aussi les programmes lancés par RUN "nom" et les met sur la même disquette).
+- **Lot K (en cours)** : K1 TRON / TROFF (D088) ; K2 commandes RSX `|NOM,valeurs` et CALL avec valeurs (D089, règle : A = nombre de valeurs, IX = liste, **DE = dernière valeur**) ; K3 CLEAR, RUN, RUN ligne (D090) ; K4 XPOS, YPOS, TEST, TESTR, SPEED INK, SPEED KEY (D091) ; K5 KEY, KEY DEF (D092) ; correction : LINE INPUT affiche « ? » comme INPUT (D093).
 
 ### Prochaine étape
 
-- **Lot F (nombres à virgule) terminé et validé le 15 nov. 2026** : F1a (réglages F7/F8, D066), F1b (écriture, A!, calculs, comparaisons, PRINT, DEFINT/DEFREAL/DEFSTR, FOR X!, INPUT A!, @A!, D068), F2 (fonctions mathématiques, DEG/RAD, RND, D069), F3a (tableaux à virgule, DATA, READ) et F3b (VAL et STR$, D070). Chaque étape comparée écran par écran avec le vrai BASIC (SugarBox).
-- **Lot G1 (son) fait et validé le 15 nov. 2026** : SOUND, ENV, ENT, RELEASE, SQ (D071). ON SQ GOSUB est reporté au lot I (interruptions).
-- **Lot H découpé (D072) :** H1 fenêtres et #n (WINDOW, WINDOW SWAP, #n sur PRINT/LOCATE/CLS/PEN/PAPER/INPUT/LINE INPUT, POS, VPOS) **validée le 15 nov. 2026 (943 tests)** (`examples\fenetres.bas`, `tests\CpcBasic.Tests\WindowTests.cs`) ; puis H2 (virgule, ZONE, TAB, SPC, WRITE ; **validée le 15 nov. 2026**, D073, `examples\colonnes.bas`), H3 (PRINT USING ; **validée le 15 nov. 2026**, D074, `examples\format.bas`), H4 (SYMBOL, SYMBOL AFTER, TAG, TAGOFF ; **validée le 15 nov. 2026**, D075, `examples\symboles.bas`), H5 (édition de la ligne d'INPUT avec COPY).
-- **Suite :** lot I (interruptions et erreurs), J (disquette et cassette).
-- **Méthode qui marche bien :** avant d'écrire une étape, faire taper à l'utilisateur un petit programme dans le vrai BASIC (SugarBox ; WinAPE déforme le collage) pour relever les affichages exacts, puis comparer l'exemple compilé avec ce même programme.
+Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » et « Partielle ») :
+- **ERASE** : demande de déplacer les tableaux qui suivent, et pour un tableau de textes de mettre à jour l'adresse de fiche rangée avec chaque texte (sinon le ménage des textes se trompe). À faire comme une étape à part.
+- **DEF FN / FN** (fonctions du programmeur) ; **HIMEM**, **FRE**, **UNT**, **WAIT** ; **DERR** ; **TIME** sur 32 bits ; **PRINT USING** avec un format dans une variable (Claude décide quand) ; **PRINT #8** et WIDTH (imprimante) ; ON x GOTO avec une valeur hors limites.
+- BASIC 1.1 seulement : CURSOR, FRAME, COPYCHR$, GRAPHICS PEN / PAPER, MASK, FILL, DEC$, ORIGIN avec fenêtre graphique, PEN transparent.
+- **Commandes de l'éditeur (D077)** : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro de ligne.
+- Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
 
 ### Questions en attente (à reposer au bon moment)
 
-- `HIMEM` : quelle valeur de départ dans un programme compilé ? Doit-elle changer après `MEMORY` ? (D057)
-- Commandes RSX `|NOM,params` et paramètre `@variable` : ce sont des mots du Locomotive ; leur fonctionnement dans un programme compilé demande un choix (D057, `docs\PROGRAMME-DE-REFERENCE-RSX.md`).
-- `INPUT` avec une ligne vide : que fait exactement le Locomotive ? (à comparer sur un vrai CPC ; D055)
-- Coordonnées des commandes ajoutées en MODE 0 : x de 0 à 159 (l'utilisateur avait écrit 179, à confirmer).
+- `HIMEM` : sa valeur dépasse 32767 (&A67B) : comment la rendre dans un programme en entiers ? (D057)
+- `INPUT` avec une ligne vide : que fait exactement le Locomotive ? (D055)
+- Coordonnées des commandes ajoutées en MODE 0 : x de 0 à 159 (à confirmer).
+- Gestion de projets (plusieurs programmes, une disquette commune) : à reparler.
 
 ### En attente jusqu'à la fin des lots
 
@@ -122,6 +104,10 @@ Documents de référence :
 - Nom du fichier `.bas` = nom sur la disquette : 8 caractères au plus.
 - Messages d'erreur en français dans `Diagnostic.cs` ; chacun commence par « ERREUR en ligne N : » et peut nommer la commande (champ `Context`, D042).
 - Tests xUnit. `tests\CpcBasic.Tests\MiniZ80.cs` est un mini-simulateur Z80 : il signale une instruction inconnue (l'y ajouter), connaît `ScreenMode` (&BC11), `UpperRomEnabled`, les touches, les manettes et les ports ; sa pile est à &BF00.
+- Début de chaque instruction BASIC : `BasicProgram.Starts` (noté par le parser) ; sert à ON ERROR (fiche par instruction, D080), aux minuteries et à la touche ESC (appel entre deux instructions, D079, D083), à TRON (D088).
+- Événements (D079, D082, D083) : un compteur du firmware (KL ADD TICKER) ; modules Events, EventsSound, EventsBreak, EventsSoundBreak selon ce que le programme utilise.
+- Fichiers (D084 à D086) : zones de 2 Ko du firmware en &3000 (lecture) et &3800 (écriture) ; PRINT #9 détourne 4 entrées du firmware (TXT OUTPUT, GET CURSOR, VALIDATE, GET WINDOW) le temps de l'instruction ; RUN "nom" recopie un petit chargeur en &3800.
+- MiniZ80 simule aussi : fichiers (CAS…), files sonores (ON SQ), touches tapées à un moment donné (ESC), commandes RSX (IX, KL FIND COMMAND), petit modèle du graphisme (XPOS, TEST).
 - Réglages de l'éditeur : `EditorSettings.cs`, fichier `%APPDATA%\CpcBasicIde\reglages.json`. F6 passe de l'éditeur aux messages (D041).
 
 ## 6. Comment donner les fichiers à la nouvelle conversation
@@ -158,4 +144,4 @@ Documents de référence :
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est le lot G1 (le son), validé ; 909 tests passent. On attaque le lot H (fenêtres et mise en forme : WINDOW, TAB, SPC, USING, ZONE, SYMBOL, TAG, flux #, et l'édition de la ligne d'INPUT avec COPY).
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « LINE INPUT affiche ? comme INPUT (correction D093) » ; 1205 tests passent. Les lots A à J sont finis, le lot K est en cours (K1 à K5 faits). On continue le lot K : propose-moi la suite, une étape à la fois.
