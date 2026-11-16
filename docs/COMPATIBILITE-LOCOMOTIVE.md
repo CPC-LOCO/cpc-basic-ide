@@ -74,7 +74,7 @@ Mise à jour le 16 nov. 2026 :
 | `Nombres réels (3.14, 1E5)` | constantes à virgule | Fait | Lot F1b1 (D068) : calculs par la ROM (464 et 664/6128), affichage identique au vrai BASIC, Overflow et Division by zero qui laissent continuer. Entre deux entiers, le calcul reste entier (7/2 = 3, D066). |
 | `DEFINT / DEFREAL / DEFSTR` | type des variables selon la première lettre | Fait | Lot F1b2 (D068) : valent pour tout le programme ; après DEFINT A-Z, A et A% sont la même variable. Réglage F8 = DEFREAL A-Z. |
 | `DIM` | tableaux | Faite | Tableaux d'entiers, une ou plusieurs dimensions, taille écrite ou calculée, création automatique (0 à 10) sans DIM, vérification des cases (« Subscript out of range »). Textes et réels avec les lots E et F. D058. |
-| `ERASE` | efface un tableau | À faire |  |
+| `ERASE` | efface un tableau | Faite | Lot K8 (D096) : la place est rendue, les tableaux suivants descendent (textes compris). Écart : le nombre de dimensions ne peut pas changer (D058). |
 | `DATA` | données dans le programme | Faite | Nombres entiers (-32768 à 65535, &hexadécimal), textes entre guillemets ou non, éléments vides (D059, D060, D064). Réels avec le lot F. |
 | `READ` | lit les données | Faite | Dans une variable, une case de tableau ou une variable texte (READ A$ rend un nombre tel qu'il est écrit) ; « DATA exhausted », « Type mismatch ». D059, D064. |
 | `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |

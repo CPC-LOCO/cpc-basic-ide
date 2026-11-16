@@ -113,6 +113,15 @@ public static class CodeGenerator
                 arrays.TryAdd(name, ($"arr_{arrays.Count}", count));
         }
 
+        // ERASE (D096) : un tableau seulement effacé (jamais créé) a un descripteur ; « Improper argument » à l'exécution
+        bool usesErase = false;
+        foreach (EraseStatement erase in program.Statements.OfType<EraseStatement>())
+        {
+            usesErase = true;
+            foreach (string name in erase.Names)
+                arrays.TryAdd(name, ($"arr_{arrays.Count}", 1));
+        }
+
         string SizeLabel(string array, int dimension) => $"{array}_s{dimension}";
 
         // Tableaux de textes (D065) : leurs cases sont des fiches de 3 octets. S'il y en a, chaque accès à un tableau
@@ -3003,6 +3012,18 @@ public static class CodeGenerator
                 case DefFnStatement:                    // DEF FN : rien à faire ici, le calcul est recopié à chaque appel (D095)
                     break;
 
+                case EraseStatement erase:              // ERASE T, N$ (D096)
+                    required.Add(RuntimeLibrary.ArrayEraseName);
+                    foreach (string name in erase.Names)
+                    {
+                        (string eraseLabel, int eraseDims) = arrays[name];
+                        emitter.LdHlLabel(eraseLabel);
+                        emitter.LdBImm(eraseDims);
+                        emitter.LdCImm(ElementBytes(name));
+                        emitter.CallLabel(RuntimeLibrary.ArrayEraseLabel);
+                    }
+                    break;
+
                 default:
                     throw new NotSupportedException($"Instruction non gérée : {statement.GetType().Name}");
             }
@@ -3157,6 +3178,16 @@ public static class CodeGenerator
                 emitter.Reserve(2);
             }
         }
+        if (usesErase)
+        {
+            emitter.Label(RuntimeLibrary.ArrayTableLabel);     // ERASE (D096) : tous les tableaux
+            foreach ((string name, (string label, int dimensions)) in arrays)
+            {
+                emitter.Word(label);
+                emitter.Data([(byte)dimensions, (byte)ElementBytes(name)]);
+            }
+            emitter.Word(0);
+        }
         // Fiches des instructions pour ON ERROR (D080) : ligne, début, instruction suivante (la fin pour la dernière)
         for (int k = 0; k < errorRecords.Count; k++)
         {
@@ -3222,6 +3253,9 @@ public static class CodeGenerator
 
     /// <summary>Vrai si l'instruction utilise un texte (variable A$, texte entre guillemets dans un calcul...) (D062).</summary>
     // Nombres à virgule (D068) : un nombre écrit avec une virgule, une variable A!, ou une affectation à A!
+    // Taille d'une case de tableau : 2 (entier), 3 (fiche de texte, D065), 5 (nombre à virgule, D070)
+    static int ElementBytes(string name) => VariableNames.IsString(name) ? 3 : VariableNames.IsReal(name) ? 5 : 2;
+
     static bool StatementUsesReals(Statement statement) =>
         AstWalker.All(statement).Any(Types.IsReal)
         || statement is ScreenStatement { Command: "DEG" or "RAD" }

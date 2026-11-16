@@ -73,7 +73,8 @@ public enum DiagnosticCode
     UserFunctionUnknown,     // FNX appelée mais jamais définie (le Locomotive : « Unknown user function »)
     UserFunctionTwice,       // deux DEF FN pour le même nom
     UserFunctionRecursive,   // FNA s'appelle elle-même (directement ou par une autre FN)
-    UserFunctionNeedsReal    // une virgule serait perdue : nombre à virgule donné à un entier (conseil : le signe !)
+    UserFunctionNeedsReal,   // une virgule serait perdue : nombre à virgule donné à un entier (conseil : le signe !)
+    ExpectedEraseName        // lot K8 (D096) : ERASE sans nom de tableau
 }
 
 /// <summary>
@@ -223,6 +224,8 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.UsingWithoutField =>
             $"PRINT USING : le format « {Argument} » ne contient aucun emplacement (# pour un nombre, ! & ou \\  \\ pour un texte). Le vrai BASIC répondrait « Improper argument ».",
         DiagnosticCode.NotForCompiled => Argument,
+        DiagnosticCode.ExpectedEraseName =>
+            $"ERASE attend des noms de tableaux séparés par des virgules, sans parenthèses, par exemple ERASE T, N$.{Why}",
         DiagnosticCode.UserFunctionName =>
             $"{(Context.Length == 0 ? "FN" : Context)} attend le nom de la fonction, par exemple FNDOUBLE(3) ou DEF FNDOUBLE(X)=X*2.{Why}",
         DiagnosticCode.UserFunctionParameter =>

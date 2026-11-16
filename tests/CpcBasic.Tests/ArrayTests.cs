@@ -105,7 +105,7 @@ public class ArrayTests
 
     [Theory]
     [InlineData("10 A = DERR(3)")]  // SIN existe depuis le lot F2 (D069), FRE depuis le lot K6 (D094)
-    [InlineData("10 DIM ERASE(3)")]
+    [InlineData("10 DIM FRAME(3)")]   // ERASE existe depuis le lot K8 (D096)
     [InlineData("10 CURSOR(1) = 2")]   // SOUND existe depuis le lot G1 (D071), WINDOW (D072) et ZONE (D073) depuis le lot H
     public void Un_mot_du_Locomotive_pas_encore_disponible_ne_devient_pas_un_tableau(string source)
     {

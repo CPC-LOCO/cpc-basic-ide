@@ -277,6 +277,9 @@ public static class RuntimeLibrary
     public const string ArrayElementSizeLabel = "rt_arr_esize";  // taille d'une case : 2 (entier) ou 3 (texte, D065)
     public const string ArrayElemLabel = "rt_arr_elem";
     public const string ArrayMemoryLabel = "rt_arr_memory";
+    public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
+    public const string ArrayEraseLabel = "rt_arr_erase";       // HL = descripteur, B = dimensions, C = taille d'une case
+    public const string ArrayTableLabel = "rt_arr_table";       // placée par le générateur : tous les tableaux
     const string ArrayAllocLabel = "rt_arr_alloc";
     const string ArrayAutoDimLabel = "rt_arr_autodim";
     const string ErrSubscript = "rt_arr_err_sub";
@@ -3508,6 +3511,204 @@ public static class RuntimeLibrary
             e.IncHl();
             e.IncC();
             e.JrLabel("rt_ia_len");
+        }),
+
+        // ERASE (lot K8, D096) : la place du tableau est rendue. Les tableaux créés après lui (plus haut en mémoire) descendent,
+        // et leur descripteur est corrigé. rt_arr_table (écrite par le générateur) : pour chaque tableau, adresse du
+        // descripteur (2 octets), nombre de dimensions, taille d'une case ; 0 à la fin.
+        // Tableaux de textes : chaque bloc de texte garde l'adresse de sa fiche (D062) : elle est corrigée quand la fiche
+        // descend ; les blocs du tableau effacé pointent sur une fiche vide (rt_er_dead) et seront oubliés au ménage.
+        // Tableau pas créé (jamais, ou déjà effacé) : « Improper argument », comme le Locomotive.
+        [ArrayEraseName] = new RuntimeModule(ArrayEraseName, [ErrorName, HeapName, ArrayName], e =>
+        {
+            e.Label(ArrayEraseLabel);
+            e.LdMemHl("rt_er_desc");
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.DecHl();
+            e.LdAD();
+            e.OrE();
+            e.JpZLabel("rt_er_bad");
+            e.LdMemDe("rt_er_start");
+            e.CallLabel("rt_er_bytes");              // HL = place prise, en octets
+            e.LdMemHl("rt_er_size");
+            e.LdAC();
+            e.CpImm(3);
+            e.JrNzLabel("rt_er_nostr");
+            e.LdAImm(1);                             // textes du tableau effacé : plus de propriétaire
+            e.LdMemA("rt_er_deadf");
+            e.LdDeMem("rt_er_start");
+            e.CallLabel("rt_er_fix");
+            e.XorA();
+            e.LdMemA("rt_er_deadf");
+            e.Label("rt_er_nostr");
+            e.LdHlMem("rt_er_size");                 // les cases au-dessus descendent
+            e.LdDeMem("rt_er_start");
+            e.AddHlDe();
+            e.ExDeHl();                              // DE = fin du tableau effacé
+            e.LdHlMem(ArrayHeapLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.LdBH();
+            e.LdCL();                                // BC = octets à descendre
+            e.ExDeHl();
+            e.LdDeMem("rt_er_start");
+            e.LdAB();
+            e.OrC();
+            e.JrZLabel("rt_er_nomove");
+            e.Ldir();
+            e.Label("rt_er_nomove");
+            e.LdHlMem(ArrayHeapLabel);
+            e.LdDeMem("rt_er_size");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl(ArrayHeapLabel);
+            e.LdHlMem("rt_er_desc");                 // le tableau n'existe plus
+            e.StoreHlImm(0);
+            e.IncHl();
+            e.StoreHlImm(0);
+            e.LdHlLabel(ArrayTableLabel);
+            e.Label("rt_er_loop");
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.IncHl();
+            e.LdAD();
+            e.OrE();
+            e.RetZ();
+            e.LoadBFromHl();
+            e.IncHl();
+            e.LoadCFromHl();
+            e.IncHl();
+            e.LdMemHl("rt_er_tab");
+            e.ExDeHl();                              // HL = descripteur
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.DecHl();                               // DE = ses cases
+            e.PushHl();
+            e.LdHlMem("rt_er_start");
+            e.OrA();
+            e.SbcHlDe();                             // retenue : il est au-dessus du tableau effacé
+            e.PopHl();
+            e.JpNcLabel("rt_er_next");
+            e.PushHl();
+            e.ExDeHl();
+            e.LdDeMem("rt_er_size");
+            e.OrA();
+            e.SbcHlDe();
+            e.ExDeHl();                              // DE = nouvelle adresse
+            e.PopHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.DecHl();
+            e.LdAC();
+            e.CpImm(3);
+            e.JpNzLabel("rt_er_next");
+            e.PushDe();                              // tableau de textes : ses blocs suivent leurs fiches
+            e.CallLabel("rt_er_bytes");
+            e.PopDe();
+            e.CallLabel("rt_er_fix");
+            e.Label("rt_er_next");
+            e.LdHlMem("rt_er_tab");
+            e.JpLabel("rt_er_loop");
+
+            // HL = descripteur, B = dimensions, C = taille d'une case -> HL = octets. Garde BC.
+            e.Label("rt_er_bytes");
+            e.PushBc();
+            e.IncHl();
+            e.IncHl();
+            e.LdDeImm(1);
+            e.LdMemDe("rt_er_tot");
+            e.Label("rt_er_bloop");
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.IncHl();
+            e.PushHl();
+            e.ExDeHl();
+            e.LdDeMem("rt_er_tot");
+            e.CallLabel(ArrayMulLabel);
+            e.LdMemHl("rt_er_tot");
+            e.PopHl();
+            e.DjnzLabel("rt_er_bloop");
+            e.PopBc();
+            e.LdHlMem("rt_er_tot");
+            e.LdAC();
+            e.LdEA();
+            e.LdDZero();
+            e.JpLabel(ArrayMulLabel);
+
+            // DE = première fiche, HL = octets (3 par fiche) : l'adresse de la fiche rangée après chaque bloc devient DE
+            // (ou rt_er_dead si rt_er_deadf <> 0). Un texte du programme (sous rt_str_ptr) n'a pas de bloc.
+            e.Label("rt_er_fix");
+            e.LdAH();
+            e.OrL();
+            e.RetZ();
+            e.PushHl();
+            e.LdADe();
+            e.OrA();
+            e.JrZLabel("rt_er_fnext");               // texte vide
+            e.LdCA();
+            e.LdBImm(0);                             // BC = longueur
+            e.PushDe();
+            e.IncDe();
+            e.LdADe();
+            e.LdLA();
+            e.IncDe();
+            e.LdADe();
+            e.LdHA();                                // HL = lettres
+            e.PushHl();
+            e.LdDeMem(StringPointerLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.PopHl();
+            e.JrCLabel("rt_er_fskip");
+            e.AddHlBc();
+            e.IncHl();                               // HL = adresse de la fiche, rangée après la longueur
+            e.PopDe();
+            e.PushDe();
+            e.LdAMem("rt_er_deadf");
+            e.OrA();
+            e.JrZLabel("rt_er_fown");
+            e.LdDeLabel("rt_er_dead");
+            e.Label("rt_er_fown");
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.Label("rt_er_fskip");
+            e.PopDe();
+            e.Label("rt_er_fnext");
+            e.IncDe();
+            e.IncDe();
+            e.IncDe();
+            e.PopHl();
+            e.DecHl();
+            e.DecHl();
+            e.DecHl();
+            e.JrLabel("rt_er_fix");
+
+            e.Label("rt_er_bad");
+            e.LdHlLabel("rt_er_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_er_msg");
+            e.Data(Ascii("Improper argument"));
+            e.Label("rt_er_desc");
+            e.Reserve(2);
+            e.Label("rt_er_start");
+            e.Reserve(2);
+            e.Label("rt_er_size");
+            e.Reserve(2);
+            e.Label("rt_er_tab");
+            e.Reserve(2);
+            e.Label("rt_er_tot");
+            e.Reserve(2);
+            e.Label("rt_er_deadf");
+            e.Data([0]);
+            e.Label("rt_er_dead");                   // fiche vide : aucun bloc ne lui appartient
+            e.Data([0, 0, 0]);
         }),
 
         [ArrayName] = new RuntimeModule(ArrayName, [ErrorName, HeapName], e =>

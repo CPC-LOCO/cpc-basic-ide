@@ -734,6 +734,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** DEF et FN (déjà réservés par le Locomotive). Aucune variable ne peut commencer par FN (FNX se lit FN X), comme sur le CPC.
 - **Fichiers :** Lexer.cs (FN coupé), Ast.cs (UserFunction, UserFunctionExpression, DefFnStatement ; IsReal, IsString, AstWalker), Parser.cs (ParseDefFn, ParseUserFunctionCall, CheckUserFunctions), Diagnostic.cs (6 messages), CodeGenerator.cs (EmitUserArguments), `tests\CpcBasic.Tests\UserFunctionTests.cs` (nouveau). Exemple : `examples\fonctfn.bas`.
 
+## D096 : lot K8, ERASE (Validé le 16 nov. 2026 : 1247 tests réussis ; `efface.bas` dans WinAPE : LIBRE 21374 puis 21395, 33, 7, [], « Improper argument in 130 »)
+- **Référence (SugarBox, 16 nov. 2026) :** `DIM T(5),N$(2),U(3)` puis `ERASE T,N$` : FRE monte (41966 puis 42023), U(1) garde 33, `DIM T(10)` est permis, N$(1) redevient vide (tableau recréé tout seul, 11 cases), `ERASE U:ERASE U` : « Improper argument in 90 ».
+- **Conception :** module ArrayErase (rt_arr_erase : HL = descripteur, B = dimensions, C = taille d'une case). La place du tableau est rendue : les cases des tableaux créés après lui descendent (LDIR), rt_arr_heap baisse, leurs descripteurs sont corrigés, et le descripteur effacé revient à 0 (le tableau pourra être recréé par DIM ou tout seul). Le générateur écrit une table de tous les tableaux (rt_arr_table : descripteur, dimensions, taille d'une case) seulement si ERASE est utilisé.
+- **Tableaux de textes :** chaque bloc de texte garde l'adresse de sa fiche (D062). Quand un tableau de textes descend, cette adresse est corrigée pour chaque fiche ; les blocs du tableau effacé reçoivent l'adresse d'une fiche vide (rt_er_dead) et sont jetés au ménage suivant. Les textes écrits dans le programme (sous rt_str_ptr) n'ont pas de bloc et ne sont pas touchés.
+- **Erreur :** tableau jamais créé ou déjà effacé : « Improper argument in N », comme le Locomotive. Un nom seulement présent dans ERASE a un descripteur à une dimension.
+- **Écart (validé) :** un tableau garde toujours le même nombre de dimensions (D058), même après ERASE. Le vrai BASIC permet `ERASE R:DIM R(5)` après `DIM R(2,2)` ; ici c'est refusé à la compilation avec le message de D058.
+- **Mots réservés :** ERASE (déjà réservé par le Locomotive).
+- **Fichiers :** Ast.cs (EraseStatement, UsesArrays), Parser.cs, Diagnostic.cs (ExpectedEraseName), RuntimeLibrary.cs (module ArrayErase), CodeGenerator.cs (ElementBytes, table), `tests\CpcBasic.Tests\EraseTests.cs` (nouveau), ArrayTests.cs (ERASE remplacé par FRAME). Exemple : `examples\efface.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

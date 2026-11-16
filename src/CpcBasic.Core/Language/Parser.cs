@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -876,6 +876,28 @@ public static class Parser
             case "WINDOW" or "CLS" or "LOCATE" or "PEN" or "PAPER" or "TAG" or "TAGOFF":
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, t.Text, t.Text is not ("CLS" or "TAG" or "TAGOFF"),
                                           rest => ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text], rest));
+
+            case "ERASE":                                   // ERASE T, N$ (lot K8, D096)
+            {
+                int line = t.Line;
+                pos++;
+                var names = new List<string>();
+                while (true)
+                {
+                    if (!IsUserName(tokens[pos]))
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedEraseName, line, IsLineEnd(tokens[pos]) ? "" : tokens[pos].Text));
+                        return SkipToStatementEnd(tokens, pos);
+                    }
+                    names.Add(tokens[pos].Text);
+                    pos++;
+                    if (tokens[pos].Kind != TokenKind.Comma)
+                        break;
+                    pos++;
+                }
+                statements.Add(new EraseStatement(line, names));
+                return pos;
+            }
 
             case "DEF":                                     // DEF FN (lot K7, D095)
                 return ParseDefFn(tokens, pos, statements, diagnostics);

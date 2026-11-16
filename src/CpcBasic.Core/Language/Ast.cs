@@ -464,6 +464,9 @@ public sealed record ArrayDeclaration(string Name, IReadOnlyList<Expression> Siz
 /// <summary>DIM A(10) [, B(5, 5) ...] : crée des tableaux d'entiers, cases de 0 à la valeur écrite (lot C, D058).</summary>
 public sealed record DimStatement(int SourceLine, IReadOnlyList<ArrayDeclaration> Arrays) : Statement(SourceLine);
 
+/// <summary>ERASE T, N$ : efface des tableaux ; leur place est rendue (lot K8, D096).</summary>
+public sealed record EraseStatement(int SourceLine, IReadOnlyList<string> Names) : Statement(SourceLine);
+
 /// <summary>Une case de tableau lue dans un calcul : A(3), T(I, J) (lot C, D058). Name est le nom sans parenthèses.</summary>
 public sealed record ArrayElementExpression(string Name, IReadOnlyList<Expression> Indexes) : Expression;
 
@@ -552,5 +555,5 @@ public static class AstWalker
 
     /// <summary>Vrai si l'instruction crée, lit ou écrit un tableau.</summary>
     public static bool UsesArrays(Statement statement) =>
-        statement is DimStatement or ArrayAssignStatement || All(statement).Any(e => e is ArrayElementExpression);
+        statement is DimStatement or ArrayAssignStatement or EraseStatement || All(statement).Any(e => e is ArrayElementExpression);
 }
