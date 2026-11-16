@@ -291,6 +291,9 @@ public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnly
     public bool IsStart(Statement statement) => Starts is null || Starts.Contains(statement);
 }
 
+/// <summary>OPENOUT nom, OPENIN nom, CLOSEOUT, CLOSEIN : fichiers de données sur disquette ou cassette (lot J1, D084).</summary>
+public sealed record FileStatement(int SourceLine, string Command, Expression? Name = null) : Statement(SourceLine);
+
 /// <summary>Ce que fait la touche ESC (D083) : rien (CONT), pause puis « Break in N » (STOP), pause puis appel (GOSUB).</summary>
 public enum BreakMode { Cont = 0, Stop = 1, Gosub = 2 }
 
@@ -447,6 +450,7 @@ public static class AstWalker
         TimerStatement t => [t.Time, t.Timer],
         ErrorStatement e => [e.Code],
         OnSqStatement q => [q.Channel],
+        FileStatement { Name: not null } f => [f.Name],
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

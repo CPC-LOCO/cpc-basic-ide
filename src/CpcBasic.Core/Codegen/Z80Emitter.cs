@@ -202,6 +202,7 @@ public sealed class Z80Emitter
     public void AddAMemHl() => code.Add(0x86);                                                   // ADD A,(HL)
     public void CpMemHl() => code.Add(0xBE);                                                     // CP (HL)
     public void DecB() => code.Add(0x05);                                                        // DEC B
+    public void IncB() => code.Add(0x04);                                                        // INC B (D084)
     public void IncC() => code.Add(0x0C);                                                        // INC C
     public void LdCImm(int value) { code.Add(0x0E); code.Add((byte)value); }                     // LD C,n
     public void Lddr() { code.Add(0xED); code.Add(0xB8); }                                       // LDDR

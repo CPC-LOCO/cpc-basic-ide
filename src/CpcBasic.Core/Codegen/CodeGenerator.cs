@@ -757,6 +757,11 @@ public static class CodeGenerator
                             break;
                         }
 
+                        case "EOF":                         // EOF : -1 à la fin du fichier ouvert par OPENIN (ou sans fichier), sinon 0 (D084)
+                            required.Add(RuntimeLibrary.FileInName);
+                            emitter.CallLabel("rt_fl_eof");
+                            break;
+
                         case "ERR" or "ERL":                // numéro et ligne de la dernière erreur (D080)
                             required.Add(RuntimeLibrary.OnErrorName);
                             emitter.LdHlMem(call.Function == "ERR" ? RuntimeLibrary.ErrLabel : RuntimeLibrary.ErlLabel);
@@ -1625,6 +1630,8 @@ public static class CodeGenerator
         int statementIndex = 0;
         int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
         bool insideStream = false;
+        bool fileGroup = false;     // entre PRINT #9 (ou INPUT #9...) et la fin de l'instruction (D084)
+        bool fileOutput = false;    // ... et les caractères vont dans le fichier
         foreach (Statement statement in program.Statements)
         {
             if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
@@ -1680,6 +1687,7 @@ public static class CodeGenerator
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
+                || statement is FileStatement || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
@@ -1811,6 +1819,85 @@ public static class CodeGenerator
                     emitter.Label(done);
                     break;
                 }
+
+                case InputStatement fileInput when fileGroup:
+                {
+                    // INPUT #9 (D084) : une ligne du fichier, puis une valeur par variable, comme au clavier ; quand la ligne
+                    // est finie, la suivante. Une valeur qui n'est pas un nombre donne 0 (vrai BASIC, SugarBox, 16 nov. 2026).
+                    required.Add(RuntimeLibrary.FileInName);
+                    emitter.CallLabel("rt_fl_line");
+                    for (int i = 0; i < fileInput.Variables.Count; i++)
+                    {
+                        string fiName = fileInput.Variables[i];
+                        IReadOnlyList<Expression>? fiCells = fileInput.Indexes?[i];
+                        void FiTarget()
+                        {
+                            if (fiCells is not null)
+                            {
+                                EmitElementAddress(fiName, fiCells);
+                                emitter.ExDeHl();
+                            }
+                            else
+                            {
+                                emitter.LdDeLabel(Slot(fiName).Label);
+                            }
+                        }
+                        string fiOk = $"fin_{labelCount++}";
+                        if (i > 0)
+                            emitter.CallLabel("rt_fl_more");
+                        if (VariableNames.IsString(fiName))
+                        {
+                            required.Add(RuntimeLibrary.InputStringName);
+                            FiTarget();
+                            emitter.CallLabel(RuntimeLibrary.InputStrLabel);
+                            emitter.JrNcLabel(fiOk);
+                            emitter.CallLabel("rt_fl_skip");
+                            emitter.Label(fiOk);
+                            continue;
+                        }
+                        if (VariableNames.IsReal(fiName))
+                        {
+                            required.Add(RuntimeLibrary.RealParseName);
+                            FiTarget();
+                            emitter.LdHlMem("rt_inp_ptr");
+                            emitter.LdAImm(1);                          // lecture souple, comme VAL : pas de chiffre = 0
+                            emitter.CallLabel(RealRuntime.ParseLabel);
+                            emitter.CallLabel("rt_fl_after");
+                            continue;
+                        }
+                        emitter.CallLabel("rt_fl_num");                 // HL = nombre (pas de chiffre : 0)
+                        if (fiCells is not null)
+                        {
+                            emitter.PushHl();
+                            EmitElementAddress(fiName, fiCells);
+                            emitter.PopDe();
+                            emitter.StoreHlE();
+                            emitter.IncHl();
+                            emitter.StoreHlD();
+                        }
+                        else
+                        {
+                            EmitStore(Slot(fiName));
+                        }
+                    }
+                    break;
+                }
+
+                case LineInputStatement fileLine when fileGroup:      // LINE INPUT #9 : toute la ligne suivante (D084)
+                    required.Add(RuntimeLibrary.FileInName);
+                    required.Add(RuntimeLibrary.InputStringName);
+                    emitter.CallLabel("rt_fl_line");
+                    if (fileLine.Indexes is not null)
+                    {
+                        EmitElementAddress(fileLine.Variable, fileLine.Indexes);
+                        emitter.ExDeHl();
+                    }
+                    else
+                    {
+                        emitter.LdDeLabel(Slot(fileLine.Variable).Label);
+                    }
+                    emitter.CallLabel("rt_input_all");
+                    break;
 
                 case InputStatement input:
                 {
@@ -2461,8 +2548,46 @@ public static class CodeGenerator
                     break;
 
                 case StreamStatement stream:            // PRINT #1, ... : choix de la fenêtre, puis retour à #0 (D072)
+                    if (stream.Stream is NumberExpression { Value: 9 })
+                    {
+                        // #9 : le fichier (D084). PRINT #9 et WRITE #9 : les caractères partent dans le fichier ouvert par
+                        // OPENOUT jusqu'à la fin de l'instruction ; INPUT #9 et LINE INPUT #9 lisent celui d'OPENIN.
+                        fileGroup = true;
+                        Statement? inside = statementIndex < program.Statements.Count ? program.Statements[statementIndex] : null;
+                        fileOutput = inside is not (InputStatement or LineInputStatement);
+                        if (fileOutput)
+                        {
+                            required.Add(RuntimeLibrary.FileOutName);
+                            emitter.CallLabel(RuntimeLibrary.FileOutOnLabel);
+                        }
+                        break;
+                    }
+                    if (stream.Stream is null && fileGroup)
+                    {
+                        if (fileOutput)
+                            emitter.CallLabel(RuntimeLibrary.FileOutOffLabel);
+                        fileGroup = false;
+                        fileOutput = false;
+                        break;
+                    }
                     EmitSelectStream(stream.Stream);
                     break;
+
+                case FileStatement file:                // OPENOUT, OPENIN, CLOSEOUT, CLOSEIN (D084)
+                {
+                    bool output = file.Command is "OPENOUT" or "CLOSEOUT";
+                    required.Add(output ? RuntimeLibrary.FileOutName : RuntimeLibrary.FileInName);
+                    if (file.Name is not null)
+                        EmitString(file.Name);                          // HL = fiche du nom
+                    emitter.CallLabel(file.Command switch
+                    {
+                        "OPENOUT" => "rt_fo_open",
+                        "CLOSEOUT" => "rt_fo_close",
+                        "OPENIN" => "rt_fl_open",
+                        _ => "rt_fl_close"
+                    });
+                    break;
+                }
 
                 case DrawStatement draw:
                     EmitDraw(draw);

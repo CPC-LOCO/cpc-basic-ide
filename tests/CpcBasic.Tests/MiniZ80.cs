@@ -72,6 +72,14 @@ internal sealed class MiniZ80
     // 4 en attente ; SOUND ARM EVENT appelle la routine de l'événement dès qu'il y a une place, une seule fois.
     public bool SoundQueueModel;
 
+    // Fichiers de données (D084) : le disque, rempli par CAS OUT et lu par CAS IN (noms en majuscules)
+    public readonly Dictionary<string, List<byte>> Files = new();
+    List<byte>? fileOut;
+    List<byte>? fileIn;
+    int fileInPos;
+
+    string FileName() => System.Text.Encoding.ASCII.GetString(Memory, HL, B).Trim().ToUpperInvariant();
+
     // Touches tapées à un moment donné (D083) : au top Tick, la touche arrive dans la file du clavier ; ESC (&FC) est
     // aussi enfoncée pendant 2 tops (KM TEST KEY 66). KM WAIT CHAR sans touche prête fait avancer le temps jusqu'à la
     // prochaine.
@@ -565,6 +573,11 @@ internal sealed class MiniZ80
             case 0xC3:                                                 // JP nn
             {
                 ushort target = Fetch16();
+                if (target >= 0xB900 && Memory[target] == 0xC3)
+                {
+                    pc = target;                                       // entrée du firmware détournée (PRINT #9, D084)
+                    break;
+                }
                 if (target == 0xB90C)
                 {
                     UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
@@ -613,6 +626,35 @@ internal sealed class MiniZ80
             case 0xCD:                                                 // CALL nn
             {
                 ushort address = Fetch16();
+                if (address >= 0xB900 && Memory[address] == 0xC3)
+                {
+                    Push((ushort)pc);                                  // entrée du firmware détournée (PRINT #9, D084)
+                    pc = address;
+                    break;
+                }
+                if (address is >= 0xBC77 and <= 0xBC95)
+                {
+                    switch (address)                                   // CAS ... (fichiers, D084) : retenue = réussi
+                    {
+                        case 0xBC8C: fileOut = Files[FileName()] = new(); CarryFlag = true; break;      // CAS OUT OPEN
+                        case 0xBC95: fileOut!.Add(A); CarryFlag = true; break;                          // CAS OUT CHAR
+                        case 0xBC8F: fileOut = null; CarryFlag = true; break;                           // CAS OUT CLOSE
+                        case 0xBC77:                                                                    // CAS IN OPEN
+                            CarryFlag = Files.TryGetValue(FileName(), out fileIn);
+                            fileInPos = 0;
+                            break;
+                        case 0xBC80:                                                                    // CAS IN CHAR
+                            CarryFlag = fileInPos < fileIn!.Count;
+                            if (CarryFlag)
+                                A = fileIn[fileInPos++];
+                            break;
+                        case 0xBC86: fileInPos--; CarryFlag = true; break;                              // CAS RETURN
+                        case 0xBC89: CarryFlag = fileInPos < fileIn!.Count; break;                      // CAS TEST EOF
+                        case 0xBC7A: fileIn = null; CarryFlag = true; break;                            // CAS IN CLOSE
+                        default: throw new InvalidOperationException($"Routine CAS non simulée : {address:X4}");
+                    }
+                    break;
+                }
                 if (address == 0xBB5A)
                 {
                     TextOutput(A);                                     // TXT OUTPUT : caractère affiché
@@ -848,6 +890,7 @@ internal sealed class MiniZ80
             case 0xBE: Compare(ReadMemory(HL)); break;                 // CP (HL)
             case 0x05: B--; ZeroFlag = B == 0; break;                  // DEC B
             case 0x0C: C++; ZeroFlag = C == 0; break;                  // INC C
+            case 0x04: B++; ZeroFlag = B == 0; break;                  // INC B (D084)
             case 0x0E: C = Fetch(); break;                             // LD C,n
             case 0xB9: Compare(C); break;                              // CP C (D063)
             case 0x90: Sub(B); break;                                  // SUB B (D063)

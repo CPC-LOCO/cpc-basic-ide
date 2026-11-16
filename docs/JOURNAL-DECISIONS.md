@@ -648,6 +648,18 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\touchesc.bas`. Premier essai : un appel tombé entre `LOCATE 1,5` et `PRINT N` a fait écrire le compteur sous « BREAK » (le vrai BASIC peut faire pareil) ; la ligne 50 place maintenant le curseur et écrit en une seule instruction (PRINT CHR$(31);CHR$(1);CHR$(5);N;).
 - **Fichiers :** CompilerOptions.cs, Ast.cs (OnBreakStatement, BreakMode), Parser.cs, Diagnostic.cs, CodeGenerator.cs, RuntimeLibrary.cs, `src\CpcIde\MainWindow.axaml`, `MainWindow.axaml.cs`, `EditorSettings.cs` ; MiniZ80.cs (touches tapées à un moment donné), `tests\CpcBasic.Tests\BreakTests.cs` (nouveau), JumpTests.cs.
 
+## D084 : lot J1, fichiers de données (Validé le 16 nov. 2026 : 1133 tests réussis ; `fichiers.bas` correct dans WinAPE, `SCORES.` créé sur la disquette)
+- **Découpage du lot J :** J1 (ici) fichiers de données ; J2 : CAT, SAVE et LOAD de fichiers binaires (écrans…), SPEED WRITE ; J3 : enchaîner des programmes (RUN "fichier", CHAIN) ; LOAD / MERGE d'un programme BASIC : à discuter. Les commandes AMSDOS (|DISC, |TAPE, |A…) sont des RSX : lot K.
+- **Références (SugarBox, 16 nov. 2026) :** PRINT #9 range les virgules en zones de 13 comme à l'écran (« BONJOUR », 12 en colonne 14, 3.5 en colonne 27) ; PRINT #9,"FIN";-7 donne « FIN-7 » ; WRITE #9 : `"A,B",42`. INPUT #9,A$,B,C : A$ reçoit toute la ligne 1 (pas de virgule), B et C lisent les lignes suivantes, et un texte qui n'est pas un nombre donne 0 (pas de message). CAT : `TEST.` (sans extension). Erreurs : OPENIN d'un fichier absent : « ABSENT  .  not found » écrit par AMSDOS, puis arrêt sans « in N » ; INPUT #9 sans OPENIN : « File not open in 10 » ; lecture après la fin : « EOF met in 10 » ; deux OPENOUT : « File already open in 10 ».
+- **Écriture :** pendant PRINT #9 / WRITE #9, quatre entrées du firmware sont détournées (remplacées par un saut, puis remises à la fin de l'instruction) : TXT OUTPUT écrit dans le fichier (CAS OUT CHAR ; l'entrée d'origine est remise pendant l'écriture, AMSDOS pouvant écrire un message), TXT GET CURSOR donne la colonne du fichier, TXT VALIDATE accepte tout, TXT GET WINDOW donne 255 colonnes. Les zones, TAB, SPC, PRINT USING et les nombres sortent donc comme à l'écran.
+- **Lecture :** une ligne du fichier (CAS IN CHAR jusqu'au retour à la ligne ; le saut de ligne suivant est sauté, CAS RETURN sinon) va dans la ligne de saisie du clavier, découpée comme INPUT ; quand elle est finie, la suivante. Nombres lus souplement (comme VAL) : séparés par des virgules ou des espaces ; pas de chiffre : 0. LINE INPUT #9 : toute la ligne. EOF : -1 à la fin ou sans fichier ouvert, sinon 0.
+- **Ouverture impossible :** arrêt sans message (AMSDOS a écrit le sien), attente d'une touche ; avec ON ERROR GOTO : erreur 32.
+- **Mémoire :** les zones de 2 Ko du firmware sont à &3000 (lecture) et &3800 (écriture), sous le programme (&4000) : elles n'agrandissent pas le fichier.
+- **Limites :** #9 seulement écrit tel quel (pas « #N » calculé) ; un fichier ouvert en écriture n'est pas fermé tout seul à la fin du programme (CLOSEOUT nécessaire, sinon la fin est perdue) ; « Disc full » et autres erreurs pendant l'écriture : seulement le message d'AMSDOS.
+- **Mots réservés :** OPENOUT, OPENIN, CLOSEOUT, CLOSEIN, EOF.
+- **Exemple :** `examples\fichiers.bas` (scores écrits avec WRITE #9 puis relus avec INPUT #9).
+- **Fichiers :** Ast.cs (FileStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (modules FileCommon, FileOut, FileIn), Z80Emitter.cs (INC B), MiniZ80.cs (disque simulé, entrées détournées), `tests\CpcBasic.Tests\FileTests.cs` (nouveau).
+
 ---
 
 ## Notes de fin de session (modèle)

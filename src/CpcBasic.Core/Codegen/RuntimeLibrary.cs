@@ -144,6 +144,14 @@ public static class RuntimeLibrary
     public const string EventsName = "Events";
     public const string EventsSoundName = "EventsSound";        // Events avec ON SQ GOSUB (D082)
     public const string SoundEventSetLabel = "rt_sq_set";       // ON SQ : HL = canal, DE = ligne
+    // Fichiers de données (lot J1, D084)
+    public const string FileCommonName = "FileCommon";
+    public const string FileOutName = "FileOut";
+    public const string FileInName = "FileIn";
+    public const string FileOutOnLabel = "rt_fo_on";            // début de PRINT #9 : les caractères vont dans le fichier
+    public const string FileOutOffLabel = "rt_fo_off";          // fin de PRINT #9 : retour à l'écran
+    public const int FileInBuffer = 0x3000;                     // zones de 2 Ko demandées par le firmware, sous le programme
+    public const int FileOutBuffer = 0x3800;
     public const string EventsBreakName = "EventsBreak";        // Events avec la touche ESC (D083)
     public const string EventsSoundBreakName = "EventsSoundBreak";
     public const string BreakModeLabel = "rt_brk_mode";         // 0 : ESC ignorée, 1 : pause puis Break, 2 : pause puis appel
@@ -906,6 +914,399 @@ public static class RuntimeLibrary
         // signe derrière. Partie entière nulle : « 0 » ajouté s'il reste de la place (0.50). Plus court que l'emplacement :
         // espaces (ou étoiles) à gauche ; plus long : « % » puis le nombre entier.
         [PrintUsingName] = new RuntimeModule(PrintUsingName, [RealPrintName, PrintFitName], EmitUsingNumber),
+
+        // Fichiers de données (lot J1, D084) : erreurs communes. Un fichier qu'AMSDOS ne peut pas ouvrir (« ... not found »,
+        // message écrit par AMSDOS) arrête le programme sans autre message, comme le vrai BASIC ; avec ON ERROR GOTO :
+        // erreur 32 (« Broken in »).
+        [FileCommonName] = new RuntimeModule(FileCommonName, [ErrorName], e =>
+        {
+            e.Label("rt_file_notopen");
+            e.LdHlLabel("rt_file_m1");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_file_already");
+            e.LdHlLabel("rt_file_m2");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_file_eofmet");
+            e.LdHlLabel("rt_file_m3");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_file_fail");
+            e.LdHlMem(ErrorTrapLabel);
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_file_quiet");
+            e.LdHlLabel("rt_file_m4");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_file_quiet");
+            e.CallAddress(KmWaitKey);
+            e.JpAddress(0);
+            e.Label("rt_file_m1");
+            e.Data(Ascii("File not open"));
+            e.Label("rt_file_m2");
+            e.Data(Ascii("File already open"));
+            e.Label("rt_file_m3");
+            e.Data(Ascii("EOF met"));
+            e.Label("rt_file_m4");
+            e.Data(Ascii("Broken in"));
+
+            // HL = fiche d'un texte -> HL = adresse des lettres, B = longueur
+            e.Label("rt_file_name");
+            e.LoadBFromHl();
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.ExDeHl();
+            e.Ret();
+        }),
+
+        // OPENOUT, PRINT #9, WRITE #9, CLOSEOUT (D084). Pendant PRINT #9, quatre routines du firmware sont détournées (leur
+        // entrée de 3 octets est remplacée par un saut, puis remise) : TXT OUTPUT écrit dans le fichier (CAS OUT CHAR) ;
+        // TXT GET CURSOR donne la colonne du fichier ; TXT VALIDATE accepte tout ; TXT GET WINDOW donne 255 colonnes.
+        // Les virgules (zones de 13), TAB, SPC et les nombres sortent donc comme à l'écran (SugarBox, 16 nov. 2026).
+        [FileOutName] = new RuntimeModule(FileOutName, [FileCommonName], e =>
+        {
+            (int Address, string Handler)[] patches =
+            [
+                (TxtOutput, "rt_fo_out"), (TxtGetCursor, "rt_fo_cur"), (TxtValidate, "rt_fo_val"), (TxtGetWindow, "rt_fo_win")
+            ];
+            e.Label("rt_fo_open");                   // HL = fiche du nom
+            e.LdAMem("rt_fo_isopen");
+            e.OrA();
+            e.JpNzLabel("rt_file_already");
+            e.CallLabel("rt_file_name");
+            e.LdDeImm(FileOutBuffer);
+            e.CallAddress(0xBC8C);                   // CAS OUT OPEN
+            e.JpNcLabel("rt_file_fail");
+            e.LdAImm(1);
+            e.LdMemA("rt_fo_isopen");
+            e.LdMemA("rt_fo_col");
+            e.Ret();
+
+            e.Label("rt_fo_close");
+            e.LdAMem("rt_fo_isopen");
+            e.OrA();
+            e.RetZ();
+            e.XorA();
+            e.LdMemA("rt_fo_isopen");
+            e.CallAddress(0xBC8F);                   // CAS OUT CLOSE : le reste est écrit
+            e.Ret();
+
+            e.Label(FileOutOnLabel);
+            e.LdAMem("rt_fo_isopen");
+            e.OrA();
+            e.JpZLabel("rt_file_notopen");
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.LdHlImm(patches[k].Address);       // l'entrée d'origine est gardée
+                e.LdDeLabel($"rt_fo_s{k}");
+                e.LdBcImm(3);
+                e.Ldir();
+                e.LdHlImm(patches[k].Address);
+                e.LdDeLabel(patches[k].Handler);
+                e.CallLabel("rt_fo_jp");
+            }
+            e.Ret();
+            e.Label("rt_fo_jp");                     // HL = entrée : JP DE
+            e.StoreHlImm(0xC3);
+            e.IncHl();
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.Ret();
+
+            e.Label(FileOutOffLabel);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.LdHlLabel($"rt_fo_s{k}");
+                e.LdDeImm(patches[k].Address);
+                e.LdBcImm(3);
+                e.Ldir();
+            }
+            e.Ret();
+
+            // TXT OUTPUT détourné : A = caractère. Pendant CAS OUT CHAR, l'entrée d'origine est remise (AMSDOS peut écrire
+            // un message à l'écran). Tous les registres sont gardés, comme TXT OUTPUT.
+            e.Label("rt_fo_out");
+            e.PushAf();
+            e.PushBc();
+            e.PushDe();
+            e.PushHl();
+            e.PushAf();
+            e.LdHlLabel("rt_fo_s0");
+            e.LdDeImm(TxtOutput);
+            e.LdBcImm(3);
+            e.Ldir();
+            e.PopAf();
+            e.PushAf();
+            e.CallAddress(0xBC95);                   // CAS OUT CHAR
+            e.PopAf();
+            e.CpImm(13);
+            e.JrNzLabel("rt_fo_notcr");
+            e.LdAImm(1);
+            e.LdMemA("rt_fo_col");
+            e.JrLabel("rt_fo_again");
+            e.Label("rt_fo_notcr");
+            e.CpImm(32);
+            e.JrCLabel("rt_fo_again");
+            e.LdHlLabel("rt_fo_col");
+            e.IncMemHl();
+            e.Label("rt_fo_again");
+            e.LdHlImm(TxtOutput);
+            e.LdDeLabel("rt_fo_out");
+            e.CallLabel("rt_fo_jp");
+            e.PopHl();
+            e.PopDe();
+            e.PopBc();
+            e.PopAf();
+            e.Ret();
+
+            e.Label("rt_fo_cur");                    // H = colonne du fichier, L = 1, A = 0
+            e.LdAMem("rt_fo_col");
+            e.LdHA();
+            e.LdAImm(1);
+            e.LdLA();
+            e.XorA();
+            e.Ret();
+            e.Label("rt_fo_val");                    // toute position est bonne
+            e.Scf();
+            e.Ret();
+            e.Label("rt_fo_win");                    // colonnes 0 à 254, lignes 0 à 24
+            e.LdHlImm(0);
+            e.LdDeImm((254 << 8) | 24);
+            e.Ret();
+
+            e.Label("rt_fo_isopen");
+            e.Reserve(1);
+            e.Label("rt_fo_col");
+            e.Reserve(1);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.Label($"rt_fo_s{k}");
+                e.Reserve(3);
+            }
+        }),
+
+        // OPENIN, INPUT #9, LINE INPUT #9, EOF, CLOSEIN (D084). Une ligne du fichier (jusqu'au retour à la ligne, le saut
+        // de ligne qui suit est sauté) va dans la ligne de saisie du clavier (rt_inp_buf) : INPUT #9 la découpe avec les
+        // mêmes routines qu'INPUT ; quand elle est finie, la ligne suivante est lue.
+        [FileInName] = new RuntimeModule(FileInName, [FileCommonName, InputName], e =>
+        {
+            e.Label("rt_fl_open");
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.JpNzLabel("rt_file_already");
+            e.CallLabel("rt_file_name");
+            e.LdDeImm(FileInBuffer);
+            e.CallAddress(0xBC77);                   // CAS IN OPEN
+            e.JpNcLabel("rt_file_fail");
+            e.LdAImm(1);
+            e.LdMemA("rt_fl_isopen");
+            e.Ret();
+
+            e.Label("rt_fl_close");
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.RetZ();
+            e.XorA();
+            e.LdMemA("rt_fl_isopen");
+            e.CallAddress(0xBC7A);                   // CAS IN CLOSE
+            e.Ret();
+
+            e.Label("rt_fl_eof");                    // HL = -1 à la fin (ou sans fichier), sinon 0
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.JrZLabel("rt_fl_end");
+            e.CallAddress(0xBC89);                   // CAS TEST EOF : retenue à 0 à la fin
+            e.JrNcLabel("rt_fl_end");
+            e.LdHlImm(0);
+            e.Ret();
+            e.Label("rt_fl_end");
+            e.LdHlImm(0xFFFF);
+            e.Ret();
+
+            // Ligne suivante du fichier -> rt_inp_buf (255 caractères au plus) ; rien à lire : « EOF met »
+            e.Label("rt_fl_line");
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.JpZLabel("rt_file_notopen");
+            e.LdHlLabel("rt_inp_buf");
+            e.LdMemHl("rt_inp_ptr");
+            e.LdBImm(0);
+            e.Label("rt_fl_next");
+            e.CallLabel("rt_fl_char");
+            e.JrNcLabel("rt_fl_stop");
+            e.CpImm(13);
+            e.JrZLabel("rt_fl_cr");
+            e.CpImm(10);
+            e.JrZLabel("rt_fl_next");                // saut de ligne seul : sauté
+            e.LdHlA();
+            e.IncHl();
+            e.IncB();
+            e.LdAB();
+            e.CpImm(255);
+            e.JrNzLabel("rt_fl_next");
+            e.JrLabel("rt_fl_done");
+            e.Label("rt_fl_cr");                     // après le retour à la ligne : un saut de ligne est sauté
+            e.CallLabel("rt_fl_char");
+            e.JrNcLabel("rt_fl_done");
+            e.CpImm(10);
+            e.JrZLabel("rt_fl_done");
+            e.CallAddress(0xBC86);                   // CAS RETURN : ce caractère sera relu
+            e.JrLabel("rt_fl_done");
+            e.Label("rt_fl_stop");                   // fin du fichier
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_file_eofmet");
+            e.Label("rt_fl_done");
+            e.StoreHlImm(0);
+            e.Ret();
+            e.Label("rt_fl_char");                   // CAS IN CHAR en gardant B et HL
+            e.PushBc();
+            e.PushHl();
+            e.CallAddress(0xBC80);
+            e.PopHl();
+            e.PopBc();
+            e.Ret();
+
+            // Valeur suivante : s'il ne reste rien de la ligne, la ligne suivante
+            e.Label("rt_fl_more");
+            e.LdHlMem("rt_inp_ptr");
+            e.LdAHl();
+            e.OrA();
+            e.RetNz();
+            e.JpLabel("rt_fl_line");
+
+            // Valeur qui n'est pas lisible : on passe jusqu'après la virgule (un texte entre guillemets peut en contenir)
+            e.Label("rt_fl_skip");
+            e.LdHlMem("rt_inp_ptr");
+            e.Label("rt_fl_sk_sp");
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_fl_sk_q");
+            e.IncHl();
+            e.JrLabel("rt_fl_sk_sp");
+            e.Label("rt_fl_sk_q");
+            e.CpImm('"');
+            e.JrNzLabel("rt_fl_sk_to");
+            e.Label("rt_fl_sk_in");
+            e.IncHl();
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_fl_sk_end");
+            e.CpImm('"');
+            e.JrNzLabel("rt_fl_sk_in");
+            e.IncHl();
+            e.Label("rt_fl_sk_to");
+            e.LdAHl();
+            e.OrA();
+            e.JrZLabel("rt_fl_sk_end");
+            e.IncHl();
+            e.CpImm(',');
+            e.JrNzLabel("rt_fl_sk_to");
+            e.Label("rt_fl_sk_end");
+            e.LdMemHl("rt_inp_ptr");
+            e.Ret();
+
+            // Nombre entier, lu souplement (comme VAL) : espaces, signe, chiffres -> HL ; pas de chiffre : 0, valeur passée
+            e.Label("rt_fl_num");
+            e.LdHlMem("rt_inp_ptr");
+            e.Label("rt_fl_n_sp");
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_fl_n_sign");
+            e.IncHl();
+            e.JrLabel("rt_fl_n_sp");
+            e.Label("rt_fl_n_sign");
+            e.LdCImm(0);                             // C = 1 : négatif
+            e.CpImm('-');
+            e.JrNzLabel("rt_fl_n_plus");
+            e.IncC();
+            e.IncHl();
+            e.JrLabel("rt_fl_n_first");
+            e.Label("rt_fl_n_plus");
+            e.CpImm('+');
+            e.JrNzLabel("rt_fl_n_first");
+            e.IncHl();
+            e.Label("rt_fl_n_first");
+            e.LdAHl();
+            e.SubImm('0');
+            e.CpImm(10);
+            e.JrCLabel("rt_fl_n_go");
+            e.CallLabel("rt_fl_skip");               // pas un nombre
+            e.LdHlImm(0);
+            e.Ret();
+            e.Label("rt_fl_n_go");
+            e.ExDeHl();                              // DE = texte, HL = valeur
+            e.LdHlImm(0);
+            e.Label("rt_fl_n_digit");
+            e.LdADe();
+            e.SubImm('0');
+            e.CpImm(10);
+            e.JrNcLabel("rt_fl_n_end");
+            e.IncDe();
+            e.PushDe();
+            e.AddHlHl();                             // HL x 10 + chiffre
+            e.PushHl();
+            e.AddHlHl();
+            e.AddHlHl();
+            e.PopDe();
+            e.AddHlDe();
+            e.LdEA();
+            e.LdDZero();
+            e.AddHlDe();
+            e.PopDe();
+            e.JrLabel("rt_fl_n_digit");
+            e.Label("rt_fl_n_end");
+            e.LdAC();
+            e.OrA();
+            e.JrZLabel("rt_fl_n_pos");
+            e.XorA();                                // HL = -HL
+            e.SubL();
+            e.LdLA();
+            e.SbcAA();
+            e.SubH();
+            e.LdHA();
+            e.Label("rt_fl_n_pos");
+            e.PushHl();
+            e.ExDeHl();
+            e.CallLabel("rt_fl_after");
+            e.PopHl();
+            e.Ret();
+
+            // Après un nombre (HL = suite du texte) : espaces ; une virgule est passée ; un autre nombre (séparé par des
+            // espaces) reste pour la valeur suivante ; autre chose : passé jusqu'à la virgule
+            e.Label("rt_fl_after");
+            e.LdAHl();
+            e.CpImm(' ');
+            e.JrNzLabel("rt_fl_a_look");
+            e.IncHl();
+            e.JrLabel("rt_fl_after");
+            e.Label("rt_fl_a_look");
+            e.LdMemHl("rt_inp_ptr");
+            e.OrA();
+            e.RetZ();
+            e.CpImm(',');
+            e.JrNzLabel("rt_fl_a_num");
+            e.IncHl();
+            e.LdMemHl("rt_inp_ptr");
+            e.Ret();
+            e.Label("rt_fl_a_num");
+            e.CpImm('-');
+            e.RetZ();
+            e.CpImm('+');
+            e.RetZ();
+            e.CpImm('.');
+            e.RetZ();
+            e.SubImm('0');
+            e.CpImm(10);
+            e.RetC();
+            e.JpLabel("rt_fl_skip");
+
+            e.Label("rt_fl_isopen");
+            e.Reserve(1);
+            e.Label("rt_fl_save");
+            e.Reserve(2);
+        }),
 
         // GOSUB compte les appels en cours ; RETURN sans appel en cours : « Unexpected RETURN in N », comme le vrai BASIC
         // (lot I2b, D081). Le compteur tient sur un octet.

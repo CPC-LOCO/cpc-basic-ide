@@ -28,7 +28,8 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
+        "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -389,6 +390,27 @@ public static class Parser
             case "PRINT":
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "PRINT", false,
                                           rest => ParsePrint(tokens, pos, statements, diagnostics, rest));
+
+            case "OPENOUT" or "OPENIN":                 // lot J1 (D084)
+            {
+                pos++;
+                Token nameStart = tokens[pos];
+                Expression? fileName = ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (fileName is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (!Types.IsString(fileName))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, nameStart.Line,
+                                                   $"{t.Text} attend le nom du fichier, entre guillemets"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new FileStatement(t.Line, t.Text, fileName));
+                return pos;
+            }
+
+            case "CLOSEOUT" or "CLOSEIN":               // lot J1 (D084)
+                statements.Add(new FileStatement(t.Line, t.Text));
+                return pos + 1;
 
             case "RESUME":                              // lot I2 (D080)
             {
@@ -1555,9 +1577,12 @@ public static class Parser
 
     static void CheckStreamNumber(Expression stream, int line, string command, List<Diagnostic> diagnostics)
     {
+        // #9 : le fichier ouvert par OPENOUT ou OPENIN, pour PRINT, WRITE, INPUT et LINE INPUT (D084)
+        if (stream is NumberExpression { Value: 9 } && command is "PRINT" or "WRITE" or "INPUT" or "LINE INPUT")
+            return;
         if (stream is NumberExpression number && (number.Value < 0 || number.Value > 7))
             diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, line,
-                                           $"#{number.Value}|#0 à #7 (#8 et #9 viendront avec le lot J)", command));
+                                           $"#{number.Value}|#0 à #7, ou #9 avec PRINT, WRITE, INPUT et LINE INPUT (#8 : plus tard)", command));
     }
 
     const string SoundSignature = "SOUND canal, période [, durée [, volume [, env. volume [, env. ton [, bruit]]]]]";
@@ -2735,6 +2760,10 @@ public static class Parser
                     Uses(onSq.Channel);
                     break;
 
+                case FileStatement { Name: not null } file:
+                    Uses(file.Name);
+                    break;
+
                 case TimerStatement timer:
                     Uses(timer.Time);
                     Uses(timer.Timer);
@@ -3093,9 +3122,9 @@ public static class Parser
                     pos++;                              // PI et RND s'écrivent sans parenthèses (D069)
                     return new CallExpression(t.Text, []);
                 }
-                if (t.Text is "TIME" or "ERR" or "ERL")
+                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF")
                 {
-                    pos++;                              // TIME, ERR et ERL s'écrivent sans parenthèses, comme sur le CPC (D080)
+                    pos++;                              // TIME, ERR, ERL et EOF s'écrivent sans parenthèses, comme sur le CPC (D080, D084)
                     return new CallExpression(t.Text, []);
                 }
                 if (Functions.TryGetValue(t.Text, out FunctionInfo? function))
