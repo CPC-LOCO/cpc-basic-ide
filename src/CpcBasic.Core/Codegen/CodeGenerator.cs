@@ -486,6 +486,21 @@ public static class CodeGenerator
                     EmitRealInto(a[0], k);
                     break;
 
+                case "TIME!":
+                    // TIME avec le réglage F8 (D097) : KL TIME PLEASE rend DEHL, rangé sur 4 octets puis BINARY TO REAL
+                    emitter.CallAddress(RuntimeLibrary.KlTimePlease);
+                    emitter.LdMemHl(temp);
+                    emitter.LdHlLabel(temp);
+                    emitter.IncHl();
+                    emitter.IncHl();
+                    emitter.StoreHlE();
+                    emitter.IncHl();
+                    emitter.StoreHlD();
+                    emitter.LdHlLabel(temp);
+                    emitter.XorA();
+                    emitter.CallLabel(FirmwareMaths.BinaryToReal.Label);
+                    break;
+
                 case "HIMEM" or "FRE":
                     // HIMEM : dernier octet libre (&A67B, ou l'adresse de MEMORY) ; FRE : place entre les tableaux et les
                     // textes, après le ménage des textes pour FRE(""). Plus de 32767 : nombre à virgule (D094).
@@ -699,6 +714,11 @@ public static class CodeGenerator
         // Calcule l'expression : le résultat est dans HL
         void EmitExpression(Expression expression)
         {
+            if (expression is CallExpression { Function: "TIME!" })
+            {
+                emitter.CallAddress(RuntimeLibrary.KlTimePlease);   // TIME (F8) là où il faut un entier : les 16 bits du bas (D097)
+                return;
+            }
             if (Types.IsReal(expression))
             {
                 // Nombre à virgule là où il faut un entier : arrondi, « Overflow » s'il ne tient pas (D068)
@@ -1907,6 +1927,7 @@ public static class CodeGenerator
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
                 || statement is ExternalCallStatement { Rsx: not null } || statement is KeyStatement or KeyDefStatement
                 || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
+                || (statement is OnStatement onCheck && OnNeedsCheck(onCheck))
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
@@ -2011,7 +2032,15 @@ public static class CodeGenerator
                 case OnStatement on:
                 {
                     // HL = valeur. Pour chaque ligne k (de 1 à N) : si la valeur vaut k, on saute ou on appelle ; sinon on continue.
+                    // Hors de 0 à 255 : « Improper argument » (D097).
                     EmitExpression(on.Selector);
+                    if (OnNeedsCheck(on))
+                    {
+                        required.Add(RuntimeLibrary.OnRangeName);
+                        emitter.LdAH();
+                        emitter.OrA();
+                        emitter.JpNzLabel(RuntimeLibrary.OnRangeErrorLabel);
+                    }
                     string done = $"on_{labelCount++}";
                     for (int k = 0; k < on.Targets.Count; k++)
                     {
@@ -3253,6 +3282,9 @@ public static class CodeGenerator
 
     /// <summary>Vrai si l'instruction utilise un texte (variable A$, texte entre guillemets dans un calcul...) (D062).</summary>
     // Nombres à virgule (D068) : un nombre écrit avec une virgule, une variable A!, ou une affectation à A!
+    // ON x GOTO : la valeur est vérifiée (0 à 255) sauf si c'est un nombre écrit déjà bon (D097)
+    static bool OnNeedsCheck(OnStatement on) => on.Selector is not NumberExpression { Value: >= 0 and <= 255 };
+
     // Taille d'une case de tableau : 2 (entier), 3 (fiche de texte, D065), 5 (nombre à virgule, D070)
     static int ElementBytes(string name) => VariableNames.IsString(name) ? 3 : VariableNames.IsReal(name) ? 5 : 2;
 

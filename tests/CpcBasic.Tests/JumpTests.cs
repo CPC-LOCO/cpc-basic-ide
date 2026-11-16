@@ -252,13 +252,15 @@ public class JumpTests
     }
 
     [Theory]
-    [InlineData(-1, "N")]
+    [InlineData(-1, "Improper argument in 20")]   // hors de 0 à 255 (D097, SugarBox)
     [InlineData(0, "N")]
     [InlineData(1, "1")]
     [InlineData(2, "2")]
     [InlineData(3, "3")]
     [InlineData(4, "N")]
-    [InlineData(32767, "N")]
+    [InlineData(255, "N")]
+    [InlineData(256, "Improper argument in 20")]
+    [InlineData(32767, "Improper argument in 20")]
     public void ON_GOTO_choisit_la_ligne_selon_la_valeur(int value, string expected)
     {
         string source = $"10 X = {value}\n20 ON X GOTO 100, 200, 300\n30 PRINT \"N\"\n40 END\n"

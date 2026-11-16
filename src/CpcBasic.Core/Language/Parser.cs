@@ -3677,6 +3677,11 @@ public static class Parser
                     pos++;                              // PI et RND s'écrivent sans parenthèses (D069)
                     return new CallExpression(t.Text, []);
                 }
+                if (t.Text == "TIME" && realDivision)
+                {
+                    pos++;                              // réglage F8 : TIME complet, à virgule, comme le Locomotive (D097)
+                    return new CallExpression("TIME!", []);
+                }
                 if (t.Text is "TIME" or "ERR" or "ERL" or "EOF" or "XPOS" or "YPOS" or "HIMEM")
                 {
                     pos++;                              // TIME, ERR, ERL et EOF s'écrivent sans parenthèses, comme sur le CPC (D080, D084)

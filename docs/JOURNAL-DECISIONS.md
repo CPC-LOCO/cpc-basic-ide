@@ -743,6 +743,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Mots réservés :** ERASE (déjà réservé par le Locomotive).
 - **Fichiers :** Ast.cs (EraseStatement, UsesArrays), Parser.cs, Diagnostic.cs (ExpectedEraseName), RuntimeLibrary.cs (module ArrayErase), CodeGenerator.cs (ElementBytes, table), `tests\CpcBasic.Tests\EraseTests.cs` (nouveau), ArrayTests.cs (ERASE remplacé par FRAME). Exemple : `examples\efface.bas`.
 
+## D097 : lot K9, TIME complet avec F8 et ON x GOTO hors limites (Validé le 16 nov. 2026 : 1256 tests réussis ; `temps.bas` dans WinAPE : TIME 4929, SUITE 0, SAUT AVEC I = 1, ON 255 continue, « Improper argument in 100 »)
+- **Référence (SugarBox, 16 nov. 2026) :** `ON I GOTO 30,30` avec I = 0 : continue ; I = 1 : saute ; `ON 255 GOTO` : continue ; `ON 256 GOTO 30` : « Improper argument in 50 ».
+- **ON x GOTO / GOSUB :** de 0 à 255, comme avant (0 ou plus grand que le nombre de lignes : on continue) ; en dehors (négatif ou plus de 255) : « Improper argument », comme le Locomotive. Module OnRange ; aucun octet ajouté quand la valeur est un nombre écrit de 0 à 255. Tests de JumpTests adaptés (-1 et 32767 donnaient « on continue »).
+- **TIME (choix A de l'utilisateur) :** avec le réglage F8, TIME est complet (32 bits, nombre à virgule : KL TIME PLEASE puis BINARY TO REAL), comme le vrai BASIC ; là où il faut un entier (RANDOMIZE TIME, A% = TIME), il garde les 16 bits du bas, sans « Overflow ». Sans F8, rien ne change (16 bits, D026) : `T=TIME ... IF TIME-T>300` continue de marcher avec des entiers. Nom interne : CallExpression « TIME! ».
+- **À savoir (constaté par l'utilisateur) :** avec F8, les boucles d'attente `FOR K = 1 TO 30000` deviennent des boucles à virgule, bien plus lentes (comme sur le vrai CPC). Pour une boucle rapide avec F8 : `FOR K% = 1 TO 30000`.
+- **Fichiers :** Parser.cs, Ast.cs, RuntimeLibrary.cs (module OnRange), CodeGenerator.cs (OnNeedsCheck, TIME!), JumpTests.cs, `tests\CpcBasic.Tests\TimeFullTests.cs` (nouveau). Exemple : `examples\temps.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

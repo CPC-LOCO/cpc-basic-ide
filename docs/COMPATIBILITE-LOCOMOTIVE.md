@@ -45,8 +45,8 @@ Mise à jour le 16 nov. 2026 :
 | `GOTO / GO TO` | saut à une ligne | Faite | Numéro de ligne écrit en chiffres (1 à 65529) ; ligne inexistante refusée à la compilation. |
 | `GOSUB / GO SUB` | appel d'un sous-programme | Faite | Comme GOTO. |
 | `RETURN` | retour d'un sous-programme | Faite | RETURN sans GOSUB : « Unexpected RETURN in N » (D081). |
-| `ON x GOTO` | saut selon une valeur | Partielle | Valeur hors de 1 à N : le programme continue (pas d'erreur pour une valeur négative). |
-| `ON x GOSUB` | appel selon une valeur | Partielle | Comme ON x GOTO. |
+| `ON x GOTO` | saut selon une valeur | Faite | 0 ou plus de N : le programme continue ; hors de 0 à 255 : « Improper argument » (D097). |
+| `ON x GOSUB` | appel selon une valeur | Faite | Comme ON x GOTO (D097). |
 | `CALL` | appelle un programme en langage machine | Faite | Avec valeurs : CALL adresse, v1, v2… (D089). |
 | `CHAIN` | charge et lance un autre programme | Écart voulu | Refusé à la compilation (les variables ne peuvent pas passer d'un programme compilé à l'autre) : RUN "nom" et un fichier (D086). |
 | `CHAIN MERGE` | charge un autre programme en gardant les variables | Écart voulu | Refusé : ajoute des lignes BASIC (D086). |
@@ -235,7 +235,7 @@ Tout cela attend les variables chaînes (A$).
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `TIME` | compteur de temps (300 par seconde) | Partielle | Renvoie seulement les 16 bits de poids faible. |
+| `TIME` | compteur de temps (300 par seconde) | Faite | Avec le réglage F8 : complet (32 bits, à virgule). Sans F8 : les 16 bits du bas, en entier (choix de l'utilisateur, D097). |
 | `AFTER` | action après un délai | Faite | D079. |
 | `EVERY` | action répétée | Faite | D079. |
 | `REMAIN` | temps restant d'un compteur | Faite | D079. |

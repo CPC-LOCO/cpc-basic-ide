@@ -277,6 +277,8 @@ public static class RuntimeLibrary
     public const string ArrayElementSizeLabel = "rt_arr_esize";  // taille d'une case : 2 (entier) ou 3 (texte, D065)
     public const string ArrayElemLabel = "rt_arr_elem";
     public const string ArrayMemoryLabel = "rt_arr_memory";
+    public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
+    public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
     public const string ArrayEraseLabel = "rt_arr_erase";       // HL = descripteur, B = dimensions, C = taille d'une case
     public const string ArrayTableLabel = "rt_arr_table";       // placée par le générateur : tous les tableaux
@@ -3709,6 +3711,16 @@ public static class RuntimeLibrary
             e.Data([0]);
             e.Label("rt_er_dead");                   // fiche vide : aucun bloc ne lui appartient
             e.Data([0, 0, 0]);
+        }),
+
+        // ON x GOTO / GOSUB (D097) : x hors de 0 à 255 : « Improper argument », comme le Locomotive
+        [OnRangeName] = new RuntimeModule(OnRangeName, [ErrorName], e =>
+        {
+            e.Label(OnRangeErrorLabel);
+            e.LdHlLabel("rt_on_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_on_msg");
+            e.Data(Ascii("Improper argument"));
         }),
 
         [ArrayName] = new RuntimeModule(ArrayName, [ErrorName, HeapName], e =>

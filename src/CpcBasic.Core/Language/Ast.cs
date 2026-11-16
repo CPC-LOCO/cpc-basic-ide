@@ -272,7 +272,8 @@ public static class Types
         CallExpression call => call.Function switch
         {
             "SIN" or "COS" or "TAN" or "ATN" or "SQR" or "EXP" or "LOG" or "LOG10" or "PI" or "RND" or "CREAL" or "VAL" => true,
-            "HIMEM" or "FRE" => true,                   // plus de 32767 : nombres à virgule, comme le Locomotive (D094)
+            "HIMEM" or "FRE" => true,
+            "TIME!" => true,                            // TIME avec le réglage F8 : 32 bits (D097)                   // plus de 32767 : nombres à virgule, comme le Locomotive (D094)
             "INT" or "FIX" or "ABS" => IsReal(call.Arguments[0]),
             "ROUND" => call.Arguments.Count == 2 || IsReal(call.Arguments[0]),
             "MIN" or "MAX" => call.Arguments.Any(IsReal),
