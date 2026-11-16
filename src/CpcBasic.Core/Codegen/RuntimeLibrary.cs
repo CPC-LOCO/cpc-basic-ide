@@ -142,6 +142,8 @@ public static class RuntimeLibrary
     public const string UsingStrLabel = "rt_using_str";         // HL = fiche, A = largeur (0 : tout le texte)
     // Minuteries AFTER, EVERY (lot I1, D079)
     public const string EventsName = "Events";
+    public const string EventsSoundName = "EventsSound";        // Events avec ON SQ GOSUB (D082)
+    public const string SoundEventSetLabel = "rt_sq_set";       // ON SQ : HL = canal, DE = ligne
     public const string EventsInitLabel = "rt_ev_init";         // au départ : branche le compteur du firmware (1/50 s)
     public const string EventsPendingLabel = "rt_ev_pending";   // octet : 1 si une minuterie est arrivée au bout
     public const string EventsRunLabel = "rt_ev_run";           // appelé entre deux instructions si rt_ev_pending
@@ -1089,178 +1091,10 @@ public static class RuntimeLibrary
         // les sous-programmes partent de la minuterie 3 (la plus prioritaire) à 0. Pendant l'un d'eux, seules les
         // minuteries plus prioritaires peuvent partir ; DI les retient toutes jusqu'à EI.
         // Table : 8 octets par minuterie : active, compte (2), recharge (2), cible (2), marquée.
-        [EventsName] = new RuntimeModule(EventsName, [ErrorName, GosubName], e =>
-        {
-            e.Label(EventsInitLabel);
-            e.LdHlLabel("rt_ev_blk_ev");
-            e.LdBcImm(0xC100);                       // B = &C1 : événement express, asynchrone, adresse proche ; C = 0
-            e.LdDeLabel("rt_ev_tick");
-            e.CallAddress(0xBCEF);                   // KL INIT EVENT
-            e.LdHlLabel("rt_ev_blk");
-            e.LdDeImm(1);
-            e.LdBcImm(1);
-            e.JpAddress(0xBCE9);                     // KL ADD TICKER : tous les 1/50 s
+        [EventsName] = new RuntimeModule(EventsName, [ErrorName, GosubName], e => EmitEvents(e, false)),
 
-            // Tous les 1/50 s (pendant l'interruption) : les registres sont gardés
-            e.Label("rt_ev_tick");
-            e.PushAf();
-            e.PushHl();
-            for (int t = 0; t < 4; t++)
-            {
-                e.LdAMem($"rt_ev_a{t}");
-                e.OrA();
-                e.JrZLabel($"rt_ev_skip{t}");
-                e.LdHlMem($"rt_ev_c{t}");
-                e.DecHl();
-                e.LdMemHl($"rt_ev_c{t}");
-                e.LdAH();
-                e.OrL();
-                e.JrNzLabel($"rt_ev_skip{t}");
-                e.LdHlMem($"rt_ev_r{t}");            // au bout : recharge (EVERY) ou arrêt (AFTER)
-                e.LdMemHl($"rt_ev_c{t}");
-                e.LdAH();
-                e.OrL();
-                e.JrNzLabel($"rt_ev_fire{t}");
-                e.LdMemA($"rt_ev_a{t}");             // A = 0
-                e.Label($"rt_ev_fire{t}");
-                e.LdAImm(1);
-                e.LdMemA($"rt_ev_p{t}");
-                e.LdMemA(EventsPendingLabel);
-                e.Label($"rt_ev_skip{t}");
-            }
-            e.PopHl();
-            e.PopAf();
-            e.Ret();
-
-            // Entre deux instructions : lance les sous-programmes des minuteries marquées
-            e.Label(EventsRunLabel);
-            e.LdAMem(EventsDiLabel);
-            e.OrA();
-            e.RetNz();                               // DI : rien pour l'instant
-            e.XorA();
-            e.LdMemA(EventsPendingLabel);
-            for (int t = 3; t >= 0; t--)
-            {
-                e.LdAMem($"rt_ev_p{t}");
-                e.OrA();
-                e.JrZLabel($"rt_ev_next{t}");
-                e.LdAMem("rt_ev_lvl");               // niveau en cours (0 : aucun, t + 1 : minuterie t)
-                e.CpImm(t + 1);
-                e.JrCLabel($"rt_ev_go{t}");
-                e.LdAImm(1);                         // pas assez prioritaire : attendra le RETURN
-                e.LdMemA(EventsPendingLabel);
-                e.JrLabel($"rt_ev_next{t}");
-                e.Label($"rt_ev_go{t}");
-                e.PushAf();                          // A = niveau d'avant
-                e.XorA();
-                e.LdMemA($"rt_ev_p{t}");
-                e.LdAImm(t + 1);
-                e.LdMemA("rt_ev_lvl");
-                e.LdHlLabel(GosubCountLabel);        // compte comme un GOSUB (son RETURN le décompte, D081)
-                e.IncMemHl();
-                e.LdHlMem($"rt_ev_t{t}");
-                e.CallLabel("rt_ev_jphl");           // GOSUB ligne : revient ici par RETURN
-                e.PopAf();
-                e.LdMemA("rt_ev_lvl");
-                e.JpLabel(EventsRunLabel);           // on recommence : d'autres ont pu arriver
-                e.Label($"rt_ev_next{t}");
-            }
-            e.Ret();
-            e.Label("rt_ev_jphl");
-            e.JpHl();
-
-            // A = minuterie (0 à 3) ; rt_ev_tc, tr, tt : durée, recharge (0 pour AFTER), adresse du sous-programme
-            e.Label(EventsSetLabel);
-            e.CallLabel("rt_ev_entry");
-            e.Di();
-            e.StoreHlImm(0);                         // arrêtée pendant le changement
-            e.IncHl();
-            e.LdDH();
-            e.LdEL();
-            e.LdHlLabel("rt_ev_tc");
-            e.LdBcImm(6);
-            e.Ldir();
-            e.ExDeHl();
-            e.StoreHlImm(0);                         // pas marquée
-            e.LdBcImm(-7 & 0xFFFF);
-            e.AddHlBc();
-            e.StoreHlImm(1);                         // active
-            e.Ei();
-            e.Ret();
-
-            // REMAIN(minuterie) : HL = compte restant (0 si elle ne tournait pas), puis la minuterie est arrêtée
-            e.Label(EventsRemainLabel);
-            e.LdAH();
-            e.OrA();
-            e.JrNzLabel("rt_ev_bad");
-            e.LdAL();
-            e.CallLabel("rt_ev_entry");
-            e.Di();
-            e.LdAHl();
-            e.StoreHlImm(0);                         // arrêtée
-            e.IncHl();
-            e.LoadEFromHl();
-            e.IncHl();
-            e.LoadDFromHl();
-            e.LdBcImm(5);                            // de l'octet 2 à l'octet 7
-            e.AddHlBc();
-            e.StoreHlImm(0);                         // plus marquée
-            e.Ei();
-            e.OrA();
-            e.ExDeHl();
-            e.RetNz();
-            e.LdHlImm(0);
-            e.Ret();
-
-            // A = minuterie -> HL = sa ligne de la table ; hors de 0 à 3 : « Improper argument »
-            e.Label("rt_ev_entry");
-            e.CpImm(4);
-            e.JrNcLabel("rt_ev_bad");
-            e.LdLA();
-            e.LdHZero();
-            e.AddHlHl();
-            e.AddHlHl();
-            e.AddHlHl();
-            e.LdDeLabel("rt_ev_tab");
-            e.AddHlDe();
-            e.Ret();
-            e.Label("rt_ev_bad");
-            e.LdHlLabel("rt_ev_msg");
-            e.JpLabel(ErrorLabel);
-            e.Label("rt_ev_msg");
-            e.Data(Ascii("Improper argument"));
-
-            e.Label("rt_ev_tab");
-            for (int t = 0; t < 4; t++)
-            {
-                e.Label($"rt_ev_a{t}");
-                e.Reserve(1);
-                e.Label($"rt_ev_c{t}");
-                e.Reserve(2);
-                e.Label($"rt_ev_r{t}");
-                e.Reserve(2);
-                e.Label($"rt_ev_t{t}");
-                e.Reserve(2);
-                e.Label($"rt_ev_p{t}");
-                e.Reserve(1);
-            }
-            e.Label("rt_ev_tc");
-            e.Reserve(2);
-            e.Label("rt_ev_tr");
-            e.Reserve(2);
-            e.Label("rt_ev_tt");
-            e.Reserve(2);
-            e.Label(EventsPendingLabel);
-            e.Reserve(1);
-            e.Label("rt_ev_lvl");
-            e.Reserve(1);
-            e.Label(EventsDiLabel);
-            e.Reserve(1);
-            e.Label("rt_ev_blk");                    // bloc du compteur (6 octets) suivi du bloc de l'événement
-            e.Reserve(6);
-            e.Label("rt_ev_blk_ev");
-            e.Reserve(10);
-        }),
+        // Les mêmes, avec ON SQ(canal) GOSUB (lot I3a, D082) : remplace le module Events quand le programme s'en sert
+        [EventsSoundName] = new RuntimeModule(EventsSoundName, [ErrorName, GosubName], e => EmitEvents(e, true)),
 
         // SYMBOL caractère, lignes (D075) : TXT SET MATRIX (&BBA8) ; caractère pas redessinable : « Improper argument »
         // (comme le vrai BASIC : SYMBOL 65,255 sans SYMBOL AFTER 65 ou moins).
@@ -4680,6 +4514,243 @@ public static class RuntimeLibrary
         Modules.TryGetValue(name, out RuntimeModule? module)
             ? module
             : throw new InvalidOperationException($"Module inconnu dans la bibliothèque : {name}");
+
+    // Minuteries (D079) et, si sound, événements des canaux sonores (ON SQ, D082)
+    static void EmitEvents(Z80Emitter e, bool sound)
+    {
+        e.Label(EventsInitLabel);
+        if (sound)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                e.LdHlLabel($"rt_sq_blk{k}");
+                e.LdBcImm(0xC100);                   // événement express, asynchrone, adresse proche
+                e.LdDeLabel($"rt_sq_kick{k}");
+                e.CallAddress(0xBCEF);               // KL INIT EVENT
+            }
+        }
+        e.LdHlLabel("rt_ev_blk_ev");
+        e.LdBcImm(0xC100);                       // B = &C1 : événement express, asynchrone, adresse proche ; C = 0
+        e.LdDeLabel("rt_ev_tick");
+        e.CallAddress(0xBCEF);                   // KL INIT EVENT
+        e.LdHlLabel("rt_ev_blk");
+        e.LdDeImm(1);
+        e.LdBcImm(1);
+        e.JpAddress(0xBCE9);                     // KL ADD TICKER : tous les 1/50 s
+
+        // Tous les 1/50 s (pendant l'interruption) : les registres sont gardés
+        e.Label("rt_ev_tick");
+        e.PushAf();
+        e.PushHl();
+        for (int t = 0; t < 4; t++)
+        {
+            e.LdAMem($"rt_ev_a{t}");
+            e.OrA();
+            e.JrZLabel($"rt_ev_skip{t}");
+            e.LdHlMem($"rt_ev_c{t}");
+            e.DecHl();
+            e.LdMemHl($"rt_ev_c{t}");
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel($"rt_ev_skip{t}");
+            e.LdHlMem($"rt_ev_r{t}");            // au bout : recharge (EVERY) ou arrêt (AFTER)
+            e.LdMemHl($"rt_ev_c{t}");
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel($"rt_ev_fire{t}");
+            e.LdMemA($"rt_ev_a{t}");             // A = 0
+            e.Label($"rt_ev_fire{t}");
+            e.LdAImm(1);
+            e.LdMemA($"rt_ev_p{t}");
+            e.LdMemA(EventsPendingLabel);
+            e.Label($"rt_ev_skip{t}");
+        }
+        e.PopHl();
+        e.PopAf();
+        e.Ret();
+
+        // Entre deux instructions : lance les sous-programmes des minuteries marquées
+        e.Label(EventsRunLabel);
+        e.LdAMem(EventsDiLabel);
+        e.OrA();
+        e.RetNz();                               // DI : rien pour l'instant
+        e.XorA();
+        e.LdMemA(EventsPendingLabel);
+        // Du plus prioritaire au moins prioritaire : minuterie 3, minuterie 2 et les canaux sonores (même niveau,
+        // D082), minuterie 1, minuterie 0
+        var slots = new List<(string Name, int Level)> { ("ev3", 4), ("ev2", 3) };
+        if (sound)
+            slots.AddRange([("sq0", 3), ("sq1", 3), ("sq2", 3)]);
+        slots.AddRange([("ev1", 2), ("ev0", 1)]);
+        foreach ((string name, int level) in slots)
+        {
+            string flag = name.StartsWith("ev") ? $"rt_ev_p{name[2]}" : $"rt_sq_p{name[2]}";
+            string target = name.StartsWith("ev") ? $"rt_ev_t{name[2]}" : $"rt_sq_t{name[2]}";
+            e.LdAMem(flag);
+            e.OrA();
+            e.JrZLabel($"rt_ev_next_{name}");
+            e.LdAMem("rt_ev_lvl");               // niveau en cours (0 : aucun)
+            e.CpImm(level);
+            e.JrCLabel($"rt_ev_go_{name}");
+            e.LdAImm(1);                         // pas assez prioritaire : attendra le RETURN
+            e.LdMemA(EventsPendingLabel);
+            e.JrLabel($"rt_ev_next_{name}");
+            e.Label($"rt_ev_go_{name}");
+            e.PushAf();                          // A = niveau d'avant
+            e.XorA();
+            e.LdMemA(flag);
+            e.LdAImm(level);
+            e.LdMemA("rt_ev_lvl");
+            e.LdHlLabel(GosubCountLabel);        // compte comme un GOSUB (son RETURN le décompte, D081)
+            e.IncMemHl();
+            e.LdHlMem(target);
+            e.CallLabel("rt_ev_jphl");           // GOSUB ligne : revient ici par RETURN
+            e.PopAf();
+            e.LdMemA("rt_ev_lvl");
+            e.JpLabel(EventsRunLabel);           // on recommence : d'autres ont pu arriver
+            e.Label($"rt_ev_next_{name}");
+        }
+        e.Ret();
+        e.Label("rt_ev_jphl");
+        e.JpHl();
+
+        // A = minuterie (0 à 3) ; rt_ev_tc, tr, tt : durée, recharge (0 pour AFTER), adresse du sous-programme
+        e.Label(EventsSetLabel);
+        e.CallLabel("rt_ev_entry");
+        e.Di();
+        e.StoreHlImm(0);                         // arrêtée pendant le changement
+        e.IncHl();
+        e.LdDH();
+        e.LdEL();
+        e.LdHlLabel("rt_ev_tc");
+        e.LdBcImm(6);
+        e.Ldir();
+        e.ExDeHl();
+        e.StoreHlImm(0);                         // pas marquée
+        e.LdBcImm(-7 & 0xFFFF);
+        e.AddHlBc();
+        e.StoreHlImm(1);                         // active
+        e.Ei();
+        e.Ret();
+
+        // REMAIN(minuterie) : HL = compte restant (0 si elle ne tournait pas), puis la minuterie est arrêtée
+        e.Label(EventsRemainLabel);
+        e.LdAH();
+        e.OrA();
+        e.JrNzLabel("rt_ev_bad");
+        e.LdAL();
+        e.CallLabel("rt_ev_entry");
+        e.Di();
+        e.LdAHl();
+        e.StoreHlImm(0);                         // arrêtée
+        e.IncHl();
+        e.LoadEFromHl();
+        e.IncHl();
+        e.LoadDFromHl();
+        e.LdBcImm(5);                            // de l'octet 2 à l'octet 7
+        e.AddHlBc();
+        e.StoreHlImm(0);                         // plus marquée
+        e.Ei();
+        e.OrA();
+        e.ExDeHl();
+        e.RetNz();
+        e.LdHlImm(0);
+        e.Ret();
+
+        // A = minuterie -> HL = sa ligne de la table ; hors de 0 à 3 : « Improper argument »
+        e.Label("rt_ev_entry");
+        e.CpImm(4);
+        e.JrNcLabel("rt_ev_bad");
+        e.LdLA();
+        e.LdHZero();
+        e.AddHlHl();
+        e.AddHlHl();
+        e.AddHlHl();
+        e.LdDeLabel("rt_ev_tab");
+        e.AddHlDe();
+        e.Ret();
+        e.Label("rt_ev_bad");
+        e.LdHlLabel("rt_ev_msg");
+        e.JpLabel(ErrorLabel);
+        e.Label("rt_ev_msg");
+        e.Data(Ascii("Improper argument"));
+
+        e.Label("rt_ev_tab");
+        for (int t = 0; t < 4; t++)
+        {
+            e.Label($"rt_ev_a{t}");
+            e.Reserve(1);
+            e.Label($"rt_ev_c{t}");
+            e.Reserve(2);
+            e.Label($"rt_ev_r{t}");
+            e.Reserve(2);
+            e.Label($"rt_ev_t{t}");
+            e.Reserve(2);
+            e.Label($"rt_ev_p{t}");
+            e.Reserve(1);
+        }
+        e.Label("rt_ev_tc");
+        e.Reserve(2);
+        e.Label("rt_ev_tr");
+        e.Reserve(2);
+        e.Label("rt_ev_tt");
+        e.Reserve(2);
+        e.Label(EventsPendingLabel);
+        e.Reserve(1);
+        e.Label("rt_ev_lvl");
+        e.Reserve(1);
+        e.Label(EventsDiLabel);
+        e.Reserve(1);
+        e.Label("rt_ev_blk");                    // bloc du compteur (6 octets) suivi du bloc de l'événement
+        e.Reserve(6);
+        e.Label("rt_ev_blk_ev");
+        e.Reserve(10);
+
+        if (!sound)
+            return;
+
+        // ON SQ(canal) GOSUB ligne : HL = canal (1, 2 ou 4), DE = adresse de la ligne. Le firmware (SOUND ARM EVENT)
+        // déclenche l'événement une seule fois, dès qu'il y a une place libre dans la file du canal (tout de suite si
+        // elle en a déjà une) : le sous-programme doit refaire ON SQ, comme dans le vrai BASIC.
+        e.Label(SoundEventSetLabel);
+        e.LdAH();
+        e.OrA();
+        e.JpNzLabel("rt_ev_bad");
+        e.LdAL();
+        for (int k = 0; k < 3; k++)
+        {
+            e.CpImm(1 << k);
+            e.JrNzLabel($"rt_sq_not{k}");
+            e.ExDeHl();
+            e.LdMemHl($"rt_sq_t{k}");
+            e.LdHlLabel($"rt_sq_blk{k}");
+            e.CallAddress(0xBCB0);                   // SOUND ARM EVENT : A = canal, HL = bloc
+            e.Ret();
+            e.Label($"rt_sq_not{k}");
+        }
+        e.JpLabel("rt_ev_bad");
+
+        // Appelées par le firmware (souvent pendant l'interruption) : le canal est marqué
+        for (int k = 0; k < 3; k++)
+        {
+            e.Label($"rt_sq_kick{k}");
+            e.PushAf();
+            e.LdAImm(1);
+            e.LdMemA($"rt_sq_p{k}");
+            e.LdMemA(EventsPendingLabel);
+            e.PopAf();
+            e.Ret();
+        }
+        for (int k = 0; k < 3; k++)
+        {
+            e.Label($"rt_sq_p{k}");
+            e.Reserve(1);
+            e.Label($"rt_sq_t{k}");
+            e.Reserve(2);
+            e.Label($"rt_sq_blk{k}");
+            e.Reserve(8);
+        }
+    }
 }
 
 /// <summary>Liaison sélective : ne retient que les modules demandés et leurs dépendances.</summary>
@@ -4705,4 +4776,5 @@ public static class Linker
         // Ordre fixe, pour que le même programme donne toujours le même binaire
         return found.Values.OrderBy(m => m.Name, StringComparer.Ordinal).ToList();
     }
+
 }

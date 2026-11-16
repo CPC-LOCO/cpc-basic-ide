@@ -67,6 +67,35 @@ internal sealed class MiniZ80
     // Minuteries (lot I1, D079) : routine branchée par KL INIT EVENT puis KL ADD TICKER, appelée tous les TickSteps pas
     public ushort EventRoutine, TickRoutine;
     public int TickSteps = 300, Ticks;
+
+    // Files sonores (ON SQ, D082) : si SoundQueueModel, chaque canal joue un son (durée en tops de 1/50 s) et en garde
+    // 4 en attente ; SOUND ARM EVENT appelle la routine de l'événement dès qu'il y a une place, une seule fois.
+    public bool SoundQueueModel;
+    readonly Dictionary<int, ushort> eventBlocks = new();
+    readonly int[] soundPlaying = new int[3];
+    readonly Queue<int>[] soundWaiting = [new(), new(), new()];
+    readonly ushort[] soundArmed = new ushort[3];
+
+    // Une place libre dans la file du canal armé : la routine de l'événement est appelée (comme un CALL)
+    void KickSoundEvent(int channel)
+    {
+        if (soundArmed[channel] == 0 || soundWaiting[channel].Count >= 4)
+            return;
+        ushort routine = eventBlocks[soundArmed[channel]];
+        soundArmed[channel] = 0;
+        Push((ushort)pc);
+        pc = routine;
+    }
+
+    void SoundTick()
+    {
+        for (int k = 0; k < 3; k++)
+        {
+            if (soundPlaying[k] > 0 && --soundPlaying[k] == 0 && soundWaiting[k].Count > 0)
+                soundPlaying[k] = soundWaiting[k].Dequeue();
+            KickSoundEvent(k);
+        }
+    }
     public bool InterruptsEnabled = true;
 
     // Éditeur de la ligne tapée (lot H5, D076) : positions données à TXT SET CURSOR, caractères lus par TXT RD CHAR
@@ -167,6 +196,8 @@ internal sealed class MiniZ80
                 Ticks++;
                 Push((ushort)pc);                   // un « top » de 1/50 s : la routine du compteur est appelée (D079)
                 pc = TickRoutine;
+                if (SoundQueueModel)
+                    SoundTick();                    // les sons avancent ; une place libérée appelle ON SQ (D082)
             }
             Step();
         }
@@ -598,6 +629,7 @@ internal sealed class MiniZ80
                 else if (address == 0xBCEF)
                 {
                     EventRoutine = DE;                                 // KL INIT EVENT (D079)
+                    eventBlocks[HL] = DE;
                 }
                 else if (address == 0xBB75)
                 {
@@ -667,8 +699,31 @@ internal sealed class MiniZ80
                 }
                 else if (address == 0xBCAA)
                 {
-                    Sounds.Add(Memory[HL..(HL + 9)]);                  // SOUND QUEUE : toujours une place
-                    CarryFlag = true;
+                    if (SoundQueueModel)                               // SOUND QUEUE avec files (D082)
+                    {
+                        int channel = (Memory[HL] & 1) != 0 ? 0 : (Memory[HL] & 2) != 0 ? 1 : 2;
+                        int ticks = Math.Max(1, (Memory[HL + 7] | (Memory[HL + 8] << 8)) / 2);
+                        CarryFlag = soundWaiting[channel].Count < 4;
+                        if (CarryFlag)
+                        {
+                            Sounds.Add(Memory[HL..(HL + 9)]);
+                            if (soundPlaying[channel] == 0)
+                                soundPlaying[channel] = ticks;
+                            else
+                                soundWaiting[channel].Enqueue(ticks);
+                        }
+                    }
+                    else
+                    {
+                        Sounds.Add(Memory[HL..(HL + 9)]);              // SOUND QUEUE : toujours une place
+                        CarryFlag = true;
+                    }
+                }
+                else if (address == 0xBCB0)
+                {
+                    int channel = A == 1 ? 0 : A == 2 ? 1 : 2;         // SOUND ARM EVENT (ON SQ, D082)
+                    soundArmed[channel] = HL;
+                    KickSoundEvent(channel);
                 }
                 else if (address == 0xBCAD)
                 {

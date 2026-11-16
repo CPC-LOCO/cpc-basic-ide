@@ -1604,7 +1604,7 @@ public static class CodeGenerator
         }
 
         // Minuteries (lot I1, D079) : le compteur du firmware est branché au départ
-        bool usesEvents = program.Statements.Any(st => st is TimerStatement);
+        bool usesEvents = program.Statements.Any(st => st is TimerStatement or OnSqStatement);   // D079, D082
         bool usesOnError = program.Statements.Any(st => st is OnErrorStatement);   // D080
         var errorRecords = new List<(int Index, int Line)>();
         if (usesEvents)
@@ -1659,7 +1659,7 @@ public static class CodeGenerator
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
-                || statement is TimerStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
+                || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
@@ -1715,6 +1715,13 @@ public static class CodeGenerator
                     EmitExpression(error.Code);
                     required.Add(RuntimeLibrary.ErrorCodesName);
                     emitter.JpLabel(RuntimeLibrary.RaiseLabel);
+                    break;
+
+                case OnSqStatement onSq:                            // ON SQ(canal) GOSUB ligne (D082)
+                    required.Add(RuntimeLibrary.EventsName);
+                    EmitExpression(onSq.Channel);
+                    emitter.LdDeLabel(LineLabel(onSq.Target));
+                    emitter.CallLabel(RuntimeLibrary.SoundEventSetLabel);
                     break;
 
                 case TimerStatement timer:                          // AFTER / EVERY durée, minuterie GOSUB ligne (D079)
@@ -2446,6 +2453,12 @@ public static class CodeGenerator
         emitter.JpAddress(0);
 
         // Liaison sélective : seuls les modules utilisés sont écrits dans le binaire
+        // ON SQ : le module des minuteries est remplacé par celui qui gère aussi les canaux sonores (D082)
+        if (required.Contains(RuntimeLibrary.EventsName) && program.Statements.Any(st => st is OnSqStatement))
+        {
+            required.Remove(RuntimeLibrary.EventsName);
+            required.Add(RuntimeLibrary.EventsSoundName);
+        }
         List<RuntimeModule> modules = Linker.Resolve(required);
         foreach (RuntimeModule module in modules)
             module.Emit(emitter);

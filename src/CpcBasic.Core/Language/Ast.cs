@@ -291,6 +291,9 @@ public sealed record BasicProgram(IReadOnlyList<Statement> Statements, IReadOnly
     public bool IsStart(Statement statement) => Starts is null || Starts.Contains(statement);
 }
 
+/// <summary>ON SQ(canal) GOSUB ligne : appel quand la file du canal (1, 2 ou 4) a une place libre (lot I3a, D082).</summary>
+public sealed record OnSqStatement(int SourceLine, Expression Channel, int Target) : Statement(SourceLine);
+
 /// <summary>ON ERROR GOTO ligne ; Target = 0 : ON ERROR GOTO 0, plus de traitement d'erreur (lot I2, D080).</summary>
 public sealed record OnErrorStatement(int SourceLine, int Target) : Statement(SourceLine);
 
@@ -437,6 +440,7 @@ public static class AstWalker
         ForStatement f => new[] { f.Start, f.LimitValue, f.StepValue }.OfType<Expression>(),
         TimerStatement t => [t.Time, t.Timer],
         ErrorStatement e => [e.Code],
+        OnSqStatement q => [q.Channel],
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

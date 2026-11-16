@@ -631,6 +631,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\retour.bas` (A, ERREUR 3 LIGNE 40, puis Break in 50).
 - **Fichiers :** CodeGenerator.cs, RuntimeLibrary.cs (module Gosub, message Break), JumpTests.cs (les octets de GOSUB et STOP ont changé).
 
+## D082 : lot I3a, ON SQ GOSUB ; choix pour la touche ESC (Validé le 16 nov. 2026 : 1103 tests réussis ; `sonfile.bas` correct dans WinAPE)
+- **Découpage de I3 :** I3a (ici) : ON SQ(canal) GOSUB ; I3b : ON BREAK CONT / GOSUB / STOP et la touche ESC.
+- **Référence ON SQ (SugarBox, 16 nov. 2026, `examples\sonfile.bas`) :** 5 « SQ » tout de suite (le son en cours et 4 en attente dans la file), puis un à chaque fin de son ; « FIN 11 » avec la boucle de 3000. Compilée, cette boucle est trop rapide (« FIN 5 ») : l'exemple attend donc 11 appels (WHILE C<11:WEND) ; WinAPE : 5 d'un coup puis un par fin de son, « FIN 11 ».
+- **Réalisation :** ON SQ(canal) range la ligne et arme l'événement du firmware (SOUND ARM EVENT &BCB0, événement express asynchrone). Le firmware l'appelle une seule fois, dès qu'une place est libre (tout de suite si la file en a déjà une) : le sous-programme refait ON SQ, comme dans le vrai BASIC. L'appel se fait entre deux instructions, avec les minuteries ; priorité des canaux sonores = celle de la minuterie 2 (seule la minuterie 3 peut les interrompre, d'après cpcwiki) ; DI les retient aussi. Canal 1, 2 ou 4, sinon « Improper argument ».
+- **Taille :** module EventsSound (Events + canaux sonores), lié à la place d'Events seulement si le programme contient ON SQ.
+- **Touche ESC (décision de l'utilisateur, 16 nov. 2026) :** réglage dans l'éditeur, par défaut comme le vrai BASIC (ESC : pause ; ESC ESC : « Break in N ») ; l'autre choix l'ignore (programme plus petit et plus rapide). Fait en I3b.
+- **Référence ON BREAK GOSUB (SugarBox, 16 nov. 2026) :** premier ESC : pause (curseur affiché) ; une autre touche : reprise sans appel ; deuxième ESC : appel du sous-programme, puis le programme continue ; marche à chaque fois (BREAK 1, 2, 3…).
+- **Fichiers :** Ast.cs (OnSqStatement), Parser.cs, Diagnostic.cs (messages de ON ERROR et ON SQ), CodeGenerator.cs, RuntimeLibrary.cs (EmitEvents, EventsSound), MiniZ80.cs (files sonores), `tests\CpcBasic.Tests\OnSqTests.cs` (nouveau), JumpTests.cs.
+
 ---
 
 ## Notes de fin de session (modèle)

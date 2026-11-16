@@ -167,8 +167,7 @@ public class JumpTests
 
     [Theory]
     [InlineData("10 ON BREAK GOSUB 20\n20 RETURN", "ON BREAK")]
-    [InlineData("10 ON SQ(1) GOSUB 20\n20 RETURN", "ON SQ")]   // ON ERROR existe depuis le lot I2 (D080)
-    public void ON_BREAK_et_ON_SQ_ne_sont_pas_encore_geres(string source, string name)
+    public void ON_BREAK_n_est_pas_encore_gere(string source, string name)   // ON ERROR : D080, ON SQ : D082
     {
         Diagnostic error = Assert.Single(Errors(source));
 

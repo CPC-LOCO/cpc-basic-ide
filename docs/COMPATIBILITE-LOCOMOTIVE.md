@@ -149,8 +149,8 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `ENT` | enveloppe de hauteur | Fait | Lot G1 (D071), avec la forme « = » ; négatif : se répète. |
 | `ENV` | enveloppe de volume | Fait | Lot G1 (D071), avec la forme « = ». |
 | `RELEASE` | libère les files de son | Fait | Lot G1 (D071). |
-| `SQ (fonction)` | état d'une file de son | Fait | Lot G1 (D071). ON SQ GOSUB : avec le lot I. |
-| `ON SQ GOSUB` | appel quand une file se libère | À faire |  |
+| `SQ (fonction)` | état d'une file de son | Fait | Lot G1 (D071). |
+| `ON SQ GOSUB` | appel quand une file se libère | Faite | D082. |
 
 ## 6. Clavier, manettes et saisie
 

@@ -2155,8 +2155,44 @@ public static class Parser
             return pos;
         }
 
-        // ON BREAK et ON SQ ne sont pas encore gérés
-        if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "BREAK" or "SQ")
+        // ON SQ(canal) GOSUB ligne (lot I3a, D082)
+        if (IsWord(tokens[pos + 1], "SQ"))
+        {
+            pos += 2;
+            if (tokens[pos].Kind != TokenKind.LeftParen)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, line, tokens[pos].Text, "ON SQ"));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            pos++;
+            Expression? channel = ParseExpression(tokens, ref pos, diagnostics);
+            if (channel is null)
+                return SkipToStatementEnd(tokens, pos);
+            if (tokens[pos].Kind != TokenKind.RightParen)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, line, tokens[pos].Text, "ON SQ"));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            pos++;
+            if (channel is NumberExpression number && number.Value is not (1 or 2 or 4))
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, line, $"{number.Value}|1, 2 ou 4", "ON SQ"));
+            if (IsWord(tokens[pos], "GOSUB"))
+                pos++;
+            else if (IsWord(tokens[pos], "GO") && IsWord(tokens[pos + 1], "SUB"))
+                pos += 2;
+            else
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, line, tokens[pos].Text, "ON SQ"));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            if (!TryParseTarget(tokens, ref pos, diagnostics, out int sqTarget))
+                return SkipToStatementEnd(tokens, pos);
+            statements.Add(new OnSqStatement(line, channel, sqTarget));
+            return pos;
+        }
+
+        // ON BREAK n'est pas encore géré
+        if (tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "BREAK")
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, line, "ON " + tokens[pos + 1].Text));
             return SkipToStatementEnd(tokens, pos);
@@ -2222,6 +2258,9 @@ public static class Parser
                     break;
                 case TimerStatement timer:
                     Check(timer.SourceLine, timer.Target, timer.Every ? "EVERY" : "AFTER");
+                    break;
+                case OnSqStatement onSq:
+                    Check(onSq.SourceLine, onSq.Target, "ON SQ");
                     break;
                 case OnErrorStatement { Target: > 0 } onError:
                     Check(onError.SourceLine, onError.Target, "ON ERROR GOTO");
@@ -2670,6 +2709,10 @@ public static class Parser
 
                 case ErrorStatement error:
                     Uses(error.Code);
+                    break;
+
+                case OnSqStatement onSq:
+                    Uses(onSq.Channel);
                     break;
 
                 case TimerStatement timer:
