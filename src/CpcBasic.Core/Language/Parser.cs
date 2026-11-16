@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -117,7 +117,10 @@ public static class Parser
         ["POS"] = new("POS(#fenêtre)", 1, 1, StreamFirst: true),
         ["VPOS"] = new("VPOS(#fenêtre)", 1, 1, StreamFirst: true),
         // Lot I1 (D079) : temps restant d'une minuterie, qui est arrêtée
-        ["REMAIN"] = new("REMAIN(minuterie : 0 à 3)", 1, 1)
+        ["REMAIN"] = new("REMAIN(minuterie : 0 à 3)", 1, 1),
+        // Lot K6 (D094) : mémoire libre (FRE("") fait d'abord le ménage des textes) ; adresse en entier signé
+        ["FRE"] = new("FRE(0) ou FRE(\"\")", 1, 1, Patterns: ["A"]),
+        ["UNT"] = new("UNT(adresse)", 1, 1, true)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
@@ -159,6 +162,8 @@ public static class Parser
         ["OUT"] = new("OUT port, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
         ["CALL"] = new("CALL adresse", 1, [-32768], [32767], true),
         ["MEMORY"] = new("MEMORY adresse", 1, [-32768], [32767], true),
+        // Lot K6 (D094) : attend que (INP(port) XOR inversion) AND masque ne vaille plus 0
+        ["WAIT"] = new("WAIT port, masque [, inversion]", 2, [-32768, 0, 0], [32767, 255, 255], true),
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
         ["BOX"] = new("BOX x1, y1, x2, y2 [, stylo [, remplissage]]", 4, [-32768, -32768, -32768, -32768, 0, 0], [32767, 32767, 32767, 32767, 15, 15])
     };
@@ -754,7 +759,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -3443,7 +3448,7 @@ public static class Parser
                     pos++;                              // PI et RND s'écrivent sans parenthèses (D069)
                     return new CallExpression(t.Text, []);
                 }
-                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF" or "XPOS" or "YPOS")
+                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF" or "XPOS" or "YPOS" or "HIMEM")
                 {
                     pos++;                              // TIME, ERR, ERL et EOF s'écrivent sans parenthèses, comme sur le CPC (D080, D084)
                     return new CallExpression(t.Text, []);

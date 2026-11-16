@@ -714,6 +714,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Référence (SugarBox, 16 nov. 2026) :** `LINE INPUT A$` : « ? ABC » ; `LINE INPUT "NOM";A$` : « NOM? ABC » ; `LINE INPUT "NOM",A$` : « NOMABC ». La même règle qu'INPUT : « ? » sans texte ou après « ; », pas après « , ». D064 disait « sans ? » : c'était faux (vu grâce à la capture de KEY, D092).
 - **Fichiers :** Ast.cs (LineInputStatement.Question), Parser.cs, CodeGenerator.cs ; tests adaptés : StringArrayTests.cs, StringDataTests.cs, EditLineTests.cs (la saisie commence en colonne 3).
 
+## D094 : lot K6, HIMEM, FRE, UNT, WAIT et adresses à virgule (Validé le 16 nov. 2026 : 1220 tests réussis ; `memoire.bas` dans WinAPE : 42619, -1, -32768, -22917, 41619, 77, LIBRE 21064 puis 21074 après le ménage)
+- **Référence (SugarBox, 16 nov. 2026) :** `PRINT HIMEM` : 42619 ; `UNT(&FFFF)`, `UNT(&8000)`, `UNT(100)` : -1, -32768, 100 ; `FRE(0)` et `FRE("")` : 42167 ; après `MEMORY &9FFF`, HIMEM vaut 40959.
+- **HIMEM** (sans parenthèses) : dernier octet libre = limite de la mémoire libre - 1 (&A67B au départ, ou l'adresse donnée par MEMORY). Répond à la question de D057 : la valeur dépasse 32767, donc HIMEM rend un **nombre à virgule**, comme le Locomotive (A% = HIMEM donne « Overflow », comme sur le CPC).
+- **FRE(0)** : place entre le haut des tableaux et le bas des textes, en nombre à virgule. **FRE(texte)**, par exemple `FRE("")` : fait d'abord le ménage des textes (rt_str_gc). **Écart connu :** le nombre n'est pas celui du vrai CPC (le programme compilé n'est pas rangé comme un programme BASIC).
+- **UNT(adresse)** : la même valeur sur 16 bits, en entier signé (UNT(&FFFF) = -1).
+- **WAIT port, masque [, inversion]** : attend que (INP(port) XOR inversion) AND masque ne vaille plus 0. Masque et inversion de 0 à 255 (vérifiés à la compilation s'ils sont écrits en nombres). Comme sur le CPC, ESC n'interrompt pas l'attente.
+- **Adresses à virgule (règle nouvelle) :** une adresse ou un port calculé avec un nombre à virgule (MEMORY HIMEM-1000, POKE HIMEM,77, PEEK(HIMEM), CALL, INP, OUT, UNT) va de -32768 à 65535, comme le vrai BASIC ; au-delà : « Overflow ». Routine `rt_fr2a` (RealRuntime).
+- **Mémoire libre :** HIMEM et FRE utilisent le module Heap même sans tableau ni texte ; MEMORY met alors à jour la limite pendant l'exécution. Sans HIMEM ni FRE, rien ne change (MEMORY n'ajoute aucun octet).
+- **Mots réservés :** aucun nouveau (mots du Locomotive).
+- **Fichiers :** Parser.cs, Ast.cs (HIMEM et FRE sont à virgule), CodeGenerator.cs (EmitAddress, usesHeap, WAIT, UNT, HIMEM, FRE), RealRuntime.cs (rt_fr2a), `tests\CpcBasic.Tests\MemoryInfoTests.cs` (nouveau), ArrayTests.cs (FRE remplacé par DERR). Exemple : `examples\memoire.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

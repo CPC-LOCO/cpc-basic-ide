@@ -156,6 +156,9 @@ public static class CodeGenerator
         var literals = new List<string>();
         bool usesStrings = program.Statements.Any(StatementUsesStrings);
         bool usesReals = program.Statements.Any(StatementUsesReals);   // nombres à virgule (D068)
+        // Mémoire libre (D058, D062) : tableaux, textes, ou HIMEM et FRE qui la lisent (D094)
+        bool usesHeap = arrays.Count > 0 || usesStrings
+                        || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }));
 
         // Cases de calcul des nombres à virgule (voir EmitRealInto) : déclarées ici, avant EmitString qui s'en sert (STR$)
         int realFree = 0;
@@ -407,6 +410,28 @@ public static class CodeGenerator
                     EmitRealInto(a[0], k);
                     break;
 
+                case "HIMEM" or "FRE":
+                    // HIMEM : dernier octet libre (&A67B, ou l'adresse de MEMORY) ; FRE : place entre les tableaux et les
+                    // textes, après le ménage des textes pour FRE(""). Plus de 32767 : nombre à virgule (D094).
+                    if (call.Function == "HIMEM")
+                    {
+                        emitter.LdHlMem(RuntimeLibrary.ArrayHeapLimitLabel);
+                        emitter.DecHl();
+                    }
+                    else
+                    {
+                        if (Types.IsString(a[0]))
+                            emitter.CallLabel(RuntimeLibrary.StrGcLabel);
+                        emitter.LdHlMem(RuntimeLibrary.StringPointerLabel);
+                        emitter.LdDeMem(RuntimeLibrary.ArrayHeapLabel);
+                        emitter.OrA();
+                        emitter.SbcHlDe();
+                    }
+                    emitter.LdDeLabel(temp);
+                    emitter.LdAImm(0);                              // sans signe
+                    emitter.CallLabel(FirmwareMaths.IntegerToReal.Label);
+                    break;
+
                 case "VAL":
                 {
                     // VAL("3.14") (D070) : le texte est lu comme un nombre à virgule (VAL("&FF") : 255)
@@ -564,6 +589,35 @@ public static class CodeGenerator
             EmitPair(first, second);
             required.Add(module);
             emitter.CallLabel(label);
+        }
+
+        // Adresse ou port (D094) : un nombre à virgule va de -32768 à 65535 (MEMORY HIMEM-1000, PEEK(HIMEM)),
+        // comme le vrai BASIC ; un entier est pris tel quel. Résultat dans HL.
+        void EmitAddress(Expression expression)
+        {
+            if (!Types.IsReal(expression))
+            {
+                EmitExpression(expression);
+                return;
+            }
+            EmitRealInto(expression, realFree);
+            emitter.LdHlLabel(RealTemp(realFree));
+            emitter.CallLabel(RealRuntime.RealToAddressLabel);
+        }
+
+        // Adresse (HL) puis valeur (DE) : POKE, OUT (D094)
+        void EmitAddressPair(Expression address, Expression value)
+        {
+            if (!Types.IsReal(address))
+            {
+                EmitPair(address, value);
+                return;
+            }
+            EmitAddress(address);
+            emitter.PushHl();
+            EmitExpression(value);
+            emitter.ExDeHl();
+            emitter.PopHl();
         }
 
         // Calcule l'expression : le résultat est dans HL
@@ -885,7 +939,7 @@ public static class CodeGenerator
                             // À partir de &C000, le Z80 lirait la ROM haute du BASIC au lieu de la mémoire (écran) : on la coupe un instant
                             string low = $"peek_{labelCount++}";
                             string end = $"peek_{labelCount++}";
-                            EmitExpression(call.Arguments[0]);
+                            EmitAddress(call.Arguments[0]);
                             emitter.LdAH();
                             emitter.CpImm(0xC0);
                             emitter.JrCLabel(low);
@@ -910,12 +964,16 @@ public static class CodeGenerator
                         }
 
                         case "INP":                         // INP(port) : l'octet lu sur ce port, de 0 à 255
-                            EmitExpression(call.Arguments[0]);
+                            EmitAddress(call.Arguments[0]);
                             emitter.LdBH();
                             emitter.LdCL();
                             emitter.InAC();
                             emitter.LdLA();
                             emitter.LdHZero();
+                            break;
+
+                        case "UNT":                         // UNT(adresse) : la même valeur sur 16 bits, en entier signé (D094)
+                            EmitAddress(call.Arguments[0]);
                             break;
 
                         case "TIME":                        // temps écoulé : 16 bits de poids faible
@@ -1304,6 +1362,30 @@ public static class CodeGenerator
                     emitter.CallLabel(FirmwareMaths.AngleMode.Label);
                     break;
 
+                case "WAIT":                        // WAIT port, masque [, inversion] (D094) : attend que
+                {                                   // (INP(port) XOR inversion) AND masque ne vaille plus 0
+                    string wait = $"wait_{labelCount++}";
+                    EmitAddress(a[0]);
+                    emitter.PushHl();
+                    EmitExpression(a[1]);
+                    emitter.PushHl();
+                    if (a.Count == 3)
+                        EmitExpression(a[2]);
+                    else
+                        emitter.LdHlImm(0);
+                    emitter.LdEL();                                 // E = inversion
+                    emitter.PopHl();
+                    emitter.LdAL();
+                    emitter.LdDA();                                 // D = masque
+                    emitter.PopBc();                                // BC = port
+                    emitter.Label(wait);
+                    emitter.InAC();
+                    emitter.XorE();
+                    emitter.AndD();
+                    emitter.JrZLabel(wait);
+                    break;
+                }
+
                 case "MEMORY":                      // MEMORY adresse : réserve le haut de la mémoire ; rien à faire à l'exécution,
                 {                                   // le compilateur vérifie que le programme tient en dessous
                     if (a[0] is NumberExpression limit && (memoryLimit < 0 || (limit.Value & 0xFFFF) < memoryLimit))
@@ -1311,22 +1393,22 @@ public static class CodeGenerator
                         memoryLimit = limit.Value & 0xFFFF;
                         memoryLine = screen.SourceLine;
                     }
-                    if (arrays.Count > 0 || usesStrings)
+                    if (usesHeap)
                     {
-                        EmitExpression(a[0]);                       // tableaux et textes restent sous cette adresse (D058, D062)
+                        EmitAddress(a[0]);                          // tableaux et textes restent sous cette adresse (D058, D062)
                         emitter.CallLabel(RuntimeLibrary.ArrayMemoryLabel);
                     }
                     break;
                 }
 
                 case "POKE":                        // POKE adresse, valeur : seul l'octet de poids faible de la valeur est écrit
-                    EmitPair(a[0], a[1]);
+                    EmitAddressPair(a[0], a[1]);
                     emitter.LdAE();
                     emitter.LdHlA();
                     break;
 
                 case "OUT":                         // OUT port, valeur : le port est dans BC
-                    EmitPair(a[0], a[1]);
+                    EmitAddressPair(a[0], a[1]);
                     emitter.LdBH();
                     emitter.LdCL();
                     emitter.LdAE();
@@ -1337,7 +1419,7 @@ public static class CodeGenerator
                 {
                     string target = $"call_{labelCount++}";
                     string after = $"call_{labelCount++}";
-                    EmitExpression(a[0]);
+                    EmitAddress(a[0]);
                     emitter.CallLabel(target);
                     emitter.JpLabel(after);
                     emitter.Label(target);
@@ -1623,8 +1705,9 @@ public static class CodeGenerator
         }
 
         // Tableaux : la mémoire libre commence juste après le programme (D058)
-        if (arrays.Count > 0 || usesStrings)
+        if (usesHeap)
         {
+            required.Add(RuntimeLibrary.HeapName);                  // HIMEM et FRE seuls (D094)
             if (arrays.Count > 0)
                 required.Add(RuntimeLibrary.ArrayName);
             if (usesStrings)
@@ -1737,7 +1820,7 @@ public static class CodeGenerator
 
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
                 || (usesReals && StatementUsesReals(statement))
-                || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
+                || (usesHeap && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
@@ -2660,7 +2743,7 @@ public static class CodeGenerator
                     emitter.LdAImm(load.Address is null ? 0 : 1);
                     emitter.LdMemA("rt_fb_has");
                     // Comme le vrai BASIC : on ne charge qu'au-dessus de la mémoire du programme (MEMORY), sinon « Memory full »
-                    if (arrays.Count > 0 || usesStrings)
+                    if (usesHeap)
                         emitter.LdHlMem(RuntimeLibrary.ArrayHeapLimitLabel);
                     else
                         emitter.LdHlImm(memoryLimit < 0 ? RuntimeLibrary.DefaultHeapLimit : (memoryLimit + 1) & 0xFFFF);
@@ -2707,7 +2790,7 @@ public static class CodeGenerator
                     }
                     else
                     {
-                        EmitExpression(external.Address!);
+                        EmitAddress(external.Address!);
                         if (external.Arguments.Count > 0)
                         {
                             emitter.PopDe();                            // DE = la dernière valeur, comme le BASIC
@@ -2877,7 +2960,7 @@ public static class CodeGenerator
             }
             Zero("vars_start", slots.Sum(slot => slot.Type switch { VarType.Byte => 1, VarType.String => 3, VarType.Real => 5, _ => 2 }));
             Zero("arrays_start", arrays.Values.Sum(a => 2 + 2 * a.Dimensions));
-            if (arrays.Count > 0 || usesStrings)
+            if (usesHeap)
             {
                 emitter.LdHlLabel(RuntimeLibrary.ArrayHeapStartLabel);
                 emitter.LdMemHl(RuntimeLibrary.ArrayHeapLabel);
@@ -3020,7 +3103,7 @@ public static class CodeGenerator
             emitter.Reserve(symbolChars * 8);
         }
 
-        if (arrays.Count > 0 || usesStrings)
+        if (usesHeap)
             emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);   // la mémoire libre commence ici
 
         return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine);

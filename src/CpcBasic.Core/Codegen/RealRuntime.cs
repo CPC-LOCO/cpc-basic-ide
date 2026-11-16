@@ -20,6 +20,7 @@ internal static class RealRuntime
 
     public const string IntToRealLabel = "rt_fint";      // HL = entier signé, DE = où ranger le nombre à virgule
     public const string RealToIntLabel = "rt_fr2i";      // HL = adresse du nombre -> HL = entier arrondi (« Overflow » sinon)
+    public const string RealToAddressLabel = "rt_fr2a";  // pareil, mais de -32768 à 65535 : adresse ou port (D094)
     public const string AddLabel = "rt_fop_add";         // (HL) = (HL) + (DE)
     public const string SubLabel = "rt_fop_sub";         // (HL) = (HL) - (DE)
     public const string MulLabel = "rt_fop_mul";         // (HL) = (HL) * (DE)
@@ -74,6 +75,21 @@ internal static class RealRuntime
         e.AndImm(0x80);
         e.RetZ();
         e.JpLabel("rt_fr2i_ovf");
+        // ---- adresse (D094) : comme rt_fr2i, mais un nombre positif va jusqu'à 65535 ----
+        e.Label(RealToAddressLabel);
+        e.PushHl();
+        e.IncHl();
+        e.IncHl();
+        e.IncHl();
+        e.LdAHl();
+        e.PopHl();
+        e.AndImm(0x80);
+        e.PushAf();
+        e.CallLabel(FirmwareMaths.RealToInteger.Label);
+        e.JpNcLabel("rt_fr2i_ovf_pop");
+        e.PopAf();
+        e.OrA();
+        e.RetZ();                                         // positif : de 0 à 65535
         e.Label("rt_fr2i_neg");
         e.LdAL();                                         // négatif : HL = -HL, 32768 au plus
         e.Cpl();

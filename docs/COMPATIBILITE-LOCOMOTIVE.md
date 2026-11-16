@@ -80,15 +80,15 @@ Mise à jour le 16 nov. 2026 :
 | `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |
 | `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
 | `SWAP` | échange deux variables | Écart voulu | N'existe pas dans le Locomotive BASIC (SugarBox, 16 nov. 2026 : « Syntax error ») ; seul WINDOW SWAP existe (fait, D072). |
-| `MEMORY` | limite la mémoire du BASIC | Partielle | Protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous (si l'adresse est un nombre écrit). D057. |
-| `HIMEM` | haut de la mémoire du BASIC | À faire |  |
-| `FRE` | mémoire libre | À faire |  |
+| `MEMORY` | limite la mémoire du BASIC | Partielle | Protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous (si l'adresse est un nombre écrit). D057. Adresse calculée à virgule permise (MEMORY HIMEM-1000, D094). |
+| `HIMEM` | haut de la mémoire du BASIC | Faite | Lot K6 (D094) : nombre à virgule (42619, ou l'adresse de MEMORY). |
+| `FRE` | mémoire libre | Faite | Lot K6 (D094) : FRE(0), FRE("") avec ménage des textes. Le nombre diffère du vrai CPC (programme compilé). |
 | `PEEK` | lit un octet en mémoire | Faite | Adresse de 0 à 65535. |
 | `POKE` | écrit un octet en mémoire | Faite | Valeur de 0 à 255 ; adresse de 0 à 65535. |
 | `INP` | lit un port | Faite | Port de 0 à 65535. |
 | `OUT` | écrit sur un port | Faite | Valeur de 0 à 255. |
-| `WAIT` | attend un état sur un port | À faire |  |
-| `UNT` | convertit une adresse en entier signé | À faire |  |
+| `WAIT` | attend un état sur un port | Faite | Lot K6 (D094) : WAIT port, masque [, inversion]. |
+| `UNT` | convertit une adresse en entier signé | Faite | Lot K6 (D094). |
 | `| (commandes RSX)` | appelle une extension | Faite | |NOM, valeurs (D089) ; inconnue : « Unknown command ». |
 | `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061), `@A$` = adresse de la fiche de 3 octets (D064). Passage à CALL et aux RSX à venir. |
 | `DI / EI` | coupe / remet les interruptions | Faite | Retient / laisse partir les appels des minuteries (D079). |
