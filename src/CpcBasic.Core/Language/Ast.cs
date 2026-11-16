@@ -409,8 +409,9 @@ public sealed record DataStatement(int SourceLine, IReadOnlyList<DataItem> Items
 }
 
 /// <summary>LINE INPUT [;] ["texte" ;] A$ : toute la ligne tapée va dans A$, virgules comprises (D064).</summary>
+/// <param name="Question">« ? » après le texte, comme INPUT : sans texte ou avec « ; » (SugarBox, 16 nov. 2026, D093).</param>
 public sealed record LineInputStatement(int SourceLine, string? Prompt, bool NoNewline, string Variable,
-                                        IReadOnlyList<Expression>? Indexes = null) : Statement(SourceLine)
+                                        IReadOnlyList<Expression>? Indexes = null, bool Question = true) : Statement(SourceLine)
 {
     /// <summary>La variable A$, ou la case N$(I) (D065).</summary>
     public Expression Target => Indexes is null ? new VariableExpression(Variable) : new ArrayElementExpression(Variable, Indexes);

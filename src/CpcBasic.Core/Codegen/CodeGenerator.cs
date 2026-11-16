@@ -2046,6 +2046,8 @@ public static class CodeGenerator
                     required.Add(RuntimeLibrary.InputStringName);
                     if (lineInput.Prompt is not null)
                         EmitText(lineInput.Prompt);
+                    if (lineInput.Question)
+                        EmitText("? ");                             // comme INPUT (SugarBox, 16 nov. 2026, D093)
                     emitter.CallLabel(RuntimeLibrary.InputLineLabel);
                     if (!lineInput.NoNewline)
                         EmitText("\r\n");

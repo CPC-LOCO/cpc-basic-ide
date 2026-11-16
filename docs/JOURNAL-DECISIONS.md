@@ -424,7 +424,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **READ :** `READ A$` lit un texte, ou un nombre tel qu'il est écrit (`DATA 012` donne "012", `DATA &FF` donne "&FF") ; la fiche pointe directement dans la table des DATA (rien n'est copié). `READ A` sur un texte qui n'est pas un nombre : « Type mismatch », comme le Locomotive.
 - **Table des DATA :** un nombre = 0, sa valeur (2 octets), puis la longueur et les lettres de son écriture ; un texte = 1, longueur, lettres. Module `DataString` (`rt_read_str`).
 - **INKEY$ :** sans parenthèses, la touche tapée (sans attendre) ou "" (KM READ CHAR).
-- **LINE INPUT [;] ["texte" ; ou ,] A$ :** toute la ligne tapée, virgules et guillemets compris, sans « ? ».
+- **LINE INPUT [;] ["texte" ; ou ,] A$ :** toute la ligne tapée, virgules et guillemets compris (« ? » comme INPUT : corrigé en D093).
 - **@A$ :** l'adresse de la fiche de 3 octets (longueur, adresse des lettres), comme le Locomotive : c'est ce qu'attend une routine RSX (`|GPRINT,@a$`).
 - **Correction trouvée à l'essai (WinAPE) :** pendant INPUT et LINE INPUT, la touche DEL effaçait bien la lettre dans la mémoire mais affichait le caractère 127 (un damier) ; elle affiche maintenant « recule, espace, recule » comme l'éditeur du Locomotive (le test d'INPUT correspondant est adapté). Dans `examples\textes3.bas`, `CLEAR INPUT` vide le clavier avant d'attendre une touche avec INKEY$ (sinon une touche Entrée répétée peut rester en attente et INKEY$ la lit : « CODE 13 »).
 - **Correction :** une variable qui reçoit un texte situé hors de la zone des textes (programme, DATA) pointe dessus, même s'il passe par une fiche temporaire.
@@ -709,6 +709,10 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **KEY DEF touche, répétition [, normal [, shift [, ctrl]]] :** touche de 0 à 79, répétition 0 ou 1, valeurs de 0 à 255 ; KM SET REPEAT (&BB39, B = &FF ou 0), KM SET TRANSLATE (&BB27), KM SET SHIFT (&BB2D), KM SET CONTROL (&BB33), A = touche. Hors limites : refusé à la compilation (nombre écrit) ou « Improper argument ».
 - **À savoir :** un programme compilé redémarre le CPC à la fin : les touches redeviennent normales.
 - **Fichiers :** Ast.cs (KeyStatement, KeyDefStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module Keys), Z80Emitter.cs (LD B,L ; OR H), MiniZ80.cs, `tests\CpcBasic.Tests\KeyDefinitionTests.cs` (nouveau). Exemple : `examples\touches.bas`.
+
+## D093 : LINE INPUT affiche « ? » comme INPUT (correction de D064 ; Validé le 16 nov. 2026 : 1205 tests réussis ; `touches.bas` dans WinAPE : « ? BONJOUR? » comme SugarBox)
+- **Référence (SugarBox, 16 nov. 2026) :** `LINE INPUT A$` : « ? ABC » ; `LINE INPUT "NOM";A$` : « NOM? ABC » ; `LINE INPUT "NOM",A$` : « NOMABC ». La même règle qu'INPUT : « ? » sans texte ou après « ; », pas après « , ». D064 disait « sans ? » : c'était faux (vu grâce à la capture de KEY, D092).
+- **Fichiers :** Ast.cs (LineInputStatement.Question), Parser.cs, CodeGenerator.cs ; tests adaptés : StringArrayTests.cs, StringDataTests.cs, EditLineTests.cs (la saisie commence en colonne 3).
 
 ---
 

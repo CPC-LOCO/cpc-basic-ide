@@ -1038,6 +1038,7 @@ public static class Parser
         }
 
         string? prompt = null;
+        bool question = true;                           // « ? » comme INPUT, sauf « texte , variable » (D093)
         if (tokens[pos].Kind == TokenKind.String)
         {
             prompt = tokens[pos].Text;
@@ -1047,6 +1048,7 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, tokens[pos].Line, tokens[pos].Text));
                 return SkipToStatementEnd(tokens, pos);
             }
+            question = tokens[pos].Kind == TokenKind.Semicolon;
             pos++;
         }
 
@@ -1067,7 +1069,7 @@ public static class Parser
             && (!CheckArrayName(name, diagnostics) || !TryParseIndexes(tokens, ref pos, diagnostics, out cells)))
             return SkipToStatementEnd(tokens, pos);   // LINE INPUT N$(I) : une case d'un tableau de textes (D065)
 
-        statements.Add(new LineInputStatement(line, prompt, noNewline, name.Text, cells));
+        statements.Add(new LineInputStatement(line, prompt, noNewline, name.Text, cells, question));
         return pos;
     }
 

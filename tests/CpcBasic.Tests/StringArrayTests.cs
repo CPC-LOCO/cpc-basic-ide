@@ -115,7 +115,7 @@ public class StringArrayTests
     [Fact]
     public void LINE_INPUT_dans_une_case_d_un_tableau_de_textes()
     {
-        Assert.Equal("A, B\r\nA, B\r\n", Run("10 LINE INPUT N$(0)\n20 PRINT N$(0)", "A, B\r"));
+        Assert.Equal("? A, B\r\nA, B\r\n", Run("10 LINE INPUT N$(0)\n20 PRINT N$(0)", "A, B\r"));   // « ? » : D093
     }
 
     [Fact]

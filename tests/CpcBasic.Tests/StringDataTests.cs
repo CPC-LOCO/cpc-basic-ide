@@ -130,14 +130,14 @@ public class StringDataTests
     [Fact]
     public void LINE_INPUT_garde_toute_la_ligne()
     {
-        Assert.Equal("NOM   A, B\"C\r\n[  A, B\"C]\r\n",
+        Assert.Equal("NOM ?   A, B\"C\r\n[  A, B\"C]\r\n",                       // « ? » après « ; » : D093
                      Run("10 LINE INPUT \"NOM \"; A$\n20 PRINT \"[\"; A$; \"]\"", "  A, B\"C\r"));
     }
 
     [Fact]
     public void LINE_INPUT_ligne_vide()
     {
-        Assert.Equal("\r\n[]\r\n", Run("10 LINE INPUT A$\n20 PRINT \"[\"; A$; \"]\"", "\r"));
+        Assert.Equal("? \r\n[]\r\n", Run("10 LINE INPUT A$\n20 PRINT \"[\"; A$; \"]\"", "\r"));   // D093
     }
 
     [Fact]

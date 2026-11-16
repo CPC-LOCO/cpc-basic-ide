@@ -74,9 +74,9 @@ public class EditLineTests
     public void COPY_recopie_l_ecran_sous_le_curseur_de_copie()
     {
         var cpu = new MiniZ80();
-        cpu.ScreenChars[(1, 2)] = (byte)'O';
-        cpu.ScreenChars[(2, 2)] = (byte)'K';
-        // le curseur de copie part de la position du curseur (colonne 1, ligne 1), descend d'une ligne, puis COPY 2 fois
+        cpu.ScreenChars[(3, 2)] = (byte)'O';   // « ? » avant la saisie : colonne 3 (D093)
+        cpu.ScreenChars[(4, 2)] = (byte)'K';
+        // le curseur de copie part de la position du curseur (colonne 3, après « ? »), descend d'une ligne, puis COPY 2 fois
         Assert.Equal("OK", Read(Run(ShiftDown + Copy + Copy + "\r", cpu)));
     }
 
@@ -84,10 +84,10 @@ public class EditLineTests
     public void COPY_puis_frappe_et_curseur_de_copie_deplace()
     {
         var cpu = new MiniZ80();
-        cpu.ScreenChars[(2, 3)] = (byte)'Z';
-        Assert.Equal("AZ", Read(Run("A" + ShiftDown + ShiftDown + Copy + "\r", cpu)));   // part de la colonne 2
+        cpu.ScreenChars[(4, 3)] = (byte)'Z';
+        Assert.Equal("AZ", Read(Run("A" + ShiftDown + ShiftDown + Copy + "\r", cpu)));   // part de la colonne 4 (après « ? A »)
         cpu = new MiniZ80();
-        cpu.ScreenChars[(1, 1)] = (byte)'Q';
+        cpu.ScreenChars[(3, 1)] = (byte)'Q';
         Assert.Equal("Q", Read(Run(ShiftDown + ShiftUp + ShiftRight + ShiftLeft + Copy + "\r", cpu)));
     }
 
