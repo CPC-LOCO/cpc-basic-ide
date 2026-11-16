@@ -75,7 +75,7 @@ internal sealed class MiniZ80
     // Fichiers de données (D084) : le disque, rempli par CAS OUT et lu par CAS IN (noms en majuscules)
     public readonly Dictionary<string, List<byte>> Files = new();
     public readonly Dictionary<string, (byte Type, int Address)> FileHeaders = new();   // fichiers binaires (D085)
-    public int Catalogs;
+    public int Catalogs, SoundResets;
     public readonly List<(int HalfBit, byte Precompensation)> TapeSpeeds = new();
     string outFileName = "";
     string inFileName = "";
@@ -458,6 +458,7 @@ internal sealed class MiniZ80
             case 0x11: DE = Fetch16(); break;                          // LD DE,nn
             case 0x44: B = H; break;                                   // LD B,H
             case 0x47: B = A; break;                                   // LD B,A
+            case 0x48: C = B; break;                                   // LD C,B (D086)
             case 0x4D: C = L; break;                                   // LD C,L
             case 0x4F: C = A; break;                                   // LD C,A
             case 0x57: D = A; break;                                   // LD D,A
@@ -654,7 +655,7 @@ internal sealed class MiniZ80
                             break;
                         case 0xBC83:                                                                    // CAS IN DIRECT (D085)
                             fileIn!.ToArray().CopyTo(Memory, HL);
-                            CarryFlag = true;
+                            CarryFlag = true;                          // HL = lancement : l'adresse de chargement ici
                             break;
                         case 0xBC7D: fileIn = null; CarryFlag = true; break;                            // CAS IN ABANDON
                         case 0xBC9B: Catalogs++; CarryFlag = true; break;                               // CAS CATALOG
@@ -835,6 +836,14 @@ internal sealed class MiniZ80
                     int channel = A == 1 ? 0 : A == 2 ? 1 : 2;         // SOUND ARM EVENT (ON SQ, D082)
                     soundArmed[channel] = HL;
                     KickSoundEvent(channel);
+                }
+                else if (address == 0xBCEC)
+                {
+                    TickRoutine = 0;                                   // KL DEL TICKER (RUN "nom", D086)
+                }
+                else if (address == 0xBCA7)
+                {
+                    SoundResets++;                                     // SOUND RESET (RUN "nom", D086)
                 }
                 else if (address == 0xBCAD)
                 {

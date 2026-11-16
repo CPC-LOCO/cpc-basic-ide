@@ -153,6 +153,9 @@ public static class RuntimeLibrary
     public const string FileOutOffLabel = "rt_fo_off";          // fin de PRINT #9 : retour à l'écran
     public const int FileInBuffer = 0x3000;                     // zones de 2 Ko demandées par le firmware, sous le programme
     public const int FileOutBuffer = 0x3800;
+    public const string EventsStopLabel = "rt_ev_stop";         // RUN "nom" : le compteur et les sons sont arrêtés (D086)
+    public const int RunStub = 0x3800;                          // RUN "nom" : petit chargeur, hors du programme (D086)
+    public const int RunName = 0x3880;
     public const string EventsBreakName = "EventsBreak";        // Events avec la touche ESC (D083)
     public const string EventsSoundBreakName = "EventsSoundBreak";
     public const string BreakModeLabel = "rt_brk_mode";         // 0 : ESC ignorée, 1 : pause puis Break, 2 : pause puis appel
@@ -1405,6 +1408,86 @@ public static class RuntimeLibrary
             e.Label("rt_fb_bad");
             e.LdHlLabel("rt_fb_m2");
             e.JpLabel(ErrorLabel);
+
+            // RUN "nom" (D086) : HL = fiche du nom. Sans point, « .BIN » est ajouté (le .BAS du même nom est le
+            // chargeur BASIC). Les fichiers ouverts sont fermés ; le fichier doit être binaire. Un petit chargeur est
+            // recopié en &3800, hors du programme, puis il charge le fichier à son adresse et saute à son lancement.
+            e.Label("rt_fb_run");
+            e.PushHl();
+            e.LdAMem("rt_fo_isopen");
+            e.OrA();
+            e.JrZLabel("rt_fb_r_in");
+            e.XorA();
+            e.LdMemA("rt_fo_isopen");
+            e.CallAddress(0xBC8F);                   // CAS OUT CLOSE
+            e.Label("rt_fb_r_in");
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.JrZLabel("rt_fb_r_name");
+            e.XorA();
+            e.LdMemA("rt_fl_isopen");
+            e.CallAddress(0xBC7A);                   // CAS IN CLOSE
+            e.Label("rt_fb_r_name");
+            e.PopHl();
+            e.CallLabel("rt_file_name");             // HL = lettres, B = longueur
+            e.LdAB();
+            e.OrA();
+            e.JrZLabel("rt_fb_r_open");
+            e.PushBc();
+            e.LdCB();
+            e.LdBImm(0);
+            e.LdDeImm(RunName);
+            e.Ldir();
+            e.PopBc();
+            e.LdHlImm(RunName);                      // un point dans le nom ?
+            e.LdCB();
+            e.Label("rt_fb_r_dot");
+            e.LdAHl();
+            e.CpImm('.');
+            e.JrZLabel("rt_fb_r_open");
+            e.IncHl();
+            e.DecC();
+            e.JrNzLabel("rt_fb_r_dot");
+            e.ExDeHl();                              // DE = fin du nom : « .BIN »
+            e.LdHlLabel("rt_fb_bin");
+            e.LdCImm(4);
+            e.PushBc();
+            e.LdBImm(0);
+            e.Ldir();
+            e.PopBc();
+            e.LdAB();
+            e.AddAImm(4);
+            e.LdBA();
+            e.Label("rt_fb_r_open");
+            e.LdHlImm(RunName);
+            e.LdDeImm(FileInBuffer);
+            e.CallAddress(0xBC77);                   // CAS IN OPEN
+            e.JpNcLabel("rt_file_fail");
+            e.AndImm(0x0E);
+            e.CpImm(0x02);
+            e.JpNzLabel("rt_file_typeerr");          // seulement un fichier binaire
+            e.LdMemDe("rt_fb_stub_at");              // adresse de chargement
+            e.LdDeImm(0x100);                        // plus de caractères redessinés dans le programme qui part
+            e.CallAddress(0xBBAB);                   // TXT SET M TABLE
+            e.LdHlLabel("rt_fb_stub");
+            e.LdDeImm(RunStub);
+            e.LdBcImm(20);
+            e.Ldir();
+            e.JpAddress(RunStub);
+            e.Label("rt_fb_stub");                   // recopié en &3800 (20 octets)
+            e.Data([0x21]);                          // LD HL,adresse
+            e.Label("rt_fb_stub_at");
+            e.Data([0x00, 0x00]);
+            e.Data([0xCD, 0x83, 0xBC]);              // CALL CAS IN DIRECT : HL = lancement
+            e.Data([0x30, 0x06]);                    // JR NC,échec
+            e.Data([0xE5]);                          // PUSH HL
+            e.Data([0xCD, 0x7A, 0xBC]);              // CALL CAS IN CLOSE
+            e.Data([0xE1]);                          // POP HL
+            e.Data([0xE9]);                          // JP (HL)
+            e.Data([0xCD, 0x18, 0xBB]);              // échec : CALL KM WAIT KEY
+            e.Data([0xC3, 0x00, 0x00]);              // JP 0
+            e.Label("rt_fb_bin");
+            e.Data(System.Text.Encoding.ASCII.GetBytes(".BIN"));
 
             e.Label("rt_fb_m1");
             e.Data(Ascii("Memory full"));
@@ -5303,6 +5386,13 @@ public static class RuntimeLibrary
         e.Reserve(6);
         e.Label("rt_ev_blk_ev");
         e.Reserve(10);
+
+        // RUN "nom" (D086) : le compteur est retiré et les sons arrêtés (leurs blocs vont être recouverts)
+        e.Label(EventsStopLabel);
+        e.LdHlLabel("rt_ev_blk");
+        e.CallAddress(0xBCEC);                       // KL DEL TICKER
+        e.CallAddress(0xBCA7);                       // SOUND RESET
+        e.Ret();
 
         if (brk)
         {

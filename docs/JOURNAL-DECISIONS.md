@@ -667,6 +667,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\binaire.bas` (l'écran est enregistré, effacé, puis rechargé).
 - **Fichiers :** Ast.cs (SaveStatement, LoadStatement, SpeedWriteStatement), Diagnostic.cs (SaveProgram), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module FileBinary ; FileCommon garde les fichiers ouverts), MiniZ80.cs, `tests\CpcBasic.Tests\FileBinaryTests.cs` (nouveau).
 
+## D086 : lot J3, RUN "nom" ; CHAIN et MERGE refusés (Validé le 16 nov. 2026 : 1162 tests réussis ; `enchaine.bas` se relance deux fois dans WinAPE, « LANCEMENT NUMERO 3 » puis « FINI »)
+- **Décisions de l'utilisateur (16 nov. 2026) :** RUN "nom" lance un autre programme compilé ; CHAIN refusé à la compilation (les variables ne peuvent pas passer d'un programme compilé à l'autre ; RUN "nom" et un fichier à la place). **Plusieurs programmes sur une disquette (idée de l'utilisateur, prévue en J4) :** en compilant un programme, le compilateur repère les RUN "nom" écrits en clair, compile aussi nom.BAS s'il est dans le même dossier (et ce qu'il lance à son tour, sans boucle), et met tout sur la même disquette ; peut-être aussi les fichiers binaires prêts (LOAD "ECRAN" -> ECRAN.BIN du dossier).
+- **Refusés à la compilation, avec une explication :** CHAIN, CHAIN MERGE, MERGE (ajoutent des lignes BASIC). RUN sans nom et RUN ligne (relancer le programme) : pas encore (il faut remettre les variables à zéro).
+- **Réalisation de RUN "nom" :** les fichiers ouverts sont fermés, le compteur du firmware retiré (KL DEL TICKER) et les sons arrêtés (SOUND RESET), la table des caractères redessinés rendue au firmware. Sans point dans le nom, « .BIN » est ajouté (le .BAS du même nom est le chargeur BASIC). Le fichier est ouvert (CAS IN OPEN) : absent, arrêt sans message comme LOAD (erreur 32 avec ON ERROR GOTO) ; pas binaire : « File type error ». Puis un chargeur de 20 octets est recopié en &3800, hors du programme : il charge le fichier à son adresse (CAS IN DIRECT) et saute à son adresse de lancement. Marche aussi pour un binaire qui n'est pas compilé ici.
+- **Exemple :** `examples\enchaine.bas` : compte ses lancements dans un fichier et se relance lui-même deux fois (au premier lancement, AMSDOS écrit « COMPTE . not found », intercepté par ON ERROR GOTO).
+- **Fichiers :** Ast.cs (RunFileStatement), Diagnostic.cs (NotForCompiled), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (rt_fb_run, rt_ev_stop), Z80Emitter.cs (LD C,B), MiniZ80.cs, `tests\CpcBasic.Tests\RunFileTests.cs` (nouveau).
+
 ---
 
 ## Notes de fin de session (modèle)

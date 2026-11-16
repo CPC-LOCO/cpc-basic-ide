@@ -29,7 +29,8 @@ public static class Parser
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
-        "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED"];
+        "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
+        "RUN", "CHAIN", "MERGE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -407,6 +408,41 @@ public static class Parser
                 statements.Add(new FileStatement(t.Line, t.Text, fileName));
                 return pos;
             }
+
+            case "RUN":                                 // RUN "nom" (lot J3, D086)
+            {
+                pos++;
+                if (IsLineEnd(tokens[pos]) || tokens[pos].Kind is TokenKind.Colon or TokenKind.Number)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.NotForCompiled, t.Line,
+                        "RUN sans nom de fichier (relancer le programme) n'est pas encore disponible. RUN \"nom\" lance un autre programme compilé."));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                Token nameStart = tokens[pos];
+                Expression? program = ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (program is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (!Types.IsString(program))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, nameStart.Line,
+                                                   "RUN attend le nom du programme, entre guillemets"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new RunFileStatement(t.Line, program));
+                return pos;
+            }
+
+            case "CHAIN":                               // lot J3 (D086) : impossible entre deux programmes compilés
+                diagnostics.Add(new Diagnostic(DiagnosticCode.NotForCompiled, t.Line,
+                    IsWord(tokens[pos + 1], "MERGE")
+                        ? "CHAIN MERGE ajoute des lignes BASIC au programme : impossible une fois compilé."
+                        : "CHAIN garde les variables du programme : impossible entre deux programmes compilés (chacun range ses variables à sa façon). Utilisez RUN \"nom\" ; les valeurs peuvent passer par un fichier (OPENOUT, puis OPENIN dans l'autre programme)."));
+                return SkipToStatementEnd(tokens, pos);
+
+            case "MERGE":                               // lot J3 (D086)
+                diagnostics.Add(new Diagnostic(DiagnosticCode.NotForCompiled, t.Line,
+                    "MERGE ajoute des lignes BASIC au programme : impossible une fois compilé."));
+                return SkipToStatementEnd(tokens, pos);
 
             case "CAT":                                 // lot J2 (D085)
                 statements.Add(new FileStatement(t.Line, "CAT"));
@@ -2852,6 +2888,10 @@ public static class Parser
 
                 case SpeedWriteStatement speedWrite:
                     Uses(speedWrite.Value);
+                    break;
+
+                case RunFileStatement runFile:
+                    Uses(runFile.Name);
                     break;
 
                 case TimerStatement timer:

@@ -111,7 +111,8 @@ public sealed class Z80Emitter
     public void LdHE() => code.Add(0x63);                                          // LD H,E
     public void LdCL() => code.Add(0x4D);                                          // LD C,L
     public void LdLC() => code.Add(0x69);                                          // LD L,C
-    public void LdBA() => code.Add(0x47);                                          // LD B,A
+    public void LdBA() => code.Add(0x47);
+    public void LdCB() => code.Add(0x48);                                          // LD C,B (D086)                                          // LD B,A
     public void LdEA() => code.Add(0x5F);                                          // LD E,A
     public void OrE() => code.Add(0xB3);                                           // OR E
     public void SubE() => code.Add(0x93);                                          // SUB E

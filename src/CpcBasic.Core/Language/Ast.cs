@@ -298,6 +298,9 @@ public sealed record SaveStatement(int SourceLine, Expression Name, Expression S
 /// <summary>LOAD nom[,adresse] : charge un fichier binaire (lot J2, D085).</summary>
 public sealed record LoadStatement(int SourceLine, Expression Name, Expression? Address) : Statement(SourceLine);
 
+/// <summary>RUN "nom" : charge un autre programme compilé (nom.BIN) et le lance (lot J3, D086).</summary>
+public sealed record RunFileStatement(int SourceLine, Expression Name) : Statement(SourceLine);
+
 /// <summary>SPEED WRITE 0 ou 1 : vitesse d'écriture sur cassette (lot J2, D085).</summary>
 public sealed record SpeedWriteStatement(int SourceLine, Expression Value) : Statement(SourceLine);
 
@@ -464,6 +467,7 @@ public static class AstWalker
         SaveStatement sv => new[] { sv.Name, sv.Start, sv.Length, sv.Entry }.OfType<Expression>(),
         LoadStatement ld => new[] { ld.Name, ld.Address }.OfType<Expression>(),
         SpeedWriteStatement sw => [sw.Value],
+        RunFileStatement rf => [rf.Name],
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

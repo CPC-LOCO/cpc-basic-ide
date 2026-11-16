@@ -48,9 +48,9 @@ Mise à jour le 16 nov. 2026 :
 | `ON x GOTO` | saut selon une valeur | Partielle | Valeur hors de 1 à N : le programme continue (pas d'erreur pour une valeur négative). |
 | `ON x GOSUB` | appel selon une valeur | Partielle | Comme ON x GOTO. |
 | `CALL` | appelle un programme en langage machine | Partielle | Adresse seule, sans paramètres. |
-| `CHAIN` | charge et lance un autre programme | À faire |  |
-| `CHAIN MERGE` | charge un autre programme en gardant les variables | À faire |  |
-| `RUN` | lance un programme (aussi RUN "fichier") | À faire | À décider : RUN dans un programme compilé. |
+| `CHAIN` | charge et lance un autre programme | Écart voulu | Refusé à la compilation (les variables ne peuvent pas passer d'un programme compilé à l'autre) : RUN "nom" et un fichier (D086). |
+| `CHAIN MERGE` | charge un autre programme en gardant les variables | Écart voulu | Refusé : ajoute des lignes BASIC (D086). |
+| `RUN` | lance un programme (aussi RUN "fichier") | Partielle | RUN "nom" lance un autre programme compilé (nom.BIN), D086. RUN et RUN ligne : à faire. |
 | `CLEAR` | efface les variables | À faire |  |
 | `CLEAR INPUT` | vide le tampon du clavier | Faite |  |
 | `TRON / TROFF` | suivi des lignes (débogage) | À faire | Utilité à décider. |
@@ -172,7 +172,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `CAT` | catalogue | Faite | D085. |
 | `LOAD` | charge un fichier | Faite | Fichiers binaires (écrans…), D085. Un programme BASIC : « File type error ». |
 | `SAVE` | enregistre un fichier | Faite | `SAVE "nom",B,début,longueur`, D085. Sans `,B` : refusé (le programme BASIC n'existe plus). |
-| `MERGE` | fusionne un programme | À faire |  |
+| `MERGE` | fusionne un programme | Écart voulu | Refusé : ajoute des lignes BASIC (D086). |
 | `OPENIN / CLOSEIN` | ouvre / ferme un fichier en lecture | Faite | D084. |
 | `OPENOUT / CLOSEOUT` | ouvre / ferme un fichier en écriture | Faite | D084. CLOSEOUT nécessaire avant la fin. |
 | `EOF` | fin de fichier | Faite | D084. |

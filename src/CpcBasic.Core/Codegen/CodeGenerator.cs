@@ -1687,7 +1687,7 @@ public static class CodeGenerator
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
-                || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement
+                || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
                 || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
@@ -2611,6 +2611,14 @@ public static class CodeGenerator
                     emitter.LdMemHl("rt_fb_lim");
                     EmitString(load.Name);
                     emitter.CallLabel("rt_fb_load");
+                    break;
+
+                case RunFileStatement runFile:          // RUN "nom" : autre programme compilé (D086)
+                    required.Add(RuntimeLibrary.FileBinaryName);
+                    if (usesEvents)
+                        emitter.CallLabel(RuntimeLibrary.EventsStopLabel);   // le compteur du firmware ne doit plus venir ici
+                    EmitString(runFile.Name);
+                    emitter.CallLabel("rt_fb_run");
                     break;
 
                 case SpeedWriteStatement speedWrite:    // SPEED WRITE 0 ou 1 (D085)
