@@ -1626,6 +1626,8 @@ public static class CodeGenerator
             }
         }
         int breakLine = -1;   // dernière ligne rangée pour « Break in N » (D083)
+        bool usesTrace = program.Statements.Any(st => st is TraceStatement);   // TRON (D088)
+        int traceLine = -1;
 
         int statementIndex = 0;
         int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
@@ -1637,6 +1639,19 @@ public static class CodeGenerator
             if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
                 basicLine = numbersHere.Max();
             EmitLineLabels(statementIndex++);
+
+            // TRON (D088) : au début de chaque ligne, son numéro entre crochets si TRON est en marche
+            if (usesTrace && program.IsStart(statement))
+            {
+                int here = program.LineTable.Count > 0 ? basicLine : statement.SourceLine;
+                if (here != traceLine)
+                {
+                    traceLine = here;
+                    required.Add(RuntimeLibrary.TraceName);
+                    emitter.LdHlImm(here);
+                    emitter.CallLabel("rt_tron");
+                }
+            }
 
             // Touche ESC (D083) : chaque ligne range son numéro avant de regarder les événements, pour « Break in N »
             if (usesBreak && program.IsStart(statement))
@@ -2611,6 +2626,12 @@ public static class CodeGenerator
                     emitter.LdMemHl("rt_fb_lim");
                     EmitString(load.Name);
                     emitter.CallLabel("rt_fb_load");
+                    break;
+
+                case TraceStatement trace:              // TRON / TROFF (D088)
+                    required.Add(RuntimeLibrary.TraceName);
+                    emitter.LdAImm(trace.On ? 1 : 0);
+                    emitter.LdMemA("rt_tr_on");
                     break;
 
                 case RunFileStatement runFile:          // RUN "nom" : autre programme compilé (D086)

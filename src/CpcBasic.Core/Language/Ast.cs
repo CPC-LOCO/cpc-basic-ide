@@ -298,6 +298,9 @@ public sealed record SaveStatement(int SourceLine, Expression Name, Expression S
 /// <summary>LOAD nom[,adresse] : charge un fichier binaire (lot J2, D085).</summary>
 public sealed record LoadStatement(int SourceLine, Expression Name, Expression? Address) : Statement(SourceLine);
 
+/// <summary>TRON / TROFF : le numéro de chaque ligne exécutée s'affiche entre crochets (lot K1, D088).</summary>
+public sealed record TraceStatement(int SourceLine, bool On) : Statement(SourceLine);
+
 /// <summary>RUN "nom" : charge un autre programme compilé (nom.BIN) et le lance (lot J3, D086).</summary>
 public sealed record RunFileStatement(int SourceLine, Expression Name) : Statement(SourceLine);
 

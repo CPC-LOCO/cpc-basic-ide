@@ -30,7 +30,7 @@ public static class Parser
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
-        "RUN", "CHAIN", "MERGE"];
+        "RUN", "CHAIN", "MERGE", "TRON", "TROFF"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -443,6 +443,10 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.NotForCompiled, t.Line,
                     "MERGE ajoute des lignes BASIC au programme : impossible une fois compilé."));
                 return SkipToStatementEnd(tokens, pos);
+
+            case "TRON" or "TROFF":                     // lot K1 (D088)
+                statements.Add(new TraceStatement(t.Line, t.Text == "TRON"));
+                return pos + 1;
 
             case "CAT":                                 // lot J2 (D085)
                 statements.Add(new FileStatement(t.Line, "CAT"));

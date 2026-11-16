@@ -53,7 +53,7 @@ Mise à jour le 16 nov. 2026 :
 | `RUN` | lance un programme (aussi RUN "fichier") | Partielle | RUN "nom" lance un autre programme compilé (nom.BIN), D086. RUN et RUN ligne : à faire. |
 | `CLEAR` | efface les variables | À faire |  |
 | `CLEAR INPUT` | vide le tampon du clavier | Faite |  |
-| `TRON / TROFF` | suivi des lignes (débogage) | À faire | Utilité à décider. |
+| `TRON / TROFF` | suivi des lignes (débogage) | Faite | D088. |
 | `ON BREAK CONT / GOSUB / STOP` | réaction à la touche ESC | Faite | D083. Touche ESC : réglage F9 de l'éditeur (comme le CPC par défaut). |
 | `ON ERROR GOTO` | réaction à une erreur | Faite | D080. |
 | `RESUME` | reprise après une erreur | Faite | RESUME, RESUME NEXT, RESUME ligne (D080). |

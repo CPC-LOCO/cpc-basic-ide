@@ -145,6 +145,7 @@ public static class RuntimeLibrary
     public const string EventsSoundName = "EventsSound";        // Events avec ON SQ GOSUB (D082)
     public const string SoundEventSetLabel = "rt_sq_set";       // ON SQ : HL = canal, DE = ligne
     // Fichiers de données (lot J1, D084)
+    public const string TraceName = "Trace";                    // TRON, TROFF (D088)
     public const string FileCommonName = "FileCommon";
     public const string FileOutName = "FileOut";
     public const string FileInName = "FileIn";
@@ -1499,6 +1500,24 @@ public static class RuntimeLibrary
                 e.Reserve(2);
             }
             e.Label("rt_fb_has");
+            e.Reserve(1);
+        }),
+
+        // TRON (lot K1, D088) : HL = numéro de la ligne qui commence ; affiché « [20] » si TRON est en marche
+        [TraceName] = new RuntimeModule(TraceName, [ErrorName], e =>
+        {
+            e.Label("rt_tron");
+            e.LdAMem("rt_tr_on");
+            e.OrA();
+            e.RetZ();
+            e.PushHl();
+            e.LdAImm('[');
+            e.CallAddress(TxtOutput);
+            e.PopHl();
+            e.CallLabel("rt_err_dec");
+            e.LdAImm(']');
+            e.JpAddress(TxtOutput);
+            e.Label("rt_tr_on");
             e.Reserve(1);
         }),
 

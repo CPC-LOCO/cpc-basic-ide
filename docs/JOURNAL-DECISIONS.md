@@ -681,6 +681,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** `examples\partie1.bas` (écrit un score dans un fichier puis RUN "PARTIE2") et `examples\partie2.bas` (relit le score).
 - **Fichiers :** Compiler.cs (CompileWithLinked, LaunchedPrograms, ProgramSource, LinkedProgram), Diagnostic.cs (File), DiskImage.cs (FileNames), `src\CpcIde\MainWindow.axaml.cs`, `tests\CpcBasic.Tests\LinkedCompileTests.cs` (nouveau).
 
+## D088 : lot K1, TRON et TROFF (Validé le 16 nov. 2026 : 1170 tests réussis ; `trace.bas` correct dans WinAPE)
+- **Référence (SugarBox, 16 nov. 2026) :** `[20]A[30] 1  2 [40][60]B` : le numéro s'affiche entre crochets au début de chaque ligne exécutée, une seule fois quand NEXT revient dans la même ligne.
+- **Réalisation :** seulement si le programme contient TRON : au début de chaque ligne, LD HL,numéro / CALL rt_tron (6 octets par ligne) ; rt_tron affiche « [n] » si TRON est en marche. TRON / TROFF changent un octet. Module Trace.
+- **Exemple :** `examples\trace.bas`.
+- **Fichiers :** Ast.cs (TraceStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs, `tests\CpcBasic.Tests\TraceTests.cs` (nouveau).
+
 ---
 
 ## Notes de fin de session (modèle)
