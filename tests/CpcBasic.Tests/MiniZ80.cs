@@ -77,6 +77,9 @@ internal sealed class MiniZ80
     public byte GraphicsPen = 1;
     public readonly Dictionary<(int X, int Y), byte> Points = new();
     public readonly List<(string Kind, byte First, byte Second)> Speeds = new();
+    // KEY, KEY DEF (D092) : appels du firmware (routine, A, B) et textes des touches de fonction
+    public readonly List<(int Routine, byte A, byte B)> KeyCalls = new();
+    public readonly Dictionary<int, string> Expansions = new();
 
     // Commandes RSX (D089) : nom -> adresse de la routine (KL FIND COMMAND)
     public readonly Dictionary<string, ushort> RsxCommands = new();
@@ -468,6 +471,7 @@ internal sealed class MiniZ80
             case 0x11: DE = Fetch16(); break;                          // LD DE,nn
             case 0x44: B = H; break;                                   // LD B,H
             case 0x47: B = A; break;                                   // LD B,A
+            case 0x45: B = L; break;                                   // LD B,L (D092)
             case 0x48: C = B; break;                                   // LD C,B (D086)
             case 0x4D: C = L; break;                                   // LD C,L
             case 0x4F: C = A; break;                                   // LD C,A
@@ -527,6 +531,7 @@ internal sealed class MiniZ80
             case 0xE6: And(Fetch()); break;                            // AND n
             case 0xB8: Compare(B); break;                              // CP B
             case 0xB5: A |= L; ZeroFlag = A == 0; CarryFlag = false; break;   // OR L
+            case 0xB4: A |= H; ZeroFlag = A == 0; CarryFlag = false; break;   // OR H (D092)
             case 0xB3: A |= E; ZeroFlag = A == 0; CarryFlag = false; break;   // OR E
             case 0xAF: A = 0; ZeroFlag = true; CarryFlag = false; break;      // XOR A
             case 0xEE: A ^= Fetch(); ZeroFlag = A == 0; CarryFlag = false; break;   // XOR n
@@ -643,6 +648,17 @@ internal sealed class MiniZ80
             case 0xCD:                                                 // CALL nn
             {
                 ushort address = Fetch16();
+                if (address is 0xBB39 or 0xBB27 or 0xBB2D or 0xBB33)
+                {
+                    KeyCalls.Add((address, A, B));                     // KM SET REPEAT / TRANSLATE / SHIFT / CONTROL (D092)
+                    break;
+                }
+                if (address == 0xBB0F)
+                {
+                    Expansions[B] = System.Text.Encoding.ASCII.GetString(Memory, HL, C);   // KM SET EXPAND (D092)
+                    CarryFlag = true;
+                    break;
+                }
                 if (address is 0xBBC0 or 0xBBC3 or 0xBBEA or 0xBBED or 0xBBF6 or 0xBBF9 or 0xBBF0 or 0xBBF3 or 0xBBC6
                     or 0xBBDE or 0xBC3E or 0xBB3F)
                 {

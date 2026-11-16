@@ -305,6 +305,12 @@ public sealed record LoadStatement(int SourceLine, Expression Name, Expression? 
 public sealed record ExternalCallStatement(int SourceLine, string? Rsx, Expression? Address, IReadOnlyList<Expression> Arguments)
     : Statement(SourceLine);
 
+/// <summary>KEY n,texte : texte d'une touche de fonction (n : 0 à 31 ou 128 à 159) (lot K5, D092).</summary>
+public sealed record KeyStatement(int SourceLine, Expression Number, Expression Text) : Statement(SourceLine);
+
+/// <summary>KEY DEF touche, répétition [, normal [, shift [, ctrl]]] (lot K5, D092).</summary>
+public sealed record KeyDefStatement(int SourceLine, IReadOnlyList<Expression> Values) : Statement(SourceLine);
+
 /// <summary>SPEED INK a,b (clignotement des couleurs) ou SPEED KEY a,b (répétition des touches) (lot K4, D091).</summary>
 public sealed record SpeedStatement(int SourceLine, string Kind, Expression First, Expression Second) : Statement(SourceLine);
 
@@ -488,6 +494,8 @@ public static class AstWalker
         SpeedWriteStatement sw => [sw.Value],
         RunFileStatement rf => [rf.Name],
         SpeedStatement sp => [sp.First, sp.Second],
+        KeyStatement ks => [ks.Number, ks.Text],
+        KeyDefStatement kd => kd.Values,
         ExternalCallStatement ec => ec.Arguments.Prepend(ec.Address).OfType<Expression>(),
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),

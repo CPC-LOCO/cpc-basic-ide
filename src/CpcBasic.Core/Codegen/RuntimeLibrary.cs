@@ -147,6 +147,7 @@ public static class RuntimeLibrary
     // Fichiers de données (lot J1, D084)
     public const string TraceName = "Trace";                    // TRON, TROFF (D088)
     public const string RsxName = "Rsx";                        // commandes RSX : |NOM (D089)
+    public const string KeysName = "Keys";                      // KEY, KEY DEF (D092)
     public const string FileCommonName = "FileCommon";
     public const string FileOutName = "FileOut";
     public const string FileInName = "FileIn";
@@ -1517,6 +1518,70 @@ public static class RuntimeLibrary
                 e.Reserve(2);
             }
             e.Label("rt_fb_has");
+            e.Reserve(1);
+        }),
+
+        // KEY et KEY DEF (lot K5, D092)
+        [KeysName] = new RuntimeModule(KeysName, [ErrorName], e =>
+        {
+            // KEY : DE = numéro (0 à 31 ou 128 à 159), HL = fiche du texte ; KM SET EXPAND (B = 128 + n, C = longueur)
+            e.Label("rt_key_set");
+            e.LdAD();
+            e.OrA();
+            e.JrNzLabel("rt_key_bad");
+            e.LdAE();
+            e.CpImm(160);
+            e.JrNcLabel("rt_key_bad");
+            e.CpImm(32);
+            e.JrCLabel("rt_key_ok");
+            e.CpImm(128);
+            e.JrCLabel("rt_key_bad");
+            e.Label("rt_key_ok");
+            e.OrImm(0x80);
+            e.LdBA();
+            e.LoadCFromHl();
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.ExDeHl();
+            e.CallAddress(0xBB0F);                   // KM SET EXPAND : retenue à 0 s'il n'y a plus de place
+            e.RetC();
+            e.Label("rt_key_bad");
+            e.LdHlLabel("rt_key_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_key_msg");
+            e.Data(Ascii("Improper argument"));
+
+            // KEY DEF : HL = touche (0 à 79), gardée en rt_key_k
+            e.Label("rt_key_which");
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_key_bad");
+            e.LdAL();
+            e.CpImm(80);
+            e.JrNcLabel("rt_key_bad");
+            e.LdMemA("rt_key_k");
+            e.Ret();
+            // HL = 0 ou 1 -> B = 0 ou &FF (répétition), A = touche
+            e.Label("rt_key_repeat");
+            e.LdAL();
+            e.OrH();
+            e.JrZLabel("rt_key_r0");
+            e.LdAImm(0xFF);
+            e.Label("rt_key_r0");
+            e.LdBA();
+            e.LdAMem("rt_key_k");
+            e.Ret();
+            // HL = valeur (0 à 255) -> B, A = touche
+            e.Label("rt_key_value");
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_key_bad");
+            e.LdBL();
+            e.LdAMem("rt_key_k");
+            e.Ret();
+            e.Label("rt_key_k");
             e.Reserve(1);
         }),
 

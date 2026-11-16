@@ -1741,7 +1741,7 @@ public static class CodeGenerator
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
-                || statement is ExternalCallStatement { Rsx: not null }
+                || statement is ExternalCallStatement { Rsx: not null } || statement is KeyStatement or KeyDefStatement
                 || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
@@ -2722,6 +2722,30 @@ public static class CodeGenerator
                     emitter.Label(extAfter);
                     for (int k = 0; k < external.Arguments.Count; k++)
                         emitter.PopDe();                               // les valeurs quittent la pile
+                    break;
+                }
+
+                case KeyStatement keyText:              // KEY n, texte (D092) : KM SET EXPAND
+                    required.Add(RuntimeLibrary.KeysName);
+                    EmitExpression(keyText.Number);
+                    emitter.PushHl();
+                    EmitString(keyText.Text);                           // HL = fiche du texte
+                    emitter.PopDe();
+                    emitter.CallLabel("rt_key_set");
+                    break;
+
+                case KeyDefStatement keyDef:            // KEY DEF touche, répétition, normal, shift, ctrl (D092)
+                {
+                    required.Add(RuntimeLibrary.KeysName);
+                    EmitExpression(keyDef.Values[0]);
+                    emitter.CallLabel("rt_key_which");                  // touche de 0 à 79, gardée
+                    int[] routines = [0xBB39, 0xBB27, 0xBB2D, 0xBB33];   // KM SET REPEAT, TRANSLATE, SHIFT, CONTROL
+                    for (int k = 1; k < keyDef.Values.Count; k++)
+                    {
+                        EmitExpression(keyDef.Values[k]);
+                        emitter.CallLabel(k == 1 ? "rt_key_repeat" : "rt_key_value");   // B = valeur, A = touche
+                        emitter.CallAddress(routines[k - 1]);
+                    }
                     break;
                 }
 

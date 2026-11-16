@@ -159,8 +159,8 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `INKEY` | état d'une touche | Faite | À confirmer dans WinAPE (`examples\clavier.bas`). |
 | `INKEY$` | touche appuyée | Faite | D064. |
 | `JOY` | état de la manette | Faite | JOY avec une valeur autre que 0 ou 1 lit la manette 1. |
-| `KEY` | définit une touche de fonction | À faire |  |
-| `KEY DEF` | définit le comportement d'une touche | À faire |  |
+| `KEY` | définit une touche de fonction | Faite | D092. |
+| `KEY DEF` | définit le comportement d'une touche | Faite | D092. |
 | `SPEED KEY` | vitesse de répétition des touches | Faite | D091. |
 | `INPUT` | saisie d'une valeur au clavier | Faite | Entiers, nombres à virgule et textes, dans des variables ou des cases de tableau (D055, D059, D062, D065, D068) ; fenêtres #0 à #7 (D072) ; édition de la ligne comme le vrai BASIC, avec COPY (D076). |
 | `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. Fenêtres #0 à #7 (D072). |

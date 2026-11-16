@@ -704,6 +704,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Réalisation (firmware) :** XPOS, YPOS : GRA ASK CURSOR (&BBC6) ; TEST, TESTR : GRA TEST ABSOLUTE / RELATIVE (&BBF0, &BBF3) ; SPEED INK a,b : SCR SET FLASHING (&BC3E, H = a, L = b) ; SPEED KEY a,b : KM SET DELAY (&BB3F). Valeurs de SPEED : 1 à 255.
 - **Fichiers :** Ast.cs (SpeedStatement), Parser.cs, CodeGenerator.cs, MiniZ80.cs (petit modèle du graphisme), `tests\CpcBasic.Tests\GraphicsQueryTests.cs` (nouveau). Exemple : `examples\points.bas`.
 
+## D092 : lot K5, KEY et KEY DEF (Validé le 16 nov. 2026 : 1205 tests réussis ; `touches.bas` dans WinAPE : [BONJOUR?] ; SugarBox : même résultat, KEY 32 et KEY DEF 80 donnent « Improper argument in 10 »)
+- **KEY n, texte :** n de 0 à 31 ou de 128 à 159 (les deux désignent la même touche : 128 + n) ; KM SET EXPAND (&BB0F, B = 128 + n, C = longueur, HL = lettres) ; plus de place : « Improper argument ».
+- **KEY DEF touche, répétition [, normal [, shift [, ctrl]]] :** touche de 0 à 79, répétition 0 ou 1, valeurs de 0 à 255 ; KM SET REPEAT (&BB39, B = &FF ou 0), KM SET TRANSLATE (&BB27), KM SET SHIFT (&BB2D), KM SET CONTROL (&BB33), A = touche. Hors limites : refusé à la compilation (nombre écrit) ou « Improper argument ».
+- **À savoir :** un programme compilé redémarre le CPC à la fin : les touches redeviennent normales.
+- **Fichiers :** Ast.cs (KeyStatement, KeyDefStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (module Keys), Z80Emitter.cs (LD B,L ; OR H), MiniZ80.cs, `tests\CpcBasic.Tests\KeyDefinitionTests.cs` (nouveau). Exemple : `examples\touches.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

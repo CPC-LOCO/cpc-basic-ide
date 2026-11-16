@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -513,6 +513,59 @@ public static class Parser
                     return SkipToStatementEnd(tokens, pos);
                 }
                 statements.Add(new SaveStatement(t.Line, fileName, values[0], values[1], values.Count > 2 ? values[2] : null));
+                return pos;
+            }
+
+            case "KEY" when IsWord(tokens[pos + 1], "DEF"):          // KEY DEF (lot K5, D092)
+            {
+                pos += 2;
+                var values = new List<Expression>();
+                while (true)
+                {
+                    Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                    if (value is null)
+                        return SkipToStatementEnd(tokens, pos);
+                    int max = values.Count == 0 ? 79 : values.Count == 1 ? 1 : 255;
+                    if (value is NumberExpression number && (number.Value < 0 || number.Value > max))
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, t.Line, $"{number.Value}|0 à {max}", "KEY DEF"));
+                    values.Add(value);
+                    if (tokens[pos].Kind != TokenKind.Comma || values.Count == 5)
+                        break;
+                    pos++;
+                }
+                if (values.Count < 2)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, tokens[pos].Text, "KEY DEF"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new KeyDefStatement(t.Line, values));
+                return pos;
+            }
+
+            case "KEY":                                 // KEY n, texte (lot K5, D092)
+            {
+                pos++;
+                Expression? number = ParseExpression(tokens, ref pos, diagnostics);
+                if (number is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (number is NumberExpression literal && literal.Value is not (>= 0 and <= 31 or >= 128 and <= 159))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, t.Line, $"{literal.Value}|0 à 31 ou 128 à 159", "KEY"));
+                if (tokens[pos].Kind != TokenKind.Comma)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, tokens[pos].Text, "KEY"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos++;
+                Token textStart = tokens[pos];
+                Expression? text = ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (text is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (!Types.IsString(text))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, textStart.Line, "KEY attend un texte après le numéro"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new KeyStatement(t.Line, number, text));
                 return pos;
             }
 
@@ -3011,6 +3064,16 @@ public static class Parser
                 case SpeedStatement speedChange:
                     Uses(speedChange.First);
                     Uses(speedChange.Second);
+                    break;
+
+                case KeyStatement keyText:
+                    Uses(keyText.Number);
+                    Uses(keyText.Text);
+                    break;
+
+                case KeyDefStatement keyDef:
+                    foreach (Expression value in keyDef.Values)
+                        Uses(value);
                     break;
 
                 case ExternalCallStatement external:
