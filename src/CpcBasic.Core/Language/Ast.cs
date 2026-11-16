@@ -305,6 +305,9 @@ public sealed record LoadStatement(int SourceLine, Expression Name, Expression? 
 public sealed record ExternalCallStatement(int SourceLine, string? Rsx, Expression? Address, IReadOnlyList<Expression> Arguments)
     : Statement(SourceLine);
 
+/// <summary>SPEED INK a,b (clignotement des couleurs) ou SPEED KEY a,b (répétition des touches) (lot K4, D091).</summary>
+public sealed record SpeedStatement(int SourceLine, string Kind, Expression First, Expression Second) : Statement(SourceLine);
+
 /// <summary>CLEAR : toutes les variables à 0 (textes vides), tableaux effacés (lot K3, D090).</summary>
 public sealed record ClearStatement(int SourceLine) : Statement(SourceLine);
 
@@ -484,6 +487,7 @@ public static class AstWalker
         LoadStatement ld => new[] { ld.Name, ld.Address }.OfType<Expression>(),
         SpeedWriteStatement sw => [sw.Value],
         RunFileStatement rf => [rf.Name],
+        SpeedStatement sp => [sp.First, sp.Second],
         ExternalCallStatement ec => ec.Arguments.Prepend(ec.Address).OfType<Expression>(),
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),

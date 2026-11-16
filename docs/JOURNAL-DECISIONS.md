@@ -699,6 +699,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **RUN, RUN ligne :** comme CLEAR, plus : DATA au début, plus de GOSUB en cours ni de ON ERROR GOTO, fichiers fermés, compteur des minuteries retiré (il est rebranché au départ) ; la pile est remise comme au lancement (gardée au tout début du programme), puis le programme recommence sa mise en route ; RUN ligne saute ensuite à la ligne.
 - **Fichiers :** Ast.cs (ClearStatement, RestartStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (rt_file_closeall), `tests\CpcBasic.Tests\RestartTests.cs` (nouveau), RunFileTests.cs. Exemple : `examples\relance.bas`.
 
+## D091 : lot K4, XPOS, YPOS, TEST, TESTR, SPEED INK, SPEED KEY (Validé le 16 nov. 2026 : 1195 tests réussis ; `points.bas` dans WinAPE : 101 points, curseur 638 150)
+- **Référence (SugarBox, 16 nov. 2026) :** après PLOT 100,50,2 et MOVE 30,40 : XPOS;YPOS = 30 40 ; TEST(100,50) = 2 et le curseur graphique va en 100,50 ; TESTR(70,10) part donc de là (0) ; TEST(0,0) = 0. SWAP A,B : « Syntax error » : SWAP n'existe pas (seul WINDOW SWAP), noté en écart dans la liste.
+- **Réalisation (firmware) :** XPOS, YPOS : GRA ASK CURSOR (&BBC6) ; TEST, TESTR : GRA TEST ABSOLUTE / RELATIVE (&BBF0, &BBF3) ; SPEED INK a,b : SCR SET FLASHING (&BC3E, H = a, L = b) ; SPEED KEY a,b : KM SET DELAY (&BB3F). Valeurs de SPEED : 1 à 255.
+- **Fichiers :** Ast.cs (SpeedStatement), Parser.cs, CodeGenerator.cs, MiniZ80.cs (petit modèle du graphisme), `tests\CpcBasic.Tests\GraphicsQueryTests.cs` (nouveau). Exemple : `examples\points.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

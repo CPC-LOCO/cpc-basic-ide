@@ -757,6 +757,22 @@ public static class CodeGenerator
                             break;
                         }
 
+                        case "XPOS" or "YPOS":              // position du curseur graphique (D091) : GRA ASK CURSOR, DE = x, HL = y
+                            emitter.CallAddress(0xBBC6);
+                            if (call.Function == "XPOS")
+                                emitter.ExDeHl();
+                            break;
+
+                        case "TEST" or "TESTR":             // couleur d'un point ; le curseur graphique y va (D091)
+                            EmitExpression(call.Arguments[0]);
+                            emitter.PushHl();
+                            EmitExpression(call.Arguments[1]);
+                            emitter.PopDe();
+                            emitter.CallAddress(call.Function == "TEST" ? 0xBBF0 : 0xBBF3);   // GRA TEST ABSOLUTE / RELATIVE
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            break;
+
                         case "EOF":                         // EOF : -1 à la fin du fichier ouvert par OPENIN (ou sans fichier), sinon 0 (D084)
                             required.Add(RuntimeLibrary.FileInName);
                             emitter.CallLabel("rt_fl_eof");
@@ -2708,6 +2724,15 @@ public static class CodeGenerator
                         emitter.PopDe();                               // les valeurs quittent la pile
                     break;
                 }
+
+                case SpeedStatement speedChange:        // SPEED INK a,b ; SPEED KEY a,b (D091) : H = a, L = b
+                    EmitExpression(speedChange.First);
+                    emitter.PushHl();
+                    EmitExpression(speedChange.Second);
+                    emitter.PopDe();
+                    emitter.LdHE();
+                    emitter.CallAddress(speedChange.Kind == "INK" ? 0xBC3E : 0xBB3F);   // SCR SET FLASHING / KM SET DELAY
+                    break;
 
                 case ClearStatement:                    // CLEAR (D090)
                     emitter.CallLabel("prog_clear");

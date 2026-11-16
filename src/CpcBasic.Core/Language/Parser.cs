@@ -30,7 +30,8 @@ public static class Parser
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
-        "RUN", "CHAIN", "MERGE", "TRON", "TROFF"];
+        "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
+        "XPOS", "YPOS", "TEST", "TESTR"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -109,6 +110,9 @@ public static class Parser
         ["RND"] = new("RND[(valeur)]", 0, 1),
         // Lot G1 (D071) : état d'un canal sonore
         ["SQ"] = new("SQ(canal : 1, 2 ou 4)", 1, 1),
+        // Lot K4 (D091) : couleur d'un point (le curseur graphique y va, comme le vrai BASIC)
+        ["TEST"] = new("TEST(x, y)", 2, 2),
+        ["TESTR"] = new("TESTR(dx, dy)", 2, 2),
         // Lot H1 (D072) : position du curseur de texte dans une fenêtre
         ["POS"] = new("POS(#fenêtre)", 1, 1, StreamFirst: true),
         ["VPOS"] = new("VPOS(#fenêtre)", 1, 1, StreamFirst: true),
@@ -512,7 +516,30 @@ public static class Parser
                 return pos;
             }
 
-            case "SPEED":                               // SPEED WRITE (lot J2, D085) ; SPEED INK et SPEED KEY : plus tard
+            case "SPEED" when IsWord(tokens[pos + 1], "INK") || IsWord(tokens[pos + 1], "KEY"):   // lot K4 (D091)
+            {
+                string kind = tokens[pos + 1].Text;
+                pos += 2;
+                Expression? first = ParseExpression(tokens, ref pos, diagnostics);
+                if (first is null)
+                    return SkipToStatementEnd(tokens, pos);
+                if (tokens[pos].Kind != TokenKind.Comma)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, tokens[pos].Text, "SPEED " + kind));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos++;
+                Expression? second = ParseExpression(tokens, ref pos, diagnostics);
+                if (second is null)
+                    return SkipToStatementEnd(tokens, pos);
+                foreach (Expression value in new[] { first, second })
+                    if (value is NumberExpression number && (number.Value < 1 || number.Value > 255))
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, t.Line, $"{number.Value}|1 à 255", "SPEED " + kind));
+                statements.Add(new SpeedStatement(t.Line, kind, first, second));
+                return pos;
+            }
+
+            case "SPEED":                               // SPEED WRITE (lot J2, D085)
             {
                 if (!IsWord(tokens[pos + 1], "WRITE"))
                 {
@@ -2981,6 +3008,11 @@ public static class Parser
                     Uses(runFile.Name);
                     break;
 
+                case SpeedStatement speedChange:
+                    Uses(speedChange.First);
+                    Uses(speedChange.Second);
+                    break;
+
                 case ExternalCallStatement external:
                     if (external.Address is not null)
                         Uses(external.Address);
@@ -3346,7 +3378,7 @@ public static class Parser
                     pos++;                              // PI et RND s'écrivent sans parenthèses (D069)
                     return new CallExpression(t.Text, []);
                 }
-                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF")
+                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF" or "XPOS" or "YPOS")
                 {
                     pos++;                              // TIME, ERR, ERL et EOF s'écrivent sans parenthèses, comme sur le CPC (D080, D084)
                     return new CallExpression(t.Text, []);

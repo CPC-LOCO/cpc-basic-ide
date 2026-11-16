@@ -72,6 +72,12 @@ internal sealed class MiniZ80
     // 4 en attente ; SOUND ARM EVENT appelle la routine de l'événement dès qu'il y a une place, une seule fois.
     public bool SoundQueueModel;
 
+    // Graphisme (D091) : curseur graphique, points tracés (couleur), réglages SPEED INK / SPEED KEY
+    public short GraphicsX, GraphicsY;
+    public byte GraphicsPen = 1;
+    public readonly Dictionary<(int X, int Y), byte> Points = new();
+    public readonly List<(string Kind, byte First, byte Second)> Speeds = new();
+
     // Commandes RSX (D089) : nom -> adresse de la routine (KL FIND COMMAND)
     public readonly Dictionary<string, ushort> RsxCommands = new();
     public ushort IX;
@@ -541,6 +547,7 @@ internal sealed class MiniZ80
                 break;
             case 0x37: CarryFlag = true; break;                        // SCF
             case 0x6B: L = E; break;                                   // LD L,E (D069)
+            case 0x63: H = E; break;                                   // LD H,E (D091)
             case 0x6C: L = H; break;                                   // LD L,H (POS, D072)
             case 0x24: H++; ZeroFlag = H == 0; break;                  // INC H (D076)
             case 0x82: Add(D); break;                                  // ADD A,D (D068)
@@ -636,6 +643,30 @@ internal sealed class MiniZ80
             case 0xCD:                                                 // CALL nn
             {
                 ushort address = Fetch16();
+                if (address is 0xBBC0 or 0xBBC3 or 0xBBEA or 0xBBED or 0xBBF6 or 0xBBF9 or 0xBBF0 or 0xBBF3 or 0xBBC6
+                    or 0xBBDE or 0xBC3E or 0xBB3F)
+                {
+                    bool relative = address is 0xBBC3 or 0xBBED or 0xBBF9 or 0xBBF3;   // graphisme (D091)
+                    switch (address)
+                    {
+                        case 0xBBC6:                                   // GRA ASK CURSOR
+                            DE = (ushort)GraphicsX;
+                            HL = (ushort)GraphicsY;
+                            break;
+                        case 0xBBDE: GraphicsPen = A; break;           // GRA SET PEN
+                        case 0xBC3E: Speeds.Add(("INK", H, L)); break; // SCR SET FLASHING
+                        case 0xBB3F: Speeds.Add(("KEY", H, L)); break; // KM SET DELAY
+                        default:                                       // MOVE, PLOT, LINE, TEST : le curseur va au point
+                            GraphicsX = (short)((relative ? GraphicsX : 0) + (short)DE);
+                            GraphicsY = (short)((relative ? GraphicsY : 0) + (short)HL);
+                            if (address is 0xBBEA or 0xBBED)
+                                Points[(GraphicsX, GraphicsY)] = GraphicsPen;
+                            if (address is 0xBBF0 or 0xBBF3)
+                                A = Points.TryGetValue((GraphicsX, GraphicsY), out byte ink) ? ink : (byte)0;
+                            break;
+                    }
+                    break;
+                }
                 if (address == 0x001B)
                 {
                     Push((ushort)pc);                                  // KL FAR PCHL : appel de HL (D089)

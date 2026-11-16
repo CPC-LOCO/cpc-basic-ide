@@ -79,7 +79,7 @@ Mise à jour le 16 nov. 2026 :
 | `READ` | lit les données | Faite | Dans une variable, une case de tableau ou une variable texte (READ A$ rend un nombre tel qu'il est écrit) ; « DATA exhausted », « Type mismatch ». D059, D064. |
 | `RESTORE` | relit les données depuis une ligne | Faite | RESTORE seul ou RESTORE ligne. D059. |
 | `DEF FN / FN` | fonction définie par le programmeur | À faire |  |
-| `SWAP` | échange deux variables | À faire |  |
+| `SWAP` | échange deux variables | Écart voulu | N'existe pas dans le Locomotive BASIC (SugarBox, 16 nov. 2026 : « Syntax error ») ; seul WINDOW SWAP existe (fait, D072). |
 | `MEMORY` | limite la mémoire du BASIC | Partielle | Protège le haut de la mémoire : le compilateur vérifie que le programme tient dessous (si l'adresse est un nombre écrit). D057. |
 | `HIMEM` | haut de la mémoire du BASIC | À faire |  |
 | `FRE` | mémoire libre | À faire |  |
@@ -117,7 +117,7 @@ Mise à jour le 16 nov. 2026 :
 | `ZONE` | largeur des zones de PRINT | Faite | D073. |
 | `TAG` | texte aux coordonnées graphiques | Faite | Avec #n (D075). |
 | `TAGOFF` | fin de TAG | Faite | Avec #n (D075). |
-| `SPEED INK` | vitesse du clignotement des couleurs | À faire |  |
+| `SPEED INK` | vitesse du clignotement des couleurs | Faite | D091. |
 | `FRAME` | attend le balayage de l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
 | `POS` | colonne du curseur | Faite | POS(#0) à POS(#7), D072 (#8 avec le lot J). |
 | `VPOS` | ligne du curseur | Faite | D072. |
@@ -138,8 +138,8 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `GRAPHICS PAPER` | fond des tracés | À faire | BASIC 1.1 seulement (664, 6128). |
 | `MASK` | motif des lignes | À faire | BASIC 1.1 seulement (664, 6128). |
 | `FILL` | remplit une zone | À faire | BASIC 1.1 seulement (664, 6128). |
-| `TEST / TESTR` | lit la couleur d'un point | À faire |  |
-| `XPOS / YPOS` | position du curseur graphique | À faire |  |
+| `TEST / TESTR` | lit la couleur d'un point | Faite | Le curseur graphique va au point, comme le vrai BASIC (D091). |
+| `XPOS / YPOS` | position du curseur graphique | Faite | D091. |
 
 ## 5. Son
 
@@ -161,7 +161,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `JOY` | état de la manette | Faite | JOY avec une valeur autre que 0 ou 1 lit la manette 1. |
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
-| `SPEED KEY` | vitesse de répétition des touches | À faire |  |
+| `SPEED KEY` | vitesse de répétition des touches | Faite | D091. |
 | `INPUT` | saisie d'une valeur au clavier | Faite | Entiers, nombres à virgule et textes, dans des variables ou des cases de tableau (D055, D059, D062, D065, D068) ; fenêtres #0 à #7 (D072) ; édition de la ligne comme le vrai BASIC, avec COPY (D076). |
 | `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. Fenêtres #0 à #7 (D072). |
 
