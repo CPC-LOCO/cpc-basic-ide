@@ -77,8 +77,6 @@ public class RunFileTests
     [InlineData("10 CHAIN \"X\"")]
     [InlineData("10 CHAIN MERGE \"X\"")]
     [InlineData("10 MERGE \"X\"")]
-    [InlineData("10 RUN")]
-    [InlineData("10 RUN 100\n100 END")]
     public void Refuses_a_la_compilation(string source)
     {
         Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.NotForCompiled);
@@ -87,7 +85,7 @@ public class RunFileTests
     [Fact]
     public void RUN_attend_un_texte()
     {
-        Assert.Contains(Errors("10 RUN 5+A"), e => e.Code is DiagnosticCode.NotForCompiled or DiagnosticCode.TypeMismatch);
+        Assert.NotEmpty(Errors("10 RUN 5+A"));                 // RUN 5 : ligne 5 (D090), puis « +A » de trop
         Assert.Contains(Errors("10 RUN A"), e => e.Code == DiagnosticCode.TypeMismatch);
     }
 }

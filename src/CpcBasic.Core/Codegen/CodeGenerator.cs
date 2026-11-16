@@ -1588,6 +1588,15 @@ public static class CodeGenerator
             required.Add(usesReals ? RuntimeLibrary.DataRealName : RuntimeLibrary.DataNoRealName);
         }
 
+        // RUN (D090) : la pile du départ est gardée ; RUN la remet et recommence ici
+        bool usesRun = program.Statements.Any(st => st is RestartStatement);
+        bool usesClear = usesRun || program.Statements.Any(st => st is ClearStatement);
+        if (usesRun)
+        {
+            emitter.LdMemSp("rt_run_sp");
+            emitter.Label("prog_restart");
+        }
+
         // Nombres à virgule (D068) : table des routines de la ROM selon la machine, angles en radians
         if (usesReals)
         {
@@ -1628,6 +1637,19 @@ public static class CodeGenerator
         int breakLine = -1;   // dernière ligne rangée pour « Break in N » (D083)
         bool usesTrace = program.Statements.Any(st => st is TraceStatement);   // TRON (D088)
         int traceLine = -1;
+
+        // RUN ligne (D090) : après la mise en route, on saute à la ligne demandée
+        if (program.Statements.Any(st => st is RestartStatement { Target: not null }))
+        {
+            emitter.LdHlMem("rt_run_go");
+            emitter.LdAH();
+            emitter.OrL();
+            emitter.JrZLabel("prog_run_top");
+            emitter.LdDeImm(0);
+            emitter.LdMemDe("rt_run_go");
+            emitter.JpHl();
+            emitter.Label("prog_run_top");
+        }
 
         int statementIndex = 0;
         int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
@@ -2687,6 +2709,47 @@ public static class CodeGenerator
                     break;
                 }
 
+                case ClearStatement:                    // CLEAR (D090)
+                    emitter.CallLabel("prog_clear");
+                    break;
+
+                case RestartStatement restart:          // RUN, RUN ligne (D090)
+                    if (usesEvents)
+                        emitter.CallLabel(RuntimeLibrary.EventsStopLabel);   // le compteur sera rebranché au départ
+                    if (program.Statements.Any(st => st is FileStatement or SaveStatement or LoadStatement or RunFileStatement))
+                    {
+                        required.Add(RuntimeLibrary.FileCommonName);
+                        emitter.CallLabel("rt_file_closeall");
+                    }
+                    if (usesOnError)
+                    {
+                        emitter.LdHlImm(0);                             // plus de ON ERROR GOTO
+                        emitter.LdMemHl(RuntimeLibrary.ErrorTrapLabel);
+                        emitter.XorA();
+                        emitter.LdMemA("rt_oe_active");
+                    }
+                    if (program.Statements.Any(st => st is ReturnStatement))
+                    {
+                        required.Add(RuntimeLibrary.GosubName);         // plus de GOSUB en cours
+                        emitter.XorA();
+                        emitter.LdMemA(RuntimeLibrary.GosubCountLabel);
+                    }
+                    if (usesData)
+                    {
+                        emitter.LdHlLabel(RuntimeLibrary.DataTableLabel);   // DATA au début
+                        emitter.LdMemHl(RuntimeLibrary.DataPointerLabel);
+                    }
+                    emitter.CallLabel("prog_clear");
+                    if (restart.Target is int runTarget)
+                        emitter.LdHlLabel(LineLabel(runTarget));
+                    else
+                        emitter.LdHlImm(0);
+                    if (program.Statements.Any(st => st is RestartStatement { Target: not null }))
+                        emitter.LdMemHl("rt_run_go");
+                    emitter.LdSpMem("rt_run_sp");
+                    emitter.JpLabel("prog_restart");
+                    break;
+
                 case TraceStatement trace:              // TRON / TROFF (D088)
                     required.Add(RuntimeLibrary.TraceName);
                     emitter.LdAImm(trace.On ? 1 : 0);
@@ -2742,6 +2805,43 @@ public static class CodeGenerator
         emitter.Label(EndLabel);
         emitter.CallAddress(RuntimeLibrary.KmWaitKey);
         emitter.JpAddress(0);
+
+        // CLEAR (D090) : variables à 0 (un texte : fiche à 0 = vide), tableaux effacés, mémoire libre comme au départ
+        if (usesClear)
+        {
+            emitter.Label("prog_clear");
+            void Zero(string start, int size)
+            {
+                if (size == 0)
+                    return;
+                emitter.LdHlLabel(start);
+                emitter.StoreHlImm(0);
+                if (size == 1)
+                    return;
+                emitter.LdDH();
+                emitter.LdEL();
+                emitter.IncDe();
+                emitter.LdBcImm(size - 1);
+                emitter.Ldir();
+            }
+            Zero("vars_start", slots.Sum(slot => slot.Type switch { VarType.Byte => 1, VarType.String => 3, VarType.Real => 5, _ => 2 }));
+            Zero("arrays_start", arrays.Values.Sum(a => 2 + 2 * a.Dimensions));
+            if (arrays.Count > 0 || usesStrings)
+            {
+                emitter.LdHlLabel(RuntimeLibrary.ArrayHeapStartLabel);
+                emitter.LdMemHl(RuntimeLibrary.ArrayHeapLabel);
+                emitter.LdHlMem(RuntimeLibrary.ArrayHeapLimitLabel);
+                emitter.LdMemHl(RuntimeLibrary.StringPointerLabel);
+            }
+            emitter.Ret();
+        }
+        if (usesRun)
+        {
+            emitter.Label("rt_run_sp");
+            emitter.Reserve(2);
+            emitter.Label("rt_run_go");
+            emitter.Reserve(2);
+        }
 
         // Liaison sélective : seuls les modules utilisés sont écrits dans le binaire
         // ON SQ (D082) et touche ESC (D083) : le module des minuteries est remplacé par celui qui les gère aussi
@@ -2817,6 +2917,7 @@ public static class CodeGenerator
         }
 
         // Variables, à 0 au départ : 1 octet pour un octet, 2 pour un entier
+        emitter.Label("vars_start");
         foreach (VariableSlot slot in slots)
         {
             emitter.Label(slot.Label);
@@ -2836,6 +2937,7 @@ public static class CodeGenerator
         }
 
         // Descripteurs des tableaux : adresse des cases (0 = pas encore créé), puis nombre de cases de chaque dimension
+        emitter.Label("arrays_start");
         foreach ((string label, int dimensions) in arrays.Values)
         {
             emitter.Label(label);

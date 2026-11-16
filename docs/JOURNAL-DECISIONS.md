@@ -693,6 +693,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **|NOM :** le nom (dernière lettre avec le bit 7) est cherché par KL FIND COMMAND (&BCD4), puis appelé par KL FAR PCHL (&001B, HL = adresse, C = ROM) ; pas trouvé : « Unknown command » (erreur 28, interceptable par ON ERROR GOTO). **CALL adresse, valeurs :** même règle ; CALL adresse seul ne change pas.
 - **Fichiers :** Lexer.cs (TokenKind.Bar), Ast.cs (ExternalCallStatement), Parser.cs (ParseRsx, TryParseExternalArguments, HasTopLevelComma), CodeGenerator.cs, RuntimeLibrary.cs (module Rsx), Z80Emitter.cs (LD IX,nn ; ADD IX,SP), MiniZ80.cs (IX, KL FIND COMMAND, KL FAR PCHL), `tests\CpcBasic.Tests\RsxTests.cs` (nouveau).
 
+## D090 : lot K3, CLEAR, RUN et RUN ligne (Validé le 16 nov. 2026 : 1187 tests réussis ; `relance.bas` correct dans WinAPE)
+- **Références (SugarBox, 16 nov. 2026) :** CLEAR puis DIM T(3) : « 0 [] 0 » ; RUN dans le programme (compteur en &9000) : « 7  0  7  1  7  2 FIN » (DATA remis au début).
+- **CLEAR :** toutes les variables à 0 (un texte : sa fiche à 0, donc vide ; un nombre à virgule : 0), les tableaux effacés (DIM de nouveau permis), la mémoire libre comme au départ (textes et tableaux oubliés ; la limite de MEMORY reste). Les variables du programme sont rangées entre vars_start et la fin, les descripteurs de tableaux à partir d'arrays_start : un LDIR les remet à 0 (routine prog_clear).
+- **RUN, RUN ligne :** comme CLEAR, plus : DATA au début, plus de GOSUB en cours ni de ON ERROR GOTO, fichiers fermés, compteur des minuteries retiré (il est rebranché au départ) ; la pile est remise comme au lancement (gardée au tout début du programme), puis le programme recommence sa mise en route ; RUN ligne saute ensuite à la ligne.
+- **Fichiers :** Ast.cs (ClearStatement, RestartStatement), Parser.cs, CodeGenerator.cs, RuntimeLibrary.cs (rt_file_closeall), `tests\CpcBasic.Tests\RestartTests.cs` (nouveau), RunFileTests.cs. Exemple : `examples\relance.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

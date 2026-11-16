@@ -50,8 +50,8 @@ Mise à jour le 16 nov. 2026 :
 | `CALL` | appelle un programme en langage machine | Faite | Avec valeurs : CALL adresse, v1, v2… (D089). |
 | `CHAIN` | charge et lance un autre programme | Écart voulu | Refusé à la compilation (les variables ne peuvent pas passer d'un programme compilé à l'autre) : RUN "nom" et un fichier (D086). |
 | `CHAIN MERGE` | charge un autre programme en gardant les variables | Écart voulu | Refusé : ajoute des lignes BASIC (D086). |
-| `RUN` | lance un programme (aussi RUN "fichier") | Partielle | RUN "nom" lance un autre programme compilé (nom.BIN), D086. RUN et RUN ligne : à faire. |
-| `CLEAR` | efface les variables | À faire |  |
+| `RUN` | lance un programme (aussi RUN "fichier") | Faite | RUN "nom" lance un autre programme compilé (nom.BIN), D086 ; RUN et RUN ligne recommencent le programme (D090). |
+| `CLEAR` | efface les variables | Faite | D090. |
 | `CLEAR INPUT` | vide le tampon du clavier | Faite |  |
 | `TRON / TROFF` | suivi des lignes (débogage) | Faite | D088. |
 | `ON BREAK CONT / GOSUB / STOP` | réaction à la touche ESC | Faite | D083. Touche ESC : réglage F9 de l'éditeur (comme le CPC par défaut). |

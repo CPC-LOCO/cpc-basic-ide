@@ -61,11 +61,9 @@ public class KeyboardTests
     }
 
     [Fact]
-    public void CLEAR_seul_est_refuse()
+    public void CLEAR_seul_est_accepte()   // CLEAR efface les variables depuis le lot K3 (D090)
     {
-        Diagnostic error = Assert.Single(Errors("10 CLEAR"));
-
-        Assert.Equal(DiagnosticCode.UnknownCommand, error.Code);
+        Assert.Empty(Errors("10 CLEAR"));
     }
 
     [Fact]

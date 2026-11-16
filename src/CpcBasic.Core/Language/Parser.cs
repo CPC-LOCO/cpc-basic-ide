@@ -415,11 +415,17 @@ public static class Parser
             case "RUN":                                 // RUN "nom" (lot J3, D086)
             {
                 pos++;
-                if (IsLineEnd(tokens[pos]) || tokens[pos].Kind is TokenKind.Colon or TokenKind.Number)
+                if (IsLineEnd(tokens[pos]) || tokens[pos].Kind == TokenKind.Colon || IsWord(tokens[pos], "ELSE"))
                 {
-                    diagnostics.Add(new Diagnostic(DiagnosticCode.NotForCompiled, t.Line,
-                        "RUN sans nom de fichier (relancer le programme) n'est pas encore disponible. RUN \"nom\" lance un autre programme compilé."));
-                    return SkipToStatementEnd(tokens, pos);
+                    statements.Add(new RestartStatement(t.Line, null));       // RUN : le programme recommence (D090)
+                    return pos;
+                }
+                if (tokens[pos].Kind == TokenKind.Number)
+                {
+                    if (!TryParseTarget(tokens, ref pos, diagnostics, out int runLine))
+                        return SkipToStatementEnd(tokens, pos);
+                    statements.Add(new RestartStatement(t.Line, runLine));    // RUN ligne (D090)
+                    return pos;
                 }
                 Token nameStart = tokens[pos];
                 Expression? program = ParseAnyExpression(tokens, ref pos, diagnostics);
@@ -724,6 +730,10 @@ public static class Parser
             case "CLEAR" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
                 statements.Add(new ClearInputStatement(t.Line));
                 return pos + 2;
+
+            case "CLEAR":                               // lot K3 (D090)
+                statements.Add(new ClearStatement(t.Line));
+                return pos + 1;
 
             case "LET":
                 return ParseAssignment(tokens, pos + 1, t.Line, statements, diagnostics);
@@ -2485,6 +2495,9 @@ public static class Parser
                     break;
                 case OnSqStatement onSq:
                     Check(onSq.SourceLine, onSq.Target, "ON SQ");
+                    break;
+                case RestartStatement { Target: int restartLine } restart:
+                    Check(restart.SourceLine, restartLine, "RUN");
                     break;
                 case OnBreakStatement { Mode: BreakMode.Gosub } onBreak:
                     Check(onBreak.SourceLine, onBreak.Target, "ON BREAK GOSUB");

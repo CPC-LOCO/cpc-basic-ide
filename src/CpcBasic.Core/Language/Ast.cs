@@ -305,6 +305,12 @@ public sealed record LoadStatement(int SourceLine, Expression Name, Expression? 
 public sealed record ExternalCallStatement(int SourceLine, string? Rsx, Expression? Address, IReadOnlyList<Expression> Arguments)
     : Statement(SourceLine);
 
+/// <summary>CLEAR : toutes les variables à 0 (textes vides), tableaux effacés (lot K3, D090).</summary>
+public sealed record ClearStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>RUN ou RUN ligne : le programme recommence, variables effacées, DATA au début (lot K3, D090).</summary>
+public sealed record RestartStatement(int SourceLine, int? Target) : Statement(SourceLine);
+
 /// <summary>TRON / TROFF : le numéro de chaque ligne exécutée s'affiche entre crochets (lot K1, D088).</summary>
 public sealed record TraceStatement(int SourceLine, bool On) : Statement(SourceLine);
 

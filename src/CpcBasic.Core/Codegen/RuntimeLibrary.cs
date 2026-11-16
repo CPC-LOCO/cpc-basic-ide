@@ -952,6 +952,22 @@ public static class RuntimeLibrary
             e.JpLabel(ErrorLabel);
             e.Label("rt_file_m5");
             e.Data(Ascii("File type error"));
+            // RUN (D090) : les fichiers ouverts sont fermés
+            e.Label("rt_file_closeall");
+            e.LdAMem("rt_fo_isopen");
+            e.OrA();
+            e.JrZLabel("rt_file_ca_in");
+            e.XorA();
+            e.LdMemA("rt_fo_isopen");
+            e.CallAddress(0xBC8F);                   // CAS OUT CLOSE
+            e.Label("rt_file_ca_in");
+            e.LdAMem("rt_fl_isopen");
+            e.OrA();
+            e.RetZ();
+            e.XorA();
+            e.LdMemA("rt_fl_isopen");
+            e.CallAddress(0xBC7A);                   // CAS IN CLOSE
+            e.Ret();
             e.Label("rt_fo_isopen");                 // fichier ouvert en écriture, en lecture
             e.Reserve(1);
             e.Label("rt_fl_isopen");
