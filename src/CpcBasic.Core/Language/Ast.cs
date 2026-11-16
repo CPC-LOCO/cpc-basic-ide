@@ -86,8 +86,13 @@ public sealed record DeclareStatement(int SourceLine, IReadOnlyList<string> Name
 /// le programme (décision D033). Le corps de la boucle se termine au NEXT correspondant.
 /// Variable à virgule (FOR X!, D068) : RealLimit et RealStep donnent la limite et le pas ; Step vaut alors 1 ou -1.
 /// </summary>
+/// <remarks>
+/// Limite et pas écrits en nombres : Limit, Step (RealLimit, RealStep pour FOR X!). Calculés (FOR I = 1 TO N, lot A,
+/// D078) : LimitValue, StepValue ; ils sont calculés une seule fois, au début de la boucle, comme le Locomotive.
+/// </remarks>
 public sealed record ForStatement(int SourceLine, string Variable, Expression Start, int Limit, int Step,
-                                  double RealLimit = 0, double RealStep = 0)
+                                  double RealLimit = 0, double RealStep = 0,
+                                  Expression? LimitValue = null, Expression? StepValue = null)
     : Statement(SourceLine);
 
 /// <summary>NEXT [variable] : referme la boucle FOR ouverte la plus récente.</summary>
@@ -404,7 +409,7 @@ public static class AstWalker
         AssignStatement a => [a.Value],
         ArrayAssignStatement a => a.Indexes.Append(a.Value),
         DimStatement d => d.Arrays.SelectMany(x => x.Sizes),
-        ForStatement f => [f.Start],
+        ForStatement f => new[] { f.Start, f.LimitValue, f.StepValue }.OfType<Expression>(),
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

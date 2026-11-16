@@ -1738,22 +1738,27 @@ public static class Parser
             // FOR X! = départ TO limite [STEP pas] : limite et pas peuvent être à virgule (D068)
             Expression realStart = new NumberExpression(0);
             double realLimit = 0, realStep = 1;
-            bool realOk = ParseRealForHeader(tokens, ref pos, diagnostics, ref realStart, ref realLimit, ref realStep);
-            statements.Add(new ForStatement(line, name.Text, realStart, 0, Math.Sign(realStep), realLimit, realStep));
+            Expression? realLimitValue = null, realStepValue = null;
+            bool realOk = ParseRealForHeader(tokens, ref pos, diagnostics, ref realStart, ref realLimit, ref realStep,
+                                             ref realLimitValue, ref realStepValue);
+            statements.Add(new ForStatement(line, name.Text, realStart, 0, Math.Sign(realStep), realLimit, realStep,
+                                            realLimitValue, realStepValue));
             return realOk ? pos : SkipToStatementEnd(tokens, pos);
         }
 
         Expression start = new NumberExpression(0);
         int limit = 0;
         int step = 1;
-        bool ok = ParseForHeader(tokens, ref pos, diagnostics, ref start, ref limit, ref step);
+        Expression? limitValue = null, stepValue = null;
+        bool ok = ParseForHeader(tokens, ref pos, diagnostics, ref start, ref limit, ref step, ref limitValue, ref stepValue);
 
-        statements.Add(new ForStatement(line, name.Text, start, limit, step));
+        statements.Add(new ForStatement(line, name.Text, start, limit, step, LimitValue: limitValue, StepValue: stepValue));
         return ok ? pos : SkipToStatementEnd(tokens, pos);
     }
 
     static bool ParseRealForHeader(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
-                                   ref Expression start, ref double limit, ref double step)
+                                   ref Expression start, ref double limit, ref double step,
+                                   ref Expression? limitValue, ref Expression? stepValue)
     {
         if (tokens[pos].Kind != TokenKind.Equals)
         {
@@ -1780,63 +1785,73 @@ public static class Parser
         }
         pos++;
 
-        double? lastValue = ParseSignedReal(tokens, ref pos, diagnostics);
-        if (lastValue is null)
+        // Limite et pas : nombres écrits, ou valeurs calculées une fois au début de la boucle (D078)
+        Expression? lastExpression = ParseExpressionKeepingReals(tokens, ref pos, diagnostics);
+        if (lastExpression is null)
             return false;
-        limit = lastValue.Value;
+        if (ConstantReal(lastExpression) is double lastConstant)
+            limit = lastConstant;
+        else
+            limitValue = lastExpression;
 
         if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "STEP")
         {
             pos++;
-            double? stepValue = ParseSignedReal(tokens, ref pos, diagnostics);
-            if (stepValue is null)
+            Token stepToken = tokens[pos];
+            Expression? stepExpression = ParseExpressionKeepingReals(tokens, ref pos, diagnostics);
+            if (stepExpression is null)
                 return false;
-            if (stepValue.Value == 0)
+            if (ConstantReal(stepExpression) is double stepConstant)
             {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.StepIsZero, tokens[pos - 1].Line));
-                return false;
+                if (stepConstant == 0)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.StepIsZero, stepToken.Line));
+                    return false;
+                }
+                step = stepConstant;
             }
-            step = stepValue.Value;
+            else
+            {
+                stepValue = stepExpression;
+            }
         }
         return true;
     }
 
-    // Nombre écrit dans le programme, avec son signe, entier ou à virgule (limite et pas d'un FOR X!)
-    static double? ParseSignedReal(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
+    // Un nombre (pas un texte), sans arrondir les nombres à virgule écrits (FOR X! = 0 TO 1 STEP 0.25)
+    static Expression? ParseExpressionKeepingReals(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
     {
-        bool negative = false;
-        if (tokens[pos].Kind == TokenKind.Minus)
+        Token at = tokens[pos];
+        Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+        if (value is not null && Types.IsString(value))
         {
-            negative = true;
-            pos++;
-        }
-        else if (tokens[pos].Kind == TokenKind.Plus)
-        {
-            pos++;
-        }
-
-        Token t = tokens[pos];
-        if (t.Kind == TokenKind.HexNumber)
-        {
-            pos++;
-            int value = Signed16(Lexer.HexValue(t.Text) ?? 0);
-            return negative ? -value : value;
-        }
-        if (t.Kind != TokenKind.Number)
-        {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedNumber, t.Line, t.Text));
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, at.Line, "un nombre est attendu"));
             return null;
         }
-        return ParseNumber(tokens, ref pos, diagnostics, negative) switch
-        {
-            NumberExpression number => number.Value,
-            RealNumberExpression real => real.Value,
-            _ => null
-        };
+        return value;
     }
 
+    // Valeur d'un nombre écrit (5, -5, 0.25, -0.25), sinon null (D078)
+    static double? ConstantReal(Expression value) => value switch
+    {
+        NumberExpression number => number.Value,
+        RealNumberExpression real => real.Value,
+        BinaryExpression { Operator: BinaryOperator.Subtract, Left: NumberExpression { Value: 0 } } minus
+            => ConstantReal(minus.Right) is double inner ? -inner : null,
+        _ => null
+    };
+
+    static int? ConstantInt(Expression value) => value switch
+    {
+        NumberExpression number => number.Value,
+        BinaryExpression { Operator: BinaryOperator.Subtract, Left: NumberExpression { Value: 0 }, Right: NumberExpression right }
+            => -right.Value,
+        _ => null
+    };
+
     static bool ParseForHeader(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics,
-                               ref Expression start, ref int limit, ref int step)
+                               ref Expression start, ref int limit, ref int step,
+                               ref Expression? limitValue, ref Expression? stepValue)
     {
         if (tokens[pos].Kind != TokenKind.Equals)
         {
@@ -1857,58 +1872,38 @@ public static class Parser
         }
         pos++;
 
-        int? lastValue = ParseSignedNumber(tokens, ref pos, diagnostics);
-        if (lastValue is null)
+        // Limite et pas : nombres écrits, ou valeurs calculées une fois au début de la boucle (D078)
+        Expression? lastExpression = ParseExpression(tokens, ref pos, diagnostics);
+        if (lastExpression is null)
             return false;
-        limit = lastValue.Value;
+        if (ConstantInt(lastExpression) is int lastConstant)
+            limit = lastConstant;
+        else
+            limitValue = lastExpression;
 
         if (tokens[pos].Kind == TokenKind.Word && tokens[pos].Text == "STEP")
         {
             pos++;
-            int? stepValue = ParseSignedNumber(tokens, ref pos, diagnostics);
-            if (stepValue is null)
+            Token stepToken = tokens[pos];
+            Expression? stepExpression = ParseExpression(tokens, ref pos, diagnostics);
+            if (stepExpression is null)
                 return false;
-            if (stepValue.Value == 0)
+            if (ConstantInt(stepExpression) is int stepConstant)
             {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.StepIsZero, tokens[pos - 1].Line));
-                return false;
+                if (stepConstant == 0)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.StepIsZero, stepToken.Line));
+                    return false;
+                }
+                step = stepConstant;
             }
-            step = stepValue.Value;
+            else
+            {
+                stepValue = stepExpression;
+            }
         }
 
         return true;
-    }
-
-    // Un nombre écrit dans le programme, avec un signe facultatif (-32768 à 32767)
-    static int? ParseSignedNumber(IReadOnlyList<Token> tokens, ref int pos, List<Diagnostic> diagnostics)
-    {
-        bool negative = false;
-        if (tokens[pos].Kind == TokenKind.Minus)
-        {
-            negative = true;
-            pos++;
-        }
-        else if (tokens[pos].Kind == TokenKind.Plus)
-        {
-            pos++;
-        }
-
-        Token t = tokens[pos];
-        if (t.Kind == TokenKind.HexNumber)
-        {
-            pos++;
-            int value = Signed16(Lexer.HexValue(t.Text) ?? 0);
-            return negative ? -value : value;
-        }
-        if (t.Kind != TokenKind.Number)
-        {
-            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedNumber, t.Line, t.Text));
-            return null;
-        }
-
-        Expression? read = ParseNumber(tokens, ref pos, diagnostics, negative);
-        return read is null ? null
-            : IntegerConstant(read, t, diagnostics) is NumberExpression number ? number.Value : null;   // 40000 : trop grand (D068)
     }
 
     // NEXT [variable]
@@ -2554,14 +2549,18 @@ public static class Parser
 
                 case ForStatement loop:
                     Uses(loop.Start);
+                    if (loop.LimitValue is not null)
+                        Uses(loop.LimitValue);
+                    if (loop.StepValue is not null)
+                        Uses(loop.StepValue);
                     used.Add(loop.Variable);
                     if (bytes.Contains(loop.Variable))
                     {
                         if (loop.Start is NumberExpression first && (first.Value < 0 || first.Value > 255))
                             diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, loop.SourceLine, first.Value.ToString()));
-                        if (loop.Limit < 0 || loop.Limit > 255)
+                        if (loop.LimitValue is null && (loop.Limit < 0 || loop.Limit > 255))
                             diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, loop.SourceLine, loop.Limit.ToString()));
-                        if (loop.Step < -255 || loop.Step > 255)
+                        if (loop.StepValue is null && (loop.Step < -255 || loop.Step > 255))
                             diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, loop.SourceLine, loop.Step.ToString()));
                     }
                     break;

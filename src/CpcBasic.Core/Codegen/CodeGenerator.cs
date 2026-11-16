@@ -28,9 +28,12 @@ public static class CodeGenerator
     sealed record VariableSlot(string Label, VarType Type);
 
     /// <summary>Une boucle ouverte : ses étiquettes servent à NEXT, EXIT et CONTINUE.</summary>
+    // LimitSlot, StepSlot : variables cachées qui gardent une limite et un pas calculés (D078) ; DirSlot (FOR X!) :
+    // signe du pas calculé (1, 0 ou &FF).
     sealed record LoopInfo(LoopKind Kind, string Variable, int Step, int Limit,
                            string BodyLabel, string NextLabel, string ExitLabel,
-                           bool HasTopCondition = false, double RealLimit = 0, double RealStep = 0);
+                           bool HasTopCondition = false, double RealLimit = 0, double RealStep = 0,
+                           string? LimitSlot = null, string? StepSlot = null, string? DirSlot = null);
 
     /// <summary>Un IF ouvert : ses étiquettes servent à ELSE et END IF.</summary>
     sealed class IfInfo(string elseLabel, string endLabel)
@@ -928,16 +931,13 @@ public static class CodeGenerator
 
             if (slot.Type == VarType.Real)
             {
-                // FOR X! (D068) : X! = X! + pas, puis comparaison avec la limite par la ROM (A = 1, 0 ou &FF).
-                // Pas positif : on continue tant que X! n'est pas plus grand ; négatif : pas plus petit.
+                // FOR X! (D068) : X! = X! + pas, puis comparaison avec la limite par la ROM ; on continue tant que X!
+                // n'a pas dépassé la limite (dans le sens du pas)
                 emitter.Label(loop.NextLabel);
                 emitter.LdHlLabel(slot.Label);
-                emitter.LdDeLabel(RealLiteral(loop.RealStep));
+                emitter.LdDeLabel(loop.StepSlot ?? RealLiteral(loop.RealStep));
                 emitter.CallLabel(RealRuntime.AddLabel);
-                emitter.LdHlLabel(slot.Label);
-                emitter.LdDeLabel(RealLiteral(loop.RealLimit));
-                emitter.CallLabel(FirmwareMaths.Compare.Label);
-                emitter.CpImm(loop.RealStep > 0 ? 1 : 0xFF);
+                EmitRealForCompare(loop);
                 emitter.JpNzLabel(loop.BodyLabel);
                 emitter.Label(loop.ExitLabel);
                 return;
@@ -945,19 +945,61 @@ public static class CodeGenerator
 
             emitter.Label(loop.NextLabel);
             EmitLoad(slot);
-            emitter.LdDeImm(loop.Step & 0xFFFF);
+            if (loop.StepSlot is not null)
+                emitter.LdDeMem(loop.StepSlot);             // pas calculé (D078)
+            else
+                emitter.LdDeImm(loop.Step & 0xFFFF);
             emitter.OrA();                                  // retenue à 0
             emitter.AdcHlDe();                              // HL + pas, indicateur de débordement mis à jour
             EmitStore(slot);                                // (LD ne modifie pas les indicateurs)
             if (slot.Type == VarType.Integer)
                 emitter.JpPeLabel(loop.ExitLabel);          // débordement : fin de la boucle
 
+            EmitForCompare(loop);
+            emitter.JpNcLabel(loop.BodyLabel);              // pas de retenue : on continue
+            emitter.Label(loop.ExitLabel);
+        }
+
+        // HL = valeur de la variable d'un FOR entier : retenue à 1 si elle a dépassé la limite dans le sens du pas
+        // (comparaison signée : on retourne le bit 15 des deux côtés)
+        void EmitForCompare(LoopInfo loop)
+        {
             emitter.LdAH();                                 // retourne le bit 15 de HL
             emitter.XorImm(0x80);
             emitter.LdHA();
-            emitter.LdDeImm((loop.Limit & 0xFFFF) ^ 0x8000);   // limite, même transformation
+            if (loop.LimitSlot is not null)
+            {
+                emitter.LdDeMem(loop.LimitSlot);            // limite calculée (D078), même transformation
+                emitter.LdAD();
+                emitter.XorImm(0x80);
+                emitter.LdDA();
+            }
+            else
+            {
+                emitter.LdDeImm((loop.Limit & 0xFFFF) ^ 0x8000);   // limite, même transformation
+            }
 
-            if (loop.Step > 0)
+            if (loop.StepSlot is not null)
+            {
+                // Pas calculé : le sens se décide pendant l'exécution, selon son signe
+                string negative = $"for_{labelCount++}";
+                string done = $"for_{labelCount++}";
+                emitter.PushHl();
+                emitter.LdHlMem(loop.StepSlot);
+                emitter.LdAH();
+                emitter.PopHl();
+                emitter.AndImm(0x80);
+                emitter.JrNzLabel(negative);
+                emitter.ExDeHl();                           // pas positif : limite - valeur
+                emitter.OrA();
+                emitter.SbcHlDe();
+                emitter.JrLabel(done);
+                emitter.Label(negative);
+                emitter.OrA();                              // pas négatif : valeur - limite
+                emitter.SbcHlDe();
+                emitter.Label(done);
+            }
+            else if (loop.Step > 0)
             {
                 emitter.ExDeHl();                           // HL = limite, DE = valeur
                 emitter.OrA();
@@ -968,9 +1010,29 @@ public static class CodeGenerator
                 emitter.OrA();
                 emitter.SbcHlDe();                          // valeur - limite : retenue si valeur < limite
             }
+        }
 
-            emitter.JpNcLabel(loop.BodyLabel);              // pas de retenue : on continue
-            emitter.Label(loop.ExitLabel);
+        // FOR X! : compare la variable à la limite (la ROM rend A = 1 si plus grande, 0 si égale, &FF si plus petite),
+        // puis Z à 1 si elle a dépassé la limite dans le sens du pas
+        void EmitRealForCompare(LoopInfo loop)
+        {
+            emitter.LdHlLabel(Slot(loop.Variable).Label);
+            emitter.LdDeLabel(loop.LimitSlot ?? RealLiteral(loop.RealLimit));
+            emitter.CallLabel(FirmwareMaths.Compare.Label);
+            if (loop.DirSlot is null)
+            {
+                emitter.CpImm(loop.RealStep > 0 ? 1 : 0xFF);
+                return;
+            }
+            string positive = $"for_{labelCount++}";
+            emitter.LdBA();                                 // B = résultat de la comparaison
+            emitter.LdAMem(loop.DirSlot);
+            emitter.CpImm(0xFF);
+            emitter.LdAImm(1);                              // pas positif (ou nul) : dépassé si plus grande
+            emitter.JrNzLabel(positive);
+            emitter.LdAImm(0xFF);                           // pas négatif : dépassé si plus petite
+            emitter.Label(positive);
+            emitter.CpB();
         }
 
         // Compare deux expressions et renvoie l'indicateur qui vaut « vrai ».
@@ -1958,10 +2020,47 @@ public static class CodeGenerator
                     EmitRealInto(forStatement.Start, 0);            // FOR X! = départ (D068)
                     EmitCopyReal(RealTemp(0), Slot(forStatement.Variable).Label);
 
+                    // Limite et pas calculés : gardés dans des variables cachées, avec le signe du pas (D078)
                     int id = loopCount++;
+                    string? limitSlot = null, stepSlot = null, dirSlot = null;
+                    if (forStatement.LimitValue is not null)
+                    {
+                        limitSlot = Slot($"@L{id}!").Label;
+                        EmitRealInto(forStatement.LimitValue, 0);
+                        EmitCopyReal(RealTemp(0), limitSlot);
+                    }
+                    if (forStatement.StepValue is not null)
+                    {
+                        stepSlot = Slot($"@S{id}!").Label;
+                        dirSlot = Slot($"@D{id}%").Label;
+                        EmitRealInto(forStatement.StepValue, 0);
+                        EmitCopyReal(RealTemp(0), stepSlot);
+                        emitter.LdHlLabel(stepSlot);
+                        emitter.CallLabel(FirmwareMaths.Sign.Label);
+                        emitter.LdMemA(dirSlot);
+                    }
                     var loop = new LoopInfo(LoopKind.For, forStatement.Variable, forStatement.Step, 0,
                                             $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit",
-                                            RealLimit: forStatement.RealLimit, RealStep: forStatement.RealStep);
+                                            RealLimit: forStatement.RealLimit, RealStep: forStatement.RealStep,
+                                            LimitSlot: limitSlot, StepSlot: stepSlot, DirSlot: dirSlot);
+
+                    // Test du début : une boucle déjà finie ne tourne pas du tout (FOR X! = 5 TO 1)
+                    double? constantStart = forStatement.Start switch
+                    {
+                        RealNumberExpression real => real.Value,
+                        NumberExpression number => number.Value,
+                        _ => null
+                    };
+                    if (constantStart is double first && limitSlot is null && stepSlot is null)
+                    {
+                        if (forStatement.RealStep > 0 ? first > forStatement.RealLimit : first < forStatement.RealLimit)
+                            emitter.JpLabel(loop.ExitLabel);
+                    }
+                    else
+                    {
+                        EmitRealForCompare(loop);
+                        emitter.JpZLabel(loop.ExitLabel);
+                    }
                     emitter.Label(loop.BodyLabel);
                     loops.Push(loop);
                     break;
@@ -1972,9 +2071,38 @@ public static class CodeGenerator
                     EmitExpression(forStatement.Start);
                     EmitStore(Slot(forStatement.Variable));
 
+                    // Limite et pas calculés : gardés dans des variables cachées (D078)
                     int id = loopCount++;
+                    string? limitSlot = null, stepSlot = null;
+                    if (forStatement.LimitValue is not null)
+                    {
+                        limitSlot = Slot($"@L{id}%").Label;
+                        EmitExpression(forStatement.LimitValue);
+                        emitter.LdMemHl(limitSlot);
+                    }
+                    if (forStatement.StepValue is not null)
+                    {
+                        stepSlot = Slot($"@S{id}%").Label;
+                        EmitExpression(forStatement.StepValue);
+                        emitter.LdMemHl(stepSlot);
+                    }
                     var loop = new LoopInfo(LoopKind.For, forStatement.Variable, forStatement.Step, forStatement.Limit,
-                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit");
+                                            $"loop_{id}_body", $"loop_{id}_next", $"loop_{id}_exit",
+                                            LimitSlot: limitSlot, StepSlot: stepSlot);
+
+                    // Test du début : une boucle déjà finie ne tourne pas du tout (FOR I = 5 TO 1, D078). Tout écrit en
+                    // nombres : décidé ici, sans code s'il n'y a rien à sauter.
+                    if (forStatement.Start is NumberExpression first && limitSlot is null && stepSlot is null)
+                    {
+                        if (forStatement.Step > 0 ? first.Value > forStatement.Limit : first.Value < forStatement.Limit)
+                            emitter.JpLabel(loop.ExitLabel);
+                    }
+                    else
+                    {
+                        EmitLoad(Slot(forStatement.Variable));
+                        EmitForCompare(loop);
+                        emitter.JpCLabel(loop.ExitLabel);
+                    }
                     emitter.Label(loop.BodyLabel);
                     loops.Push(loop);
                     break;

@@ -17,18 +17,18 @@ Date de l'inventaire : 13 novembre 2026 (mis à jour après le lot A). État rel
 
 ## Résumé
 
-Sur **157 entrées** du Locomotive BASIC : **28** faites, **19** partielles, **2** écarts voulus, **101** à faire, **7** en mode direct. Le projet ajoute en plus **9** entrées nouvelles.
+Mise à jour le 16 nov. 2026, après le lot H. Sur **151 entrées** du Locomotive BASIC (hors mode direct) : **87** faites, **13** partielles, **2** écarts voulus, **49** à faire. Les **7** commandes du mode direct deviennent des commandes de l'éditeur (D077), à faire. Le projet ajoute en plus des entrées nouvelles (section 13).
 
 Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER ») : ces nombres comptent des lignes du tableau, pas des mots du dictionnaire.
 
 ## Ce qui bloque le plus de choses
 
-1. **Les étiquettes de saut** : GOTO, GOSUB, RETURN, ON … GOTO / GOSUB : faites (lot A, à valider).
-2. **Les chaînes de caractères** : toute la section 8, INPUT, DATA/READ avec du texte, TAG, etc.
-3. **Les réels** : fonctions mathématiques, nombres à virgule.
-4. **Les tableaux et les données** : DIM, DATA, READ, RESTORE.
-5. **L'accès à la machine** : PEEK, POKE, CALL, INP, OUT, MEMORY.
-6. **Le clavier et les manettes** : INKEY, INKEY$, JOY, qui conditionnent tout jeu.
+Mise à jour le 16 nov. 2026 :
+
+1. **FOR avec une limite ou un pas calculés** (`FOR I = 1 TO N`) : fait et validé le 16 nov. 2026 (D078).
+2. **Les interruptions et les erreurs** (lot I) : AFTER, EVERY, ON ERROR GOTO, ON BREAK… indispensables aux jeux et aux programmes soignés.
+3. **La disquette et la cassette** (lot J) : LOAD, SAVE, fichiers de données.
+4. **Les commandes RSX et CALL avec des valeurs** : nécessaires au programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`).
 
 ## 1. Structure du programme et déroulement
 
@@ -39,7 +39,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | `LET (et affectation sans LET)` | donne une valeur à une variable | Faite | Entiers 16 bits seulement. |
 | `END` | termine le programme | Faite | Le programme attend une touche puis redémarre. |
 | `STOP` | arrête le programme | Partielle | Se comporte comme END : pas de message « Break in … ». |
-| `FOR … TO … STEP … NEXT` | boucle comptée | Partielle | Limite et pas : nombres écrits dans le programme. La variable garde sa dernière valeur dans la boucle (le Locomotive : la valeur suivante). |
+| `FOR … TO … STEP … NEXT` | boucle comptée | Faite | Limite et pas écrits ou calculés (D078) ; test au début ; après la boucle, la variable vaut la valeur suivante, comme le Locomotive. |
 | `WHILE … WEND` | boucle tant que | Faite | Condition : toute valeur (vraie si elle n'est pas 0), comme le Locomotive. D060. |
 | `IF … THEN … ELSE` | condition | Faite | Condition : toute valeur (vraie si elle n'est pas 0), D060. `THEN 100` et `ELSE 200` (numéro de ligne seul) sont acceptés. Le bloc sur plusieurs lignes avec END IF est un ajout du projet. |
 | `GOTO / GO TO` | saut à une ligne | Faite | Numéro de ligne écrit en chiffres (1 à 65529) ; ligne inexistante refusée à la compilation. |
@@ -67,7 +67,7 @@ Une entrée peut regrouper plusieurs mots proches (par exemple « MOVE / MOVER �
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `Variables entières (A, A%)` | nombre entier | Écart voulu | Le Locomotive : A est un réel. Ici A et A% sont deux variables entières 16 bits distinctes. |
-| `Variables réelles (A!)` | nombre à virgule | Partielle | Lot F1b (D068) : calculs, affectation, comparaisons, PRINT, FOR, INPUT, @. Pas encore en tableau ni avec READ (F3). |
+| `Variables réelles (A!)` | nombre à virgule | Faite | Lot F (D068 à D070) : calculs, comparaisons, PRINT, FOR, INPUT, @, tableaux, DATA, READ, VAL, STR$. |
 | `Variables chaînes (A$)` | texte | Faite | Variables, +, comparaisons, PRINT, INPUT (D062), tableaux de textes (D065). |
 | `Nombres décimaux entiers` | constantes 0 à 32767 (et négatifs) | Faite |  |
 | `Nombres hexadécimaux et binaires (&H, &X)` | constantes écrites en base 16 ou 2 | Faite | &C9, &HC9, &X1010, de &0 à &FFFF (&FFFF = -1). D060. |
@@ -162,7 +162,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `KEY` | définit une touche de fonction | À faire |  |
 | `KEY DEF` | définit le comportement d'une touche | À faire |  |
 | `SPEED KEY` | vitesse de répétition des touches | À faire |  |
-| `INPUT` | saisie d'une valeur au clavier | Partielle | Nombres entiers et textes (A$, D062), dans une variable ou une case de tableau (pas encore de tableau de textes ni de réels). Fenêtres #0 à #7 (D072). Édition de la ligne comme le vrai BASIC, avec COPY (D076). |
+| `INPUT` | saisie d'une valeur au clavier | Faite | Entiers, nombres à virgule et textes, dans des variables ou des cases de tableau (D055, D059, D062, D065, D068) ; fenêtres #0 à #7 (D072) ; édition de la ligne comme le vrai BASIC, avec COPY (D076). |
 | `LINE INPUT` | saisie d'une ligne de texte | Faite | Dans une variable texte ou une case d'un tableau de textes. D064, D065. Fenêtres #0 à #7 (D072). |
 
 ## 7. Disquette et cassette
@@ -225,7 +225,7 @@ Tout cela attend les variables chaînes (A$).
 | `/` | division | Écart voulu | Le Locomotive donne un réel. Ici la division est entière. |
 | `\` | division entière | Faite |  |
 | `MOD` | reste de la division | Faite |  |
-| `^` | puissance | Partielle | Entière (sur 16 bits) ; exposant négatif : 0 sauf pour 1 et -1. Réels avec le lot F. D060. |
+| `^` | puissance | Faite | À virgule dès qu'un côté l'est (D068) ; entre deux entiers, le calcul reste entier sur 16 bits (choix D066, D060). |
 | `=  <>  <  >  <=  >=` | comparaisons | Faite | Aussi comme valeur : -1 si vraie, 0 sinon. D060. |
 | `AND / OR` | et / ou | Faite | Bit à bit, comme le Locomotive. D060. |
 | `XOR` | ou exclusif | Faite | Bit à bit. D060. |
@@ -242,17 +242,18 @@ Tout cela attend les variables chaînes (A$).
 
 ## 12. Mode direct : éditer et gérer le programme
 
-Un compilateur n'a pas de mode direct. Proposition : « sans objet », à confirmer par vous.
+Un programme compilé n'a pas de mode direct. **Décision de l'utilisateur (15 nov. 2026, D077) :** ces commandes deviennent des commandes **de l'éditeur**, avec le même rôle que sur le CPC. Elles se tapent dans le texte du programme, **sans numéro de ligne** (par exemple `LIST` seul sur une ligne).
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `AUTO` | numérotation automatique | Mode direct |  |
-| `CONT` | reprend après STOP | Mode direct |  |
-| `DELETE` | supprime des lignes | Mode direct |  |
-| `EDIT` | modifie une ligne | Mode direct |  |
-| `LIST` | affiche le programme | Mode direct |  |
-| `NEW` | efface le programme | Mode direct |  |
-| `RENUM` | renumérote | Mode direct | L'éditeur pourrait offrir cette fonction plus tard. |
+| `AUTO` | numérotation automatique | Éditeur, à faire | Met automatiquement le numéro des lignes, avec le pas demandé. |
+| `CONT` | reprend après STOP | Éditeur, à faire | Affiche son rôle en BASIC, comme CLEAR. |
+| `DELETE` | supprime des lignes | Éditeur, à faire | Même rôle que le vrai BASIC ; avertissement si des étiquettes sont utilisées, puis confirmation. |
+| `EDIT` | modifie une ligne | Éditeur, à faire | Place le curseur sur la ligne demandée. |
+| `LIST` | affiche le programme | Éditeur, à faire | Affiche le programme dans l'éditeur comme sur le CPC. |
+| `NEW` | efface le programme | Éditeur, à faire | Avec avertissement si le programme a été modifié (comme D043). |
+| `RENUM` | renumérote | Éditeur, à faire | Erreur si des étiquettes sont utilisées. |
+| `CLEAR`, `MEMORY`, `RUN`, `LOAD`, `SAVE`, `MERGE`, `CAT`, `CHAIN`, commandes AMSDOS (`|DISC`, `|TAPE`, `|A`, `|B`, `|DIR`, `|ERA`, `|REN`, `|USER`) | tapées dans l'éditeur sans numéro de ligne | Éditeur, à faire | Afficher à quoi la commande correspond dans le langage BASIC (D077). |
 
 ## 13. Ajouts du projet (hors Locomotive BASIC)
 

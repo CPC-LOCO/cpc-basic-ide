@@ -111,9 +111,11 @@ public class LoopsParserTests
     }
 
     [Fact]
-    public void Limit_must_be_a_number_written_in_the_program()
+    public void Limit_and_step_can_be_computed()   // D078 (avant : nombre écrit obligatoire)
     {
-        Assert.Equal(DiagnosticCode.ExpectedNumber, SingleError("10 FOR i = 1 TO x\n20 NEXT"));
+        var loop = Assert.IsType<ForStatement>(Parse("FOR i = 1 TO x STEP s\nNEXT")[0]);
+        Assert.Equal(new VariableExpression("X"), loop.LimitValue);
+        Assert.Equal(new VariableExpression("S"), loop.StepValue);
     }
 
     [Fact]

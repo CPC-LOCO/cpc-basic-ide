@@ -25,6 +25,7 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - **Fait (D076, lot H5)** — Éditeur de saisie complet pour INPUT et LINE INPUT, comme le Locomotive (rappel de l'utilisateur, 14 nov. 2026) : flèches gauche et droite dans la ligne, CLR (efface sous le curseur), curseur de copie déplacé avec SHIFT + flèches et touche COPY qui recopie le caractère placé sous lui. Aujourd'hui seuls les caractères, DEL et Entrée sont gérés. La saisie du vrai BASIC est dans sa ROM : il faut la refaire dans le module Input.
 
 ## Outils
+- Commandes du mode direct dans l'éditeur (D077, décision du 15 nov. 2026) : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et CLEAR / MEMORY qui affichent leur rôle en BASIC. Détails dans le journal.
 - Livraison finale (D067) : programme d'installation Windows, signé (certificat de signature de code) pour ne pas être bloqué par les antivirus ; avant de le créer, l'utilisateur dira ce qu'il veut ajouter. Ensuite, peut-être une version Linux.
 - Adoptée : ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80), pour voir où s'arrête l'écran du CPC. `MODE` existe maintenant (D046) : l'éditeur peut lire le MODE du programme (par exemple le premier `MODE n` écrit en nombre) pour placer la ligne à la colonne 20, 40 ou 80.
 - Commande « Nouveau programme » (avec la confirmation de D043) ; ouverture d'un fichier par glisser-déposer.

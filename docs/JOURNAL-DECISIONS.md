@@ -586,6 +586,25 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Test modifié :** InputTests (Suppr) : la trace attendue devient « ? 12 3 » (le curseur est replacé par TXT SET CURSOR au lieu de reculer avec le code 8).
 - **Fichiers :** RuntimeLibrary.cs (module Input), Z80Emitter.cs (INC H), MiniZ80.cs, `tests\CpcBasic.Tests\EditLineTests.cs` (nouveau), InputTests.cs ; exemple `examples\edition.bas`.
 
+## D077 : les commandes du mode direct deviennent des commandes de l'éditeur (décision de l'utilisateur, 15 nov. 2026, à faire)
+- **AUTO :** numérotation automatique des lignes, avec le pas demandé.
+- **LIST :** affiche le programme dans l'éditeur comme sur le CPC.
+- **EDIT :** place le curseur sur la ligne demandée.
+- **RENUM :** renumérote ; doit provoquer une erreur si des étiquettes sont utilisées.
+- **DELETE :** même rôle que le vrai BASIC ; avertissement si des étiquettes sont utilisées, puis confirmation.
+- **NEW :** efface le programme en cours, avec avertissement s'il a été modifié.
+- **CLEAR, MEMORY (et d'autres, liste à compléter) :** tapées dans l'éditeur, elles affichent à quoi la commande correspond dans le langage BASIC.
+- **Réponses de l'utilisateur (15 nov. 2026) :** les commandes se tapent **dans le texte du programme, sans numéro de ligne** (par exemple `LIST` seul sur une ligne). Les « étiquettes » sont des noms à la place des numéros de ligne (GOTO DEPART) : pas encore dans le langage, à décider le moment venu. **CONT** affiche son rôle, comme CLEAR. Le « ... » : l'utilisateur ne connaît pas toutes les commandes directes ; Claude complète la liste quand l'étape viendra.
+- **Liste connue des commandes du mode direct du Locomotive :** AUTO, CONT, DELETE, EDIT, LIST, NEW, RENUM ; souvent tapées en direct mais aussi utilisables dans un programme : RUN, LOAD, SAVE, MERGE, CAT, CHAIN ; commandes AMSDOS : |DISC, |TAPE, |A, |B, |DIR, |ERA, |REN, |USER.
+- **Décision (15 nov. 2026) :** tapées dans l'éditeur sans numéro de ligne, RUN, LOAD, SAVE, MERGE, CAT, CHAIN et les commandes AMSDOS (|DISC, |TAPE, |A, |B, |DIR, |ERA, |REN, |USER) **affichent leur explication en BASIC**, comme CLEAR, MEMORY et CONT. (Leur rôle dans un programme compilé reste à traiter au lot J.)
+
+## D078 : FOR avec une limite et un pas calculés (fin du lot A) (Validé le 16 nov. 2026 : 1060 tests réussis ; `boucle2.bas` compilé identique au vrai BASIC de SugarBox)
+- **Constat (relecture de l'inventaire, 16 nov. 2026) :** FOR I = 1 TO N était refusé (limite et pas : nombres écrits seulement, D037). L'utilisateur a choisi de le finir avant le lot I.
+- **Référence (SugarBox, 16 nov. 2026, `examples\boucle2.bas`) :** après la boucle, la variable vaut la valeur suivante (1 TO 5 : 6 ; 10 TO 1 STEP -3 : -2) ; une boucle déjà finie au départ ne tourne pas du tout (FOR I=5 TO 1 : I reste 5) ; la limite est calculée une seule fois (changer N dans la boucle ne change rien) ; changer I dans la boucle compte (1 3 / 5) ; idem avec les nombres à virgule (0 TO 1 STEP 0.25 : / 1.25).
+- **Réalisation :** une limite ou un pas calculés sont rangés au début de la boucle dans des variables cachées (@L, @S ; pour FOR X! aussi @D, le signe du pas, par la ROM). Avec un pas calculé, le sens de la comparaison se décide pendant l'exécution selon son signe. Nouveau **test au début** de la boucle : s'il y a un calcul, il est fait pendant l'exécution ; si tout est écrit en nombres, il est décidé à la compilation (aucun octet de plus pour FOR I = 1 TO 10).
+- **Inchangé :** STEP 0 écrit reste refusé ; un pas calculé qui vaut 0 fait une boucle sans fin, comme le vrai BASIC.
+- **Fichiers :** Ast.cs (ForStatement : LimitValue, StepValue), Parser.cs, CodeGenerator.cs, `tests\CpcBasic.Tests\ForTests.cs` (nouveau), LoopsTests.cs (le test « limite écrite obligatoire » devient « limite et pas calculés ») ; exemple `examples\boucle2.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)
