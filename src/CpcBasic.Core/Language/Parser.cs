@@ -28,7 +28,7 @@ public static class Parser
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
         "INKEY$", "LINE", "DEFINT", "DEFREAL", "DEFSTR",
         "SIN", "COS", "TAN", "ATN", "SQR", "EXP", "LOG", "LOG10", "PI", "INT", "FIX", "CINT", "CREAL", "ROUND", "RND",
-        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF"];
+        "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -109,7 +109,9 @@ public static class Parser
         ["SQ"] = new("SQ(canal : 1, 2 ou 4)", 1, 1),
         // Lot H1 (D072) : position du curseur de texte dans une fenêtre
         ["POS"] = new("POS(#fenêtre)", 1, 1, StreamFirst: true),
-        ["VPOS"] = new("VPOS(#fenêtre)", 1, 1, StreamFirst: true)
+        ["VPOS"] = new("VPOS(#fenêtre)", 1, 1, StreamFirst: true),
+        // Lot I1 (D079) : temps restant d'une minuterie, qui est arrêtée
+        ["REMAIN"] = new("REMAIN(minuterie : 0 à 3)", 1, 1)
     };
 
     /// <summary>Commande d'écran : écriture à montrer dans les messages, nombre de valeurs, valeurs permises pour chacune.</summary>
@@ -140,6 +142,9 @@ public static class Parser
                          [0, 0, 0, 0, 0, 0, 0, 0, 0], [255, 255, 255, 255, 255, 255, 255, 255, 255]),
         ["SYMBOL AFTER"] = new("SYMBOL AFTER premier caractère (0 à 256)", 1, [0], [256], Command: "SYMBOL AFTER"),
         ["TAG"] = new("TAG [#fenêtre]", 0, [], []),
+        // Lot I1 (D079) : coupe / remet les appels des minuteries
+        ["DI"] = new("DI", 0, [], []),
+        ["EI"] = new("EI", 0, [], []),
         ["TAGOFF"] = new("TAGOFF [#fenêtre]", 0, [], []),
         // Lot H2 (D073) : largeur des zones de PRINT (13 au départ)
         ["ZONE"] = new("ZONE largeur (1 à 255)", 1, [1], [255]),
@@ -376,6 +381,9 @@ public static class Parser
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "PRINT", false,
                                           rest => ParsePrint(tokens, pos, statements, diagnostics, rest));
 
+            case "AFTER" or "EVERY":                    // lot I1 (D079)
+                return ParseTimer(tokens, pos, statements, diagnostics);
+
             case "WRITE":                               // lot H2 (D073)
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "WRITE", false,
                                           rest => ParseWrite(tokens, pos, statements, diagnostics, rest));
@@ -466,7 +474,7 @@ public static class Parser
             case "ENV" or "ENT":
                 return ParseEnvelope(tokens, pos, statements, diagnostics);
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -2037,6 +2045,41 @@ public static class Parser
         return pos;
     }
 
+    // AFTER durée [, minuterie] GOSUB ligne | EVERY durée [, minuterie] GOSUB ligne (lot I1, D079)
+    static int ParseTimer(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        pos++;
+        Expression? time = ParseExpression(tokens, ref pos, diagnostics);
+        if (time is null)
+            return SkipToStatementEnd(tokens, pos);
+        Expression timer = new NumberExpression(0);
+        if (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            Expression? given = ParseExpression(tokens, ref pos, diagnostics);
+            if (given is null)
+                return SkipToStatementEnd(tokens, pos);
+            if (given is NumberExpression number && (number.Value < 0 || number.Value > 3))
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line, $"{number.Value}|0 à 3", name.Text));
+            timer = given;
+        }
+        if (IsWord(tokens[pos], "GOSUB"))
+            pos++;
+        else if (IsWord(tokens[pos], "GO") && IsWord(tokens[pos + 1], "SUB"))
+            pos += 2;
+        else
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedGoto, name.Line, tokens[pos].Text, name.Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (!TryParseTarget(tokens, ref pos, diagnostics, out int target))
+            return SkipToStatementEnd(tokens, pos);
+
+        statements.Add(new TimerStatement(name.Line, name.Text == "EVERY", time, timer, target));
+        return pos;
+    }
+
     // ON valeur GOTO ligne1, ligne2... | ON valeur GOSUB ligne1, ligne2...
     static int ParseOn(IReadOnlyList<Token> tokens, int pos,
                        List<Statement> statements, List<Diagnostic> diagnostics)
@@ -2107,6 +2150,9 @@ public static class Parser
                     break;
                 case GosubStatement call:
                     Check(call.SourceLine, call.Target, "GOSUB");
+                    break;
+                case TimerStatement timer:
+                    Check(timer.SourceLine, timer.Target, timer.Every ? "EVERY" : "AFTER");
                     break;
                 case OnStatement on:
                     foreach (int target in on.Targets)
@@ -2545,6 +2591,11 @@ public static class Parser
 
                 case LoopStatement loopStatement when loopStatement.Condition is not null:
                     UsesCondition(loopStatement.Condition);
+                    break;
+
+                case TimerStatement timer:
+                    Uses(timer.Time);
+                    Uses(timer.Timer);
                     break;
 
                 case ForStatement loop:

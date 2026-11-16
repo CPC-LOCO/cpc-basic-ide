@@ -757,6 +757,12 @@ public static class CodeGenerator
                             break;
                         }
 
+                        case "REMAIN":                      // REMAIN(minuterie) : temps restant, minuterie arrêtée (D079)
+                            EmitExpression(call.Arguments[0]);
+                            required.Add(RuntimeLibrary.EventsName);
+                            emitter.CallLabel(RuntimeLibrary.EventsRemainLabel);
+                            break;
+
                         case "SQ":                          // SQ(canal) : état du canal sonore (D071)
                             EmitExpression(call.Arguments[0]);
                             emitter.LdAL();
@@ -1374,6 +1380,12 @@ public static class CodeGenerator
                     emitter.CallLabel(RuntimeLibrary.SymbolAfterLabel);
                     break;
 
+                case "DI" or "EI":                      // D079 : retient ou laisse partir les appels des minuteries
+                    required.Add(RuntimeLibrary.EventsName);
+                    emitter.LdAImm(screen.Command == "DI" ? 1 : 0);
+                    emitter.LdMemA(RuntimeLibrary.EventsDiLabel);
+                    break;
+
                 case "TAG" or "TAGOFF":                 // D075 : TXT SET GRAPHIC, texte au curseur graphique ou non
                     emitter.LdAImm(screen.Command == "TAG" ? 1 : 0);
                     emitter.CallAddress(0xBB63);
@@ -1586,13 +1598,37 @@ public static class CodeGenerator
             emitter.LdMemHl(RuntimeLibrary.ArrayHeapLabel);
         }
 
+        // Minuteries (lot I1, D079) : le compteur du firmware est branché au départ
+        bool usesEvents = program.Statements.Any(st => st is TimerStatement);
+        if (usesEvents)
+        {
+            required.Add(RuntimeLibrary.EventsName);
+            emitter.CallLabel(RuntimeLibrary.EventsInitLabel);
+        }
+
         int statementIndex = 0;
         int basicLine = 0;   // numéro de la ligne BASIC en cours, pour les messages d'erreur des tableaux
+        int previousSourceLine = -1;
+        bool insideStream = false;
         foreach (Statement statement in program.Statements)
         {
             if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
                 basicLine = numbersHere.Max();
             EmitLineLabels(statementIndex++);
+
+            // Minuteries (D079) : au début de chaque ligne et avant chaque fin de boucle, on regarde si une minuterie
+            // est arrivée au bout (7 octets ; pas au milieu d'un PRINT #n). Seulement si le programme utilise AFTER, EVERY.
+            if (usesEvents && !insideStream
+                && (statement.SourceLine != previousSourceLine
+                    || statement is NextStatement or WendStatement or UntilStatement or LoopStatement))
+            {
+                emitter.LdAMem(RuntimeLibrary.EventsPendingLabel);
+                emitter.OrA();
+                emitter.CallNzLabel(RuntimeLibrary.EventsRunLabel);
+            }
+            previousSourceLine = statement.SourceLine;
+            if (statement is StreamStatement streamMark)
+                insideStream = streamMark.Stream is not null;
 
             // Une instruction qui touche un tableau note son numéro de ligne (« Subscript out of range in 30 ») ;
             // sans numéros de ligne, c'est la ligne de l'éditeur.
@@ -1605,7 +1641,9 @@ public static class CodeGenerator
                 || (usesReals && StatementUsesReals(statement))
                 || ((arrays.Count > 0 || usesStrings) && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
-                || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" })   // #N calculé : « Improper argument in 20 » (D072)
+                || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
+                || statement is TimerStatement
+                || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
                 emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
                 emitter.LdMemHl(RuntimeLibrary.ErrorLineLabel);
@@ -1619,6 +1657,20 @@ public static class CodeGenerator
 
                 case GosubStatement call:
                     emitter.CallLabel(LineLabel(call.Target));
+                    break;
+
+                case TimerStatement timer:                          // AFTER / EVERY durée, minuterie GOSUB ligne (D079)
+                    required.Add(RuntimeLibrary.EventsName);
+                    EmitExpression(timer.Time);
+                    emitter.LdMemHl("rt_ev_tc");
+                    if (!timer.Every)
+                        emitter.LdHlImm(0);                         // AFTER : une seule fois
+                    emitter.LdMemHl("rt_ev_tr");
+                    emitter.LdHlLabel(LineLabel(timer.Target));
+                    emitter.LdMemHl("rt_ev_tt");
+                    EmitExpression(timer.Timer);
+                    emitter.LdAL();
+                    emitter.CallLabel(RuntimeLibrary.EventsSetLabel);
                     break;
 
                 case ReturnStatement:

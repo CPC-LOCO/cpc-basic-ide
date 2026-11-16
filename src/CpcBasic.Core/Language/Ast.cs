@@ -291,6 +291,13 @@ public sealed record GotoStatement(int SourceLine, int Target) : Statement(Sourc
 /// <summary>GOSUB ligne : appel d'un sous-programme qui commence à une ligne numérotée (D054).</summary>
 public sealed record GosubStatement(int SourceLine, int Target) : Statement(SourceLine);
 
+/// <summary>
+/// AFTER durée [, minuterie] GOSUB ligne (Every faux) ou EVERY durée [, minuterie] GOSUB ligne (lot I1, D079).
+/// Durée en cinquantièmes de seconde ; minuterie de 0 à 3 (0 si elle est omise ; 3 est la plus prioritaire).
+/// </summary>
+public sealed record TimerStatement(int SourceLine, bool Every, Expression Time, Expression Timer, int Target)
+    : Statement(SourceLine);
+
 /// <summary>RETURN : fin d'un sous-programme appelé par GOSUB (D054).</summary>
 public sealed record ReturnStatement(int SourceLine) : Statement(SourceLine);
 
@@ -410,6 +417,7 @@ public static class AstWalker
         ArrayAssignStatement a => a.Indexes.Append(a.Value),
         DimStatement d => d.Arrays.SelectMany(x => x.Sizes),
         ForStatement f => new[] { f.Start, f.LimitValue, f.StepValue }.OfType<Expression>(),
+        TimerStatement t => [t.Time, t.Timer],
         WhileStatement w => Of(w.Condition),
         UntilStatement u => Of(u.Condition),
         DoStatement d => Of(d.Condition),

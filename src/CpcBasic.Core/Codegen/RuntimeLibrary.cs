@@ -120,6 +120,15 @@ public static class RuntimeLibrary
                                                                 // D = chiffres après le point, E = indicateurs (UsingFlags)
     public const string PrintUsingStrName = "PrintUsingStr";    // PRINT USING, textes (D074)
     public const string UsingStrLabel = "rt_using_str";         // HL = fiche, A = largeur (0 : tout le texte)
+    // Minuteries AFTER, EVERY (lot I1, D079)
+    public const string EventsName = "Events";
+    public const string EventsInitLabel = "rt_ev_init";         // au départ : branche le compteur du firmware (1/50 s)
+    public const string EventsPendingLabel = "rt_ev_pending";   // octet : 1 si une minuterie est arrivée au bout
+    public const string EventsRunLabel = "rt_ev_run";           // appelé entre deux instructions si rt_ev_pending
+    public const string EventsSetLabel = "rt_ev_set";           // A = minuterie ; durée, recharge, cible dans rt_ev_tc, tr, tt
+    public const string EventsRemainLabel = "rt_ev_remain";     // HL = minuterie -> HL = temps restant (minuterie arrêtée)
+    public const string EventsDiLabel = "rt_ev_di";             // octet : 1 après DI
+
     // Caractères (lot H4, D075)
     public const string SymbolName = "Symbol";
     public const string SymbolLabel = "rt_symbol";              // A = caractère ; lignes dans rt_sym_r0 à rt_sym_r7
@@ -861,6 +870,183 @@ public static class RuntimeLibrary
         // signe derrière. Partie entière nulle : « 0 » ajouté s'il reste de la place (0.50). Plus court que l'emplacement :
         // espaces (ou étoiles) à gauche ; plus long : « % » puis le nombre entier.
         [PrintUsingName] = new RuntimeModule(PrintUsingName, [RealPrintName, PrintFitName], EmitUsingNumber),
+
+        // Minuteries (lot I1, D079), comme le vrai BASIC (SugarBox, 16 nov. 2026). Un compteur du firmware (KL ADD TICKER,
+        // tous les 1/50 s, événement express) fait descendre les 4 minuteries ; au bout, la minuterie est marquée et
+        // rechargée (EVERY) ou arrêtée (AFTER). Entre deux instructions, le programme appelle rt_ev_run si rt_ev_pending :
+        // les sous-programmes partent de la minuterie 3 (la plus prioritaire) à 0. Pendant l'un d'eux, seules les
+        // minuteries plus prioritaires peuvent partir ; DI les retient toutes jusqu'à EI.
+        // Table : 8 octets par minuterie : active, compte (2), recharge (2), cible (2), marquée.
+        [EventsName] = new RuntimeModule(EventsName, [ErrorName], e =>
+        {
+            e.Label(EventsInitLabel);
+            e.LdHlLabel("rt_ev_blk_ev");
+            e.LdBcImm(0xC100);                       // B = &C1 : événement express, asynchrone, adresse proche ; C = 0
+            e.LdDeLabel("rt_ev_tick");
+            e.CallAddress(0xBCEF);                   // KL INIT EVENT
+            e.LdHlLabel("rt_ev_blk");
+            e.LdDeImm(1);
+            e.LdBcImm(1);
+            e.JpAddress(0xBCE9);                     // KL ADD TICKER : tous les 1/50 s
+
+            // Tous les 1/50 s (pendant l'interruption) : les registres sont gardés
+            e.Label("rt_ev_tick");
+            e.PushAf();
+            e.PushHl();
+            for (int t = 0; t < 4; t++)
+            {
+                e.LdAMem($"rt_ev_a{t}");
+                e.OrA();
+                e.JrZLabel($"rt_ev_skip{t}");
+                e.LdHlMem($"rt_ev_c{t}");
+                e.DecHl();
+                e.LdMemHl($"rt_ev_c{t}");
+                e.LdAH();
+                e.OrL();
+                e.JrNzLabel($"rt_ev_skip{t}");
+                e.LdHlMem($"rt_ev_r{t}");            // au bout : recharge (EVERY) ou arrêt (AFTER)
+                e.LdMemHl($"rt_ev_c{t}");
+                e.LdAH();
+                e.OrL();
+                e.JrNzLabel($"rt_ev_fire{t}");
+                e.LdMemA($"rt_ev_a{t}");             // A = 0
+                e.Label($"rt_ev_fire{t}");
+                e.LdAImm(1);
+                e.LdMemA($"rt_ev_p{t}");
+                e.LdMemA(EventsPendingLabel);
+                e.Label($"rt_ev_skip{t}");
+            }
+            e.PopHl();
+            e.PopAf();
+            e.Ret();
+
+            // Entre deux instructions : lance les sous-programmes des minuteries marquées
+            e.Label(EventsRunLabel);
+            e.LdAMem(EventsDiLabel);
+            e.OrA();
+            e.RetNz();                               // DI : rien pour l'instant
+            e.XorA();
+            e.LdMemA(EventsPendingLabel);
+            for (int t = 3; t >= 0; t--)
+            {
+                e.LdAMem($"rt_ev_p{t}");
+                e.OrA();
+                e.JrZLabel($"rt_ev_next{t}");
+                e.LdAMem("rt_ev_lvl");               // niveau en cours (0 : aucun, t + 1 : minuterie t)
+                e.CpImm(t + 1);
+                e.JrCLabel($"rt_ev_go{t}");
+                e.LdAImm(1);                         // pas assez prioritaire : attendra le RETURN
+                e.LdMemA(EventsPendingLabel);
+                e.JrLabel($"rt_ev_next{t}");
+                e.Label($"rt_ev_go{t}");
+                e.PushAf();                          // A = niveau d'avant
+                e.XorA();
+                e.LdMemA($"rt_ev_p{t}");
+                e.LdAImm(t + 1);
+                e.LdMemA("rt_ev_lvl");
+                e.LdHlMem($"rt_ev_t{t}");
+                e.CallLabel("rt_ev_jphl");           // GOSUB ligne : revient ici par RETURN
+                e.PopAf();
+                e.LdMemA("rt_ev_lvl");
+                e.JpLabel(EventsRunLabel);           // on recommence : d'autres ont pu arriver
+                e.Label($"rt_ev_next{t}");
+            }
+            e.Ret();
+            e.Label("rt_ev_jphl");
+            e.JpHl();
+
+            // A = minuterie (0 à 3) ; rt_ev_tc, tr, tt : durée, recharge (0 pour AFTER), adresse du sous-programme
+            e.Label(EventsSetLabel);
+            e.CallLabel("rt_ev_entry");
+            e.Di();
+            e.StoreHlImm(0);                         // arrêtée pendant le changement
+            e.IncHl();
+            e.LdDH();
+            e.LdEL();
+            e.LdHlLabel("rt_ev_tc");
+            e.LdBcImm(6);
+            e.Ldir();
+            e.ExDeHl();
+            e.StoreHlImm(0);                         // pas marquée
+            e.LdBcImm(-7 & 0xFFFF);
+            e.AddHlBc();
+            e.StoreHlImm(1);                         // active
+            e.Ei();
+            e.Ret();
+
+            // REMAIN(minuterie) : HL = compte restant (0 si elle ne tournait pas), puis la minuterie est arrêtée
+            e.Label(EventsRemainLabel);
+            e.LdAH();
+            e.OrA();
+            e.JrNzLabel("rt_ev_bad");
+            e.LdAL();
+            e.CallLabel("rt_ev_entry");
+            e.Di();
+            e.LdAHl();
+            e.StoreHlImm(0);                         // arrêtée
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.LdBcImm(5);                            // de l'octet 2 à l'octet 7
+            e.AddHlBc();
+            e.StoreHlImm(0);                         // plus marquée
+            e.Ei();
+            e.OrA();
+            e.ExDeHl();
+            e.RetNz();
+            e.LdHlImm(0);
+            e.Ret();
+
+            // A = minuterie -> HL = sa ligne de la table ; hors de 0 à 3 : « Improper argument »
+            e.Label("rt_ev_entry");
+            e.CpImm(4);
+            e.JrNcLabel("rt_ev_bad");
+            e.LdLA();
+            e.LdHZero();
+            e.AddHlHl();
+            e.AddHlHl();
+            e.AddHlHl();
+            e.LdDeLabel("rt_ev_tab");
+            e.AddHlDe();
+            e.Ret();
+            e.Label("rt_ev_bad");
+            e.LdHlLabel("rt_ev_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_ev_msg");
+            e.Data(Ascii("Improper argument"));
+
+            e.Label("rt_ev_tab");
+            for (int t = 0; t < 4; t++)
+            {
+                e.Label($"rt_ev_a{t}");
+                e.Reserve(1);
+                e.Label($"rt_ev_c{t}");
+                e.Reserve(2);
+                e.Label($"rt_ev_r{t}");
+                e.Reserve(2);
+                e.Label($"rt_ev_t{t}");
+                e.Reserve(2);
+                e.Label($"rt_ev_p{t}");
+                e.Reserve(1);
+            }
+            e.Label("rt_ev_tc");
+            e.Reserve(2);
+            e.Label("rt_ev_tr");
+            e.Reserve(2);
+            e.Label("rt_ev_tt");
+            e.Reserve(2);
+            e.Label(EventsPendingLabel);
+            e.Reserve(1);
+            e.Label("rt_ev_lvl");
+            e.Reserve(1);
+            e.Label(EventsDiLabel);
+            e.Reserve(1);
+            e.Label("rt_ev_blk");                    // bloc du compteur (6 octets) suivi du bloc de l'événement
+            e.Reserve(6);
+            e.Label("rt_ev_blk_ev");
+            e.Reserve(10);
+        }),
 
         // SYMBOL caractère, lignes (D075) : TXT SET MATRIX (&BBA8) ; caractère pas redessinable : « Improper argument »
         // (comme le vrai BASIC : SYMBOL 65,255 sans SYMBOL AFTER 65 ou moins).

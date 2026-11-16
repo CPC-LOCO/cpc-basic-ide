@@ -91,7 +91,7 @@ Mise à jour le 16 nov. 2026 :
 | `UNT` | convertit une adresse en entier signé | À faire |  |
 | `| (commandes RSX)` | appelle une extension | À faire |  |
 | `@` | adresse d'une variable | Partielle | `@A`, `@A%`, `@T(3)` (D061), `@A$` = adresse de la fiche de 3 octets (D064). Passage à CALL et aux RSX à venir. |
-| `DI / EI` | coupe / remet les interruptions | À faire |  |
+| `DI / EI` | coupe / remet les interruptions | Faite | Retient / laisse partir les appels des minuteries (D079). |
 | `SYMBOL` | redéfinit un caractère | Faite | D075. |
 | `SYMBOL AFTER` | réserve les caractères redéfinissables | Faite | D075. 240 à 255 redessinables dès le départ. |
 
@@ -236,9 +236,9 @@ Tout cela attend les variables chaînes (A$).
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `TIME` | compteur de temps (300 par seconde) | Partielle | Renvoie seulement les 16 bits de poids faible. |
-| `AFTER` | action après un délai | À faire |  |
-| `EVERY` | action répétée | À faire |  |
-| `REMAIN` | temps restant d'un compteur | À faire |  |
+| `AFTER` | action après un délai | Faite | D079. |
+| `EVERY` | action répétée | Faite | D079. |
+| `REMAIN` | temps restant d'un compteur | Faite | D079. |
 
 ## 12. Mode direct : éditer et gérer le programme
 

@@ -167,7 +167,9 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.DuplicateLineNumber =>
             $"le numéro de ligne {Argument} est déjà utilisé plus haut dans le programme.",
         DiagnosticCode.ExpectedGoto =>
-            $"ON attend GOTO ou GOSUB après la valeur.{Why}",
+            Context.Length == 0
+                ? $"ON attend GOTO ou GOSUB après la valeur.{Why}"
+                : $"{Context} attend GOSUB puis un numéro de ligne (exemple : {Context} 50 GOSUB 100).{Why}",
         DiagnosticCode.ProgramTooLarge =>
             $"MEMORY : le programme compilé occupe de &4000 à &{Argument.Split('|')[0]}, ce qui dépasse la limite &{Argument.Split('|')[1]} demandée. Mettez une limite plus haute, ou raccourcissez le programme.",
         DiagnosticCode.ExpectedArrayName =>

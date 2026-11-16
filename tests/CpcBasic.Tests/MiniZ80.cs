@@ -64,6 +64,11 @@ internal sealed class MiniZ80
     public readonly List<bool> Tags = new();
     public int MatrixReads;
 
+    // Minuteries (lot I1, D079) : routine branchée par KL INIT EVENT puis KL ADD TICKER, appelée tous les TickSteps pas
+    public ushort EventRoutine, TickRoutine;
+    public int TickSteps = 300, Ticks;
+    public bool InterruptsEnabled = true;
+
     // Éditeur de la ligne tapée (lot H5, D076) : positions données à TXT SET CURSOR, caractères lus par TXT RD CHAR
     public readonly List<(byte Col, byte Row)> CursorMoves = new();
     public readonly Dictionary<(byte Col, byte Row), byte> ScreenChars = new();                     // largeur rendue par TXT GET WINDOW (lot H2, D073)
@@ -157,6 +162,12 @@ internal sealed class MiniZ80
         {
             if (++steps > 2_000_000)
                 throw new InvalidOperationException("Le module tourne sans fin.");
+            if (TickRoutine != 0 && InterruptsEnabled && steps % TickSteps == 0)
+            {
+                Ticks++;
+                Push((ushort)pc);                   // un « top » de 1/50 s : la routine du compteur est appelée (D079)
+                pc = TickRoutine;
+            }
             Step();
         }
     }
@@ -505,6 +516,11 @@ internal sealed class MiniZ80
                 {
                     pc = Pop();                                        // JP TXT PLACE / REMOVE CURSOR (D076)
                 }
+                else if (target == 0xBCE9)
+                {
+                    TickRoutine = EventRoutine;                        // JP KL ADD TICKER (rt_ev_init, D079)
+                    pc = Pop();
+                }
                 else if (target == 0xBBAB)
                 {
                     FirstUserChar = DE;                                // JP TXT SET M TABLE (sortie de rt_symafter, D075)
@@ -578,6 +594,10 @@ internal sealed class MiniZ80
                     string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = (byte)(1 + shown.Count(c => c == '\n'));
+                }
+                else if (address == 0xBCEF)
+                {
+                    EventRoutine = DE;                                 // KL INIT EVENT (D079)
                 }
                 else if (address == 0xBB75)
                 {
@@ -742,6 +762,18 @@ internal sealed class MiniZ80
             case 0x41: B = C; break;                                   // LD B,C (D063)
             case 0x60: H = B; break;                                   // LD H,B (D063)
             case 0x68: L = B; break;                                   // LD L,B (D065)
+            case 0xC4:                                                 // CALL NZ,nn (D079)
+            {
+                ushort target = Fetch16();
+                if (!ZeroFlag)
+                {
+                    Push((ushort)pc);
+                    pc = target;
+                }
+                break;
+            }
+            case 0xF3: InterruptsEnabled = false; break;               // DI (D079)
+            case 0xFB: InterruptsEnabled = true; break;                // EI (D079)
             case 0xCC:                                                 // CALL Z,nn
             {
                 ushort target = Fetch16();

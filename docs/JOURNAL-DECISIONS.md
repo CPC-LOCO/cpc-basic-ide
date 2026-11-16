@@ -605,6 +605,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Inchangé :** STEP 0 écrit reste refusé ; un pas calculé qui vaut 0 fait une boucle sans fin, comme le vrai BASIC.
 - **Fichiers :** Ast.cs (ForStatement : LimitValue, StepValue), Parser.cs, CodeGenerator.cs, `tests\CpcBasic.Tests\ForTests.cs` (nouveau), LoopsTests.cs (le test « limite écrite obligatoire » devient « limite et pas calculés ») ; exemple `examples\boucle2.bas`.
 
+## D079 : lot I1, minuteries AFTER, EVERY, REMAIN, DI, EI (Validé le 16 nov. 2026 : 1074 tests réussis ; `minuter.bas` compilé identique au vrai BASIC de SugarBox, R= 24 compris)
+- **Découpage du lot I :** I1 minuteries ; I2 erreurs (ON ERROR GOTO, RESUME, ERROR, ERR, ERL, plus « Break in » de STOP et « Unexpected RETURN ») ; I3 ON BREAK et ON SQ GOSUB.
+- **Référence (SugarBox, 16 nov. 2026, `examples\minuter.bas`) :** REMAIN(3) = 0 sans minuterie ; EVERY 25,1 : un TIC toutes les 1/2 s ; AFTER 100,2 : un appel à 2 s, **avant** le TIC 4 qui tombe au même moment (minuterie 2 plus prioritaire que 1) ; REMAIN(1) juste après le TIC 6 : 24 (sur 25), et plus aucun TIC ensuite.
+- **AFTER / EVERY durée [, minuterie] GOSUB ligne :** durée en 1/50 s ; minuterie 0 à 3 (0 si omise ; 3 la plus prioritaire), écrite : vérifiée à la compilation, calculée : « Improper argument ». **REMAIN(n)** rend le compte restant (0 si la minuterie ne tournait pas) et l'arrête. **DI / EI** retiennent / laissent partir les appels.
+- **Réalisation :** au départ du programme, un compteur du firmware (KL INIT EVENT &BCEF, événement express ; KL ADD TICKER &BCE9, tous les 1/50 s) fait descendre les 4 minuteries et marque celles qui arrivent au bout (recharge pour EVERY, arrêt pour AFTER). Le programme regarde l'indicateur **au début de chaque ligne et avant chaque fin de boucle** (NEXT, WEND, UNTIL, LOOP) — 7 octets, pas au milieu d'un PRINT #n — et lance les sous-programmes de la minuterie 3 à 0. Pendant un sous-programme, seules les minuteries plus prioritaires peuvent partir. Rien n'est ajouté aux programmes sans AFTER ni EVERY.
+- **Écart possible :** le vrai BASIC regarde entre chaque instruction (même entre deux « : ») ; ici au début de chaque ligne et en fin de boucle. À revoir si un programme le montre.
+- **Mots réservés :** AFTER, EVERY, REMAIN, DI, EI.
+- **Fichiers :** Ast.cs (TimerStatement), Diagnostic.cs, Parser.cs, Z80Emitter.cs (CALL NZ, DI, EI), CodeGenerator.cs, RuntimeLibrary.cs (module Events), MiniZ80.cs (« tops » simulés), `tests\CpcBasic.Tests\TimerTests.cs` (nouveau) ; exemple `examples\minuter.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

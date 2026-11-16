@@ -165,6 +165,9 @@ public sealed class Z80Emitter
     public void LdBcImm(int value) { code.Add(0x01); AddWord(value); }                           // LD BC,nombre
     public void LdEImm(int value) { code.Add(0x1E); code.Add((byte)value); }                     // LD E,n
     public void CallZLabel(string label) { code.Add(0xCC); AddAbsolute(label); }                 // CALL Z,étiquette
+    public void CallNzLabel(string label) { code.Add(0xC4); AddAbsolute(label); }                // CALL NZ,étiquette (D079)
+    public void Di() => code.Add(0xF3);                                                          // DI (D079)
+    public void Ei() => code.Add(0xFB);                                                          // EI (D079)
     public void IncDe() => code.Add(0x13);                                                       // INC DE
     public void DecDe() => code.Add(0x1B);                                                       // DEC DE
     public void DecBc() => code.Add(0x0B);                                                       // DEC BC
