@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -66,6 +67,10 @@ public partial class MainWindow : Window
 
         Editor.TextArea.TextView.LineTransformers.Add(colorizer);
 
+        // Messages (D113) : une longue phrase passe à la ligne au lieu d'être coupée au bord du panneau
+        MessageList.ItemTemplate = new FuncDataTemplate<MessageItem>(
+            (item, _) => new TextBlock { Text = item?.Text ?? "", TextWrapping = TextWrapping.Wrap });
+
         // Un espace entre la colonne des numéros de l'éditeur et le texte du programme :
         // sans lui, « 1 » (éditeur) et « 10 » (numéro BASIC) se lisent comme « 110 ».
         Editor.TextArea.LeftMargins.Add(new Border { Width = 14 });
@@ -112,6 +117,16 @@ public partial class MainWindow : Window
     void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
     void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
+    void OnWrapClick(object? sender, RoutedEventArgs e)
+    {
+        settings.WordWrap = !settings.WordWrap;
+        settings.Save();
+        ApplyAppearance();
+        ShowMessage(settings.WordWrap
+            ? "Lignes longues : elles continuent sur la ligne suivante de l'écran, comme sur le CPC (le numéro n'est affiché qu'une fois)."
+            : "Lignes longues : sur une seule ligne, avec une barre de défilement en bas.");
+    }
+
     void OnQuitClick(object? sender, RoutedEventArgs e) => Close();
     void OnNormalSizeClick(object? sender, RoutedEventArgs e) => SetFontSize(EditorSettings.DefaultFontSize);
     void OnShortcutsClick(object? sender, RoutedEventArgs e) => ShowShortcuts();
@@ -315,6 +330,7 @@ public partial class MainWindow : Window
             ? "_Variables sans signe (A, X...) : à virgule"
             : "_Variables sans signe (A, X...) : entières";
         ContrastMenu.IsChecked = settings.HighContrast;
+        WrapMenu.IsChecked = settings.WordWrap;
         UpdateStatus();
     }
 
@@ -331,6 +347,11 @@ public partial class MainWindow : Window
         bool high = settings.HighContrast;
 
         Editor.FontSize = settings.FontSize;
+        // Lignes longues (D113) : à la ligne comme le CPC, ou une seule ligne avec défilement horizontal
+        Editor.WordWrap = settings.WordWrap;
+        Editor.HorizontalScrollBarVisibility = settings.WordWrap
+            ? Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+            : Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
         Editor.Background = Make(high ? "#000000" : "#000080");
         Editor.Foreground = Make(high ? "#FFFFFF" : "#FFFF00");
         // Numéros de l'éditeur en gris : jamais de la couleur des numéros BASIC (violet ou jaune)
@@ -344,9 +365,12 @@ public partial class MainWindow : Window
         MessageList.Background = Make(high ? "#000000" : "#101010");
         MessageList.Foreground = Make(high ? "#FFFFFF" : "#E0E0E0");
 
-        StatusText.FontSize = Math.Max(14, settings.FontSize - 2);
-        StatusText.Foreground = Make(high ? "#FFFFFF" : "#C0C0C0");
-        StatusBar.Background = Make(high ? "#000000" : "#202020");
+        // Barre d'état (D113) : claire comme sous Windows ; en contraste élevé, blanc sur noir
+        StatusText.FontSize = StatusRight.FontSize = Math.Max(14, settings.FontSize - 2);
+        StatusText.Foreground = StatusRight.Foreground = Make(high ? "#FFFFFF" : "#000000");
+        StatusBar.Background = Make(high ? "#000000" : "#F0F0F0");
+        StatusBar.BorderBrush = Make(high ? "#FFFFFF" : "#C8C8C8");
+        MessageSplitter.Background = Make(high ? "#FFFFFF" : "#808080");
 
         UpdateOptionButtons();
 
@@ -655,11 +679,7 @@ public partial class MainWindow : Window
     void UpdateStatus()
     {
         var caret = Editor.TextArea.Caret;
-        string contrast = settings.HighContrast ? "oui" : "non";
-        StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   [Larg : {visibleColumns}]   |   " +
-                          $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}   |   " +
-                          $"Sans signe : {(realByDefault ? "à virgule" : "entiers")}   |   " +
-                          $"ESC : {(breakKey ? "comme le CPC" : "ignorée")}   |   " +
-                          $"Texte sur la disquette : {(settings.TextOnDisk ? "oui" : "non")}";
+        StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}";
+        StatusRight.Text = $"Largeur visible : {visibleColumns} colonnes";
     }
 }

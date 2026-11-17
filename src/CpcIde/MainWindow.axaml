@@ -16,12 +16,18 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
-        <!-- Messages : un peu d'air autour de chaque ligne -->
+        <!-- Messages : un peu d'air autour de chaque ligne, sans perdre trop de place -->
         <Style Selector="ListBoxItem">
-            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Padding" Value="10,4" />
         </Style>
 
         <!-- Message choisi : fond jaune vif, texte noir (très lisible, quel que soit le thème de Windows) -->
+        <!-- Message sous la souris : fond gris foncé, texte blanc (le thème clair mettait le texte en noir sur noir) -->
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#404040" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+
         <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#FFFF00" />
             <Setter Property="Foreground" Value="#000000" />
@@ -42,6 +48,8 @@
 
     <Window.Resources>
         <!-- Même réglage par les couleurs du thème, au cas où un état ne serait pas couvert plus haut -->
+        <SolidColorBrush x:Key="ListBoxItemBackgroundPointerOver">#404040</SolidColorBrush>
+        <SolidColorBrush x:Key="ListBoxItemForegroundPointerOver">#FFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="ListBoxItemBackgroundSelected">#FFFF00</SolidColorBrush>
         <SolidColorBrush x:Key="ListBoxItemBackgroundSelectedPointerOver">#FFFF00</SolidColorBrush>
         <SolidColorBrush x:Key="ListBoxItemBackgroundSelectedPressed">#FFFF00</SolidColorBrush>
@@ -72,6 +80,8 @@
                 <MenuItem x:Name="TextMenu" Header="_Texte du programme sur la disquette" InputGesture="F11"
                           ToggleType="CheckBox" Click="OnTextClick" />
                 <Separator />
+                <MenuItem x:Name="WrapMenu" Header="_Lignes longues sur plusieurs lignes, comme le CPC"
+                          ToggleType="CheckBox" Click="OnWrapClick" />
                 <MenuItem x:Name="ContrastMenu" Header="Contraste é_levé" InputGesture="Ctrl+H"
                           ToggleType="CheckBox" Click="OnContrastClick" />
                 <MenuItem Header="Texte plus _grand (Ctrl et +)" Click="OnBiggerClick" />
@@ -84,34 +94,52 @@
             </MenuItem>
         </Menu>
 
-        <!-- Barre d'état tout en bas -->
-        <Border x:Name="StatusBar" DockPanel.Dock="Bottom" Background="#202020" Padding="8,4">
-            <TextBlock x:Name="StatusText" Foreground="#C0C0C0"
-                       AutomationProperties.Name="Barre d'état" />
+        <!-- Barre d'état tout en bas (D113) : claire comme sous Windows, avec seulement la position du curseur
+             à gauche et la largeur visible à droite (les réglages se lisent dans le menu Options). -->
+        <Border x:Name="StatusBar" DockPanel.Dock="Bottom" Background="#F0F0F0"
+                BorderBrush="#C8C8C8" BorderThickness="0,1,0,0" Padding="10,4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#000000" FontSize="14"
+                           TextTrimming="CharacterEllipsis"
+                           AutomationProperties.Name="Position du curseur" />
+                <TextBlock x:Name="StatusRight" Grid.Column="1" Foreground="#000000" FontSize="14"
+                           Margin="20,0,0,0"
+                           AutomationProperties.Name="Largeur visible de l'éditeur" />
+            </Grid>
         </Border>
 
-        <!-- Panneau des messages : erreurs, ou résultat de la compilation.
-             Flèches : changer de message (le curseur de l'éditeur suit). Entrée ou clic : aller dans l'éditeur. -->
-        <ListBox x:Name="MessageList"
-                 DockPanel.Dock="Bottom"
-                 Height="160"
-                 Background="#101010"
-                 Foreground="#E0E0E0"
-                 FontSize="16"
-                 AutomationProperties.Name="Messages du compilateur"
-                 SelectionChanged="OnMessageSelected"
-                 Tapped="OnMessageTapped"
-                 KeyDown="OnMessageKeyDown" />
+        <!-- Éditeur en haut, panneau des messages en bas ; la barre entre les deux se tire à la souris
+             pour agrandir ou réduire les messages (D113). -->
+        <Grid x:Name="WorkArea" RowDefinitions="*,Auto,170">
+            <!-- Éditeur : papier bleu et stylo jaune, comme le MODE 1 du CPC -->
+            <AvaloniaEdit:TextEditor x:Name="Editor" Grid.Row="0"
+                                     ShowLineNumbers="True"
+                                     FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                                     FontSize="16"
+                                     Background="#000080"
+                                     Foreground="#FFFF00"
+                                     AutomationProperties.Name="Éditeur du programme BASIC"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     VerticalScrollBarVisibility="Auto" />
 
-        <!-- Éditeur : papier bleu et stylo jaune, comme le MODE 1 du CPC -->
-        <AvaloniaEdit:TextEditor x:Name="Editor"
-                                 ShowLineNumbers="True"
-                                 FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
-                                 FontSize="16"
-                                 Background="#000080"
-                                 Foreground="#FFFF00"
-                                 AutomationProperties.Name="Éditeur du programme BASIC"
-                                 HorizontalScrollBarVisibility="Auto"
-                                 VerticalScrollBarVisibility="Auto" />
+            <GridSplitter x:Name="MessageSplitter" Grid.Row="1" Height="6"
+                          ResizeDirection="Rows" Background="#808080"
+                          AutomationProperties.Name="Séparation entre l'éditeur et les messages" />
+
+            <!-- Panneau des messages : erreurs, ou résultat de la compilation. Les longues phrases passent
+                 à la ligne au lieu d'être coupées. Flèches : changer de message (le curseur de l'éditeur suit).
+                 Entrée ou clic : aller dans l'éditeur. -->
+            <ListBox x:Name="MessageList" Grid.Row="2"
+                     MinHeight="60"
+                     Background="#101010"
+                     Foreground="#E0E0E0"
+                     FontSize="16"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     AutomationProperties.Name="Messages du compilateur"
+                     SelectionChanged="OnMessageSelected"
+                     Tapped="OnMessageTapped"
+                     KeyDown="OnMessageKeyDown" />
+        </Grid>
     </DockPanel>
 </Window>

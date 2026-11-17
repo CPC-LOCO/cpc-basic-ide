@@ -856,6 +856,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Suite prévue :** barre d'état lisible (ligne, colonne, mode), panneau des messages sans phrase coupée.
 - **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs.
 
+## D113 : barre d'état lisible, panneau des messages réglable, lignes longues à la ligne comme le CPC (17 nov. 2026 ; deuxième étape du remodelage)
+- **Barre d'état :** claire comme sous Windows (noir sur gris clair ; blanc sur noir en contraste élevé). Elle ne montre plus que « Ligne, colonne » à gauche et « Largeur visible : N colonnes » à droite ; les réglages se lisent dans le menu Options, plus rien n'est coupé.
+- **Panneau des messages :** une barre grise entre l'éditeur et les messages se tire à la souris pour agrandir ou réduire le panneau ; les longues phrases passent à la ligne ; un peu moins d'espace autour de chaque message. Le message sous la souris est blanc sur gris foncé (le thème clair le mettait en noir sur noir, illisible).
+- **Lignes longues (demande de l'utilisateur) :** une ligne plus large que la fenêtre continue sur la ligne suivante de l'écran, comme sur le CPC ; le numéro de l'éditeur n'est affiché qu'une fois ; pas de défilement horizontal. Seul l'affichage change. Actif par défaut ; menu Options « Lignes longues sur plusieurs lignes, comme le CPC » (coche, réglage WordWrap enregistré).
+- **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs, EditorSettings.cs.
+
 ---
 
 ## Notes de fin de session (modèle)

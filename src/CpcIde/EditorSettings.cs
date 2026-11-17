@@ -48,6 +48,9 @@ public sealed class EditorSettings
     /// </summary>
     public bool TextOnDisk { get; set; }
 
+    // Une ligne trop longue continue sur la ligne suivante de l'écran, comme sur le CPC (D113)
+    public bool WordWrap { get; set; } = true;
+
     static string Key(string path) => Path.GetFullPath(path).ToUpperInvariant();
 
     public bool IsBreakIgnored(string path) => BreakIgnoredFiles.Contains(Key(path));
