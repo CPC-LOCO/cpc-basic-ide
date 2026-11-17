@@ -13,7 +13,7 @@ namespace CpcIde;
 
 /// <summary>
 /// Les réglages de l'éditeur qui sont mémorisés d'une fois sur l'autre : taille du texte, contraste élevé,
-/// machine cible et programmes dont les variables sans signe sont des nombres à virgule (D066).
+/// programmes dont les variables sans signe sont des nombres à virgule (D066). La machine n'est plus un réglage (D111).
 /// Ils sont écrits dans le fichier  %APPDATA%\CpcBasicIde\reglages.json  (dossier de l'utilisateur Windows).
 /// Si le fichier manque ou est abîmé, les valeurs par défaut sont utilisées, sans message d'erreur.
 /// </summary>
@@ -29,8 +29,6 @@ public sealed class EditorSettings
     /// <summary>Vrai si le thème à fort contraste (noir et blanc) est choisi.</summary>
     public bool HighContrast { get; set; }
 
-    /// <summary>Machine pour laquelle on compile (D066). Par défaut : tous les CPC.</summary>
-    public TargetMachine Machine { get; set; } = TargetMachine.AllCpc;
 
     /// <summary>
     /// Programmes (chemins complets des fichiers .bas) dont les variables sans signe sont des nombres à virgule,
@@ -87,8 +85,6 @@ public sealed class EditorSettings
                     settings.FontSize = Math.Clamp(settings.FontSize, MinFontSize, MaxFontSize);
                     settings.RealByDefaultFiles ??= new();
                     settings.BreakIgnoredFiles ??= new();
-                    if (!Enum.IsDefined(settings.Machine))
-                        settings.Machine = TargetMachine.AllCpc;
                     return settings;
                 }
             }

@@ -842,6 +842,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** MiniZ80 trace les lignes point par point (Bresenham) par &BDE8 quand il est détourné ; CLG remplit l'écran de l'encre de GRAPHICS PAPER ; GRA GET PAPER ; instruction SRL E. ArrayTests.cs : MASK remplacé par RENUM, AUTO et NEW ; GraphicsPenTests.cs : GRAPHICS PEN 1,1 accepté.
 - **Fichiers :** RuntimeLibrary.cs (module Mask), Parser.cs, CodeGenerator.cs (usesMask, EmitDraw), MiniZ80.cs, `tests\CpcBasic.Tests\MaskTests.cs` (nouveau). Exemple : `examples\masque.bas`.
 
+## D111 : plus de réglage « Machine (F7) » : un programme compilé marche sur tous les CPC (décision de l'utilisateur, 17 nov. 2026 ; remplace la partie « machine cible » de D066)
+- **Question de l'utilisateur :** puisque le langage est compilé, pourquoi choisir la machine ? Le programme peut être compatible avec tous les CPC, et un message peut prévenir quand une instruction ne l'est pas.
+- **Constat :** F7 ne servait plus qu'aux nombres à virgule (adresses des routines de calcul de la ROM, différentes sur le 464 et le 664/6128). « Tous les CPC » les trouve au démarrage (KL PROBE ROM), pour quelques dizaines d'octets ; choisir une machine faisait gagner ces octets, mais le programme se bloquait sur l'autre. Depuis le lot L (nos propres routines pour FILL, PAINT, MASK), toutes les commandes marchent sur tous les CPC.
+- **Décision :** le bouton et la touche F7 sont retirés de l'éditeur ; l'éditeur compile toujours pour « tous les CPC ». Le compilateur garde l'option (CompilerOptions.Target) pour les tests et pour plus tard. Le message de compilation réussie le rappelle : « Machine : tous les CPC (le programme reconnaît la machine au démarrage) ».
+- **Idée notée (IDEES.md) :** messages d'incompatibilité, le jour où une commande ne pourra pas marcher partout (mémoire en plus du 6128, CPC Plus, GX4000…).
+- **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs, EditorSettings.cs (la ligne « Machine » d'un ancien reglages.json est simplement ignorée).
+
 ---
 
 ## Notes de fin de session (modèle)

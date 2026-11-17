@@ -109,7 +109,6 @@ public partial class MainWindow : Window
     void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
     void OnBiggerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(+2);
     void OnContrastClick(object? sender, RoutedEventArgs e) => ToggleContrast();
-    void OnMachineClick(object? sender, RoutedEventArgs e) => NextMachine();
     void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
     void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
@@ -187,11 +186,6 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleContrast();
         }
-        else if (e.Key == Key.F7)
-        {
-            e.Handled = true;
-            NextMachine();
-        }
         else if (e.Key == Key.F8)
         {
             e.Handled = true;
@@ -235,22 +229,6 @@ public partial class MainWindow : Window
         settings.FontSize = size;
         settings.Save();
         ApplyAppearance();
-    }
-
-    // F7 : machine suivante (Tous les CPC, CPC 464, CPC 664/6128), mémorisée pour tous les programmes (D066)
-    void NextMachine()
-    {
-        settings.Machine = settings.Machine switch
-        {
-            TargetMachine.AllCpc => TargetMachine.Cpc464,
-            TargetMachine.Cpc464 => TargetMachine.Cpc664And6128,
-            _ => TargetMachine.AllCpc
-        };
-        settings.Save();
-        UpdateOptionButtons();
-        ShowMessage(settings.Machine == TargetMachine.AllCpc
-            ? "Machine : tous les CPC. Le programme reconnaîtra la machine au démarrage s'il en a besoin."
-            : $"Machine : {CompilerOptions.MachineName(settings.Machine)} seulement. Sur une autre machine, le programme risque de se bloquer.");
     }
 
     // F8 : variables sans signe entières, ou à virgule comme le Locomotive ; mémorisé pour ce programme (D066)
@@ -298,7 +276,6 @@ public partial class MainWindow : Window
     {
         TextButton.Content = settings.TextOnDisk ? "Texte sur la disquette : oui (F11)" : "Texte sur la disquette : non (F11)";
         BreakButton.Content = breakKey ? "ESC : comme le CPC (F9)" : "ESC : ignorée (F9)";
-        MachineButton.Content = $"Machine : {CompilerOptions.MachineName(settings.Machine)} (F7)";
         RealButton.Content = realByDefault ? "Sans signe : à virgule (F8)" : "Sans signe : entiers (F8)";
         UpdateStatus();
     }
@@ -508,9 +485,9 @@ public partial class MainWindow : Window
                 if (file is null)
                     return null;
                 return new ProgramSource(File.ReadAllText(file),
-                                         new CompilerOptions(settings.Machine, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file)));
+                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file)));
             }
-            result = Compiler.CompileWithLinked(Editor.Text, name, new CompilerOptions(settings.Machine, realByDefault, breakKey), Find);
+            result = Compiler.CompileWithLinked(Editor.Text, name, new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -562,7 +539,7 @@ public partial class MainWindow : Window
         {
             new MessageItem($"Compilation réussie : {dskPath}", 0),
             new MessageItem($"Programme Z80 : {result.BinarySize} octets. Modules liés : {modules}.", 0),
-            new MessageItem($"Machine : {CompilerOptions.MachineName(settings.Machine)}. " +
+            new MessageItem("Machine : tous les CPC (le programme reconnaît la machine au démarrage). " +
                             $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}. " +
                             $"Touche ESC : {(breakKey ? "comme le CPC" : "ignorée")}.", 0)
         };
@@ -646,7 +623,6 @@ public partial class MainWindow : Window
         string contrast = settings.HighContrast ? "oui" : "non";
         StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}   |   [Larg : {visibleColumns}]   |   " +
                           $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}   |   " +
-                          $"Machine : {CompilerOptions.MachineName(settings.Machine)}   |   " +
                           $"Sans signe : {(realByDefault ? "à virgule" : "entiers")}   |   " +
                           $"ESC : {(breakKey ? "comme le CPC" : "ignorée")}   |   " +
                           $"Texte sur la disquette : {(settings.TextOnDisk ? "oui" : "non")}";
