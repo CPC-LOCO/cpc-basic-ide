@@ -827,6 +827,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** MiniZ80 simule GRA GET PEN, GRA GET ORIGIN, GRA GET W WIDTH / HEIGHT. Correction pendant l'étape : la fin de la routine appelait le firmware par un saut (JP), que le simulateur ne suit pas ; remplacé par CALL puis RET. ArrayTests.cs : FILL remplacé par MASK.
 - **Fichiers :** RuntimeLibrary.cs (module Fill), Parser.cs, CodeGenerator.cs (usesHeap), MiniZ80.cs, `tests\CpcBasic.Tests\FillTests.cs` (nouveau). Exemple : `examples\remplir.bas`.
 
+## D109 : FILL et PAINT accélérés (Validé le 17 nov. 2026 : 1346 tests réussis ; `essais\chrono.bas` dans WinAPE : FILL 569 et PAINT 565 tops de TIME, contre 1188 pour le FILL du 6128)
+- **Mesure** (`essais\chrono.bas` : rectangle de 280 × 140 pixels en MODE 1, temps en tops de TIME) : FILL du 6128 (vrai BASIC, fichier .TXT du réglage F11) : 1188 ; notre première version (D108, GRA TEST et GRA PLOT pour chaque point) : 6474 et 6094 ; lecture et écriture directes de l'écran, point par point : 2271 et 1957 ; avec les octets entiers : **569 et 565**, deux fois plus rapide que le firmware.
+- **Conception :** l'écran est lu et écrit directement (ROM haute coupée) ; encres codées une fois (SCR INK ENCODE) ; SCR DOT POSITION seulement au début de chaque morceau pris dans la pile ; chaque morceau est d'abord colorié d'un coup vers la droite, puis la ligne du dessus et celle du dessous sont parcourues sur la même largeur (deux états : on cherche un morceau, on est dedans) ; l'adresse de la ligne voisine est calculée sur place (comme SCR NEXT LINE / SCR PREV LINE : lignes de 80 octets, défilement de l'écran compris).
+- **Idée de l'utilisateur, appliquée :** trouver les bords puis remplir la ligne par octets entiers. Un octet tout entier de l'encre à remplacer est écrit d'un coup (2, 4 ou 8 points selon le MODE) ; pendant la recherche, un octet déjà colorié, ou entièrement à colorier, est passé d'un coup. Pour FILL, seulement si l'encre trouvée au départ n'est ni celle du stylo graphique ni celle du remplissage (rt_pf_fast). Les bords se font point par point.
+- **Tests :** MiniZ80 simule la mémoire de l'écran (disposition standard en &C000) : SCR DOT POSITION, SCR INK ENCODE, SCR NEXT / PREV LINE ; PLOT et TEST y écrivent et y lisent ; FillTests.cs compte les points dans la mémoire de l'écran, et vérifie aussi les MODE 0 et 2. Instructions ajoutées : AND C, DEC D.
+- **Fichiers :** RuntimeLibrary.cs (module Fill réécrit, EmitFillMatch, EmitFillByte, EmitFillRight, EmitNextLine, EmitPrevLine), Z80Emitter.cs, MiniZ80.cs, FillTests.cs. Programme de mesure : `essais\chrono.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

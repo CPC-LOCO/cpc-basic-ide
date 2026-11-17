@@ -137,7 +137,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `GRAPHICS PEN` | stylo et mode de remplissage des tracés | Partielle | GRAPHICS PEN stylo (D106, tous les CPC) ; le mode transparent viendra avec MASK. |
 | `GRAPHICS PAPER` | fond des tracés | Faite | D106 (tous les CPC). |
 | `MASK` | motif des lignes | À faire | BASIC 1.1 seulement (664, 6128). |
-| `FILL` | remplit une zone | Faite | D108 : notre propre routine, sur tous les CPC (passage par les côtés seulement). Encore lente : accélération prévue. |
+| `FILL` | remplit une zone | Faite | D108, D109 : notre propre routine, sur tous les CPC (passage par les côtés seulement), deux fois plus rapide que celle du 6128. |
 | `TEST / TESTR` | lit la couleur d'un point | Faite | Le curseur graphique va au point, comme le vrai BASIC (D091). |
 | `XPOS / YPOS` | position du curseur graphique | Faite | D091. |
 

@@ -146,6 +146,7 @@ public sealed class Z80Emitter
     public void AddAB() => code.Add(0x80);                                                              // ADD A,B
     public void AddAC() => code.Add(0x81);                                                              // ADD A,C
     public void AndE() => code.Add(0xA3);                                                               // AND E
+    public void AndC() => code.Add(0xA1);                                                               // AND C (D109)
     public void AndAHl() => code.Add(0xA6);                                                             // AND (HL)
     public void Cpl() => code.Add(0x2F);                                                                // CPL
     public void LdLZero() { code.Add(0x2E); code.Add(0x00); }                                           // LD L,0
@@ -206,6 +207,7 @@ public sealed class Z80Emitter
     public void StoreHlC() => code.Add(0x71);                                                    // LD (HL),C
     public void AddAMemHl() => code.Add(0x86);                                                   // ADD A,(HL)
     public void CpMemHl() => code.Add(0xBE);                                                     // CP (HL)
+    public void DecD() => code.Add(0x15);                                                        // DEC D (D109)
     public void DecB() => code.Add(0x05);                                                        // DEC B
     public void IncB() => code.Add(0x04);                                                        // INC B (D084)
     public void IncC() => code.Add(0x0C);                                                        // INC C

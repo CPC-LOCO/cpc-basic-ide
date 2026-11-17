@@ -310,6 +310,149 @@ public static class RuntimeLibrary
 
     static byte[] Ascii(string text) => [.. System.Text.Encoding.ASCII.GetBytes(text), 0];
 
+    // Remplissage (D109) : HL = adresse, C = masque ; saute à « no » si le point ne convient pas (HL et C gardés, B pris)
+    static void EmitFillMatch(Z80Emitter e, string no, string tag)
+    {
+        e.LdAHl();
+        e.AndC();
+        e.LdBA();
+        e.LdAMem("rt_pf_fm");
+        e.OrA();
+        e.JrNzLabel($"rt_pf_mf_{tag}");
+        e.LdAMem("rt_pf_et");                        // PAINT : l'encre trouvée au départ
+        e.AndC();
+        e.CpB();
+        e.JpNzLabel(no);
+        e.JrLabel($"rt_pf_mok_{tag}");
+        e.Label($"rt_pf_mf_{tag}");                  // FILL : ni le stylo graphique, ni l'encre du remplissage
+        e.LdAMem("rt_pf_ep");
+        e.AndC();
+        e.CpB();
+        e.JpZLabel(no);
+        e.LdAMem("rt_pf_en");
+        e.AndC();
+        e.CpB();
+        e.JpZLabel(no);
+        e.Label($"rt_pf_mok_{tag}");
+    }
+
+    // Remplissage (D109, idée de l'utilisateur) : au début d'un octet (C = masque de gauche), s'il reste au moins un octet
+    // de points et que l'octet vaut « ink » en entier, il est passé d'un coup (écrit avec l'encre du remplissage si
+    // « write ») et on retourne à « loop » ; sinon on continue point par point. B est pris.
+    static void EmitFillByte(Z80Emitter e, string ink, bool checkFast, bool write, string loop, string tag)
+    {
+        string skip = $"rt_pf_fb_{tag}";
+        string big = $"rt_pf_fbb_{tag}";
+        string done = $"rt_pf_fbd_{tag}";
+        if (checkFast)
+        {
+            e.LdAMem("rt_pf_fast");
+            e.OrA();
+            e.JrZLabel(skip);
+        }
+        e.LdAMem("rt_pf_lmask");
+        e.CpC();
+        e.JrNzLabel(skip);
+        e.LdAMem("rt_pf_ppb");
+        e.LdBA();
+        e.LdAD();
+        e.OrA();
+        e.JrNzLabel(big);
+        e.LdAE();
+        e.CpB();
+        e.JrCLabel(skip);
+        e.Label(big);
+        e.LdAMem(ink);
+        e.CpMemHl();
+        e.JrNzLabel(skip);
+        if (write)
+        {
+            e.LdAMem("rt_pf_en");
+            e.LdHlA();
+        }
+        e.IncHl();
+        e.LdAE();
+        e.SubB();
+        e.LdEA();
+        e.JrNcLabel(done);
+        e.DecD();
+        e.Label(done);
+        e.JpLabel(loop);
+        e.Label(skip);
+    }
+
+    // Remplissage (D109) : HL, C = point suivant à droite
+    static void EmitFillRight(Z80Emitter e, string tag)
+    {
+        e.LdAMem("rt_pf_rmask");
+        e.CpC();
+        e.JrNzLabel($"rt_pf_rs_{tag}");
+        e.IncHl();
+        e.LdAMem("rt_pf_lmask");
+        e.LdCA();
+        e.JrLabel($"rt_pf_rd_{tag}");
+        e.Label($"rt_pf_rs_{tag}");
+        e.LdAC();
+        e.SrlA();
+        e.LdCA();
+        e.Label($"rt_pf_rd_{tag}");
+    }
+
+    // HL = adresse de la ligne d'écran du dessous (comme SCR NEXT LINE : lignes de 80 octets, défilement compris)
+    static void EmitNextLine(Z80Emitter e)
+    {
+        e.LdAH();
+        e.AddAImm(8);
+        e.LdHA();
+        e.AndImm(0x38);
+        e.JrNzLabel("rt_pf_nl_done");
+        e.LdAH();
+        e.SubImm(0x40);
+        e.LdHA();
+        e.LdAL();
+        e.AddAImm(0x50);
+        e.LdLA();
+        e.JrNcLabel("rt_pf_nl_done");
+        e.IncH();
+        e.LdAH();
+        e.AndImm(7);
+        e.JrNzLabel("rt_pf_nl_done");
+        e.LdAH();
+        e.SubImm(8);
+        e.LdHA();
+        e.Label("rt_pf_nl_done");
+    }
+
+    // HL = adresse de la ligne d'écran du dessus (comme SCR PREV LINE)
+    static void EmitPrevLine(Z80Emitter e)
+    {
+        e.LdAH();
+        e.SubImm(8);
+        e.LdHA();
+        e.AndImm(0x38);
+        e.CpImm(0x38);
+        e.JrNzLabel("rt_pf_pl_done");
+        e.LdAH();
+        e.AddAImm(0x40);
+        e.LdHA();
+        e.LdAL();
+        e.SubImm(0x50);
+        e.LdLA();
+        e.JrNcLabel("rt_pf_pl_done");
+        e.LdAH();
+        e.AndImm(7);
+        e.JrZLabel("rt_pf_pl_wrap");
+        e.LdAH();
+        e.DecA();
+        e.LdHA();
+        e.JrLabel("rt_pf_pl_done");
+        e.Label("rt_pf_pl_wrap");
+        e.LdAH();
+        e.AddAImm(7);
+        e.LdHA();
+        e.Label("rt_pf_pl_done");
+    }
+
     // PRINT USING, nombres (D074). Voir le commentaire du module PrintUsing.
     static void EmitUsingNumber(Z80Emitter e)
     {
@@ -4319,16 +4462,18 @@ public static class RuntimeLibrary
             e.JpLabel(DecLabel);
         }),
 
-        // FILL et PAINT (lot L4b, D105, D107) : notre propre remplissage, le même sur tous les CPC. Remplissage par lignes :
-        // un point de départ est pris dans la pile ; on va à gauche tant que le point convient, puis à droite en coloriant ;
-        // pour chaque point colorié, la ligne du dessus et celle du dessous sont notées (un point par morceau) dans la pile.
+        // FILL et PAINT (lot L4b, D105, D107 ; accéléré en D109) : notre propre remplissage, le même sur tous les CPC.
+        // Remplissage par lignes, en pixels (repère du firmware : x de 0 à 159, 319 ou 639 selon le MODE, y de 0 à 199
+        // depuis le bas) : un point de départ est pris dans la pile ; SCR DOT POSITION donne son adresse et son masque ; on va
+        // à gauche tant que le point convient, puis à droite en coloriant ; pour chaque point colorié, la ligne du dessus
+        // (SCR PREV LINE) et celle du dessous (SCR NEXT LINE) sont notées (un point par morceau) dans la pile.
         // Passage seulement par le haut, le bas, la gauche et la droite (jamais par un coin). Un point « convient » :
         //  PAINT (rt_pf_fm = 0) : son encre est celle trouvée sous le curseur au départ (rien à faire si c'est déjà la bonne) ;
         //  FILL (rt_pf_fm = 1) : son encre n'est ni celle du stylo graphique ni celle du remplissage (vrai BASIC, D106).
-        // Les points sont lus par GRA TEST et coloriés par GRA PLOT (encre du remplissage), dans la fenêtre graphique,
-        // un pixel à la fois : 4, 2 ou 1 unité en largeur selon le MODE, 2 en hauteur. La pile est dans la mémoire libre
-        // (entre rt_arr_heap et rt_str_ptr) ; si elle est pleine, des morceaux restent sans couleur. Le curseur graphique et
-        // le stylo graphique sont remis comme avant.
+        // Les encres sont codées une fois (SCR INK ENCODE) : un point a l'encre k si (octet AND masque) = (code k AND masque).
+        // L'écran est lu et écrit directement, ROM haute coupée (comme BOX, D048). Limité à la fenêtre graphique. La pile est
+        // dans la mémoire libre (entre rt_arr_heap et rt_str_ptr) ; pleine : des morceaux restent sans couleur. Le curseur
+        // graphique est remis comme avant.
         [FillName] = new RuntimeModule(FillName, [HeapName], e =>
         {
             e.Label(FillLabel);                      // A = encre, B = 1 (FILL) ou 0 (PAINT)
@@ -4340,43 +4485,43 @@ public static class RuntimeLibrary
             e.LdMemHl("rt_pf_cy");
             e.CallAddress(0xBBE1);                   // GRA GET PEN
             e.LdMemA("rt_pf_pen");
-            e.CallAddress(0xBC11);                   // SCR GET MODE : largeur d'un pixel = 8 >> (mode + 1)
-            e.LdBA();
-            e.IncB();
-            e.LdAImm(8);
-            e.Label("rt_pf_dxl");
-            e.SrlA();
-            e.DjnzLabel("rt_pf_dxl");
-            e.LdLA();
-            e.LdHZero();
-            e.LdMemHl("rt_pf_dx");
+            e.CallAddress(0xBC11);                   // SCR GET MODE : décalage, masques de gauche et de droite, points par octet
+            e.AddAA();
+            e.AddAA();
+            e.LdEA();
+            e.LdDZero();
+            e.LdHlLabel("rt_pf_modes");
+            e.AddHlDe();
+            e.LdAHl();
+            e.LdMemA("rt_pf_shift");
+            e.IncHl();
+            e.LdAHl();
+            e.LdMemA("rt_pf_lmask");
+            e.IncHl();
+            e.LdAHl();
+            e.LdMemA("rt_pf_rmask");
+            e.IncHl();
+            e.LdAHl();
+            e.LdMemA("rt_pf_ppb");
             e.CallAddress(0xBBCC);                   // GRA GET ORIGIN
             e.LdMemDe("rt_pf_ox");
             e.LdMemHl("rt_pf_oy");
             e.CallAddress(0xBBD5);                   // GRA GET W WIDTH : DE = gauche, HL = droite (repère de l'écran)
             e.PushHl();
             e.ExDeHl();
-            e.LdDeMem("rt_pf_ox");
-            e.OrA();
-            e.SbcHlDe();
-            e.LdMemHl("rt_pf_wl");
+            e.CallLabel("rt_pf_shr");
+            e.LdMemHl("rt_pf_bl");
             e.PopHl();
-            e.LdDeMem("rt_pf_ox");
-            e.OrA();
-            e.SbcHlDe();
-            e.LdMemHl("rt_pf_wr");
+            e.CallLabel("rt_pf_shr");
+            e.LdMemHl("rt_pf_br");
             e.CallAddress(0xBBD8);                   // GRA GET W HEIGHT : DE = haut, HL = bas
-            e.PushHl();
+            e.SrlH();
+            e.RrL();
+            e.LdMemHl("rt_pf_bb");
             e.ExDeHl();
-            e.LdDeMem("rt_pf_oy");
-            e.OrA();
-            e.SbcHlDe();
-            e.LdMemHl("rt_pf_wt");
-            e.PopHl();
-            e.LdDeMem("rt_pf_oy");
-            e.OrA();
-            e.SbcHlDe();
-            e.LdMemHl("rt_pf_wb");
+            e.SrlH();
+            e.RrL();
+            e.LdMemHl("rt_pf_bt");
             e.LdDeMem("rt_pf_cx");                   // encre sous le curseur
             e.LdHlMem("rt_pf_cy");
             e.CallAddress(0xBBF0);                   // GRA TEST
@@ -4389,170 +4534,252 @@ public static class RuntimeLibrary
             e.CpMemHl();
             e.JpZLabel("rt_pf_done");
             e.Label("rt_pf_go");
+            foreach ((string ink, string code) in new[] { ("tgt", "et"), ("pen", "ep"), ("new", "en") })
+            {
+                e.LdAMem($"rt_pf_{ink}");
+                e.CallAddress(0xBC2C);               // SCR INK ENCODE
+                e.LdMemA($"rt_pf_{code}");
+            }
+            // Octets entiers (idée de l'utilisateur, D109) : un octet tout entier de l'encre trouvée au départ convient en entier
+            // pour PAINT, et pour FILL si cette encre n'est ni celle du stylo graphique ni celle du remplissage
+            e.LdAImm(1);
+            e.LdMemA("rt_pf_fast");
+            e.LdAMem("rt_pf_fm");
+            e.OrA();
+            e.JrZLabel("rt_pf_fastok");
+            e.LdAMem("rt_pf_tgt");
+            e.LdBA();
+            e.LdAMem("rt_pf_pen");
+            e.CpB();
+            e.JrZLabel("rt_pf_fastno");
             e.LdAMem("rt_pf_new");
-            e.CallAddress(0xBBDE);                   // GRA SET PEN : encre du remplissage
+            e.CpB();
+            e.JrNzLabel("rt_pf_fastok");
+            e.Label("rt_pf_fastno");
+            e.XorA();
+            e.LdMemA("rt_pf_fast");
+            e.Label("rt_pf_fastok");
+            e.LdHlMem("rt_pf_cx");                   // point de départ, en pixels (hors de l'écran : rien à faire)
+            e.LdDeMem("rt_pf_ox");
+            e.AddHlDe();
+            e.Bit7H();
+            e.JpNzLabel("rt_pf_done");
+            e.CallLabel("rt_pf_shr");
+            e.LdMemHl("rt_pf_px");
+            e.LdHlMem("rt_pf_cy");
+            e.LdDeMem("rt_pf_oy");
+            e.AddHlDe();
+            e.Bit7H();
+            e.JpNzLabel("rt_pf_done");
+            e.SrlH();
+            e.RrL();
+            e.LdMemHl("rt_pf_py");
+            e.CallAddress(0xB903);                   // KL U ROM DISABLE : l'écran se lit directement
+            e.LdMemA("rt_pf_rom");
             e.LdHlMem(ArrayHeapLabel);
             e.LdMemHl("rt_pf_base");
             e.LdMemHl("rt_pf_sp");
-            e.LdDeMem("rt_pf_cx");
-            e.LdHlMem("rt_pf_cy");
+            e.LdDeMem("rt_pf_px");
+            e.LdHlMem("rt_pf_py");
             e.CallLabel("rt_pf_push");
 
             e.Label("rt_pf_loop");
             e.CallLabel("rt_pf_pop");
             e.JpNcLabel("rt_pf_fin");
-            e.LdMemDe("rt_pf_x");
-            e.LdMemHl("rt_pf_y");
-            e.LdDeMem("rt_pf_wb");                   // y dans la fenêtre ?
-            e.CallLabel("rt_pf_lt");
-            e.JrCLabel("rt_pf_loop");
-            e.LdHlMem("rt_pf_wt");
-            e.LdDeMem("rt_pf_y");
-            e.CallLabel("rt_pf_lt");
-            e.JrCLabel("rt_pf_loop");
-            e.LdHlMem("rt_pf_x");                    // x dans la fenêtre ?
-            e.LdDeMem("rt_pf_wl");
-            e.CallLabel("rt_pf_lt");
-            e.JrCLabel("rt_pf_loop");
-            e.LdHlMem("rt_pf_wr");
-            e.LdDeMem("rt_pf_x");
-            e.CallLabel("rt_pf_lt");
-            e.JrCLabel("rt_pf_loop");
-            e.LdDeMem("rt_pf_x");
-            e.LdHlMem("rt_pf_y");
-            e.CallLabel("rt_pf_match");
-            e.JrNcLabel("rt_pf_loop");
-            e.LdHlMem("rt_pf_x");
-            e.LdMemHl("rt_pf_xl");
-            e.Label("rt_pf_left");                   // vers la gauche
-            e.LdHlMem("rt_pf_xl");
-            e.LdDeMem("rt_pf_dx");
+            e.LdMemDe("rt_pf_bx");
+            e.LdMemHl("rt_pf_by");
+            e.LdDeMem("rt_pf_bb");                   // dans la fenêtre ? (sans signe : -1 est très grand)
             e.OrA();
             e.SbcHlDe();
-            e.LdMemHl("rt_pf_tmp");
-            e.LdDeMem("rt_pf_wl");
-            e.CallLabel("rt_pf_lt");
-            e.JrCLabel("rt_pf_ldone");
-            e.LdDeMem("rt_pf_tmp");
-            e.LdHlMem("rt_pf_y");
-            e.CallLabel("rt_pf_match");
-            e.JrNcLabel("rt_pf_ldone");
-            e.LdHlMem("rt_pf_tmp");
-            e.LdMemHl("rt_pf_xl");
-            e.JrLabel("rt_pf_left");
-            e.Label("rt_pf_ldone");
-            e.XorA();
-            e.LdMemA("rt_pf_up");
-            e.LdMemA("rt_pf_dn");
+            e.JrCLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_bt");
+            e.LdDeMem("rt_pf_by");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_bx");
+            e.LdDeMem("rt_pf_bl");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_br");
+            e.LdDeMem("rt_pf_bx");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_pf_loop");
+            e.LdDeMem("rt_pf_bx");
+            e.LdHlMem("rt_pf_by");
+            e.CallAddress(0xBC1D);                   // SCR DOT POSITION : HL = adresse, C = masque
+            EmitFillMatch(e, "rt_pf_loop", "s");
+            e.LdDeMem("rt_pf_bx");
+            e.LdMemDe("rt_pf_xl");
+
+            // Vers la gauche, tant que le point convient
+            e.Label("rt_pf_left");
+            e.PushHl();
             e.LdHlMem("rt_pf_xl");
-            e.LdMemHl("rt_pf_xx");
-            e.Label("rt_pf_right");                  // vers la droite, en coloriant
-            e.LdHlMem("rt_pf_wr");
-            e.LdDeMem("rt_pf_xx");
-            e.CallLabel("rt_pf_lt");
-            e.JpCLabel("rt_pf_loop");
-            e.LdDeMem("rt_pf_xx");
-            e.LdHlMem("rt_pf_y");
-            e.CallLabel("rt_pf_match");
-            e.JpNcLabel("rt_pf_loop");
-            e.LdDeMem("rt_pf_xx");
-            e.LdHlMem("rt_pf_y");
-            e.CallAddress(0xBBEA);                   // GRA PLOT
-            e.LdHlMem("rt_pf_y");
-            e.IncHl();
-            e.IncHl();
-            e.CallLabel("rt_pf_nb_up");
-            e.LdHlMem("rt_pf_y");
+            e.LdDeMem("rt_pf_bl");
+            e.OrA();
+            e.SbcHlDe();
+            e.PopHl();
+            e.JpZLabel("rt_pf_ldone");
+            e.LdMemHl("rt_pf_ta");                   // le point gardé, si celui de gauche ne convient pas
+            e.LdAC();
+            e.LdMemA("rt_pf_tm");
+            e.LdAMem("rt_pf_lmask");
+            e.CpC();
+            e.JrNzLabel("rt_pf_lsame");
+            e.DecHl();                               // octet de gauche, dernier pixel
+            e.LdAMem("rt_pf_rmask");
+            e.LdCA();
+            e.JrLabel("rt_pf_lchk");
+            e.Label("rt_pf_lsame");
+            e.LdAC();
+            e.AddAA();
+            e.LdCA();
+            e.Label("rt_pf_lchk");
+            EmitFillMatch(e, "rt_pf_lback", "l");
+            e.PushHl();
+            e.LdHlMem("rt_pf_xl");
             e.DecHl();
-            e.DecHl();
-            e.CallLabel("rt_pf_nb_dn");
-            e.LdHlMem("rt_pf_xx");
-            e.LdDeMem("rt_pf_dx");
-            e.AddHlDe();
-            e.LdMemHl("rt_pf_xx");
-            e.JrLabel("rt_pf_right");
+            e.LdMemHl("rt_pf_xl");
+            e.PopHl();
+            e.JpLabel("rt_pf_left");
+            e.Label("rt_pf_lback");
+            e.LdHlMem("rt_pf_ta");
+            e.LdAMem("rt_pf_tm");
+            e.LdCA();
+            e.Label("rt_pf_ldone");
+            e.LdMemHl("rt_pf_al");                   // début du morceau
+            e.LdAC();
+            e.LdMemA("rt_pf_ml");
+            e.PushHl();                              // DE = points jusqu'au bord droit
+            e.LdHlMem("rt_pf_br");
+            e.LdDeMem("rt_pf_xl");
+            e.OrA();
+            e.SbcHlDe();
+            e.IncHl();
+            e.ExDeHl();
+            e.PopHl();
+            e.LdMemDe("rt_pf_c0");
+
+            // Le morceau est colorié d'un coup, vers la droite
+            e.Label("rt_pf_fill");
+            e.LdAD();
+            e.OrE();
+            e.JpZLabel("rt_pf_fdone");
+            EmitFillByte(e, "rt_pf_et", true, true, "rt_pf_fill", "f");
+            EmitFillMatch(e, "rt_pf_fdone", "f");
+            e.LdAC();
+            e.Cpl();
+            e.AndAHl();
+            e.LdBA();
+            e.LdAMem("rt_pf_en");
+            e.AndC();
+            e.OrB();
+            e.LdHlA();
+            e.DecDe();
+            EmitFillRight(e, "f");
+            e.JpLabel("rt_pf_fill");
+            e.Label("rt_pf_fdone");
+            e.LdHlMem("rt_pf_c0");                   // longueur du morceau
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_pf_n");
+
+            // Ligne du dessus (y + 1), puis du dessous (y - 1), sur la même largeur : chaque morceau qui convient est noté
+            e.LdHlMem("rt_pf_by");
+            e.LdDeMem("rt_pf_bt");
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_pf_skipup");             // déjà en haut de la fenêtre
+            e.LdHlMem("rt_pf_al");
+            EmitPrevLine(e);
+            e.LdDeMem("rt_pf_by");
+            e.IncDe();
+            e.LdMemDe("rt_pf_yn");
+            e.CallLabel("rt_pf_scan");
+            e.Label("rt_pf_skipup");
+            e.LdHlMem("rt_pf_bb");
+            e.LdDeMem("rt_pf_by");
+            e.OrA();
+            e.SbcHlDe();
+            e.JpNcLabel("rt_pf_loop");               // déjà en bas de la fenêtre
+            e.LdHlMem("rt_pf_al");
+            EmitNextLine(e);
+            e.LdDeMem("rt_pf_by");
+            e.DecDe();
+            e.LdMemDe("rt_pf_yn");
+            e.CallLabel("rt_pf_scan");
+            e.JpLabel("rt_pf_loop");
 
             e.Label("rt_pf_fin");
-            e.LdAMem("rt_pf_pen");
-            e.CallAddress(0xBBDE);                   // le stylo graphique d'avant
+            e.LdAMem("rt_pf_rom");
+            e.CallAddress(0xB90C);                   // KL ROM RESTORE
             e.Label("rt_pf_done");
             e.LdDeMem("rt_pf_cx");
             e.LdHlMem("rt_pf_cy");
             e.CallAddress(0xBBC0);                   // GRA MOVE ABSOLUTE : le curseur d'avant
             e.Ret();
 
-            // Ligne voisine (HL = y) : un morceau qui convient commence ? on note son premier point
-            foreach (string side in new[] { "up", "dn" })
-            {
-                e.Label($"rt_pf_nb_{side}");
-                e.LdMemHl("rt_pf_ny");
-                e.LdDeMem("rt_pf_wb");
-                e.CallLabel("rt_pf_lt");
-                e.JrCLabel($"rt_pf_out_{side}");
-                e.LdHlMem("rt_pf_wt");
-                e.LdDeMem("rt_pf_ny");
-                e.CallLabel("rt_pf_lt");
-                e.JrCLabel($"rt_pf_out_{side}");
-                e.LdDeMem("rt_pf_xx");
-                e.LdHlMem("rt_pf_ny");
-                e.CallLabel("rt_pf_match");
-                e.JrNcLabel($"rt_pf_out_{side}");
-                e.LdAMem($"rt_pf_{side}");
-                e.OrA();
-                e.RetNz();                           // déjà noté pour ce morceau
-                e.LdAImm(1);
-                e.LdMemA($"rt_pf_{side}");
-                e.LdDeMem("rt_pf_xx");
-                e.LdHlMem("rt_pf_ny");
-                e.JpLabel("rt_pf_push");
-                e.Label($"rt_pf_out_{side}");
-                e.XorA();
-                e.LdMemA($"rt_pf_{side}");
-                e.Ret();
-            }
-
-            // DE = x, HL = y : retenue si le point convient
-            e.Label("rt_pf_match");
-            e.CallAddress(0xBBF0);                   // GRA TEST : A = encre
-            e.LdBA();
-            e.LdAMem("rt_pf_fm");
-            e.OrA();
-            e.JrNzLabel("rt_pf_mfill");
-            e.LdAMem("rt_pf_tgt");                   // PAINT : la même encre qu'au départ
-            e.CpB();
-            e.Scf();
-            e.RetZ();
-            e.OrA();
-            e.Ret();
-            e.Label("rt_pf_mfill");                  // FILL : ni le stylo graphique, ni l'encre du remplissage
-            e.LdAMem("rt_pf_pen");
-            e.CpB();
-            e.JrZLabel("rt_pf_mno");
-            e.LdAMem("rt_pf_new");
-            e.CpB();
-            e.JrZLabel("rt_pf_mno");
-            e.Scf();
-            e.Ret();
-            e.Label("rt_pf_mno");
-            e.OrA();
-            e.Ret();
-
-            // HL < DE (avec le signe) : retenue
-            e.Label("rt_pf_lt");
-            e.LdAH();
-            e.XorImm(0x80);
-            e.LdHA();
+            // HL = adresse du premier point de la ligne voisine (y = rt_pf_yn) : le premier point de chaque morceau qui
+            // convient est noté dans la pile. Deux états : on cherche un morceau, ou on est dedans.
+            e.Label("rt_pf_scan");
+            e.LdAMem("rt_pf_ml");
+            e.LdCA();
+            e.LdDeMem("rt_pf_n");
+            e.Label("rt_pf_seek");
             e.LdAD();
-            e.XorImm(0x80);
-            e.LdDA();
+            e.OrE();
+            e.RetZ();
+            EmitFillByte(e, "rt_pf_en", false, false, "rt_pf_seek", "k");   // octet déjà colorié : aucun point ne convient
+            EmitFillMatch(e, "rt_pf_sadv", "k");
+            e.PushHl();                              // un morceau commence : x = gauche + (longueur - reste)
+            e.PushDe();
+            e.PushBc();
+            e.LdHlMem("rt_pf_n");
             e.OrA();
             e.SbcHlDe();
+            e.LdDeMem("rt_pf_xl");
+            e.AddHlDe();
+            e.ExDeHl();
+            e.LdHlMem("rt_pf_yn");
+            e.CallLabel("rt_pf_push");
+            e.PopBc();
+            e.PopDe();
+            e.PopHl();
+            e.JpLabel("rt_pf_iadv");
+            e.Label("rt_pf_sadv");
+            e.DecDe();
+            EmitFillRight(e, "s");
+            e.JpLabel("rt_pf_seek");
+            e.Label("rt_pf_in");
+            e.LdAD();
+            e.OrE();
+            e.RetZ();
+            EmitFillByte(e, "rt_pf_et", true, false, "rt_pf_in", "i");
+            EmitFillMatch(e, "rt_pf_sadv", "i");
+            e.Label("rt_pf_iadv");
+            e.DecDe();
+            EmitFillRight(e, "i");
+            e.JpLabel("rt_pf_in");
+
+            // HL = HL décalé à droite de rt_pf_shift (unités -> pixels)
+            e.Label("rt_pf_shr");
+            e.LdAMem("rt_pf_shift");
+            e.OrA();
+            e.RetZ();
+            e.LdBA();
+            e.Label("rt_pf_shl");
+            e.SrlH();
+            e.RrL();
+            e.DjnzLabel("rt_pf_shl");
             e.Ret();
 
             // Pile : DE = x, HL = y ; pas de place : le point est oublié
             e.Label("rt_pf_push");
-            e.LdMemDe("rt_pf_px");
-            e.LdMemHl("rt_pf_py");
+            e.LdMemDe("rt_pf_qx");
+            e.LdMemHl("rt_pf_qy");
             e.LdHlMem("rt_pf_sp");
             e.LdDeImm(4);
             e.AddHlDe();
@@ -4562,12 +4789,12 @@ public static class RuntimeLibrary
             e.SbcHlDe();
             e.RetC();
             e.LdHlMem("rt_pf_sp");
-            e.LdDeMem("rt_pf_px");
+            e.LdDeMem("rt_pf_qx");
             e.StoreHlE();
             e.IncHl();
             e.StoreHlD();
             e.IncHl();
-            e.LdDeMem("rt_pf_py");
+            e.LdDeMem("rt_pf_qy");
             e.StoreHlE();
             e.IncHl();
             e.StoreHlD();
@@ -4597,13 +4824,17 @@ public static class RuntimeLibrary
             e.Scf();
             e.Ret();
 
-            foreach (string v in new[] { "cx", "cy", "dx", "ox", "oy", "wl", "wr", "wt", "wb", "x", "y", "xl", "xx", "tmp",
-                                         "ny", "px", "py", "sp", "base" })
+            // Par MODE : décalage (unités par pixel), masque du pixel de gauche, masque du pixel de droite, points par octet
+            e.Label("rt_pf_modes");
+            e.Data([2, 0xAA, 0x55, 2, 1, 0x88, 0x11, 4, 0, 0x80, 0x01, 8]);
+            foreach (string v in new[] { "cx", "cy", "ox", "oy", "bl", "br", "bt", "bb", "px", "py", "bx", "by", "xl",
+                                         "ta", "al", "c0", "n", "yn", "qx", "qy", "sp", "base" })
             {
                 e.Label($"rt_pf_{v}");
                 e.Reserve(2);
             }
-            foreach (string v in new[] { "new", "fm", "pen", "tgt", "up", "dn" })
+            foreach (string v in new[] { "new", "fm", "pen", "tgt", "et", "ep", "en", "shift", "lmask", "rmask", "tm",
+                                         "ml", "rom", "ppb", "fast" })
             {
                 e.Label($"rt_pf_{v}");
                 e.Reserve(1);

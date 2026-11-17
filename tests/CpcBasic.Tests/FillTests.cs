@@ -12,22 +12,34 @@ namespace CpcBasic.Tests;
 
 /// <summary>
 /// Lot L4b (D107) : FILL (règle du vrai BASIC) et PAINT (commande nouvelle), notre propre remplissage. Les essais se font
-/// dans une petite fenêtre graphique (0 à 20) en MODE 1 : un pixel = 2 unités. Exemple : examples\remplir.bas.
+/// dans une petite fenêtre graphique (0 à 20) en MODE 1 : un pixel = 2 unités ; D109 : lecture et écriture directes dans
+/// la mémoire de l'écran (MiniZ80 la simule). Exemple : examples\remplir.bas.
 /// </summary>
 public class FillTests
 {
     const string Window = "10 ORIGIN 0,0,0,20,20,0\n";
 
-    static (string Output, MiniZ80 Cpu) Run(string source)
+    static (string Output, MiniZ80 Cpu) Run(string source, byte mode = 1)
     {
         AnalysisResult analysis = BasicAnalyzer.Analyze(source);
         Assert.False(analysis.HasErrors, string.Join(" / ", analysis.Diagnostics.Select(d => d.Message)));
         GeneratedProgram program = CodeGenerator.Generate(analysis.Program, 0x4000);
-        var cpu = new MiniZ80 { WindowWidth = 80 };
+        var cpu = new MiniZ80 { WindowWidth = 80, ScreenMode = mode };
         cpu.Load(program.Code, 0x4000);
         cpu.Memory[0xBB18] = 0xC9;
         cpu.Call(0x4000);
         return (cpu.Output.ToString(), cpu);
+    }
+
+    // Points d'encre « ink » dans le carré 0 à « size » (un pixel = 2 unités en MODE 1), lus dans la mémoire de l'écran
+    static int Count(MiniZ80 cpu, int ink, int size)
+    {
+        int count = 0;
+        for (int x = 0; x <= size; x += 2)
+            for (int y = 0; y <= size; y += 2)
+                if (cpu.GetPixel(x, y) == ink)
+                    count++;
+        return count;
     }
 
     [Fact]
@@ -36,8 +48,23 @@ public class FillTests
         (string output, MiniZ80 cpu) = Run(Window + "20 MOVE 10,10:PAINT 3:PRINT XPOS;YPOS");
 
         Assert.Equal(" 10  10 \r\n", output);
-        Assert.Equal(11 * 11, cpu.Points.Count(p => p.Value == 3));     // x et y de 0 à 20, de 2 en 2
-        Assert.DoesNotContain(cpu.Points, p => p.Key.Item1 > 20 || p.Key.Item2 > 20);
+        Assert.Equal(11 * 11, Count(cpu, 3, 20));                          // x et y de 0 à 20, de 2 en 2
+        Assert.Equal(11 * 11, Count(cpu, 3, 40));                          // rien en dehors de la fenêtre
+    }
+
+    [Theory]
+    [InlineData(0, 4, 6)]       // MODE 0 : un pixel = 4 unités, 2 par octet
+    [InlineData(2, 1, 21)]      // MODE 2 : un pixel = 1 unité, 8 par octet
+    public void PAINT_dans_les_autres_modes(byte mode, int step, int columns)
+    {
+        (_, MiniZ80 cpu) = Run(Window + "20 MOVE 8,10:PAINT 1", mode);
+
+        int count = 0;
+        for (int x = 0; x <= 40; x += step)
+            for (int y = 0; y <= 40; y += 2)
+                if (cpu.GetPixel(x, y) == 1)
+                    count++;
+        Assert.Equal(columns * 11, count);
     }
 
     [Fact]
@@ -47,7 +74,7 @@ public class FillTests
                                            "30 MOVE 4,4:PAINT 3:PRINT TEST(4,4);TEST(10,4);TEST(16,4)");
 
         Assert.Equal(" 3  2  0 \r\n", output);
-        Assert.Equal(5 * 11, cpu.Points.Count(p => p.Value == 3));      // seulement à gauche du mur
+        Assert.Equal(5 * 11, Count(cpu, 3, 20));                           // seulement à gauche du mur
     }
 
     [Fact]

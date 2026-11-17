@@ -33,6 +33,51 @@ internal sealed class MiniZ80
     /// <summary>Fenêtre graphique (GRA WIN WIDTH / HEIGHT), en coordonnées de l'écran (D107).</summary>
     public short WindowLeft, WindowRight = 639, WindowTop = 399, WindowBottom;
 
+    // Mémoire de l'écran (D109) : disposition standard du CPC en &C000 (sans défilement matériel). Un pixel du firmware
+    // (x de 0 à 159, 319 ou 639 selon le MODE, y de 0 à 199 depuis le bas) a une adresse et un masque.
+    int PixelsPerByte => ScreenMode switch { 0 => 2, 1 => 4, _ => 8 };
+
+    public (int Address, byte Mask) DotPosition(int x, int y)
+    {
+        int line = 199 - y;
+        int address = 0xC000 + (line % 8) * 0x800 + (line / 8) * 80 + x / PixelsPerByte;
+        int p = x % PixelsPerByte;
+        byte mask = ScreenMode switch { 0 => (byte)(0xAA >> p), 1 => (byte)(0x88 >> p), _ => (byte)(0x80 >> p) };
+        return (address, mask);
+    }
+
+    public byte EncodeInk(byte ink) => ScreenMode switch
+    {
+        0 => (byte)(((ink & 1) != 0 ? 0xC0 : 0) | ((ink & 2) != 0 ? 0x0C : 0) | ((ink & 4) != 0 ? 0x30 : 0) | ((ink & 8) != 0 ? 0x03 : 0)),
+        1 => (byte)(((ink & 1) != 0 ? 0xF0 : 0) | ((ink & 2) != 0 ? 0x0F : 0)),
+        _ => (byte)((ink & 1) != 0 ? 0xFF : 0)
+    };
+
+    // Coordonnées du BASIC (0 à 639, 0 à 399) -> pixel du firmware ; hors de l'écran : null
+    (int Address, byte Mask)? PixelOf(int x, int y)
+    {
+        if (x is < 0 or > 639 || y is < 0 or > 399)
+            return null;
+        return DotPosition(x / (8 / PixelsPerByte), y / 2);
+    }
+
+    void SetPixel(int x, int y, byte ink)
+    {
+        if (PixelOf(x, y) is (int address, byte mask))
+            Memory[address] = (byte)((Memory[address] & ~mask) | (EncodeInk(ink) & mask));
+    }
+
+    public byte GetPixel(int x, int y)
+    {
+        if (PixelOf(x, y) is not (int address, byte mask))
+            return 0;
+        int inks = ScreenMode switch { 0 => 16, 1 => 4, _ => 2 };
+        for (byte ink = 0; ink < inks; ink++)
+            if ((Memory[address] & mask) == (EncodeInk(ink) & mask))
+                return ink;
+        return 0;
+    }
+
     /// <summary>Appels du firmware avec leurs registres : (adresse, A, DE, HL) (ORIGIN avec fenêtre, PEN transparent, D104).</summary>
     public readonly List<(int Address, byte A, ushort DE, ushort HL)> RegisterCalls = new();
 
@@ -524,6 +569,7 @@ internal sealed class MiniZ80
             case 0x3C: A++; ZeroFlag = A == 0; break;                  // INC A
             case 0x3D: A--; ZeroFlag = A == 0; break;                  // DEC A
             case 0x0D: C--; ZeroFlag = C == 0; break;                  // DEC C
+            case 0x15: D--; ZeroFlag = D == 0; break;                  // DEC D (D109)
             case 0xB7: ZeroFlag = A == 0; CarryFlag = false; break;    // OR A
             case 0x2F: A ^= 0xFF; break;                               // CPL
             case 0xC2: { ushort jumpTo = Fetch16(); if (!ZeroFlag) pc = jumpTo; break; }    // JP NZ,nn
@@ -540,6 +586,7 @@ internal sealed class MiniZ80
             case 0xA2: And(D); break;                                  // AND D
             case 0xA3: And(E); break;                                  // AND E
             case 0xA6: And(ReadMemory(HL)); break;                     // AND (HL)
+            case 0xA1: And(C); break;                                  // AND C (D109)
             case 0xE6: And(Fetch()); break;                            // AND n
             case 0xB8: Compare(B); break;                              // CP B
             case 0xB5: A |= L; ZeroFlag = A == 0; CarryFlag = false; break;   // OR L
@@ -688,9 +735,12 @@ internal sealed class MiniZ80
                             GraphicsX = (short)((relative ? GraphicsX : 0) + (short)DE);
                             GraphicsY = (short)((relative ? GraphicsY : 0) + (short)HL);
                             if (address is 0xBBEA or 0xBBED)
+                            {
                                 Points[(GraphicsX, GraphicsY)] = GraphicsPen;
+                                SetPixel(GraphicsX, GraphicsY, GraphicsPen);   // aussi dans la mémoire de l'écran (D109)
+                            }
                             if (address is 0xBBF0 or 0xBBF3)
-                                A = Points.TryGetValue((GraphicsX, GraphicsY), out byte ink) ? ink : (byte)0;
+                                A = GetPixel(GraphicsX, GraphicsY);            // lu dans la mémoire de l'écran (D109)
                             break;
                     }
                     break;
@@ -852,6 +902,25 @@ internal sealed class MiniZ80
                         (WindowLeft, WindowRight) = ((short)DE, (short)HL);
                     else if (address == 0xBBD2)
                         (WindowTop, WindowBottom) = ((short)DE, (short)HL);
+                }
+                else if (address == 0xBC1D)
+                {
+                    (int dot, byte dotMask) = DotPosition((short)DE, (short)HL);   // SCR DOT POSITION (D109)
+                    HL = (ushort)dot;
+                    C = dotMask;
+                    B = (byte)(PixelsPerByte - 1);
+                }
+                else if (address == 0xBC26)
+                {
+                    HL = (ushort)((HL & 0x3800) != 0x3800 ? HL + 0x800 : HL - 0x3800 + 80);   // SCR NEXT LINE (D109)
+                }
+                else if (address == 0xBC29)
+                {
+                    HL = (ushort)((HL & 0x3800) != 0 ? HL - 0x800 : HL + 0x3800 - 80);      // SCR PREV LINE (D109)
+                }
+                else if (address == 0xBC2C)
+                {
+                    A = EncodeInk(A);                                  // SCR INK ENCODE (D109)
                 }
                 else if (address == 0xBBE1)
                 {
