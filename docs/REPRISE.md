@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D104 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D105 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -59,7 +59,7 @@ Documents de référence :
 ### Prochaine étape
 
 Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » et « Partielle ») :
-- **Lot L (en cours) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ (D102), L2 DEC$ (D103), L3 ORIGIN avec fenêtre graphique et PEN transparent (D104) faits. Restent : GRAPHICS PEN / PAPER, MASK, FILL (routines du 664/6128 seulement : décider avec l'utilisateur que faire sur un 464).
+- **Lot L (en cours) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ (D102), L2 DEC$ (D103), L3 ORIGIN avec fenêtre graphique et PEN transparent (D104) faits. Reste L4 : GRAPHICS PEN / PAPER, MASK, FILL. **Décision D105 : nos propres routines Z80**, qui marchent sur tous les CPC (pas les routines du 664/6128) ; elles serviront aussi à PAINT, CIRCLE, POLYGON… Commencer par une référence WinAPE (voir D105).
 - **Commandes de l'éditeur (D077)** : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro de ligne.
 - Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
 
@@ -143,4 +143,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Lot L3 : ORIGIN avec fenêtre, PEN transparent » ; 1328 tests passent. Les lots A à K sont finis, le lot L (BASIC 1.1) est en cours (L1 à L3 faits). Propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Decision D105 : nos propres routines pour le lot L4 » ; 1328 tests passent. Les lots A à K sont finis, le lot L (BASIC 1.1) est en cours (L1 à L3 faits ; L4 décidé en D105 : nos propres routines pour FILL, MASK, GRAPHICS PEN / PAPER). Propose-moi la suite, une étape à la fois.

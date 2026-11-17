@@ -800,6 +800,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** MiniZ80 connaît GRA SET ORIGIN et TXT SET PEN (rien à simuler) et note GRA WIN WIDTH / HEIGHT et TXT SET BACK (RegisterCalls).
 - **Fichiers :** Parser.cs, CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\GraphicsWindowTests.cs` (nouveau). Exemple : `examples\fenetreg.bas`.
 
+## D105 : lot L4 (FILL, MASK, GRAPHICS PEN / PAPER) : nos propres routines (décision de l'utilisateur, 17 nov. 2026 ; pas encore codé)
+- **Constat :** GRAPHICS PAPER (GRA SET PAPER) et GRAPHICS PEN stylo (GRA SET PEN) ont leur routine sur le 464 ; le mode transparent de GRAPHICS PEN (GRA SET BACK &BD46), MASK (GRA SET LINE MASK &BD4C, GRA SET FIRST &BD4F) et FILL (GRA FILL &BD52) n'existent que sur le 664 / 6128. Sur un vrai 464, ces mots donnent « Syntax error ».
+- **Choix proposés :** A (ne rien faire sur un 464), B (arrêt avec un message sur un 464), C (écrire nos propres routines Z80, qui marchent sur tous les CPC).
+- **Décision de l'utilisateur : C.** Il avait déjà prévu d'écrire nos propres routines : elles serviront aussi plus tard à PAINT et aux commandes de dessin nouvelles (CIRCLE, POLYGON…, D048, D052 : très rapides, écriture directe dans l'écran en coupant la ROM haute).
+- **À faire au début de L4 :** relever une référence dans WinAPE (6128) avec une disquette texte (outil de Claude ou réglage F11) : FILL d'une zone fermée, d'une zone ouverte, avec la fenêtre graphique ; MASK avec plusieurs motifs et GRAPHICS PEN stylo, 1 (transparent) ; puis découper L4 en étapes (GRAPHICS PEN / PAPER d'abord, puis MASK et le mode transparent, puis FILL).
+
 ---
 
 ## Notes de fin de session (modèle)
