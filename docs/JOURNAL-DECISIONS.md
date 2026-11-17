@@ -862,6 +862,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Lignes longues (demande de l'utilisateur) :** une ligne plus large que la fenêtre continue sur la ligne suivante de l'écran, comme sur le CPC ; le numéro de l'éditeur n'est affiché qu'une fois ; pas de défilement horizontal. Seul l'affichage change. Actif par défaut ; menu Options « Lignes longues sur plusieurs lignes, comme le CPC » (coche, réglage WordWrap enregistré).
 - **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs, EditorSettings.cs.
 
+## D114 : icônes ✓ et ✗ devant les messages (17 nov. 2026 ; troisième étape du remodelage)
+- **Décision :** ✗ rouge devant chaque erreur (compilation, fichier illisible, enregistrement impossible, nom trop long, .dsk ouvert dans l'émulateur) ; ✓ vert devant « Compilation réussie » ; rien devant les simples informations (aide F1, fichier ouvert, réglages).
+- **Accessibilité :** un lecteur d'écran lit « Erreur : » ou « Réussi : » à la place de l'icône (texte du message).
+- **Fichiers :** MainWindow.axaml.cs (MessageKind, ShowError).
+
 ---
 
 ## Notes de fin de session (modèle)

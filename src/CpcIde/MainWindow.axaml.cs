@@ -36,17 +36,29 @@ public partial class MainWindow : Window
     static IBrush Make(string hex) => new SolidColorBrush(Color.Parse(hex));
 
     // Une ligne du panneau de messages. Line vaut 0 quand le message n'est lié à aucune ligne.
+    // Sorte de message (D114) : une erreur a un ✗ rouge devant, une réussite un ✓ vert, une information rien.
+    enum MessageKind { Info, Success, Error }
+
     sealed class MessageItem
     {
-        public MessageItem(string text, int line)
+        public MessageItem(string text, int line, MessageKind kind = MessageKind.Info)
         {
             Text = text;
             Line = line;
+            Kind = kind;
         }
 
         public string Text { get; }
         public int Line { get; }
-        public override string ToString() => Text;
+        public MessageKind Kind { get; }
+
+        // Ce que lit un lecteur d'écran : le mot dit ce que l'icône montre
+        public override string ToString() => Kind switch
+        {
+            MessageKind.Error => "Erreur : " + Text,
+            MessageKind.Success => "Réussi : " + Text,
+            _ => Text
+        };
     }
 
     readonly EditorSettings settings = EditorSettings.Load();
@@ -68,8 +80,27 @@ public partial class MainWindow : Window
         Editor.TextArea.TextView.LineTransformers.Add(colorizer);
 
         // Messages (D113) : une longue phrase passe à la ligne au lieu d'être coupée au bord du panneau
-        MessageList.ItemTemplate = new FuncDataTemplate<MessageItem>(
-            (item, _) => new TextBlock { Text = item?.Text ?? "", TextWrapping = TextWrapping.Wrap });
+        // Une icône (D114) devant les erreurs (✗ rouge) et les réussites (✓ vert)
+        MessageList.ItemTemplate = new FuncDataTemplate<MessageItem>((item, _) =>
+        {
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("28,*") };
+            var icon = new TextBlock { FontWeight = FontWeight.Bold };
+            if (item?.Kind == MessageKind.Error)
+            {
+                icon.Text = "✗";
+                icon.Foreground = Make("#FF6060");
+            }
+            else if (item?.Kind == MessageKind.Success)
+            {
+                icon.Text = "✓";
+                icon.Foreground = Make("#40E040");
+            }
+            var text = new TextBlock { Text = item?.Text ?? "", TextWrapping = TextWrapping.Wrap };
+            Grid.SetColumn(text, 1);
+            row.Children.Add(icon);
+            row.Children.Add(text);
+            return row;
+        });
 
         // Un espace entre la colonne des numéros de l'éditeur et le texte du programme :
         // sans lui, « 1 » (éditeur) et « 10 » (numéro BASIC) se lisent comme « 110 ».
@@ -451,7 +482,7 @@ public partial class MainWindow : Window
         string? path = files[0].TryGetLocalPath();
         if (path is null)
         {
-            ShowMessage("Impossible de lire ce fichier : son emplacement n'est pas accessible.");
+            ShowError("Impossible de lire ce fichier : son emplacement n'est pas accessible.");
             return;
         }
 
@@ -468,7 +499,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ShowMessage($"Impossible de lire le fichier : {ex.Message}");
+            ShowError($"Impossible de lire le fichier : {ex.Message}");
         }
     }
 
@@ -490,7 +521,7 @@ public partial class MainWindow : Window
             string? chosen = file.TryGetLocalPath();
             if (chosen is null)
             {
-                ShowMessage("Impossible d'enregistrer ici : emplacement non accessible.");
+                ShowError("Impossible d'enregistrer ici : emplacement non accessible.");
                 return false;
             }
             currentPath = chosen;
@@ -511,7 +542,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ShowMessage($"Impossible d'enregistrer le fichier : {ex.Message}");
+            ShowError($"Impossible d'enregistrer le fichier : {ex.Message}");
             return false;
         }
     }
@@ -527,7 +558,7 @@ public partial class MainWindow : Window
         string name = Path.GetFileNameWithoutExtension(path).ToUpperInvariant();
         if (name.Length is 0 or > 8)
         {
-            ShowMessage($"Le nom « {name} » ne convient pas : une disquette CPC accepte 8 caractères au plus. " +
+            ShowError($"Le nom « {name} » ne convient pas : une disquette CPC accepte 8 caractères au plus. " +
                         "Renommez le fichier (par exemple « jeu.bas ») puis recompilez.");
             return;
         }
@@ -550,14 +581,14 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
-            ShowMessage($"Compilation impossible : {ex.Message}");
+            ShowError($"Compilation impossible : {ex.Message}");
             return;
         }
 
         if (!result.Success)
         {
             // une erreur dans un autre programme (RUN "nom", D087) ne mène pas à une ligne de celui-ci
-            var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0)).ToList();
+            var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0, MessageKind.Error)).ToList();
             items.Add(new MessageItem($"{result.Diagnostics.Count} erreur(s). Aucun fichier n'a été créé.", 0));
             ShowMessages(items);
             return;
@@ -585,7 +616,7 @@ public partial class MainWindow : Window
         {
             ShowMessages(new[]
             {
-                new MessageItem("Impossible d'écrire le fichier .dsk : il est sans doute ouvert dans votre émulateur.", 0),
+                new MessageItem("Impossible d'écrire le fichier .dsk : il est sans doute ouvert dans votre émulateur.", 0, MessageKind.Error),
                 new MessageItem("Fermez l'émulateur (ou éjectez la disquette), puis compilez de nouveau.", 0),
                 new MessageItem($"Fichier : {dskPath}", 0),
                 new MessageItem($"Détail de Windows : {ex.Message}", 0)
@@ -596,7 +627,7 @@ public partial class MainWindow : Window
         string modules = result.Modules.Count == 0 ? "aucun" : string.Join(", ", result.Modules);
         var done = new List<MessageItem>
         {
-            new MessageItem($"Compilation réussie : {dskPath}", 0),
+            new MessageItem($"Compilation réussie : {dskPath}", 0, MessageKind.Success),
             new MessageItem($"Programme Z80 : {result.BinarySize} octets. Modules liés : {modules}.", 0),
             new MessageItem("Machine : tous les CPC (le programme reconnaît la machine au démarrage). " +
                             $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}. " +
@@ -616,6 +647,7 @@ public partial class MainWindow : Window
     // ---------- Panneau de messages ----------
 
     void ShowMessage(string text) => ShowMessages(new[] { new MessageItem(text, 0) });
+    void ShowError(string text) => ShowMessages(new[] { new MessageItem(text, 0, MessageKind.Error) });
 
     void ShowMessages(IEnumerable<MessageItem> items)
     {
