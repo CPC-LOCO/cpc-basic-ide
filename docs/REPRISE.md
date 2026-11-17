@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Reglage F7 retire : tous les CPC » (17 nov. 2026, **1352 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Barre de menus a la place des boutons » (17 nov. 2026, **1352 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -62,6 +62,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 - **Lot L (terminé) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ (D102), L2 DEC$ (D103), L3 ORIGIN avec fenêtre graphique et PEN transparent (D104) faits. L4a GRAPHICS PEN / PAPER (D106) et L4b FILL et PAINT (D107, D108 ; accélérés en D109 : deux fois plus rapides que le FILL du 6128) faits. L4c MASK et GRAPHICS PEN stylo, mode (D110 : SCR WRITE détourné, points exactement ceux du firmware) fait. **Lot L terminé.** Nos propres routines (D105) : lecture et écriture directes de l'écran et calcul des lignes voisines (D109), réutilisables pour CIRCLE, POLYGON…
 - **Reste de l'inventaire :** quelques remarques « Partielle » (MEMORY, @, PRINT, CURSOR ,1 et MASK ,1 sans première valeur) ; vérifier MASK sur un 464 (D110).
 - **Réglage F7 retiré (D111)** : un programme compilé marche toujours sur tous les CPC ; messages d'incompatibilité notés dans IDEES.md.
+- **Remodelage de l'éditeur (en cours)** : étape 1 faite, barre de menus Fichier / Compiler / Options / Aide à la place des boutons, F1 = raccourcis (D112). Étapes suivantes : barre d'état lisible (ligne, colonne, mode seulement), panneau des messages redimensionnable sans phrase coupée.
 - **Commandes de l'éditeur (D077)** : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro de ligne.
 - Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
 
@@ -145,4 +146,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Reglage F7 retire : tous les CPC » ; 1352 tests passent. Les lots A à L sont finis. Propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Barre de menus a la place des boutons » ; 1352 tests passent. Les lots A à L sont finis, le remodelage de l'éditeur est en cours. Propose-moi la suite, une étape à la fois.

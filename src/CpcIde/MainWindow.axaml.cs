@@ -112,6 +112,35 @@ public partial class MainWindow : Window
     void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
     void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
+    void OnQuitClick(object? sender, RoutedEventArgs e) => Close();
+    void OnNormalSizeClick(object? sender, RoutedEventArgs e) => SetFontSize(EditorSettings.DefaultFontSize);
+    void OnShortcutsClick(object? sender, RoutedEventArgs e) => ShowShortcuts();
+    void OnAboutClick(object? sender, RoutedEventArgs e) => ShowAbout();
+
+    // Aide (D112) : les raccourcis, affichés dans le panneau des messages (lisibles par un lecteur d'écran)
+    void ShowShortcuts()
+    {
+        ShowMessages(new[]
+        {
+            new MessageItem("Raccourcis clavier :", 0),
+            new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   F5 : compiler.", 0),
+            new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
+            new MessageItem("F8 : variables sans signe entières ou à virgule.   F9 : touche ESC comme le CPC ou ignorée.", 0),
+            new MessageItem("F11 : texte du programme sur la disquette (pour le vrai BASIC : LOAD\"NOM.TXT\" puis RUN).", 0),
+            new MessageItem("Ctrl et + / Ctrl et - / Ctrl et 0 : taille du texte.   Ctrl+H : contraste élevé.", 0),
+            new MessageItem("Alt : ouvrir la barre de menus (les lettres soulignées choisissent un menu).   F1 : cette aide.", 0)
+        });
+    }
+
+    void ShowAbout()
+    {
+        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "?";
+        ShowMessages(new[]
+        {
+            new MessageItem($"CPC BASIC IDE, version {version} : éditeur et compilateur de BASIC pour Amstrad CPC.", 0),
+            new MessageItem("Logiciel libre (licence GPL 3), par RetroPoke : https://github.com/CPC-LOCO/cpc-basic-ide", 0)
+        });
+    }
 
     async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
@@ -196,6 +225,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleBreakKey();
         }
+        else if (e.Key == Key.F1)
+        {
+            e.Handled = true;
+            ShowShortcuts();
+        }
         else if (e.Key == Key.F11)
         {
             e.Handled = true;
@@ -274,9 +308,13 @@ public partial class MainWindow : Window
 
     void UpdateOptionButtons()
     {
-        TextButton.Content = settings.TextOnDisk ? "Texte sur la disquette : oui (F11)" : "Texte sur la disquette : non (F11)";
-        BreakButton.Content = breakKey ? "ESC : comme le CPC (F9)" : "ESC : ignorée (F9)";
-        RealButton.Content = realByDefault ? "Sans signe : à virgule (F8)" : "Sans signe : entiers (F8)";
+        // Menu Options (D112) : coché quand le réglage est actif
+        TextMenu.IsChecked = settings.TextOnDisk;
+        BreakMenu.IsChecked = breakKey;
+        RealMenu.Header = realByDefault
+            ? "_Variables sans signe (A, X...) : à virgule"
+            : "_Variables sans signe (A, X...) : entières";
+        ContrastMenu.IsChecked = settings.HighContrast;
         UpdateStatus();
     }
 
@@ -310,9 +348,6 @@ public partial class MainWindow : Window
         StatusText.Foreground = Make(high ? "#FFFFFF" : "#C0C0C0");
         StatusBar.Background = Make(high ? "#000000" : "#202020");
 
-        ContrastButton.Content = high
-            ? "Contraste élevé : oui (Ctrl+H)"
-            : "Contraste élevé : non (Ctrl+H)";
         UpdateOptionButtons();
 
         UpdateColumns();

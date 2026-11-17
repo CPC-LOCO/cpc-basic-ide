@@ -18,7 +18,7 @@ Le fichier n'est pas signé numériquement : Windows ou votre antivirus peut le 
 - Écrivez vos propres petits programmes avec ce que décrit le `LISEZMOI.txt` (variables, calculs, boucles, conditions, fonctions, hasard).
 - Essayez de faire des erreurs exprès : les messages sont-ils clairs ? Disent-ils où est le problème et comment le corriger ?
 
-**Astuce : le réglage F8 et les boucles rapides.** Avec le réglage F8 (« Sans signe : à virgule »), toutes les variables sans signe deviennent des nombres à virgule, comme sur le vrai CPC. Une boucle d'attente comme `FOR K = 1 TO 30000` devient alors beaucoup plus lente, car les calculs à virgule passent par la ROM. Pour la garder rapide, écrivez le compteur avec le signe des entiers : `FOR K% = 1 TO 30000`.
+**Astuce : le réglage F8 et les boucles rapides.** Avec le réglage F8 (menu Options, « Variables sans signe : à virgule »), toutes les variables sans signe deviennent des nombres à virgule, comme sur le vrai CPC. Une boucle d'attente comme `FOR K = 1 TO 30000` devient alors beaucoup plus lente, car les calculs à virgule passent par la ROM. Pour la garder rapide, écrivez le compteur avec le signe des entiers : `FOR K% = 1 TO 30000`.
 
 Les graphismes, les sons et le clavier ne sont pas encore là : il est inutile de les tester.
 

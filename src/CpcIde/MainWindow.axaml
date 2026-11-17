@@ -51,24 +51,38 @@
     </Window.Resources>
 
     <DockPanel>
-        <!-- Barre de boutons en haut : elle passe à la ligne si la fenêtre est étroite -->
-        <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,6,6,0">
-            <Button Content="Ouvrir (Ctrl+O)" Click="OnOpenClick" />
-            <Button Content="Enregistrer (Ctrl+S)" Click="OnSaveClick" />
-            <Button Content="Compiler (F5)" Click="OnCompileClick" />
-            <Button Content="Texte - (Ctrl+-)" Click="OnSmallerClick" />
-            <Button Content="Texte + (Ctrl++)" Click="OnBiggerClick" />
-            <Button x:Name="ContrastButton" Content="Contraste : non (Ctrl+H)" Click="OnContrastClick" />
-            <!-- Réglages de compilation (D066) : machine cible, et variables sans signe entières ou à virgule -->
-            <Button x:Name="RealButton" Content="Sans signe : entiers (F8)" Click="OnRealClick"
-                    AutomationProperties.Name="Variables sans signe" />
-            <!-- Touche ESC (D083) : comme le vrai BASIC, ou ignorée -->
-            <Button x:Name="BreakButton" Content="ESC : comme le CPC (F9)" Click="OnBreakClick"
-                    AutomationProperties.Name="Touche ESC" />
-            <!-- Texte du programme sur la disquette, pour le vrai BASIC (D101) -->
-            <Button x:Name="TextButton" Content="Texte sur la disquette : non (F11)" Click="OnTextClick"
-                    AutomationProperties.Name="Texte du programme sur la disquette" />
-        </WrapPanel>
+        <!-- Barre de menus Windows (D112) : Alt ouvre les menus, les lettres soulignées les choisissent ; les raccourcis
+             (Ctrl+O, F5, F8...) restent les mêmes. Les réglages sont cochés quand ils sont actifs. -->
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top" FontSize="15">
+            <MenuItem Header="_Fichier">
+                <MenuItem Header="_Ouvrir..." InputGesture="Ctrl+O" Click="OnOpenClick" />
+                <MenuItem Header="_Enregistrer" InputGesture="Ctrl+S" Click="OnSaveClick" />
+                <Separator />
+                <MenuItem Header="_Quitter" InputGesture="Alt+F4" Click="OnQuitClick" />
+            </MenuItem>
+            <MenuItem Header="_Compiler">
+                <MenuItem Header="_Compiler le programme" InputGesture="F5" Click="OnCompileClick" />
+            </MenuItem>
+            <MenuItem Header="_Options">
+                <!-- Pas de coche ici : le texte dit l'état actuel (entières ou à virgule), F8 passe de l'un à l'autre -->
+                <MenuItem x:Name="RealMenu" Header="_Variables sans signe (A, X...) : entières" InputGesture="F8"
+                          Click="OnRealClick" />
+                <MenuItem x:Name="BreakMenu" Header="Touche _ESC comme le CPC" InputGesture="F9"
+                          ToggleType="CheckBox" Click="OnBreakClick" />
+                <MenuItem x:Name="TextMenu" Header="_Texte du programme sur la disquette" InputGesture="F11"
+                          ToggleType="CheckBox" Click="OnTextClick" />
+                <Separator />
+                <MenuItem x:Name="ContrastMenu" Header="Contraste é_levé" InputGesture="Ctrl+H"
+                          ToggleType="CheckBox" Click="OnContrastClick" />
+                <MenuItem Header="Texte plus _grand (Ctrl et +)" Click="OnBiggerClick" />
+                <MenuItem Header="Texte plus _petit (Ctrl et -)" Click="OnSmallerClick" />
+                <MenuItem Header="Taille du texte _normale (Ctrl et 0)" Click="OnNormalSizeClick" />
+            </MenuItem>
+            <MenuItem Header="_Aide">
+                <MenuItem Header="_Raccourcis clavier" InputGesture="F1" Click="OnShortcutsClick" />
+                <MenuItem Header="À _propos" Click="OnAboutClick" />
+            </MenuItem>
+        </Menu>
 
         <!-- Barre d'état tout en bas -->
         <Border x:Name="StatusBar" DockPanel.Dock="Bottom" Background="#202020" Padding="8,4">

@@ -849,6 +849,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Idée notée (IDEES.md) :** messages d'incompatibilité, le jour où une commande ne pourra pas marcher partout (mémoire en plus du 6128, CPC Plus, GX4000…).
 - **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs, EditorSettings.cs (la ligne « Machine » d'un ancien reglages.json est simplement ignorée).
 
+## D112 : barre de menus Windows à la place des gros boutons (demande de l'utilisateur, 17 nov. 2026 ; première étape du remodelage de l'éditeur)
+- **Demande :** l'éditeur ne faisait pas assez « pro » : boutons trop gros et peu jolis ; un menu à la Windows est préféré.
+- **Décision :** une barre de menus remplace la rangée de boutons. **Fichier** (Ouvrir Ctrl+O, Enregistrer Ctrl+S, Quitter), **Compiler** (F5), **Options** (réglages F8, F9, F11, contraste élevé Ctrl+H, taille du texte), **Aide** (Raccourcis clavier, nouvelle touche **F1**, et À propos, affichés dans le panneau des messages pour rester lisibles par un lecteur d'écran). Alt ouvre les menus, les lettres soulignées les choisissent ; tous les raccourcis restent les mêmes.
+- **Coches :** F9, F11 et Ctrl+H sont des « oui / non », cochés quand ils sont actifs. **F8 n'a pas de coche** (idée de l'utilisateur) : une coche devant « à virgule » était difficile à comprendre ; le texte dit l'état actuel : « Variables sans signe (A, X...) : entières » ou « : à virgule ».
+- **Suite prévue :** barre d'état lisible (ligne, colonne, mode), panneau des messages sans phrase coupée.
+- **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs.
+
 ---
 
 ## Notes de fin de session (modèle)
