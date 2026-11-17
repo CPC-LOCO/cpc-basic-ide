@@ -819,6 +819,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **FILL** garde le comportement du vrai BASIC (s'arrête sur le stylo graphique et l'encre de remplissage) pour la compatibilité, mais avec notre propre routine (D105) ; FILL et PAINT partageront le même code.
 - **Mot réservé nouveau :** PAINT (il était déjà prévu et coloré dans l'éditeur) ; à ajouter à la section 13 de COMPATIBILITE-LOCOMOTIVE.md quand il sera fait.
 
+## D108 : lot L4b, FILL et PAINT, première version (Validé le 17 nov. 2026 : 1344 tests réussis ; `remplir.bas` dans WinAPE : PAINT ne remplit que le triangle du haut, FILL tout le carré)
+- **Routine commune** (module Fill, D105, D107) : remplissage par lignes avec une pile dans la mémoire libre (entre rt_arr_heap et rt_str_ptr ; FILL et PAINT activent donc la mémoire libre) ; passage seulement par le haut, le bas, la gauche et la droite ; un pixel à la fois (4, 2 ou 1 unité en largeur selon le MODE, 2 en hauteur) ; limité à la fenêtre graphique (GRA GET W WIDTH / HEIGHT, moins l'origine) ; le curseur et le stylo graphiques sont remis comme avant. Pile pleine : des morceaux restent sans couleur (pas d'erreur).
+- **PAINT encre** (commande nouvelle, D107) : seulement les points de l'encre trouvée sous le curseur. **FILL encre** : tous les points sauf ceux de l'encre du stylo graphique et de l'encre du remplissage (règle du vrai BASIC, D106).
+- **Lenteur constatée par l'utilisateur :** cette version lit et colorie chaque point par le firmware (GRA TEST, GRA PLOT). Étape suivante proposée : lire et écrire directement dans la mémoire de l'écran (comme BOX, D048), en coupant la ROM haute.
+- **Mot réservé nouveau :** PAINT (section 13 de COMPATIBILITE-LOCOMOTIVE.md).
+- **Tests :** MiniZ80 simule GRA GET PEN, GRA GET ORIGIN, GRA GET W WIDTH / HEIGHT. Correction pendant l'étape : la fin de la routine appelait le firmware par un saut (JP), que le simulateur ne suit pas ; remplacé par CALL puis RET. ArrayTests.cs : FILL remplacé par MASK.
+- **Fichiers :** RuntimeLibrary.cs (module Fill), Parser.cs, CodeGenerator.cs (usesHeap), MiniZ80.cs, `tests\CpcBasic.Tests\FillTests.cs` (nouveau). Exemple : `examples\remplir.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

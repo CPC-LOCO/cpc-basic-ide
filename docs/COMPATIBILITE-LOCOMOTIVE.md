@@ -137,7 +137,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `GRAPHICS PEN` | stylo et mode de remplissage des tracés | Partielle | GRAPHICS PEN stylo (D106, tous les CPC) ; le mode transparent viendra avec MASK. |
 | `GRAPHICS PAPER` | fond des tracés | Faite | D106 (tous les CPC). |
 | `MASK` | motif des lignes | À faire | BASIC 1.1 seulement (664, 6128). |
-| `FILL` | remplit une zone | À faire | BASIC 1.1 seulement (664, 6128). |
+| `FILL` | remplit une zone | Faite | D108 : notre propre routine, sur tous les CPC (passage par les côtés seulement). Encore lente : accélération prévue. |
 | `TEST / TESTR` | lit la couleur d'un point | Faite | Le curseur graphique va au point, comme le vrai BASIC (D091). |
 | `XPOS / YPOS` | position du curseur graphique | Faite | D091. |
 
@@ -270,8 +270,9 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `HIBYTE / LOBYTE` | octet de poids fort / faible | Ajout du projet |  |
 | `CLAMP` | borne une valeur | Ajout du projet | CLAMP(valeur, min, max). |
 | `RANDOM` | nombre au hasard entre deux bornes | Ajout du projet | RANDOM(min, max). |
+| `PAINT` | colorie la zone de l'encre qui est sous le curseur graphique | Ajout du projet | PAINT encre (D107, D108) : seulement les points de cette encre qui se touchent par les côtés. Idée de l'utilisateur. |
 
-**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : CIRCLE, ELLIPSE, STAR, PAINT, POLYGON, SPRITE, COLLIDE, SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE.
+**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : CIRCLE, ELLIPSE, STAR, POLYGON, SPRITE, COLLIDE, SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE.
 
 ## Règles pour les prochaines commandes
 

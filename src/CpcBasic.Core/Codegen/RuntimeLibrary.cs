@@ -295,6 +295,8 @@ public static class RuntimeLibrary
     public const string DecLabel = "rt_dec";                    // HL = nombre, B, C, D, E comme rt_using_num -> HL = fiche
     public const string DecDynName = "DecDyn";
     public const string DecDynLabel = "rt_dec_dyn";             // HL = nombre, DE = fiche du format -> HL = fiche
+    public const string FillName = "Fill";                       // FILL et PAINT (lot L4b, D107)
+    public const string FillLabel = "rt_fill";                  // A = encre, B = 1 (FILL) ou 0 (PAINT)
     public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
     public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
@@ -4315,6 +4317,297 @@ public static class RuntimeLibrary
             e.LdEA();
             e.PopHl();
             e.JpLabel(DecLabel);
+        }),
+
+        // FILL et PAINT (lot L4b, D105, D107) : notre propre remplissage, le même sur tous les CPC. Remplissage par lignes :
+        // un point de départ est pris dans la pile ; on va à gauche tant que le point convient, puis à droite en coloriant ;
+        // pour chaque point colorié, la ligne du dessus et celle du dessous sont notées (un point par morceau) dans la pile.
+        // Passage seulement par le haut, le bas, la gauche et la droite (jamais par un coin). Un point « convient » :
+        //  PAINT (rt_pf_fm = 0) : son encre est celle trouvée sous le curseur au départ (rien à faire si c'est déjà la bonne) ;
+        //  FILL (rt_pf_fm = 1) : son encre n'est ni celle du stylo graphique ni celle du remplissage (vrai BASIC, D106).
+        // Les points sont lus par GRA TEST et coloriés par GRA PLOT (encre du remplissage), dans la fenêtre graphique,
+        // un pixel à la fois : 4, 2 ou 1 unité en largeur selon le MODE, 2 en hauteur. La pile est dans la mémoire libre
+        // (entre rt_arr_heap et rt_str_ptr) ; si elle est pleine, des morceaux restent sans couleur. Le curseur graphique et
+        // le stylo graphique sont remis comme avant.
+        [FillName] = new RuntimeModule(FillName, [HeapName], e =>
+        {
+            e.Label(FillLabel);                      // A = encre, B = 1 (FILL) ou 0 (PAINT)
+            e.LdMemA("rt_pf_new");
+            e.LdAB();
+            e.LdMemA("rt_pf_fm");
+            e.CallAddress(0xBBC6);                   // GRA ASK CURSOR
+            e.LdMemDe("rt_pf_cx");
+            e.LdMemHl("rt_pf_cy");
+            e.CallAddress(0xBBE1);                   // GRA GET PEN
+            e.LdMemA("rt_pf_pen");
+            e.CallAddress(0xBC11);                   // SCR GET MODE : largeur d'un pixel = 8 >> (mode + 1)
+            e.LdBA();
+            e.IncB();
+            e.LdAImm(8);
+            e.Label("rt_pf_dxl");
+            e.SrlA();
+            e.DjnzLabel("rt_pf_dxl");
+            e.LdLA();
+            e.LdHZero();
+            e.LdMemHl("rt_pf_dx");
+            e.CallAddress(0xBBCC);                   // GRA GET ORIGIN
+            e.LdMemDe("rt_pf_ox");
+            e.LdMemHl("rt_pf_oy");
+            e.CallAddress(0xBBD5);                   // GRA GET W WIDTH : DE = gauche, HL = droite (repère de l'écran)
+            e.PushHl();
+            e.ExDeHl();
+            e.LdDeMem("rt_pf_ox");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_pf_wl");
+            e.PopHl();
+            e.LdDeMem("rt_pf_ox");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_pf_wr");
+            e.CallAddress(0xBBD8);                   // GRA GET W HEIGHT : DE = haut, HL = bas
+            e.PushHl();
+            e.ExDeHl();
+            e.LdDeMem("rt_pf_oy");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_pf_wt");
+            e.PopHl();
+            e.LdDeMem("rt_pf_oy");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_pf_wb");
+            e.LdDeMem("rt_pf_cx");                   // encre sous le curseur
+            e.LdHlMem("rt_pf_cy");
+            e.CallAddress(0xBBF0);                   // GRA TEST
+            e.LdMemA("rt_pf_tgt");
+            e.LdAMem("rt_pf_fm");
+            e.OrA();
+            e.JrNzLabel("rt_pf_go");
+            e.LdAMem("rt_pf_new");                   // PAINT avec la même encre : rien à faire
+            e.LdHlLabel("rt_pf_tgt");
+            e.CpMemHl();
+            e.JpZLabel("rt_pf_done");
+            e.Label("rt_pf_go");
+            e.LdAMem("rt_pf_new");
+            e.CallAddress(0xBBDE);                   // GRA SET PEN : encre du remplissage
+            e.LdHlMem(ArrayHeapLabel);
+            e.LdMemHl("rt_pf_base");
+            e.LdMemHl("rt_pf_sp");
+            e.LdDeMem("rt_pf_cx");
+            e.LdHlMem("rt_pf_cy");
+            e.CallLabel("rt_pf_push");
+
+            e.Label("rt_pf_loop");
+            e.CallLabel("rt_pf_pop");
+            e.JpNcLabel("rt_pf_fin");
+            e.LdMemDe("rt_pf_x");
+            e.LdMemHl("rt_pf_y");
+            e.LdDeMem("rt_pf_wb");                   // y dans la fenêtre ?
+            e.CallLabel("rt_pf_lt");
+            e.JrCLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_wt");
+            e.LdDeMem("rt_pf_y");
+            e.CallLabel("rt_pf_lt");
+            e.JrCLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_x");                    // x dans la fenêtre ?
+            e.LdDeMem("rt_pf_wl");
+            e.CallLabel("rt_pf_lt");
+            e.JrCLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_wr");
+            e.LdDeMem("rt_pf_x");
+            e.CallLabel("rt_pf_lt");
+            e.JrCLabel("rt_pf_loop");
+            e.LdDeMem("rt_pf_x");
+            e.LdHlMem("rt_pf_y");
+            e.CallLabel("rt_pf_match");
+            e.JrNcLabel("rt_pf_loop");
+            e.LdHlMem("rt_pf_x");
+            e.LdMemHl("rt_pf_xl");
+            e.Label("rt_pf_left");                   // vers la gauche
+            e.LdHlMem("rt_pf_xl");
+            e.LdDeMem("rt_pf_dx");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_pf_tmp");
+            e.LdDeMem("rt_pf_wl");
+            e.CallLabel("rt_pf_lt");
+            e.JrCLabel("rt_pf_ldone");
+            e.LdDeMem("rt_pf_tmp");
+            e.LdHlMem("rt_pf_y");
+            e.CallLabel("rt_pf_match");
+            e.JrNcLabel("rt_pf_ldone");
+            e.LdHlMem("rt_pf_tmp");
+            e.LdMemHl("rt_pf_xl");
+            e.JrLabel("rt_pf_left");
+            e.Label("rt_pf_ldone");
+            e.XorA();
+            e.LdMemA("rt_pf_up");
+            e.LdMemA("rt_pf_dn");
+            e.LdHlMem("rt_pf_xl");
+            e.LdMemHl("rt_pf_xx");
+            e.Label("rt_pf_right");                  // vers la droite, en coloriant
+            e.LdHlMem("rt_pf_wr");
+            e.LdDeMem("rt_pf_xx");
+            e.CallLabel("rt_pf_lt");
+            e.JpCLabel("rt_pf_loop");
+            e.LdDeMem("rt_pf_xx");
+            e.LdHlMem("rt_pf_y");
+            e.CallLabel("rt_pf_match");
+            e.JpNcLabel("rt_pf_loop");
+            e.LdDeMem("rt_pf_xx");
+            e.LdHlMem("rt_pf_y");
+            e.CallAddress(0xBBEA);                   // GRA PLOT
+            e.LdHlMem("rt_pf_y");
+            e.IncHl();
+            e.IncHl();
+            e.CallLabel("rt_pf_nb_up");
+            e.LdHlMem("rt_pf_y");
+            e.DecHl();
+            e.DecHl();
+            e.CallLabel("rt_pf_nb_dn");
+            e.LdHlMem("rt_pf_xx");
+            e.LdDeMem("rt_pf_dx");
+            e.AddHlDe();
+            e.LdMemHl("rt_pf_xx");
+            e.JrLabel("rt_pf_right");
+
+            e.Label("rt_pf_fin");
+            e.LdAMem("rt_pf_pen");
+            e.CallAddress(0xBBDE);                   // le stylo graphique d'avant
+            e.Label("rt_pf_done");
+            e.LdDeMem("rt_pf_cx");
+            e.LdHlMem("rt_pf_cy");
+            e.CallAddress(0xBBC0);                   // GRA MOVE ABSOLUTE : le curseur d'avant
+            e.Ret();
+
+            // Ligne voisine (HL = y) : un morceau qui convient commence ? on note son premier point
+            foreach (string side in new[] { "up", "dn" })
+            {
+                e.Label($"rt_pf_nb_{side}");
+                e.LdMemHl("rt_pf_ny");
+                e.LdDeMem("rt_pf_wb");
+                e.CallLabel("rt_pf_lt");
+                e.JrCLabel($"rt_pf_out_{side}");
+                e.LdHlMem("rt_pf_wt");
+                e.LdDeMem("rt_pf_ny");
+                e.CallLabel("rt_pf_lt");
+                e.JrCLabel($"rt_pf_out_{side}");
+                e.LdDeMem("rt_pf_xx");
+                e.LdHlMem("rt_pf_ny");
+                e.CallLabel("rt_pf_match");
+                e.JrNcLabel($"rt_pf_out_{side}");
+                e.LdAMem($"rt_pf_{side}");
+                e.OrA();
+                e.RetNz();                           // déjà noté pour ce morceau
+                e.LdAImm(1);
+                e.LdMemA($"rt_pf_{side}");
+                e.LdDeMem("rt_pf_xx");
+                e.LdHlMem("rt_pf_ny");
+                e.JpLabel("rt_pf_push");
+                e.Label($"rt_pf_out_{side}");
+                e.XorA();
+                e.LdMemA($"rt_pf_{side}");
+                e.Ret();
+            }
+
+            // DE = x, HL = y : retenue si le point convient
+            e.Label("rt_pf_match");
+            e.CallAddress(0xBBF0);                   // GRA TEST : A = encre
+            e.LdBA();
+            e.LdAMem("rt_pf_fm");
+            e.OrA();
+            e.JrNzLabel("rt_pf_mfill");
+            e.LdAMem("rt_pf_tgt");                   // PAINT : la même encre qu'au départ
+            e.CpB();
+            e.Scf();
+            e.RetZ();
+            e.OrA();
+            e.Ret();
+            e.Label("rt_pf_mfill");                  // FILL : ni le stylo graphique, ni l'encre du remplissage
+            e.LdAMem("rt_pf_pen");
+            e.CpB();
+            e.JrZLabel("rt_pf_mno");
+            e.LdAMem("rt_pf_new");
+            e.CpB();
+            e.JrZLabel("rt_pf_mno");
+            e.Scf();
+            e.Ret();
+            e.Label("rt_pf_mno");
+            e.OrA();
+            e.Ret();
+
+            // HL < DE (avec le signe) : retenue
+            e.Label("rt_pf_lt");
+            e.LdAH();
+            e.XorImm(0x80);
+            e.LdHA();
+            e.LdAD();
+            e.XorImm(0x80);
+            e.LdDA();
+            e.OrA();
+            e.SbcHlDe();
+            e.Ret();
+
+            // Pile : DE = x, HL = y ; pas de place : le point est oublié
+            e.Label("rt_pf_push");
+            e.LdMemDe("rt_pf_px");
+            e.LdMemHl("rt_pf_py");
+            e.LdHlMem("rt_pf_sp");
+            e.LdDeImm(4);
+            e.AddHlDe();
+            e.ExDeHl();
+            e.LdHlMem(StringPointerLabel);
+            e.OrA();
+            e.SbcHlDe();
+            e.RetC();
+            e.LdHlMem("rt_pf_sp");
+            e.LdDeMem("rt_pf_px");
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.IncHl();
+            e.LdDeMem("rt_pf_py");
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.IncHl();
+            e.LdMemHl("rt_pf_sp");
+            e.Ret();
+
+            // Pile vide : pas de retenue ; sinon DE = x, HL = y et retenue
+            e.Label("rt_pf_pop");
+            e.LdHlMem("rt_pf_sp");
+            e.LdDeMem("rt_pf_base");
+            e.OrA();
+            e.SbcHlDe();
+            e.RetZ();
+            e.LdHlMem("rt_pf_sp");
+            e.DecHl();
+            e.LoadDFromHl();
+            e.DecHl();
+            e.LoadEFromHl();
+            e.PushDe();                              // y
+            e.DecHl();
+            e.LoadDFromHl();
+            e.DecHl();
+            e.LoadEFromHl();                         // DE = x
+            e.LdMemHl("rt_pf_sp");
+            e.PopHl();
+            e.Scf();
+            e.Ret();
+
+            foreach (string v in new[] { "cx", "cy", "dx", "ox", "oy", "wl", "wr", "wt", "wb", "x", "y", "xl", "xx", "tmp",
+                                         "ny", "px", "py", "sp", "base" })
+            {
+                e.Label($"rt_pf_{v}");
+                e.Reserve(2);
+            }
+            foreach (string v in new[] { "new", "fm", "pen", "tgt", "up", "dn" })
+            {
+                e.Label($"rt_pf_{v}");
+                e.Reserve(1);
+            }
         }),
 
         // ON x GOTO / GOSUB (D097) : x hors de 0 à 255 : « Improper argument », comme le Locomotive

@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -158,6 +158,9 @@ public static class Parser
         ["SYMBOL AFTER"] = new("SYMBOL AFTER premier caractère (0 à 256)", 1, [0], [256], Command: "SYMBOL AFTER"),
         // Lot L4a (D106) : stylo et fond des tracés ; le mode transparent de GRAPHICS PEN viendra avec MASK (L4c)
         ["GRAPHICS PEN"] = new("GRAPHICS PEN stylo (0 à 15)", 1, [0], [15], Command: "GRAPHICS PEN"),
+        // Lot L4b (D107) : remplissage ; PAINT est une commande nouvelle (seulement l'encre trouvée sous le curseur)
+        ["FILL"] = new("FILL encre (0 à 15)", 1, [0], [15]),
+        ["PAINT"] = new("PAINT encre (0 à 15)", 1, [0], [15]),
         ["GRAPHICS PAPER"] = new("GRAPHICS PAPER fond (0 à 15)", 1, [0], [15], Command: "GRAPHICS PAPER"),
         ["TAG"] = new("TAG [#fenêtre]", 0, [], []),
         // Lot I1 (D079) : coupe / remet les appels des minuteries
@@ -1006,7 +1009,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":

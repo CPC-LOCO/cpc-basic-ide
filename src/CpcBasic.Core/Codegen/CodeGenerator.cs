@@ -167,7 +167,8 @@ public static class CodeGenerator
         bool usesReals = program.Statements.Any(StatementUsesReals);   // nombres à virgule (D068)
         // Mémoire libre (D058, D062) : tableaux, textes, ou HIMEM et FRE qui la lisent (D094)
         bool usesHeap = arrays.Count > 0 || usesStrings
-                        || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }));
+                        || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }))
+                        || program.Statements.Any(st => st is ScreenStatement { Command: "FILL" or "PAINT" });   // pile du remplissage (D107)
 
         // Cases de calcul des nombres à virgule (voir EmitRealInto) : déclarées ici, avant EmitString qui s'en sert (STR$)
         int realFree = 0;
@@ -1571,6 +1572,14 @@ public static class CodeGenerator
                     emitter.JrZLabel(wait);
                     break;
                 }
+
+                case "FILL" or "PAINT":             // remplissage (D107) : notre propre routine
+                    required.Add(RuntimeLibrary.FillName);
+                    EmitExpression(a[0]);
+                    emitter.LdAL();
+                    emitter.LdBImm(screen.Command == "FILL" ? 1 : 0);
+                    emitter.CallLabel(RuntimeLibrary.FillLabel);
+                    break;
 
                 case "GRAPHICS PEN":                // stylo des tracés (D106) : GRA SET PEN
                     EmitCallWithA(a[0], GraSetPen);

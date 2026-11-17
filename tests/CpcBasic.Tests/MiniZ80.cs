@@ -30,6 +30,9 @@ internal sealed class MiniZ80
     /// <summary>Appels du firmware sans résultat à simuler, dans l'ordre (CURSOR, FRAME, D102).</summary>
     public readonly List<int> FirmwareCalls = new();
 
+    /// <summary>Fenêtre graphique (GRA WIN WIDTH / HEIGHT), en coordonnées de l'écran (D107).</summary>
+    public short WindowLeft, WindowRight = 639, WindowTop = 399, WindowBottom;
+
     /// <summary>Appels du firmware avec leurs registres : (adresse, A, DE, HL) (ORIGIN avec fenêtre, PEN transparent, D104).</summary>
     public readonly List<(int Address, byte A, ushort DE, ushort HL)> RegisterCalls = new();
 
@@ -845,6 +848,29 @@ internal sealed class MiniZ80
                 else if (address is 0xBBCF or 0xBBD2 or 0xBB9F or 0xBBE4)
                 {
                     RegisterCalls.Add((address, A, DE, HL));           // GRA WIN WIDTH / HEIGHT, TXT SET BACK (D104)
+                    if (address == 0xBBCF)
+                        (WindowLeft, WindowRight) = ((short)DE, (short)HL);
+                    else if (address == 0xBBD2)
+                        (WindowTop, WindowBottom) = ((short)DE, (short)HL);
+                }
+                else if (address == 0xBBE1)
+                {
+                    A = GraphicsPen;                                   // GRA GET PEN (D107)
+                }
+                else if (address == 0xBBCC)
+                {
+                    DE = 0;                                            // GRA GET ORIGIN : l'origine reste 0,0 ici (D107)
+                    HL = 0;
+                }
+                else if (address == 0xBBD5)
+                {
+                    DE = (ushort)WindowLeft;                           // GRA GET W WIDTH (D107)
+                    HL = (ushort)WindowRight;
+                }
+                else if (address == 0xBBD8)
+                {
+                    DE = (ushort)WindowTop;                            // GRA GET W HEIGHT (D107)
+                    HL = (ushort)WindowBottom;
                 }
                 else if (address is 0xBB81 or 0xBB84 or 0xBB7B or 0xBB7E or 0xBD19)
                 {
