@@ -68,6 +68,17 @@
                 <Separator />
                 <MenuItem Header="_Quitter" InputGesture="Alt+F4" Click="OnQuitClick" />
             </MenuItem>
+            <!-- Menu Édition (D121) : les raccourcis sont ceux de l'éditeur de texte, le menu les rappelle -->
+            <MenuItem Header="_Édition">
+                <MenuItem Header="_Annuler" InputGesture="Ctrl+Z" Click="OnUndoClick" />
+                <MenuItem Header="_Rétablir" InputGesture="Ctrl+Y" Click="OnRedoClick" />
+                <Separator />
+                <MenuItem Header="Co_uper" InputGesture="Ctrl+X" Click="OnCutClick" />
+                <MenuItem Header="_Copier" InputGesture="Ctrl+C" Click="OnCopyClick" />
+                <MenuItem Header="C_oller" InputGesture="Ctrl+V" Click="OnPasteClick" />
+                <Separator />
+                <MenuItem Header="_Tout sélectionner" InputGesture="Ctrl+A" Click="OnSelectAllClick" />
+            </MenuItem>
             <MenuItem Header="_Compiler">
                 <MenuItem Header="_Compiler le programme" InputGesture="F5" Click="OnCompileClick" />
             </MenuItem>

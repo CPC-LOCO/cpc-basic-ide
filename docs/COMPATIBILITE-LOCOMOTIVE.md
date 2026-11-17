@@ -248,7 +248,7 @@ Un programme compilé n'a pas de mode direct. **Décision de l'utilisateur (15 n
 |---|---|---|---|
 | `AUTO` | numérotation automatique | Éditeur, faite | AUTO début,pas ; ESC ou ligne vide l'arrête ; s'arrête aussi devant un numéro qui existe déjà (D116). |
 | `CONT` | reprend après STOP | Éditeur, faite | Affiche son rôle en BASIC, comme CLEAR (D115). |
-| `DELETE` | supprime des lignes | Éditeur, à faire | Même rôle que le vrai BASIC ; avertissement si des étiquettes sont utilisées, puis confirmation. |
+| `DELETE` | supprime des lignes | Éditeur, faite | DELETE 30, 10-50, -50, 100-, seul ; toujours une confirmation ; Ctrl+Z remet tout (D120). |
 | `EDIT` | modifie une ligne | Éditeur, faite | Place le curseur à la fin de la ligne demandée (D115). |
 | `LIST` | affiche le programme | Éditeur, à faire | Affiche le programme dans l'éditeur comme sur le CPC. |
 | `NEW` | efface le programme | Éditeur, faite | Avec la question « Enregistrer ? » si le programme a été modifié (D115). |

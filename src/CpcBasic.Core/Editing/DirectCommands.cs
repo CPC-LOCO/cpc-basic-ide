@@ -116,6 +116,46 @@ public static class DirectCommands
         int.TryParse(text.Trim(), System.Globalization.NumberStyles.None, null, out value) && value is >= 1 and <= 65535;
 
     /// <summary>
+    /// Plage de DELETE (et plus tard LIST), comme le CPC (D120) : rien = tout ; 30 ; 10-50 ; -50 (du début à 50) ;
+    /// 100- (de 100 à la fin). Faux si elle ne convient pas.
+    /// </summary>
+    public static bool TryParseRange(string argument, out int from, out int to)
+    {
+        from = 1;
+        to = 65535;
+        string a = argument.Trim();
+        if (a.Length == 0)
+            return true;
+        int dash = a.IndexOf('-');
+        if (dash < 0)
+        {
+            if (!TryLineNumber(a, out from))
+                return false;
+            to = from;
+            return true;
+        }
+        string left = a[..dash].Trim(), right = a[(dash + 1)..].Trim();
+        if (left.Length == 0 && right.Length == 0)
+            return false;
+        if (left.Length > 0 && !TryLineNumber(left, out from))
+            return false;
+        if (right.Length > 0 && !TryLineNumber(right, out to))
+            return false;
+        return from <= to;
+    }
+
+    /// <summary>Lignes de l'éditeur (comptées à partir de 1) dont le numéro BASIC est dans la plage, dans l'ordre.</summary>
+    public static List<int> LinesInRange(string text, int from, int to)
+    {
+        var result = new List<int>();
+        string[] lines = text.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+            if (LeadingNumber(lines[i], out _) is int n && n >= from && n <= to)
+                result.Add(i + 1);
+        return result;
+    }
+
+    /// <summary>
     /// Numéro BASIC au début d'une ligne de l'éditeur (D118) ; null s'il n'y en a pas (ou plus de 65535).
     /// numberOnly : rien d'autre que le numéro sur la ligne (sur le CPC, cela efface la ligne).
     /// </summary>

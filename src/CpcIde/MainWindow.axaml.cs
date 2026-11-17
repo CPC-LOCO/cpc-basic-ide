@@ -162,6 +162,20 @@ public partial class MainWindow : Window
             : "Lignes longues : sur une seule ligne, avec une barre de défilement en bas.");
     }
 
+    // Menu Édition (D121) : l'action, puis le clavier revient dans l'éditeur
+    void OnUndoClick(object? sender, RoutedEventArgs e) => EditAction(() => Editor.Undo());
+    void OnRedoClick(object? sender, RoutedEventArgs e) => EditAction(() => Editor.Redo());
+    void OnCutClick(object? sender, RoutedEventArgs e) => EditAction(Editor.Cut);
+    void OnCopyClick(object? sender, RoutedEventArgs e) => EditAction(Editor.Copy);
+    void OnPasteClick(object? sender, RoutedEventArgs e) => EditAction(Editor.Paste);
+    void OnSelectAllClick(object? sender, RoutedEventArgs e) => EditAction(Editor.SelectAll);
+
+    void EditAction(Action action)
+    {
+        action();
+        Editor.TextArea.Focus();
+    }
+
     void OnQuitClick(object? sender, RoutedEventArgs e) => Close();
     void OnNormalSizeClick(object? sender, RoutedEventArgs e) => SetFontSize(EditorSettings.DefaultFontSize);
     void OnShortcutsClick(object? sender, RoutedEventArgs e) => ShowShortcuts();
@@ -840,6 +854,10 @@ public partial class MainWindow : Window
                 ShowMessages(renumMessages);
                 break;
 
+            case DirectCommandKind.Delete:
+                await DeleteLinesAsync(command.Argument);
+                break;
+
             case DirectCommandKind.Explain:
                 ShowMessage(command.Explanation!);
                 break;
@@ -863,6 +881,53 @@ public partial class MainWindow : Window
             items.Add(new($"Le détail est noté dans le fichier {logPath} : envoyez-le pour que le problème soit corrigé.", 0));
         ShowMessages(items);
     }
+
+    // DELETE plage (D120) : toujours une question avant d'effacer ; Ctrl+Z remet tout d'un coup
+    async Task DeleteLinesAsync(string argument)
+    {
+        if (!DirectCommands.TryParseRange(argument, out int from, out int to))
+        {
+            ShowError("DELETE : écrivez DELETE 30, DELETE 10-50, DELETE -50 (du début à 50), DELETE 100- (de 100 à la fin), " +
+                      "ou DELETE seul (tout le programme).");
+            return;
+        }
+        var lines = DirectCommands.LinesInRange(Editor.Text, from, to);
+        if (lines.Count == 0)
+        {
+            ShowError(from == to
+                ? $"DELETE {from} : la ligne {from} n'existe pas, rien n'est effacé."
+                : "DELETE : aucune ligne dans cette plage, rien n'est effacé.");
+            return;
+        }
+
+        var document = Editor.Document;
+        string first = document.GetText(document.GetLineByNumber(lines[0])).Trim();
+        string last = document.GetText(document.GetLineByNumber(lines[^1])).Trim();
+        string what = argument.Trim().Length == 0 ? "tout le programme" : $"la plage {argument.Trim()}";
+        string question = lines.Count == 1
+            ? $"Effacer cette ligne ?\n\n{first}"
+            : $"Effacer {lines.Count} lignes ({what}) ?\n\nPremière : {Shorten(first)}\nDernière : {Shorten(last)}";
+        bool erase = await new ConfirmDialog("Effacer des lignes", question,
+                lines.Count == 1 ? "Effacer la ligne" : $"Effacer les {lines.Count} lignes", "Ne rien effacer")
+            .ShowDialog<bool>(this);
+        if (!erase)
+        {
+            ShowMessage("DELETE annulé : rien n'est effacé.");
+            return;
+        }
+
+        var toRemove = lines.Select(n => document.GetLineByNumber(n)).ToList();
+        using (document.RunUpdate())
+        {
+            foreach (var line in Enumerable.Reverse(toRemove))
+                document.Remove(line.Offset, line.TotalLength);
+        }
+        modified = Editor.Text != savedText;
+        UpdateTitle();
+        ShowMessages(new[] { new MessageItem($"DELETE : {lines.Count} ligne(s) effacée(s). Ctrl+Z les remet.", 0, MessageKind.Success) });
+    }
+
+    static string Shorten(string text) => text.Length <= 60 ? text : text[..60] + "...";
 
     // ---------- Numéro tapé seul, ou numéro déjà pris (D118) ----------
 

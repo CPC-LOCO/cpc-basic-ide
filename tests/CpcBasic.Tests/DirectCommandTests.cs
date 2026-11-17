@@ -100,4 +100,33 @@ public class DirectCommandTests
         Assert.Equal(1, DirectCommands.FindLine(text, 10, exceptLine: 3));
         Assert.Equal(3, DirectCommands.FindLine(text, 10, exceptLine: 1));
     }
+
+    [Theory]
+    [InlineData("", 1, 65535)]
+    [InlineData("30", 30, 30)]
+    [InlineData("10-50", 10, 50)]
+    [InlineData(" 10 - 50 ", 10, 50)]
+    [InlineData("-50", 1, 50)]
+    [InlineData("100-", 100, 65535)]
+    public void Plage(string argument, int from, int to)
+    {
+        Assert.True(DirectCommands.TryParseRange(argument, out int f, out int t));
+        Assert.Equal((from, to), (f, t));
+    }
+
+    [Theory]
+    [InlineData("-")]
+    [InlineData("50-10")]
+    [InlineData("A")]
+    [InlineData("0-10")]
+    [InlineData("10,20")]
+    public void Plage_refusee(string argument) => Assert.False(DirectCommands.TryParseRange(argument, out _, out _));
+
+    [Fact]
+    public void Lignes_dans_la_plage()
+    {
+        const string text = "10 CLS\n\n20 A=1\n30 B=2\n40 END\n";
+        Assert.Equal(new[] { 3, 4 }, DirectCommands.LinesInRange(text, 15, 35));
+        Assert.Equal(new[] { 1, 3, 4, 5 }, DirectCommands.LinesInRange(text, 1, 65535));
+    }
 }

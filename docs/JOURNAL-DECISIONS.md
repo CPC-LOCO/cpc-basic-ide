@@ -906,6 +906,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Cause trouvée grâce à elle :** « No undo group should be open at this point » : le groupe d'annulation de D118 pouvait rester ouvert, et l'ouverture suivante (Editor.Text = ...) le refusait. Corrigé : groupe par RunUpdate (toujours refermé) et document neuf à chaque Ouvrir / NEW. Refait par l'utilisateur : ne se reproduit plus.
 - **Fichiers :** App.axaml.cs, MainWindow.axaml.cs (ReportInternalError, SetText).
 
+## D120 : DELETE dans l'éditeur (17 nov. 2026) (validé par l'utilisateur)
+- **Comme le CPC :** DELETE 30 ; DELETE 10-50 ; DELETE -50 (du début à 50) ; DELETE 100- (de 100 à la fin) ; DELETE seul : tout le programme.
+- **Toujours une question** (D077) : nombre de lignes, première et dernière ; bouton choisi d'office « Ne rien effacer ». Un seul Ctrl+Z remet tout.
+- **Rien dans la plage :** message ✗, rien n'est effacé (DELETE 999 : « la ligne 999 n'existe pas »). Plage à l'envers (50-10), 0, autre chose que des numéros : message ✗ avec les formes acceptées.
+- **Étiquettes (D077) :** l'avertissement prévu viendra avec elles.
+- **Fichiers :** DirectCommands.cs (TryParseRange, LinesInRange, réutilisables pour LIST), MainWindow.axaml.cs (DeleteLinesAsync), DirectCommandTests.cs.
+
+## D121 : menu Édition (idée de l'utilisateur, 17 nov. 2026) (validé)
+- Annuler (Ctrl+Z), Rétablir (Ctrl+Y), Couper, Copier, Coller, Tout sélectionner ; entre Fichier et Compiler. Après le choix, le clavier revient dans l'éditeur.
+- **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs.
+
 ---
 
 ## Notes de fin de session (modèle)
