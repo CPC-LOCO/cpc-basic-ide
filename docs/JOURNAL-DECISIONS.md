@@ -806,6 +806,19 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Décision de l'utilisateur : C.** Il avait déjà prévu d'écrire nos propres routines : elles serviront aussi plus tard à PAINT et aux commandes de dessin nouvelles (CIRCLE, POLYGON…, D048, D052 : très rapides, écriture directe dans l'écran en coupant la ROM haute).
 - **À faire au début de L4 :** relever une référence dans WinAPE (6128) avec une disquette texte (outil de Claude ou réglage F11) : FILL d'une zone fermée, d'une zone ouverte, avec la fenêtre graphique ; MASK avec plusieurs motifs et GRAPHICS PEN stylo, 1 (transparent) ; puis découper L4 en étapes (GRAPHICS PEN / PAPER d'abord, puis MASK et le mode transparent, puis FILL).
 
+## D106 : lot L4a, GRAPHICS PEN et GRAPHICS PAPER (Validé le 17 nov. 2026 : 1334 tests réussis ; `grapen.bas` compilé et `GRAPEN.TXT` lancé par le vrai BASIC dans WinAPE : mêmes dessins)
+- **GRAPHICS PEN stylo** (0 à 15) : GRA SET PEN (&BBDE) ; **GRAPHICS PAPER fond** (0 à 15) : GRA SET PAPER (&BBE4), utilisé par CLG. Ces routines existent aussi sur le 464. Le mode transparent (`GRAPHICS PEN stylo, 1`) est refusé pour l'instant : il viendra avec MASK (L4c, notre propre tracé de ligne, D105).
+- **Référence (vrai BASIC dans WinAPE, `essais\refl4.dsk`, 17 nov. 2026)** pour la suite du lot : FILL ne déplace pas le curseur graphique (XPOS;YPOS restent 200 200) ; FILL s'arrête seulement sur l'encre du stylo graphique et sur l'encre de remplissage, et recouvre toutes les autres (fond, bordure d'une autre couleur, fond du texte) ; le firmware remplit par bandes verticales (l'utilisateur trouve sa façon de faire étrange, surtout en diagonale).
+- **À savoir :** TEST d'un point hors de la fenêtre graphique rend l'encre de GRAPHICS PAPER (firmware ; constaté avec grapen.bas : TEST(200,200) = 0).
+- **Tests :** MiniZ80 connaît GRA CLEAR WINDOW (rien à simuler) et note GRA SET PAPER. ArrayTests.cs : GRAPHICS remplacé par MASK.
+- **Fichiers :** Parser.cs, CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\GraphicsPenTests.cs` (nouveau). Exemple : `examples\grapen.bas`.
+
+## D107 : PAINT encre, commande nouvelle (idée de l'utilisateur, 17 nov. 2026 ; pas encore codé, à faire avec FILL en L4b)
+- **Demande de l'utilisateur** (il n'aime pas la façon de remplir de FILL) : `PAINT encre` lit l'encre du point sous le curseur graphique et ne colorie, avec l'encre donnée, que les points de cette même encre qui se touchent ; toute autre encre arrête la peinture.
+- **Règles proposées et acceptées :** passage seulement par le haut, le bas, la gauche et la droite, jamais par un coin (un trait en diagonale ferme une zone) ; rien à faire si l'encre sous le curseur est déjà la bonne ; limité à la fenêtre graphique ; le curseur graphique ne bouge pas.
+- **FILL** garde le comportement du vrai BASIC (s'arrête sur le stylo graphique et l'encre de remplissage) pour la compatibilité, mais avec notre propre routine (D105) ; FILL et PAINT partageront le même code.
+- **Mot réservé nouveau :** PAINT (il était déjà prévu et coloré dans l'éditeur) ; à ajouter à la section 13 de COMPATIBILITE-LOCOMOTIVE.md quand il sera fait.
+
 ---
 
 ## Notes de fin de session (modèle)

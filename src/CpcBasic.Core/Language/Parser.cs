@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -156,6 +156,9 @@ public static class Parser
         ["SYMBOL"] = new("SYMBOL caractère, ligne1 [, ligne2, ... ligne8] (de 0 à 255)", 2,
                          [0, 0, 0, 0, 0, 0, 0, 0, 0], [255, 255, 255, 255, 255, 255, 255, 255, 255]),
         ["SYMBOL AFTER"] = new("SYMBOL AFTER premier caractère (0 à 256)", 1, [0], [256], Command: "SYMBOL AFTER"),
+        // Lot L4a (D106) : stylo et fond des tracés ; le mode transparent de GRAPHICS PEN viendra avec MASK (L4c)
+        ["GRAPHICS PEN"] = new("GRAPHICS PEN stylo (0 à 15)", 1, [0], [15], Command: "GRAPHICS PEN"),
+        ["GRAPHICS PAPER"] = new("GRAPHICS PAPER fond (0 à 15)", 1, [0], [15], Command: "GRAPHICS PAPER"),
         ["TAG"] = new("TAG [#fenêtre]", 0, [], []),
         // Lot I1 (D079) : coupe / remet les appels des minuteries
         ["DI"] = new("DI", 0, [], []),
@@ -879,6 +882,10 @@ public static class Parser
             // Fenêtres (lot H1, D072)
             case "WINDOW" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "SWAP":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["WINDOW SWAP"], pos + 2);
+
+            // Stylo et fond des tracés (lot L4a, D106)
+            case "GRAPHICS" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "PEN" or "PAPER":
+                return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["GRAPHICS " + tokens[pos + 1].Text], pos + 2);
 
             // Caractères (lot H4, D075)
             case "SYMBOL" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "AFTER":

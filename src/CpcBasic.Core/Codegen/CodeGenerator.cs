@@ -1572,6 +1572,14 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "GRAPHICS PEN":                // stylo des tracés (D106) : GRA SET PEN
+                    EmitCallWithA(a[0], GraSetPen);
+                    break;
+
+                case "GRAPHICS PAPER":              // fond des tracés, pour CLG (D106) : GRA SET PAPER
+                    EmitCallWithA(a[0], GraSetPaper);
+                    break;
+
                 case "FRAME":                       // attend le début du balayage de l'écran (D102)
                     emitter.CallAddress(0xBD19);    // MC WAIT FLYBACK
                     break;

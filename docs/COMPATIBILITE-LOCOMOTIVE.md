@@ -134,8 +134,8 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `DRAW / DRAWR` | trace une ligne | Faite | Stylo et mode facultatifs. |
 | `ORIGIN` | origine des coordonnées graphiques | Faite | ORIGIN x, y [, gauche, droite, haut, bas] : fenêtre graphique (D104). |
 | `CLG` | efface l'écran graphique | Faite | Avec un stylo facultatif. |
-| `GRAPHICS PEN` | stylo et mode de remplissage des tracés | À faire | BASIC 1.1 seulement (664, 6128). |
-| `GRAPHICS PAPER` | fond des tracés | À faire | BASIC 1.1 seulement (664, 6128). |
+| `GRAPHICS PEN` | stylo et mode de remplissage des tracés | Partielle | GRAPHICS PEN stylo (D106, tous les CPC) ; le mode transparent viendra avec MASK. |
+| `GRAPHICS PAPER` | fond des tracés | Faite | D106 (tous les CPC). |
 | `MASK` | motif des lignes | À faire | BASIC 1.1 seulement (664, 6128). |
 | `FILL` | remplit une zone | À faire | BASIC 1.1 seulement (664, 6128). |
 | `TEST / TESTR` | lit la couleur d'un point | Faite | Le curseur graphique va au point, comme le vrai BASIC (D091). |

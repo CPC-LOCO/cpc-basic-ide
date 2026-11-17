@@ -838,11 +838,11 @@ internal sealed class MiniZ80
                 {
                     // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
                 }
-                else if (address is 0xBBC9 or 0xBB90)
+                else if (address is 0xBBC9 or 0xBB90 or 0xBBDB)
                 {
-                    // GRA SET ORIGIN, TXT SET PEN : rien à simuler (D104)
+                    // GRA SET ORIGIN, TXT SET PEN, GRA CLEAR WINDOW : rien à simuler (D104, D106)
                 }
-                else if (address is 0xBBCF or 0xBBD2 or 0xBB9F)
+                else if (address is 0xBBCF or 0xBBD2 or 0xBB9F or 0xBBE4)
                 {
                     RegisterCalls.Add((address, A, DE, HL));           // GRA WIN WIDTH / HEIGHT, TXT SET BACK (D104)
                 }
