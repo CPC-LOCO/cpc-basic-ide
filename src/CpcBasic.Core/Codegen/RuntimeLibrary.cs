@@ -297,6 +297,14 @@ public static class RuntimeLibrary
     public const string DecDynLabel = "rt_dec_dyn";             // HL = nombre, DE = fiche du format -> HL = fiche
     public const string FillName = "Fill";                       // FILL et PAINT (lot L4b, D107)
     public const string FillLabel = "rt_fill";                  // A = encre, B = 1 (FILL) ou 0 (PAINT)
+    public const string MaskName = "Mask";                       // MASK, GRAPHICS PEN mode (lot L4c, D110)
+    public const string MaskInstallLabel = "rt_mk_install";
+    public const string MaskRemoveLabel = "rt_mk_remove";
+    public const string MaskBeginLabel = "rt_mk_begin";
+    public const string MaskEndLabel = "rt_mk_end";
+    public const string MaskPatternLabel = "rt_mk_pat";         // octet : motif (tourne à chaque point tracé)
+    public const string MaskFirstLabel = "rt_mk_first";         // octet : 1 = premier point de la ligne tracé
+    public const string MaskTransparentLabel = "rt_mk_tr";      // octet : 1 = fond transparent
     public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
     public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
@@ -4839,6 +4847,173 @@ public static class RuntimeLibrary
                 e.Label($"rt_pf_{v}");
                 e.Reserve(1);
             }
+        }),
+
+        // MASK et GRAPHICS PEN stylo, mode (lot L4c, D110). Le firmware de tous les CPC écrit chaque point d'une ligne par
+        // l'entrée détournable SCR WRITE (&BDE8 : HL = adresse, C = masque du point, B = encre codée). Elle est détournée vers
+        // rt_mk_write pendant DRAW et DRAWR (rt_mk_on) : le premier point d'une ligne est sauté si MASK …,0 ; ensuite, le bit
+        // de gauche du motif (qui tourne à chaque point tracé, et continue d'une ligne à l'autre) dit si le point prend
+        // l'encre du stylo (1) ou le fond : encre de GRAPHICS PAPER (opaque) ou rien (transparent). Les points sont donc
+        // exactement ceux du firmware. Relevé dans WinAPE (vrai BASIC 1.1, essais\refl5.dsk, 17 nov. 2026).
+        [MaskName] = new RuntimeModule(MaskName, [], e =>
+        {
+            e.Label(MaskInstallLabel);               // détourne SCR WRITE (une fois)
+            e.LdAMem("rt_mk_ready");
+            e.OrA();
+            e.RetNz();
+            e.IncA();
+            e.LdMemA("rt_mk_ready");
+            e.LdHlImm(0xBDE8);
+            e.LdDeLabel("rt_mk_save");
+            e.LdBcImm(3);
+            e.Ldir();
+            e.LdHlImm(0xBDE8);
+            e.StoreHlImm(0xC3);
+            e.IncHl();
+            e.LdDeLabel("rt_mk_write");
+            e.StoreHlE();
+            e.IncHl();
+            e.StoreHlD();
+            e.Ret();
+
+            e.Label(MaskRemoveLabel);                // remet SCR WRITE (avant RUN "nom")
+            e.LdAMem("rt_mk_ready");
+            e.OrA();
+            e.RetZ();
+            e.XorA();
+            e.LdMemA("rt_mk_ready");
+            e.LdHlLabel("rt_mk_save");
+            e.LdDeImm(0xBDE8);
+            e.LdBcImm(3);
+            e.Ldir();
+            e.Ret();
+
+            e.Label(MaskBeginLabel);                 // avant DRAW : DE et HL gardés
+            e.PushDe();
+            e.PushHl();
+            e.CallAddress(0xBBE7);                   // GRA GET PAPER
+            e.CallAddress(0xBC2C);                   // SCR INK ENCODE
+            e.LdMemA("rt_mk_paper");
+            e.CallAddress(0xBC11);                   // SCR GET MODE : masque du point de gauche, points par octet
+            e.AddAA();
+            e.LdEA();
+            e.LdDZero();
+            e.LdHlLabel("rt_mk_modes");
+            e.AddHlDe();
+            e.LdAHl();
+            e.LdMemA("rt_mk_lmask");
+            e.IncHl();
+            e.LdAHl();
+            e.LdMemA("rt_mk_ppb");
+            e.LdAImm(1);
+            e.LdMemA("rt_mk_on");
+            e.LdMemA("rt_mk_start");
+            e.PopHl();
+            e.PopDe();
+            e.Ret();
+
+            e.Label(MaskEndLabel);                   // après DRAW : PLOT et le reste ne sont pas touchés
+            e.XorA();
+            e.LdMemA("rt_mk_on");
+            e.Ret();
+
+            // SCR WRITE détourné : C peut désigner plusieurs points d'un octet (le firmware écrit une ligne horizontale octet
+            // par octet). Chaque point est pris de gauche à droite : le premier de la ligne est sauté si MASK …,0 ; sinon le
+            // bit de gauche du motif le range dans les points du stylo (rt_mk_pm) ou du fond (rt_mk_gm), et le motif tourne.
+            // Puis les points du stylo sont écrits avec l'encre demandée, ceux du fond avec l'encre de GRAPHICS PAPER
+            // (rien en mode transparent).
+            e.Label("rt_mk_write");
+            e.LdAMem("rt_mk_on");
+            e.OrA();
+            e.JpZLabel("rt_mk_save");
+            e.PushDe();
+            e.LdAC();
+            e.LdMemA("rt_mk_wm");
+            e.XorA();
+            e.LdMemA("rt_mk_pm");
+            e.LdMemA("rt_mk_gm");
+            e.LdAMem("rt_mk_lmask");
+            e.LdEA();
+            e.LdAMem("rt_mk_ppb");
+            e.LdDA();
+            e.Label("rt_mk_px");
+            e.LdAMem("rt_mk_wm");
+            e.AndE();
+            e.JrZLabel("rt_mk_next");
+            e.LdAMem("rt_mk_start");
+            e.OrA();
+            e.JrZLabel("rt_mk_body");
+            e.XorA();
+            e.LdMemA("rt_mk_start");
+            e.LdAMem(MaskFirstLabel);                // premier point de la ligne : tracé seulement si MASK …,1
+            e.OrA();
+            e.JrZLabel("rt_mk_next");
+            e.Label("rt_mk_body");
+            e.LdAMem(MaskPatternLabel);              // bit de gauche du motif, puis le motif tourne
+            e.AddAA();
+            e.JrNcLabel("rt_mk_gap");
+            e.IncA();
+            e.LdMemA(MaskPatternLabel);
+            e.LdAMem("rt_mk_pm");
+            e.OrE();
+            e.LdMemA("rt_mk_pm");
+            e.JrLabel("rt_mk_next");
+            e.Label("rt_mk_gap");
+            e.LdMemA(MaskPatternLabel);
+            e.LdAMem("rt_mk_gm");
+            e.OrE();
+            e.LdMemA("rt_mk_gm");
+            e.Label("rt_mk_next");
+            e.SrlE();
+            e.DecD();
+            e.JrNzLabel("rt_mk_px");
+            e.PopDe();
+            e.LdAMem("rt_mk_pm");                    // points du stylo
+            e.OrA();
+            e.JrZLabel("rt_mk_wgap");
+            e.PushHl();
+            e.PushBc();
+            e.LdCA();
+            e.CallLabel("rt_mk_save");
+            e.PopBc();
+            e.PopHl();
+            e.Label("rt_mk_wgap");
+            e.LdAMem(MaskTransparentLabel);
+            e.OrA();
+            e.RetNz();                               // transparent : les points du fond gardent ce qui est dessous
+            e.LdAMem("rt_mk_gm");
+            e.OrA();
+            e.RetZ();
+            e.PushHl();
+            e.PushBc();
+            e.LdCA();
+            e.LdAMem("rt_mk_paper");                 // opaque : encre de GRAPHICS PAPER
+            e.LdBA();
+            e.CallLabel("rt_mk_save");
+            e.PopBc();
+            e.PopHl();
+            e.Ret();
+
+            e.Label("rt_mk_modes");                  // par MODE : masque du point de gauche, points par octet
+            e.Data([0xAA, 2, 0x88, 4, 0x80, 8]);
+            foreach (string v in new[] { "rt_mk_lmask", "rt_mk_ppb", "rt_mk_wm", "rt_mk_pm", "rt_mk_gm" })
+            {
+                e.Label(v);
+                e.Data([0]);
+            }
+            e.Label(MaskPatternLabel);
+            e.Data([0xFF]);
+            e.Label(MaskFirstLabel);
+            e.Data([1]);
+            e.Label(MaskTransparentLabel);
+            e.Data([0]);
+            foreach (string v in new[] { "rt_mk_on", "rt_mk_start", "rt_mk_ready", "rt_mk_paper" })
+            {
+                e.Label(v);
+                e.Data([0]);
+            }
+            e.Label("rt_mk_save");                   // l'entrée d'origine de SCR WRITE (JP vers la ROM)
+            e.Reserve(3);
         }),
 
         // ON x GOTO / GOSUB (D097) : x hors de 0 à 255 : « Improper argument », comme le Locomotive

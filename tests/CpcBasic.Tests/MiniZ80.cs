@@ -132,6 +132,63 @@ internal sealed class MiniZ80
     // Graphisme (D091) : curseur graphique, points tracés (couleur), réglages SPEED INK / SPEED KEY
     public short GraphicsX, GraphicsY;
     public byte GraphicsPen = 1;
+
+    /// <summary>Encre de GRAPHICS PAPER (GRA SET PAPER, D110).</summary>
+    public byte GraphicsPaper;
+
+    // Lignes avec SCR WRITE détourné (D110) : les points (adresse, masque) qui restent à écrire
+    readonly Queue<(int, byte)> lineQueue = new();
+
+    public MiniZ80()
+    {
+        Memory[0xBDE8] = 0xC3;                                         // SCR WRITE : JP &BDFC (le firmware simulé)
+        Memory[0xBDE9] = 0xFC;
+        Memory[0xBDEA] = 0xBD;
+    }
+
+    // Points d'une ligne du BASIC (Bresenham, en pixels du firmware, les deux bouts compris)
+    void QueueLine(int x0, int y0, int x1, int y1)
+    {
+        int shift = ScreenMode switch { 0 => 2, 1 => 1, _ => 0 };
+        x0 >>= shift;
+        x1 >>= shift;
+        y0 >>= 1;
+        y1 >>= 1;
+        int dx = Math.Abs(x1 - x0), dy = -Math.Abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
+        while (true)
+        {
+            if (x0 >= 0 && y0 >= 0 && y0 < 200 && x0 < 80 * PixelsPerByte)
+            {
+                // Comme le firmware : les points qui se suivent dans le même octet sont écrits d'un seul appel (D110)
+                (int dot, byte dotMask) = DotPosition(x0, y0);
+                if (lastLineDot == dot)
+                    lineMerge |= dotMask;
+                else
+                {
+                    FlushLineDot();
+                    lastLineDot = dot;
+                    lineMerge = dotMask;
+                }
+            }
+            if (x0 == x1 && y0 == y1)
+                break;
+            int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+        FlushLineDot();
+        lastLineDot = -1;
+    }
+
+    int lastLineDot = -1;
+    byte lineMerge;
+
+    void FlushLineDot()
+    {
+        if (lastLineDot >= 0)
+            lineQueue.Enqueue((lastLineDot, lineMerge));
+        lastLineDot = -1;
+    }
     public readonly Dictionary<(int X, int Y), byte> Points = new();
     public readonly List<(string Kind, byte First, byte Second)> Speeds = new();
     // KEY, KEY DEF (D092) : appels du firmware (routine, A, B) et textes des touches de fonction
@@ -506,6 +563,27 @@ internal sealed class MiniZ80
 
     void Step()
     {
+        if (pc == 0xBDFC)
+        {
+            Memory[HL] = (byte)((Memory[HL] & ~C) | (B & C));          // SCR WRITE du firmware : le point est écrit (D110)
+            pc = Pop();
+            return;
+        }
+        if (pc == 0xBDFE)
+        {
+            if (lineQueue.Count == 0)
+            {
+                pc = Pop();                                            // la ligne est finie : retour après GRA LINE
+                return;
+            }
+            (int dot, byte dotMask) = lineQueue.Dequeue();
+            HL = (ushort)dot;
+            C = dotMask;
+            B = EncodeInk(GraphicsPen);
+            Push(0xBDFE);
+            pc = 0xBDE8;                                               // point suivant : par l'entrée SCR WRITE
+            return;
+        }
         int opcodeAddress = pc;
         byte op = Fetch();
 
@@ -732,8 +810,16 @@ internal sealed class MiniZ80
                         case 0xBC3E: Speeds.Add(("INK", H, L)); break; // SCR SET FLASHING
                         case 0xBB3F: Speeds.Add(("KEY", H, L)); break; // KM SET DELAY
                         default:                                       // MOVE, PLOT, LINE, TEST : le curseur va au point
+                            short fromX = GraphicsX, fromY = GraphicsY;
                             GraphicsX = (short)((relative ? GraphicsX : 0) + (short)DE);
                             GraphicsY = (short)((relative ? GraphicsY : 0) + (short)HL);
+                            if (address is 0xBBF6 or 0xBBF9 && (Memory[0xBDE9] != 0xFC || Memory[0xBDEA] != 0xBD))
+                            {
+                                // SCR WRITE détourné (MASK, D110) : chaque point de la ligne passe par &BDE8, comme le firmware
+                                QueueLine(fromX, fromY, GraphicsX, GraphicsY);
+                                Push((ushort)pc);
+                                pc = 0xBDFE;
+                            }
                             if (address is 0xBBEA or 0xBBED)
                             {
                                 Points[(GraphicsX, GraphicsY)] = GraphicsPen;
@@ -891,13 +977,19 @@ internal sealed class MiniZ80
                 {
                     // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
                 }
-                else if (address is 0xBBC9 or 0xBB90 or 0xBBDB)
+                else if (address is 0xBBC9 or 0xBB90)
                 {
-                    // GRA SET ORIGIN, TXT SET PEN, GRA CLEAR WINDOW : rien à simuler (D104, D106)
+                    // GRA SET ORIGIN, TXT SET PEN : rien à simuler (D104)
+                }
+                else if (address == 0xBBDB)
+                {
+                    Array.Fill(Memory, EncodeInk(GraphicsPaper), 0xC000, 0x4000);   // GRA CLEAR WINDOW : tout l'écran ici (D110)
                 }
                 else if (address is 0xBBCF or 0xBBD2 or 0xBB9F or 0xBBE4)
                 {
                     RegisterCalls.Add((address, A, DE, HL));           // GRA WIN WIDTH / HEIGHT, TXT SET BACK (D104)
+                    if (address == 0xBBE4)
+                        GraphicsPaper = A;                             // GRA SET PAPER (D110)
                     if (address == 0xBBCF)
                         (WindowLeft, WindowRight) = ((short)DE, (short)HL);
                     else if (address == 0xBBD2)
@@ -921,6 +1013,10 @@ internal sealed class MiniZ80
                 else if (address == 0xBC2C)
                 {
                     A = EncodeInk(A);                                  // SCR INK ENCODE (D109)
+                }
+                else if (address == 0xBBE7)
+                {
+                    A = GraphicsPaper;                                 // GRA GET PAPER (D110)
                 }
                 else if (address == 0xBBE1)
                 {
@@ -1196,6 +1292,7 @@ internal sealed class MiniZ80
             case 0x11: C = Rl(C); break;                               // RL C
             case 0x1B: E = Rl_Right(E); break;                         // RR E
             case 0x3A: CarryFlag = (D & 0x01) != 0; D = (byte)(D >> 1); ZeroFlag = D == 0; break;   // SRL D
+            case 0x3B: CarryFlag = (E & 0x01) != 0; E = (byte)(E >> 1); ZeroFlag = E == 0; break;   // SRL E (D110)
             case 0x3F: CarryFlag = (A & 0x01) != 0; A = (byte)(A >> 1); ZeroFlag = A == 0; break;   // SRL A
             case 0x12: D = Rl(D); break;                               // RL D
             case 0x23:                                                 // SLA E

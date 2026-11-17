@@ -104,9 +104,9 @@ public class ArrayTests
     }
 
     [Theory]
-    [InlineData("10 A = MASK(3)")]  // SIN existe depuis le lot F2 (D069), FRE (D094) et DERR (D099) depuis le lot K
-    [InlineData("10 DIM MASK(3)")]    // ERASE (D096), FRAME (D102), FILL (D107) existent
-    [InlineData("10 MASK(1) = 2")]   // CURSOR (D102) et GRAPHICS (D106) existent ;   // SOUND existe depuis le lot G1 (D071), WINDOW (D072) et ZONE (D073) depuis le lot H
+    [InlineData("10 A = RENUM(3)")]  // SIN existe depuis le lot F2 (D069), FRE (D094) et DERR (D099) depuis le lot K
+    [InlineData("10 DIM AUTO(3)")]    // ERASE (D096), FRAME (D102), FILL (D107) existent
+    [InlineData("10 NEW(1) = 2")]   // CURSOR (D102) et GRAPHICS (D106) existent ;   // SOUND existe depuis le lot G1 (D071), WINDOW (D072) et ZONE (D073) depuis le lot H
     public void Un_mot_du_Locomotive_pas_encore_disponible_ne_devient_pas_un_tableau(string source)
     {
         Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.NotYetAvailable);

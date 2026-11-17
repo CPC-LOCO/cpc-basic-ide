@@ -166,6 +166,9 @@ public static class CodeGenerator
         bool usesStrings = program.Statements.Any(StatementUsesStrings);
         bool usesReals = program.Statements.Any(StatementUsesReals);   // nombres à virgule (D068)
         // Mémoire libre (D058, D062) : tableaux, textes, ou HIMEM et FRE qui la lisent (D094)
+        // MASK ou GRAPHICS PEN stylo, mode : SCR WRITE est détourné pendant DRAW (D110)
+        bool usesMask = program.Statements.Any(st => st is ScreenStatement { Command: "MASK" }
+                                                         or ScreenStatement { Command: "GRAPHICS PEN", Arguments.Count: 2 });
         bool usesHeap = arrays.Count > 0 || usesStrings
                         || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }))
                         || program.Statements.Any(st => st is ScreenStatement { Command: "FILL" or "PAINT" });   // pile du remplissage (D107)
@@ -1581,8 +1584,30 @@ public static class CodeGenerator
                     emitter.CallLabel(RuntimeLibrary.FillLabel);
                     break;
 
-                case "GRAPHICS PEN":                // stylo des tracés (D106) : GRA SET PEN
+                case "GRAPHICS PEN":                // stylo des tracés (D106) : GRA SET PEN ; mode transparent (D110)
                     EmitCallWithA(a[0], GraSetPen);
+                    if (a.Count == 2)
+                    {
+                        required.Add(RuntimeLibrary.MaskName);
+                        EmitExpression(a[1]);
+                        emitter.LdAL();
+                        emitter.LdMemA(RuntimeLibrary.MaskTransparentLabel);
+                        emitter.CallLabel(RuntimeLibrary.MaskInstallLabel);
+                    }
+                    break;
+
+                case "MASK":                        // motif des lignes [, premier point] (D110)
+                    required.Add(RuntimeLibrary.MaskName);
+                    EmitExpression(a[0]);
+                    emitter.LdAL();
+                    emitter.LdMemA(RuntimeLibrary.MaskPatternLabel);
+                    if (a.Count == 2)
+                    {
+                        EmitExpression(a[1]);
+                        emitter.LdAL();
+                        emitter.LdMemA(RuntimeLibrary.MaskFirstLabel);
+                    }
+                    emitter.CallLabel(RuntimeLibrary.MaskInstallLabel);
                     break;
 
                 case "GRAPHICS PAPER":              // fond des tracés, pour CLG (D106) : GRA SET PAPER
@@ -1872,7 +1897,12 @@ public static class CodeGenerator
 
             emitter.PopHl();       // y
             emitter.PopDe();       // x
+            bool masked = usesMask && draw.Command is "DRAW" or "DRAWR";
+            if (masked)
+                emitter.CallLabel(RuntimeLibrary.MaskBeginLabel);   // MASK et fond transparent pendant la ligne (D110)
             emitter.CallAddress(address);
+            if (masked)
+                emitter.CallLabel(RuntimeLibrary.MaskEndLabel);
         }
 
         // Étiquettes des lignes numérotées, placées juste avant l'instruction qui les suit (GOTO, GOSUB, ON ; D054)
@@ -3177,6 +3207,8 @@ public static class CodeGenerator
 
                 case RunFileStatement runFile:          // RUN "nom" : autre programme compilé (D086)
                     required.Add(RuntimeLibrary.FileBinaryName);
+                    if (usesMask)
+                        emitter.CallLabel(RuntimeLibrary.MaskRemoveLabel);   // SCR WRITE ne doit plus venir ici (D110)
                     if (usesEvents)
                         emitter.CallLabel(RuntimeLibrary.EventsStopLabel);   // le compteur du firmware ne doit plus venir ici
                     EmitString(runFile.Name);

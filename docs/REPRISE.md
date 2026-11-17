@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D109 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D110 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « FILL et PAINT accélérés » (17 nov. 2026, **1346 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Lot L4c : MASK et GRAPHICS PEN transparent (fin du lot L) » (17 nov. 2026, **1352 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -59,7 +59,8 @@ Documents de référence :
 ### Prochaine étape
 
 Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » et « Partielle ») :
-- **Lot L (en cours) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ (D102), L2 DEC$ (D103), L3 ORIGIN avec fenêtre graphique et PEN transparent (D104) faits. L4a GRAPHICS PEN / PAPER (D106) et L4b FILL et PAINT (D107, D108 ; accélérés en D109 : deux fois plus rapides que le FILL du 6128) faits. Reste L4c : MASK et GRAPHICS PEN mode transparent (notre propre tracé de ligne). **Décision D105 : nos propres routines Z80**, qui marchent sur tous les CPC (pas les routines du 664/6128) ; elles serviront aussi à PAINT, CIRCLE, POLYGON… Commencer par une référence WinAPE (voir D105).
+- **Lot L (terminé) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ (D102), L2 DEC$ (D103), L3 ORIGIN avec fenêtre graphique et PEN transparent (D104) faits. L4a GRAPHICS PEN / PAPER (D106) et L4b FILL et PAINT (D107, D108 ; accélérés en D109 : deux fois plus rapides que le FILL du 6128) faits. L4c MASK et GRAPHICS PEN stylo, mode (D110 : SCR WRITE détourné, points exactement ceux du firmware) fait. **Lot L terminé.** Nos propres routines (D105) : lecture et écriture directes de l'écran et calcul des lignes voisines (D109), réutilisables pour CIRCLE, POLYGON…
+- **Reste de l'inventaire :** quelques remarques « Partielle » (MEMORY, @, PRINT, CURSOR ,1 et MASK ,1 sans première valeur) ; vérifier MASK sur un 464 (D110).
 - **Commandes de l'éditeur (D077)** : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro de ligne.
 - Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
 
@@ -143,4 +144,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « FILL et PAINT acceleres » ; 1346 tests passent. Les lots A à K sont finis, le lot L (BASIC 1.1) est en cours (L1 à L3 faits ; L4a et L4b faits ; reste L4c MASK, avec nos propres routines, D105). Propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Lot L4c : MASK et GRAPHICS PEN transparent (fin du lot L) » ; 1352 tests passent. Les lots A à L sont finis. Propose-moi la suite, une étape à la fois.
