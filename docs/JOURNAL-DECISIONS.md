@@ -883,6 +883,29 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Correction pendant l'essai :** la première version fermait l'éditeur à la deuxième ligne (le curseur avait déjà suivi le texte ajouté, la ligne cherchée n'existait pas). Corrigé ; de plus, un problème imprévu dans une commande de l'éditeur arrête la commande avec un message ✗ au lieu de fermer l'éditeur.
 - **Fichiers :** DirectCommands.cs (TryParseAuto), MainWindow.axaml.cs (StartAutoLine, ContinueAuto, StopAuto), DirectCommandTests.cs.
 
+## D117 : RENUM dans l'éditeur (17 nov. 2026) (validé par l'utilisateur dans l'éditeur)
+- **Comme le CPC :** RENUM [nouveau][,[ancien][,pas]] : 10, première ligne et 10 si absents (RENUM 100,,5 ; RENUM 1000,30). Les lignes avant « ancien » ne bougent pas.
+- **Renvois corrigés :** numéros après GOTO, GOSUB (donc aussi ON ... GOTO/GOSUB 10,20,30, ON ERROR GOTO, ON BREAK GOSUB, EVERY/AFTER ... GOSUB, ON SQ ... GOSUB), THEN, ELSE, RESTORE, RESUME, RUN. ON ERROR GOTO 0 reste 0. Textes entre guillemets, REM, ' et DATA jamais touchés (le découpage passe par le Lexer du compilateur).
+- **Renvoi vers une ligne absente :** gardé tel quel et signalé (✗ « Undefined line »), comme le CPC.
+- **Refus (message ✗, rien ne change) :** deux lignes du même numéro, dernier numéro au-delà de 65535, nouvelle numérotation qui rejoindrait les lignes gardées (Improper argument), aucune ligne à partir de « ancien », aucune ligne numérotée.
+- **Ctrl+Z** annule RENUM en entier (remplacement par le document).
+- **Étiquettes (D077) :** pas encore dans le langage ; l'erreur prévue viendra avec elles.
+- **Fichiers :** src\CpcBasic.Core\Editing\Renumber.cs, MainWindow.axaml.cs, RenumberTests.cs.
+
+## D118 : numéro tapé seul, ou numéro déjà pris : confirmation (demande de l'utilisateur, 17 nov. 2026) (validé)
+- **Constat de l'utilisateur :** taper « 100 » + Entrée pour effacer la ligne 100, comme sur le CPC, ne faisait rien : la ligne 100 restait (piège).
+- **Numéro seul + Entrée :** si la ligne existe, question « Effacer la ligne 100 ? » avec son contenu (Oui : O ; Non : N, Entrée ou Échap). Le numéro tapé seul disparaît dans les deux cas. Si aucune autre ligne n'a ce numéro : le numéro seul est retiré, rien d'autre.
+- **Ligne tapée avec un numéro déjà pris ailleurs :** question « Remplacer l'ancienne ligne ? » avec les deux lignes ; Non : les deux restent, message ✗ (changer le numéro de l'une avant de compiler).
+- **Prudence :** le bouton choisi d'office est « Non » : une Entrée de trop n'efface rien. Ctrl+Z remet la ligne (un seul Ctrl+Z).
+- **Pas pendant AUTO** (AUTO s'arrête déjà devant un numéro existant, D116).
+- **Fichiers :** ConfirmDialog.cs (nouveau), DirectCommands.cs (LeadingNumber, FindLine avec exceptLine), MainWindow.axaml.cs (HandleExistingNumberAsync), DirectCommandTests.cs.
+
+## D119 : un problème imprévu ne ferme plus l'éditeur (17 nov. 2026)
+- **Constat :** l'éditeur s'est fermé d'un coup en ouvrant un fichier, après des effacements de lignes (D118) et une ligne en double gardée.
+- **Protection générale :** toute erreur imprévue est rattrapée (App.axaml.cs, Dispatcher.UIThread.UnhandledException) : l'éditeur reste ouvert, le programme n'est pas perdu, un message ✗ « Problème interne » s'affiche, et le détail est ajouté à %APPDATA%\CpcBasicIde\erreurs.txt (à envoyer pour corriger).
+- **Cause trouvée grâce à elle :** « No undo group should be open at this point » : le groupe d'annulation de D118 pouvait rester ouvert, et l'ouverture suivante (Editor.Text = ...) le refusait. Corrigé : groupe par RunUpdate (toujours refermé) et document neuf à chaque Ouvrir / NEW. Refait par l'utilisateur : ne se reproduit plus.
+- **Fichiers :** App.axaml.cs, MainWindow.axaml.cs (ReportInternalError, SetText).
+
 ---
 
 ## Notes de fin de session (modèle)

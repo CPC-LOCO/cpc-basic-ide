@@ -252,7 +252,7 @@ Un programme compilé n'a pas de mode direct. **Décision de l'utilisateur (15 n
 | `EDIT` | modifie une ligne | Éditeur, faite | Place le curseur à la fin de la ligne demandée (D115). |
 | `LIST` | affiche le programme | Éditeur, à faire | Affiche le programme dans l'éditeur comme sur le CPC. |
 | `NEW` | efface le programme | Éditeur, faite | Avec la question « Enregistrer ? » si le programme a été modifié (D115). |
-| `RENUM` | renumérote | Éditeur, à faire | Erreur si des étiquettes sont utilisées. |
+| `RENUM` | renumérote | Éditeur, faite | RENUM nouveau,ancien,pas ; GOTO, GOSUB, THEN, ELSE, RESTORE, RESUME, RUN corrigés ; Ctrl+Z annule (D117). Erreur prévue avec les étiquettes, quand elles viendront. |
 | `CLEAR`, `MEMORY`, `RUN`, `LOAD`, `SAVE`, `MERGE`, `CAT`, `CHAIN`, commandes AMSDOS (`|DISC`, `|TAPE`, `|A`, `|B`, `|DIR`, `|ERA`, `|REN`, `|USER`) | tapées dans l'éditeur sans numéro de ligne | Éditeur, faite | Affichent à quoi la commande correspond dans le langage BASIC (D077, D115). |
 
 ## 13. Ajouts du projet (hors Locomotive BASIC)

@@ -116,13 +116,32 @@ public static class DirectCommands
         int.TryParse(text.Trim(), System.Globalization.NumberStyles.None, null, out value) && value is >= 1 and <= 65535;
 
     /// <summary>
+    /// Numéro BASIC au début d'une ligne de l'éditeur (D118) ; null s'il n'y en a pas (ou plus de 65535).
+    /// numberOnly : rien d'autre que le numéro sur la ligne (sur le CPC, cela efface la ligne).
+    /// </summary>
+    public static int? LeadingNumber(string line, out bool numberOnly)
+    {
+        string s = line.Trim();
+        int n = 0;
+        while (n < s.Length && char.IsAsciiDigit(s[n]))
+            n++;
+        numberOnly = n > 0 && n == s.Length;
+        if (n == 0 || n > 5)
+            return null;
+        int value = int.Parse(s[..n]);
+        return value is >= 1 and <= 65535 ? value : null;
+    }
+
+    /// <summary>
     /// Ligne de l'éditeur (comptée à partir de 1) qui porte le numéro BASIC demandé ; null si aucune ligne ne l'a.
     /// </summary>
-    public static int? FindLine(string text, int number)
+    public static int? FindLine(string text, int number, int exceptLine = 0)
     {
         string[] lines = text.Split('\n');
         for (int i = 0; i < lines.Length; i++)
         {
+            if (i + 1 == exceptLine)
+                continue;
             string s = lines[i].TrimStart();
             int n = 0;
             while (n < s.Length && char.IsDigit(s[n]))

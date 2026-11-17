@@ -74,4 +74,30 @@ public class DirectCommandTests
     [InlineData("10,5,2")]
     [InlineData("-10")]
     public void AUTO_valeurs_refusees(string argument) => Assert.False(DirectCommands.TryParseAuto(argument, out _, out _));
+
+    [Theory]
+    [InlineData("100", 100, true)]
+    [InlineData("  100  ", 100, true)]
+    [InlineData("100 PRINT 1", 100, false)]
+    [InlineData("100PRINT", 100, false)]
+    public void Numero_en_debut_de_ligne(string line, int number, bool only)
+    {
+        Assert.Equal(number, DirectCommands.LeadingNumber(line, out bool numberOnly));
+        Assert.Equal(only, numberOnly);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("PRINT 1")]
+    [InlineData("0")]
+    [InlineData("70000")]
+    public void Pas_de_numero(string line) => Assert.Null(DirectCommands.LeadingNumber(line, out _));
+
+    [Fact]
+    public void Autre_ligne_du_meme_numero()
+    {
+        const string text = "10 CLS\n20 END\n10\n";
+        Assert.Equal(1, DirectCommands.FindLine(text, 10, exceptLine: 3));
+        Assert.Equal(3, DirectCommands.FindLine(text, 10, exceptLine: 1));
+    }
 }

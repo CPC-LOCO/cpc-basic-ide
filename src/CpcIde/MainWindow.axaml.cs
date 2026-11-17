@@ -223,7 +223,24 @@ public partial class MainWindow : Window
                 }
                 return;
             }
-            var command = DirectCommands.Recognize(Editor.Document.GetText(line));
+            string lineText = Editor.Document.GetText(line);
+            var command = DirectCommands.Recognize(lineText);
+            if (command is null
+                && DirectCommands.LeadingNumber(lineText, out bool numberOnly) is int number
+                && (numberOnly || DirectCommands.FindLine(Editor.Text, number, line.LineNumber) is not null))
+            {
+                // Numéro seul (effacer une ligne, comme le CPC) ou numéro déjà pris par une autre ligne (D118)
+                e.Handled = true;
+                try
+                {
+                    await HandleExistingNumberAsync(line, number, numberOnly);
+                }
+                catch (Exception ex)
+                {
+                    ShowError($"Ligne {number} : problème interne, rien n'a été fait ({ex.Message}).");
+                }
+                return;
+            }
             if (command is not null)
             {
                 e.Handled = true;
@@ -798,6 +815,31 @@ public partial class MainWindow : Window
                 StartAutoLine(start, newLine: false);
                 break;
 
+            case DirectCommandKind.Renum:
+                if (!Renumber.TryParse(command.Argument, out int newStart, out int? oldStart, out int renumStep))
+                {
+                    ShowError("RENUM : écrivez RENUM, ou RENUM nouveau,ancien,pas (numéros de 1 à 65535), par exemple RENUM 100,,5.");
+                    return;
+                }
+                var renumbered = Renumber.Apply(Editor.Text, newStart, oldStart, renumStep);
+                if (renumbered.Error is not null)
+                {
+                    ShowError(renumbered.Error);
+                    return;
+                }
+                // Remplacement par le document : Ctrl+Z peut annuler RENUM
+                int caretLine = Editor.TextArea.Caret.Line;
+                Editor.Document.Replace(0, Editor.Document.TextLength, renumbered.Text!);
+                Editor.TextArea.Caret.Line = Math.Min(caretLine, Editor.Document.LineCount);
+                var renumMessages = new List<MessageItem>
+                {
+                    new($"RENUM : {renumbered.LineCount} ligne(s) renumérotée(s), avec les GOTO, GOSUB, THEN... corrigés. " +
+                        "Ctrl+Z annule RENUM.", 0, MessageKind.Success)
+                };
+                renumMessages.AddRange(renumbered.Warnings.Select(w => new MessageItem(w, 0, MessageKind.Error)));
+                ShowMessages(renumMessages);
+                break;
+
             case DirectCommandKind.Explain:
                 ShowMessage(command.Explanation!);
                 break;
@@ -806,6 +848,73 @@ public partial class MainWindow : Window
                 ShowMessage($"{command.Name} : cette commande de l'éditeur arrive à une prochaine étape.");
                 break;
         }
+    }
+
+    // Problème imprévu (D119), appelé par App : l'éditeur reste ouvert, le détail est dans erreurs.txt
+    public void ReportInternalError(Exception ex, string? logPath)
+    {
+        autoNext = null;
+        var items = new List<MessageItem>
+        {
+            new($"Problème interne : {ex.Message}", 0, MessageKind.Error),
+            new("L'éditeur reste ouvert et votre programme n'est pas perdu ; pensez à l'enregistrer (Ctrl+S).", 0)
+        };
+        if (logPath is not null)
+            items.Add(new($"Le détail est noté dans le fichier {logPath} : envoyez-le pour que le problème soit corrigé.", 0));
+        ShowMessages(items);
+    }
+
+    // ---------- Numéro tapé seul, ou numéro déjà pris (D118) ----------
+
+    async Task HandleExistingNumberAsync(AvaloniaEdit.Document.DocumentLine line, int number, bool numberOnly)
+    {
+        int? otherNumber = DirectCommands.FindLine(Editor.Text, number, line.LineNumber);
+        var document = Editor.Document;
+
+        if (numberOnly && otherNumber is null)
+        {
+            RemoveCommandLine(line);
+            ShowMessage($"{number} : aucune autre ligne ne porte ce numéro ; le numéro seul est retiré, rien d'autre n'est effacé.");
+            return;
+        }
+
+        var other = document.GetLineByNumber(otherNumber!.Value);
+        string otherText = document.GetText(other).Trim();
+
+        if (numberOnly)
+        {
+            bool erase = await new ConfirmDialog("Effacer une ligne",
+                    $"Effacer la ligne {number} ?\n\n{otherText}", "Effacer la ligne", "Garder la ligne")
+                .ShowDialog<bool>(this);
+            // RunUpdate : un seul Ctrl+Z pour les deux effacements, et le groupe se ferme toujours, même en cas de problème
+            using (document.RunUpdate())
+            {
+                if (erase)
+                    document.Remove(other.Offset, other.TotalLength);
+                document.Remove(line.Offset, line.TotalLength);   // le numéro tapé seul disparaît dans les deux cas
+            }
+            modified = Editor.Text != savedText;
+            UpdateTitle();
+            if (erase)
+                ShowMessages(new[] { new MessageItem($"Ligne {number} effacée. Ctrl+Z la remet.", 0, MessageKind.Success) });
+            else
+                ShowMessage($"Ligne {number} gardée.");
+            return;
+        }
+
+        string newText = document.GetText(line).Trim();
+        bool replace = await new ConfirmDialog("Ligne déjà existante",
+                $"La ligne {number} existe déjà :\n\n{otherText}\n\nLa remplacer par la nouvelle ?\n\n{newText}",
+                "Remplacer l'ancienne ligne", "Garder les deux")
+            .ShowDialog<bool>(this);
+        if (replace)
+        {
+            document.Remove(other.Offset, other.TotalLength);
+            Editor.TextArea.Caret.Offset = line.EndOffset;
+            ShowMessages(new[] { new MessageItem($"L'ancienne ligne {number} est remplacée par la nouvelle. Ctrl+Z la remet.", 0, MessageKind.Success) });
+        }
+        else
+            ShowError($"Deux lignes ont maintenant le numéro {number} : changez le numéro de l'une des deux avant de compiler.");
     }
 
     // ---------- AUTO (D116) ----------
@@ -880,7 +989,9 @@ public partial class MainWindow : Window
     {
         loading = true;
         autoNext = null;
-        Editor.Text = text;
+        // Un document neuf (D119) : l'historique de Ctrl+Z repart de zéro sans dépendre de l'état de l'ancien document
+        // (Editor.Text = ... refusait d'ouvrir un fichier : « No undo group should be open at this point »)
+        Editor.Document = new AvaloniaEdit.Document.TextDocument(text);
         loading = false;
         savedText = text;
         modified = false;
