@@ -1068,6 +1068,13 @@ public static class CodeGenerator
                             emitter.LdHZero();
                             break;
 
+                        case "DERR":                        // dernière erreur d'AMSDOS, 0 au départ (D099)
+                            required.Add(RuntimeLibrary.FileCommonName);
+                            emitter.LdAMem(RuntimeLibrary.DerrLabel);
+                            emitter.LdLA();
+                            emitter.LdHZero();
+                            break;
+
                         case "UNT":                         // UNT(adresse) : la même valeur sur 16 bits, en entier signé (D094)
                             EmitAddress(call.Arguments[0]);
                             break;

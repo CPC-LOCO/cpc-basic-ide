@@ -60,7 +60,7 @@ Mise à jour le 16 nov. 2026 :
 | `ERROR` | provoque une erreur | Faite | D080. |
 | `ERL` | numéro de la ligne en erreur | Faite | D080. |
 | `ERR` | numéro de l'erreur | Faite | D080. |
-| `DERR` | erreur du disque | À faire | BASIC 1.1 seulement (664, 6128). |
+| `DERR` | erreur du disque | Faite | D099 : code d'erreur d'AMSDOS (146 : fichier absent), 0 au départ. Marche aussi sur le 464. |
 
 ## 2. Variables, constantes, données et mémoire
 
@@ -99,7 +99,7 @@ Mise à jour le 16 nov. 2026 :
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateurs « ; » et « , » (zones), TAB, SPC (D073), fenêtres #0 à #7 (D072). USING avec un format entre guillemets (D074). Les accents sont remplacés par « ? ». |
+| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateurs « ; » et « , » (zones), TAB, SPC (D073), fenêtres #0 à #7 (D072). USING (D074, D098). Les accents sont remplacés par « ? ». |
 | `TAB / SPC` | positionne ou saute des colonnes dans PRINT | Faite | D073. |
 | `USING` | format d'affichage des nombres (PRINT USING) | Faite | D074 : tous les formats ; D098 : format dans une variable ou un calcul, lu à l'exécution. |
 | `WRITE` | affiche avec guillemets et virgules | Faite | Avec #0 à #7 (D073). |

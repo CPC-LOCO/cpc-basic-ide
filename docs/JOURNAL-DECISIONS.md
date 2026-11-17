@@ -757,6 +757,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** chaque format donne exactement le même affichage écrit entre guillemets ou rangé dans F$ (16 formats). UsingTests.cs : l'ancien test « format dans une variable pas encore possible » vérifie maintenant le « ; » obligatoire.
 - **Fichiers :** Ast.cs, Parser.cs (ParseUsingValues, ParseUsingDynamic), Diagnostic.cs (message de UsingFormatNotLiteral), RuntimeLibrary.cs (modules UsingDyn, UsingDynNum, UsingDynStr), CodeGenerator.cs, `tests\CpcBasic.Tests\UsingDynamicTests.cs` (nouveau). Exemple : `examples\formats.bas`.
 
+## D099 : lot K11, DERR (Validé le 17 nov. 2026 : 1283 tests réussis ; `derr.bas` dans WinAPE : 0, « ABSENT . not found », ERR 32 DERR 146)
+- **Référence (SugarBox, BASIC 1.1, 17 nov. 2026) :** `PRINT DERR` au départ : 0 ; après `OPENIN "ABSENT"` avec ON ERROR GOTO : AMSDOS écrit « ABSENT . not found », puis ERR = 32 et DERR = 146.
+- **Conception :** quand une opération sur fichier échoue, le firmware (AMSDOS) rend son code d'erreur dans A ; rt_file_fail (module FileCommon) le range dans rt_derr avant de traiter l'erreur. DERR (sans parenthèses) lit cet octet : 0 tant qu'aucune opération n'a échoué. DERR garde la dernière erreur (il n'est pas remis à 0 par une opération réussie).
+- **À savoir :** DERR n'existe que dans le BASIC 1.1 (664, 6128) ; ici il marche sur tous les CPC, puisqu'il lit seulement le code rendu par AMSDOS.
+- **Tests :** MiniZ80 rend 146 (&92) quand CAS IN OPEN ne trouve pas le fichier. ArrayTests.cs : DERR remplacé par MASK.
+- **Fichiers :** Parser.cs, RuntimeLibrary.cs (rt_derr), CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\DerrTests.cs` (nouveau). Exemple : `examples\derr.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

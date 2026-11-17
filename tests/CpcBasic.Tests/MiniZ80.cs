@@ -747,6 +747,10 @@ internal sealed class MiniZ80
                                 DE = (ushort)start;
                                 BC = (ushort)fileIn!.Count;
                             }
+                            else
+                            {
+                                A = 0x92;                              // AMSDOS : 146, fichier absent (DERR, D099)
+                            }
                             break;
                         case 0xBC80:                                                                    // CAS IN CHAR
                             CarryFlag = fileInPos < fileIn!.Count;

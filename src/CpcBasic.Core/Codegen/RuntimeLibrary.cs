@@ -285,6 +285,7 @@ public static class RuntimeLibrary
     public const string UsingDynNumLabel = "rt_ud_numv";        // HL = nombre (5 octets) : emplacement suivant, puis affichage
     public const string UsingDynStrName = "UsingDynStr";
     public const string UsingDynStrLabel = "rt_ud_strv";        // HL = fiche du texte
+    public const string DerrLabel = "rt_derr";                  // octet : dernière erreur d'AMSDOS (DERR, D099)
     public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
     public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
@@ -950,6 +951,7 @@ public static class RuntimeLibrary
             e.LdHlLabel("rt_file_m3");
             e.JpLabel(ErrorLabel);
             e.Label("rt_file_fail");
+            e.LdMemA(DerrLabel);                     // A = code d'erreur d'AMSDOS (146 : fichier absent), lu par DERR (D099)
             e.LdHlMem(ErrorTrapLabel);
             e.LdAH();
             e.OrL();
@@ -982,6 +984,8 @@ public static class RuntimeLibrary
             e.LdMemA("rt_fl_isopen");
             e.CallAddress(0xBC7A);                   // CAS IN CLOSE
             e.Ret();
+            e.Label(DerrLabel);                      // DERR : 0 tant qu'aucune opération sur fichier n'a échoué (D099)
+            e.Data([0]);
             e.Label("rt_fo_isopen");                 // fichier ouvert en écriture, en lecture
             e.Reserve(1);
             e.Label("rt_fl_isopen");

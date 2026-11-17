@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -3730,7 +3730,7 @@ public static class Parser
                     pos++;                              // réglage F8 : TIME complet, à virgule, comme le Locomotive (D097)
                     return new CallExpression("TIME!", []);
                 }
-                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF" or "XPOS" or "YPOS" or "HIMEM")
+                if (t.Text is "TIME" or "ERR" or "ERL" or "EOF" or "XPOS" or "YPOS" or "HIMEM" or "DERR")
                 {
                     pos++;                              // TIME, ERR, ERL et EOF s'écrivent sans parenthèses, comme sur le CPC (D080, D084)
                     return new CallExpression(t.Text, []);
