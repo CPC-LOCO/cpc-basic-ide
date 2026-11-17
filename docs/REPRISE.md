@@ -15,7 +15,7 @@ Documents de référence :
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
-- `TESTEURS.md` (à la racine) : aide pour les testeurs.
+- `.github\TESTEURS.md` : aide pour les testeurs (astuce F8 et `FOR K%` ajoutée le 17 nov. 2026).
 
 ## 2. Comment travailler avec l'utilisateur (important)
 
