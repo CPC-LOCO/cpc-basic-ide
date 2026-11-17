@@ -105,7 +105,7 @@ Mise à jour le 16 nov. 2026 :
 | `WRITE` | affiche avec guillemets et virgules | Faite | Avec #0 à #7 (D073). |
 | `LOCATE` | place le curseur de texte | Faite | Avec #n (D072). |
 | `CLS` | efface l'écran de texte | Faite | Avec #n (D072). |
-| `PEN` | couleur du texte | Partielle | Avec #n (D072) ; sans le mode transparent. |
+| `PEN` | couleur du texte | Faite | Avec #n (D072) ; mode transparent PEN stylo, 1 (D104). |
 | `PAPER` | couleur du fond du texte | Faite | Avec #n (D072). |
 | `INK` | couleur associée à un stylo (avec clignotement) | Faite |  |
 | `BORDER` | couleur du cadre (avec clignotement) | Faite |  |
@@ -132,7 +132,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `MOVE / MOVER` | déplace le curseur graphique | Faite | Stylo et mode facultatifs. |
 | `PLOT / PLOTR` | allume un point | Faite | Stylo et mode facultatifs. |
 | `DRAW / DRAWR` | trace une ligne | Faite | Stylo et mode facultatifs. |
-| `ORIGIN` | origine des coordonnées graphiques | Partielle | ORIGIN x, y seulement. Pas encore la fenêtre graphique (gauche, droite, haut, bas). |
+| `ORIGIN` | origine des coordonnées graphiques | Faite | ORIGIN x, y [, gauche, droite, haut, bas] : fenêtre graphique (D104). |
 | `CLG` | efface l'écran graphique | Faite | Avec un stylo facultatif. |
 | `GRAPHICS PEN` | stylo et mode de remplissage des tracés | À faire | BASIC 1.1 seulement (664, 6128). |
 | `GRAPHICS PAPER` | fond des tracés | À faire | BASIC 1.1 seulement (664, 6128). |

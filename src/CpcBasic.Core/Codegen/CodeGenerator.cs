@@ -1728,6 +1728,8 @@ public static class CodeGenerator
 
                 case "PEN":
                     EmitCallWithA(a[0], TxtSetPen);
+                    if (a.Count == 2)
+                        EmitCallWithA(a[1], 0xBB9F);    // TXT SET BACK : 0 opaque, 1 transparent (D104)
                     break;
 
                 case "PAPER":
@@ -1773,6 +1775,20 @@ public static class CodeGenerator
                     EmitExpression(a[1]);
                     emitter.PopDe();
                     emitter.CallAddress(GraSetOrigin);
+                    if (a.Count == 6)
+                    {
+                        // fenêtre graphique (D104) : GRA WIN WIDTH (DE = gauche, HL = droite), GRA WIN HEIGHT (haut, bas)
+                        EmitExpression(a[2]);
+                        emitter.PushHl();
+                        EmitExpression(a[3]);
+                        emitter.PopDe();
+                        emitter.CallAddress(0xBBCF);
+                        EmitExpression(a[4]);
+                        emitter.PushHl();
+                        EmitExpression(a[5]);
+                        emitter.PopDe();
+                        emitter.CallAddress(0xBBD2);
+                    }
                     break;
 
                 case "BOX":

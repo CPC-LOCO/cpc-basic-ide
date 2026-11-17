@@ -30,6 +30,9 @@ internal sealed class MiniZ80
     /// <summary>Appels du firmware sans résultat à simuler, dans l'ordre (CURSOR, FRAME, D102).</summary>
     public readonly List<int> FirmwareCalls = new();
 
+    /// <summary>Appels du firmware avec leurs registres : (adresse, A, DE, HL) (ORIGIN avec fenêtre, PEN transparent, D104).</summary>
+    public readonly List<(int Address, byte A, ushort DE, ushort HL)> RegisterCalls = new();
+
     /// <summary>Caractères envoyés à l'imprimante par MC PRINT CHAR (&BD2B, D100).</summary>
     public readonly StringBuilder Printed = new();
 
@@ -834,6 +837,14 @@ internal sealed class MiniZ80
                 else if (address == 0xBB8A || address == 0xBB8D)
                 {
                     // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
+                }
+                else if (address is 0xBBC9 or 0xBB90)
+                {
+                    // GRA SET ORIGIN, TXT SET PEN : rien à simuler (D104)
+                }
+                else if (address is 0xBBCF or 0xBBD2 or 0xBB9F)
+                {
+                    RegisterCalls.Add((address, A, DE, HL));           // GRA WIN WIDTH / HEIGHT, TXT SET BACK (D104)
                 }
                 else if (address is 0xBB81 or 0xBB84 or 0xBB7B or 0xBB7E or 0xBD19)
                 {

@@ -793,6 +793,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** pour 9 formats, DEC$ avec le format écrit, DEC$ avec le format dans F$ et PRINT USING donnent exactement le même texte.
 - **Fichiers :** Parser.cs (DecField), Diagnostic.cs (DecFormat), RuntimeLibrary.cs (modules Dec et DecDyn), CodeGenerator.cs, `tests\CpcBasic.Tests\DecTests.cs` (nouveau). Exemple : `examples\decimal.bas`.
 
+## D104 : lot L3, ORIGIN avec fenêtre graphique, PEN transparent (Validé le 17 nov. 2026 : 1328 tests réussis ; `fenetreg.bas` dans WinAPE identique au vrai BASIC)
+- **Référence (vrai BASIC 1.1 dans WinAPE, 17 nov. 2026, `essais\refl3.dsk`) :** `ORIGIN 0,0,100,300,300,100` puis `CLG 2` : seule la fenêtre est effacée ; `DRAW 639,399` est coupé aux bords de la fenêtre, mais XPOS;YPOS = 639 399 ; après `ORIGIN 320,200` (2 valeurs), la fenêtre reste en place (le trait parti de x = 320 n'apparaît pas) ; `PEN 3,1` : texte écrit sans fond, par-dessus le texte déjà là ; `PEN 3,0` : de nouveau opaque.
+- **ORIGIN x, y [, gauche, droite, haut, bas] :** 2 ou 6 valeurs (3 à 5 : refusé). GRA SET ORIGIN, puis GRA WIN WIDTH (&BBCF, DE = gauche, HL = droite) et GRA WIN HEIGHT (&BBD2, DE = haut, HL = bas). Les bords sont en coordonnées absolues.
+- **PEN stylo [, mode] :** mode 0 opaque, 1 transparent : TXT SET BACK (&BB9F). Ces routines existent aussi sur le 464 (pas « BASIC 1.1 seulement »).
+- **Tests :** MiniZ80 connaît GRA SET ORIGIN et TXT SET PEN (rien à simuler) et note GRA WIN WIDTH / HEIGHT et TXT SET BACK (RegisterCalls).
+- **Fichiers :** Parser.cs, CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\GraphicsWindowTests.cs` (nouveau). Exemple : `examples\fenetreg.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

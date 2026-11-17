@@ -141,12 +141,14 @@ public static class Parser
         ["RELEASE"] = new("RELEASE canaux (0 à 7)", 1, [0], [7]),   // libère les canaux sonores en attente (D071)
         ["RAD"] = new("RAD", 0, [], []),                // angles en radians (D069)
         ["LOCATE"] = new("LOCATE colonne, ligne", 2, [1, 1], [80, 25]),
-        ["PEN"] = new("PEN stylo (0 à 15)", 1, [0], [15]),
+        ["PEN"] = new("PEN stylo (0 à 15) [, mode : 0 opaque, 1 transparent]", 1, [0, 0], [15, 1]),   // mode : D104
         ["PAPER"] = new("PAPER fond (0 à 15)", 1, [0], [15]),
         ["INK"] = new("INK stylo, couleur [, couleur2]", 2, [0, 0, 0], [15, 26, 26]),
         ["BORDER"] = new("BORDER couleur [, couleur2]", 1, [0, 0], [26, 26]),
         ["CLG"] = new("CLG [stylo]", 0, [0], [15]),
-        ["ORIGIN"] = new("ORIGIN x, y", 2, [-32768, -32768], [32767, 32767]),
+        // Lot L3 (D104) : fenêtre graphique facultative (gauche, droite, haut, bas)
+        ["ORIGIN"] = new("ORIGIN x, y [, gauche, droite, haut, bas]", 2,
+                         [-32768, -32768, -32768, -32768, -32768, -32768], [32767, 32767, 32767, 32767, 32767, 32767]),
         // Lot H1 (D072) : fenêtres de texte, colonnes et lignes à partir de 1 (le firmware ramène ce qui dépasse dans l'écran)
         ["WINDOW"] = new("WINDOW [#fenêtre,] gauche, droite, haut, bas", 4, [1, 1, 1, 1], [255, 255, 255, 255]),
         ["WINDOW SWAP"] = new("WINDOW SWAP fenêtre [, fenêtre]", 1, [0, 0], [7, 7], Command: "WINDOW SWAP"),
@@ -2081,7 +2083,8 @@ public static class Parser
             }
         }
 
-        if (arguments.Count < info.MinArguments || arguments.Count > info.Min.Length)
+        if (arguments.Count < info.MinArguments || arguments.Count > info.Min.Length
+            || (name.Text == "ORIGIN" && arguments.Count is > 2 and < 6))   // ORIGIN : 2 ou 6 valeurs (D104)
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, info.Signature));
             return SkipToStatementEnd(tokens, pos);
