@@ -893,6 +893,14 @@ public static class CodeGenerator
                         {
                             // POS(#n), VPOS(#n) : colonne ou ligne où s'écrira le caractère suivant dans la fenêtre n,
                             // puis retour à la fenêtre choisie avant (PRINT #2, POS(#1) écrit bien dans #2) (D072)
+                            if (call.Arguments[0] is NumberExpression { Value: 8 })
+                            {
+                                required.Add(RuntimeLibrary.PrinterName);   // POS(#8) : colonne de l'imprimante (D100)
+                                emitter.LdAMem(RuntimeLibrary.PrinterColumnLabel);
+                                emitter.LdLA();
+                                emitter.LdHZero();
+                                break;
+                            }
                             EmitSelectStream(call.Arguments[0]);
                             emitter.PushAf();
                             emitter.CallAddress(RuntimeLibrary.TxtGetCursor);
@@ -1494,6 +1502,13 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "WIDTH":                       // largeur de ligne de l'imprimante (D100)
+                    required.Add(RuntimeLibrary.PrinterName);
+                    EmitExpression(a[0]);
+                    emitter.LdAL();
+                    emitter.LdMemA(RuntimeLibrary.PrinterWidthLabel);
+                    break;
+
                 case "MEMORY":                      // MEMORY adresse : réserve le haut de la mémoire ; rien à faire à l'exécution,
                 {                                   // le compilateur vérifie que le programme tient en dessous
                     if (a[0] is NumberExpression limit && (memoryLimit < 0 || (limit.Value & 0xFFFF) < memoryLimit))
@@ -1863,6 +1878,7 @@ public static class CodeGenerator
         bool insideStream = false;
         bool fileGroup = false;     // entre PRINT #9 (ou INPUT #9...) et la fin de l'instruction (D084)
         bool fileOutput = false;    // ... et les caractères vont dans le fichier
+        bool printerGroup = false;  // entre PRINT #8 et la fin de l'instruction (D100)
         foreach (Statement statement in program.Statements)
         {
             if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
@@ -2829,6 +2845,20 @@ public static class CodeGenerator
                     break;
 
                 case StreamStatement stream:            // PRINT #1, ... : choix de la fenêtre, puis retour à #0 (D072)
+                    if (stream.Stream is NumberExpression { Value: 8 })
+                    {
+                        // #8 : l'imprimante (D100), jusqu'à la fin de l'instruction
+                        printerGroup = true;
+                        required.Add(RuntimeLibrary.PrinterName);
+                        emitter.CallLabel(RuntimeLibrary.PrinterOnLabel);
+                        break;
+                    }
+                    if (stream.Stream is null && printerGroup)
+                    {
+                        emitter.CallLabel(RuntimeLibrary.PrinterOffLabel);
+                        printerGroup = false;
+                        break;
+                    }
                     if (stream.Stream is NumberExpression { Value: 9 })
                     {
                         // #9 : le fichier (D084). PRINT #9 et WRITE #9 : les caractères partent dans le fichier ouvert par

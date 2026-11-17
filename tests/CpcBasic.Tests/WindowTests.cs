@@ -79,7 +79,7 @@ public class WindowTests
     }
 
     [Theory]
-    [InlineData("10 PRINT #8, \"A\"")]
+    [InlineData("10 CLS #8")]              // #8 (imprimante) : seulement PRINT, WRITE et POS (D100)
     [InlineData("10 CLS #10")]
     [InlineData("10 A = POS(#9)")]
     [InlineData("10 WINDOW 0, 10, 1, 5")]

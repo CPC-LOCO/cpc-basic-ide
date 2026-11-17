@@ -92,7 +92,7 @@ public class FileTests
     [Theory]
     [InlineData("10 OPENOUT 5")]
     [InlineData("10 CLS #9")]
-    [InlineData("10 PRINT #8,\"A\"")]
+    [InlineData("10 INPUT #8,A")]          // #8 (imprimante) : seulement PRINT, WRITE et POS (D100)
     public void Ecritures_refusees(string source)
     {
         Assert.NotEmpty(Errors(source));

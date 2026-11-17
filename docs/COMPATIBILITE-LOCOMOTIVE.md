@@ -113,13 +113,13 @@ Mise à jour le 16 nov. 2026 :
 | `WINDOW` | fenêtre de texte | Faite | D072. |
 | `WINDOW SWAP` | échange deux fenêtres | Faite | D072. |
 | `CURSOR` | affiche ou cache le curseur | À faire | BASIC 1.1 seulement (664, 6128). |
-| `WIDTH` | largeur de ligne de l'imprimante | À faire |  |
+| `WIDTH` | largeur de ligne de l'imprimante | Faite | D100 : 1 à 255 (255 : pas de retour automatique), 132 au départ. |
 | `ZONE` | largeur des zones de PRINT | Faite | D073. |
 | `TAG` | texte aux coordonnées graphiques | Faite | Avec #n (D075). |
 | `TAGOFF` | fin de TAG | Faite | Avec #n (D075). |
 | `SPEED INK` | vitesse du clignotement des couleurs | Faite | D091. |
 | `FRAME` | attend le balayage de l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
-| `POS` | colonne du curseur | Faite | POS(#0) à POS(#7), D072 (#8 avec le lot J). |
+| `POS` | colonne du curseur | Faite | POS(#0) à POS(#7), D072 ; POS(#8), D100. |
 | `VPOS` | ligne du curseur | Faite | D072. |
 | `COPYCHR$` | caractère lu à l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
 
@@ -176,7 +176,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `OPENIN / CLOSEIN` | ouvre / ferme un fichier en lecture | Faite | D084. |
 | `OPENOUT / CLOSEOUT` | ouvre / ferme un fichier en écriture | Faite | D084. CLOSEOUT nécessaire avant la fin. |
 | `EOF` | fin de fichier | Faite | D084. |
-| `PRINT # / INPUT # / LINE INPUT # / WRITE #` | lecture et écriture dans un flux | Faite | #9 (fichier), D084. #8 (imprimante) : plus tard. |
+| `PRINT # / INPUT # / LINE INPUT # / WRITE #` | lecture et écriture dans un flux | Faite | #9 (fichier), D084. #8 (imprimante) avec PRINT, WRITE et POS, D100. |
 | `SPEED WRITE` | vitesse d'écriture sur cassette | Faite | D085. |
 
 ## 8. Chaînes de caractères

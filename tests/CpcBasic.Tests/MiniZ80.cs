@@ -27,6 +27,9 @@ internal sealed class MiniZ80
     /// <summary>Temps rendu par KL TIME PLEASE (&BD0D) dans DEHL.</summary>
     public uint Clock;
 
+    /// <summary>Caractères envoyés à l'imprimante par MC PRINT CHAR (&BD2B, D100).</summary>
+    public readonly StringBuilder Printed = new();
+
     /// <summary>Mode d'écran rendu par SCR GET MODE (&BC11) dans A : 0, 1 ou 2.</summary>
     public byte ScreenMode = 1;
 
@@ -944,6 +947,11 @@ internal sealed class MiniZ80
                 else if (FirmwareMathsCall(address))
                 {
                     // routine de calcul à virgule simulée
+                }
+                else if (address == 0xBD2B)
+                {
+                    Printed.Append((char)A);                           // MC PRINT CHAR : l'imprimante prend le caractère (D100)
+                    CarryFlag = true;
                 }
                 else if (address == 0xBD0D)
                 {

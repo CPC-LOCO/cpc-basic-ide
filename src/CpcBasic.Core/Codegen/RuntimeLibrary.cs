@@ -286,6 +286,11 @@ public static class RuntimeLibrary
     public const string UsingDynStrName = "UsingDynStr";
     public const string UsingDynStrLabel = "rt_ud_strv";        // HL = fiche du texte
     public const string DerrLabel = "rt_derr";                  // octet : dernière erreur d'AMSDOS (DERR, D099)
+    public const string PrinterName = "Printer";                 // imprimante, PRINT #8 et WIDTH (lot K12, D100)
+    public const string PrinterOnLabel = "rt_pr_on";
+    public const string PrinterOffLabel = "rt_pr_off";
+    public const string PrinterColumnLabel = "rt_pr_col";       // octet : colonne de l'imprimante (1 au début d'une ligne)
+    public const string PrinterWidthLabel = "rt_pr_width";      // octet : WIDTH (132 au départ)
     public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
     public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
@@ -4081,6 +4086,129 @@ public static class RuntimeLibrary
             e.LdAMem("rt_ud_w");
             e.PopHl();
             e.JpLabel(UsingStrLabel);
+        }),
+
+        // Imprimante (lot K12, D100), comme PRINT #9 (D084) : pendant PRINT #8 et WRITE #8, quatre routines du firmware sont
+        // détournées. TXT OUTPUT envoie le caractère par MC PRINT CHAR (&BD2B, on attend que l'imprimante le prenne, comme le
+        // vrai BASIC) ; avant un caractère visible, si la ligne a déjà WIDTH caractères, CR LF est envoyé (WIDTH 255 : jamais).
+        // TXT GET CURSOR donne la colonne de l'imprimante (POS(#8)), TXT GET WINDOW la largeur (zones, nombres trop longs).
+        // Relevé dans WinAPE (vrai BASIC, imprimante dans un fichier, 17 nov. 2026).
+        [PrinterName] = new RuntimeModule(PrinterName, [], e =>
+        {
+            (int Address, string Handler)[] patches =
+            [
+                (TxtOutput, "rt_pr_out"), (TxtGetCursor, "rt_pr_cur"), (TxtValidate, "rt_pr_val"), (TxtGetWindow, "rt_pr_win")
+            ];
+            e.Label(PrinterOnLabel);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.LdHlImm(patches[k].Address);       // l'entrée d'origine est gardée
+                e.LdDeLabel($"rt_pr_s{k}");
+                e.LdBcImm(3);
+                e.Ldir();
+                e.LdHlImm(patches[k].Address);
+                e.StoreHlImm(0xC3);                  // JP vers la routine de l'imprimante
+                e.IncHl();
+                e.LdDeLabel(patches[k].Handler);
+                e.StoreHlE();
+                e.IncHl();
+                e.StoreHlD();
+            }
+            e.Ret();
+
+            e.Label(PrinterOffLabel);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.LdHlLabel($"rt_pr_s{k}");
+                e.LdDeImm(patches[k].Address);
+                e.LdBcImm(3);
+                e.Ldir();
+            }
+            e.Ret();
+
+            // TXT OUTPUT détourné : A = caractère ; tous les registres sont gardés
+            e.Label("rt_pr_out");
+            e.PushAf();
+            e.PushBc();
+            e.PushDe();
+            e.PushHl();
+            e.CpImm(13);
+            e.JrNzLabel("rt_pr_notcr");
+            e.CallLabel("rt_pr_send");
+            e.LdAImm(1);
+            e.LdMemA(PrinterColumnLabel);
+            e.JrLabel("rt_pr_done");
+            e.Label("rt_pr_notcr");
+            e.CpImm(32);
+            e.JrCLabel("rt_pr_ctrl");
+            e.PushAf();
+            e.LdAMem(PrinterWidthLabel);
+            e.IncA();
+            e.JrZLabel("rt_pr_nowrap");              // WIDTH 255 : pas de retour automatique
+            e.DecA();
+            e.LdCA();
+            e.LdAMem(PrinterColumnLabel);
+            e.DecA();
+            e.CpC();
+            e.JrCLabel("rt_pr_nowrap");              // la ligne a encore de la place
+            e.LdAImm(13);
+            e.CallLabel("rt_pr_send");
+            e.LdAImm(10);
+            e.CallLabel("rt_pr_send");
+            e.LdAImm(1);
+            e.LdMemA(PrinterColumnLabel);
+            e.Label("rt_pr_nowrap");
+            e.PopAf();
+            e.CallLabel("rt_pr_send");
+            e.LdHlLabel(PrinterColumnLabel);
+            e.IncMemHl();
+            e.JrLabel("rt_pr_done");
+            e.Label("rt_pr_ctrl");
+            e.CallLabel("rt_pr_send");
+            e.Label("rt_pr_done");
+            e.PopHl();
+            e.PopDe();
+            e.PopBc();
+            e.PopAf();
+            e.Ret();
+
+            e.Label("rt_pr_send");                   // A = caractère : on attend que l'imprimante le prenne
+            e.PushAf();
+            e.CallAddress(0xBD2B);                   // MC PRINT CHAR : retenue = pris
+            e.JrCLabel("rt_pr_sent");
+            e.PopAf();
+            e.JrLabel("rt_pr_send");
+            e.Label("rt_pr_sent");
+            e.PopAf();
+            e.Ret();
+
+            e.Label("rt_pr_cur");                    // H = colonne de l'imprimante, L = 1, A = 0
+            e.LdAMem(PrinterColumnLabel);
+            e.LdHA();
+            e.LdAImm(1);
+            e.LdLA();
+            e.XorA();
+            e.Ret();
+            e.Label("rt_pr_val");                    // toute position est bonne
+            e.Scf();
+            e.Ret();
+            e.Label("rt_pr_win");                    // colonnes 0 à WIDTH - 1, lignes 0 à 24
+            e.LdAMem(PrinterWidthLabel);
+            e.DecA();
+            e.LdDA();
+            e.LdEImm(24);
+            e.LdHlImm(0);
+            e.Ret();
+
+            e.Label(PrinterColumnLabel);
+            e.Data([1]);
+            e.Label(PrinterWidthLabel);
+            e.Data([132]);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.Label($"rt_pr_s{k}");
+                e.Reserve(3);
+            }
         }),
 
         // ON x GOTO / GOSUB (D097) : x hors de 0 à 255 : « Improper argument », comme le Locomotive

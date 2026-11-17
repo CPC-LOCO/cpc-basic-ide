@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D099 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D100 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Lot K11 : DERR » (17 nov. 2026, **1283 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Lot K12 : imprimante » (17 nov. 2026, **1290 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -53,12 +53,11 @@ Documents de référence :
 - **Lots A à H** : déroulement, saisie, tableaux, DATA, opérateurs, textes, nombres à virgule, son, fenêtres, PRINT (zones, TAB, SPC, WRITE, USING), SYMBOL, TAG, édition de la ligne d'INPUT (D054 à D076). FOR avec limite et pas calculés (D078).
 - **Lot I (interruptions et erreurs, D079 à D083)** : AFTER, EVERY, REMAIN, DI, EI ; ON ERROR GOTO, RESUME (3 formes), ERROR, ERR, ERL ; « Break in N » de STOP, « Unexpected RETURN » ; ON SQ GOSUB ; ON BREAK CONT / STOP / GOSUB et **réglage F9** de l'éditeur (touche ESC comme le CPC, par défaut, ou ignorée).
 - **Lot J (disquette et cassette, D084 à D087)** : OPENOUT, OPENIN, PRINT #9, WRITE #9, INPUT #9, LINE INPUT #9, EOF, CLOSEOUT, CLOSEIN ; SAVE "nom",B,… ; LOAD ; CAT ; SPEED WRITE ; RUN "nom" (lance un autre programme compilé) ; CHAIN et MERGE refusés (écart voulu) ; **compilation en chaîne** (idée de l'utilisateur, D087 : F5 compile aussi les programmes lancés par RUN "nom" et les met sur la même disquette).
-- **Lot K (en cours)** : K1 TRON / TROFF (D088) ; K2 commandes RSX `|NOM,valeurs` et CALL avec valeurs (D089, règle : A = nombre de valeurs, IX = liste, **DE = dernière valeur**) ; K3 CLEAR, RUN, RUN ligne (D090) ; K4 XPOS, YPOS, TEST, TESTR, SPEED INK, SPEED KEY (D091) ; K5 KEY, KEY DEF (D092) ; correction : LINE INPUT affiche « ? » comme INPUT (D093) ; K6 HIMEM, FRE, UNT, WAIT, et adresses calculées à virgule de -32768 à 65535 (MEMORY HIMEM-1000, D094) ; K7 DEF FN et FN (D095 : valeurs locales cachées, calcul recopié à chaque appel ; message avec la solution quand une virgule serait perdue) ; K8 ERASE (D096 : place rendue, tableaux suivants déplacés, textes compris) ; K9 TIME complet avec F8 et ON x GOTO hors de 0 à 255 (D097) ; K10 PRINT USING F$ (D098 : format lu à l'exécution) ; K11 DERR (D099).
+- **Lot K (terminé)** : K1 TRON / TROFF (D088) ; K2 commandes RSX `|NOM,valeurs` et CALL avec valeurs (D089, règle : A = nombre de valeurs, IX = liste, **DE = dernière valeur**) ; K3 CLEAR, RUN, RUN ligne (D090) ; K4 XPOS, YPOS, TEST, TESTR, SPEED INK, SPEED KEY (D091) ; K5 KEY, KEY DEF (D092) ; correction : LINE INPUT affiche « ? » comme INPUT (D093) ; K6 HIMEM, FRE, UNT, WAIT, et adresses calculées à virgule de -32768 à 65535 (MEMORY HIMEM-1000, D094) ; K7 DEF FN et FN (D095 : valeurs locales cachées, calcul recopié à chaque appel ; message avec la solution quand une virgule serait perdue) ; K8 ERASE (D096 : place rendue, tableaux suivants déplacés, textes compris) ; K9 TIME complet avec F8 et ON x GOTO hors de 0 à 255 (D097) ; K10 PRINT USING F$ (D098 : format lu à l'exécution) ; K11 DERR (D099) ; K12 imprimante, PRINT #8, WIDTH, POS(#8) (D100). **Lot K terminé.**
 
 ### Prochaine étape
 
 Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » et « Partielle ») :
-- **PRINT #8** et WIDTH (imprimante) : dernière étape du lot K.
 - BASIC 1.1 seulement : CURSOR, FRAME, COPYCHR$, GRAPHICS PEN / PAPER, MASK, FILL, DEC$, ORIGIN avec fenêtre graphique, PEN transparent.
 - **Commandes de l'éditeur (D077)** : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro de ligne.
 - Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
@@ -92,6 +91,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 - Nombres à virgule (D068 à D070) : 5 octets du Locomotive (`LocoReal.cs`). Calculs par la ROM à travers une table de sauts `rt_fm_...` (`FirmwareMaths`, adresses 464 et 664/6128 ; « Tous les CPC » : KL PROBE ROM au départ). Un calcul se fait dans des cases `ftmp_k` (`EmitRealInto`, `realFree`). Modules dans `RealRuntime.cs` : RealOps (conversions, opérations, Overflow), RealPrint (affichage exact, aiguillage `rt_fp_out` pour STR$), RealParse (INPUT A!, VAL), RealRnd, DataReal. Piège connu : REAL INT / REAL FIX de la ROM rendent un entier de 4 octets (D069).
 - Sans DEF ni réglage F8, `A` est un entier à part (D026) ; DEFINT/DEFREAL/DEFSTR et F8 ajoutent le signe aux noms avant la lecture (`ApplyDefaultTypes` dans le parser).
 - Son (D071) : routines de la ROM &BCAA, &BCAD, &BCB3, &BCBC, &BCBF ; `EnvelopeStatement` pour ENV et ENT.
+- Imprimante de référence : WinAPE, Settings, Other, Printer « File » -> `essais\imprimante.txt` (écrit en quittant WinAPE, ajouté à la fin). Disquette texte d'un programme pour le vrai BASIC : outil de Claude (`essais\imprim.dsk`, LOAD"IMPRIM"), évite de recopier.
 - Vérifier contre le vrai BASIC : faire taper un petit programme à l'utilisateur dans **SugarBox** (WinAPE déforme le collage), relever l'écran, puis comparer avec l'exemple compilé.
 - Sauts (D054) : chaque ligne numérotée reçoit une étiquette `line_N` (zéro octet) ; GOTO = JP, GOSUB = CALL, RETURN = RET.
 - Blocs (FOR, WHILE, REPEAT, DO, IF) : pile commune dans le parser et dans le générateur. `EXIT` et `CONTINUE` sont de simples sauts.
@@ -142,4 +142,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Lot K11 : DERR » ; 1283 tests passent. Les lots A à J sont finis, le lot K est en cours (K1 à K11 faits). On continue le lot K : propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Lot K12 : imprimante » ; 1290 tests passent. Les lots A à K sont finis. Propose-moi la suite, une étape à la fois.

@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -162,6 +162,8 @@ public static class Parser
         ["OUT"] = new("OUT port, valeur (0 à 255)", 2, [-32768, 0], [32767, 255], true),
         ["CALL"] = new("CALL adresse", 1, [-32768], [32767], true),
         ["MEMORY"] = new("MEMORY adresse", 1, [-32768], [32767], true),
+        // Lot K12 (D100) : largeur de ligne de l'imprimante (255 : pas de retour à la ligne automatique)
+        ["WIDTH"] = new("WIDTH largeur (1 à 255)", 1, [1], [255]),
         // Lot K6 (D094) : attend que (INP(port) XOR inversion) AND masque ne vaille plus 0
         ["WAIT"] = new("WAIT port, masque [, inversion]", 2, [-32768, 0, 0], [32767, 255, 255], true),
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
@@ -988,7 +990,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -2136,9 +2138,12 @@ public static class Parser
         // #9 : le fichier ouvert par OPENOUT ou OPENIN, pour PRINT, WRITE, INPUT et LINE INPUT (D084)
         if (stream is NumberExpression { Value: 9 } && command is "PRINT" or "WRITE" or "INPUT" or "LINE INPUT")
             return;
+        // #8 : l'imprimante, pour PRINT, WRITE et POS (lot K12, D100)
+        if (stream is NumberExpression { Value: 8 } && command is "PRINT" or "WRITE" or "POS")
+            return;
         if (stream is NumberExpression number && (number.Value < 0 || number.Value > 7))
             diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, line,
-                                           $"#{number.Value}|#0 à #7, ou #9 avec PRINT, WRITE, INPUT et LINE INPUT (#8 : plus tard)", command));
+                                           $"#{number.Value}|#0 à #7, #8 (imprimante) avec PRINT, WRITE et POS, ou #9 avec PRINT, WRITE, INPUT et LINE INPUT", command));
     }
 
     const string SoundSignature = "SOUND canal, période [, durée [, volume [, env. volume [, env. ton [, bruit]]]]]";

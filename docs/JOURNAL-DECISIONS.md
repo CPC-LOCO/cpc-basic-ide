@@ -764,6 +764,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** MiniZ80 rend 146 (&92) quand CAS IN OPEN ne trouve pas le fichier. ArrayTests.cs : DERR remplacé par MASK.
 - **Fichiers :** Parser.cs, RuntimeLibrary.cs (rt_derr), CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\DerrTests.cs` (nouveau). Exemple : `examples\derr.bas`.
 
+## D100 : lot K12, imprimante : PRINT #8, WRITE #8, WIDTH, POS(#8) (Validé le 17 nov. 2026 : 1290 tests réussis ; `imprime.bas` dans WinAPE : fichier de l'imprimante identique octet pour octet au vrai BASIC)
+- **Référence (vrai BASIC dans WinAPE, 17 nov. 2026) :** WinAPE, Settings, onglet Other, cadre Printer : « File », fichier `essais\imprimante.txt` (WinAPE l'écrit en quittant, et ajoute à la fin à chaque essai). Le programme de référence a été mis sur une disquette texte (`essais\imprim.dsk`, LOAD"IMPRIM") pour éviter de le recopier. Résultat : « BONJOURA B » (« ; » garde la position, TAB compte depuis le début de la ligne), WIDTH 20 coupe après 20 caractères (CR LF), POS(#8) vaut 1 en début de ligne, WRITE #8 : "X",5 ; WIDTH 255 : pas de retour automatique. Chaque ligne finit par CR LF.
+- **Conception :** comme PRINT #9 (D084), pendant PRINT #8 et WRITE #8, quatre entrées du firmware sont détournées (module Printer) : TXT OUTPUT envoie par MC PRINT CHAR (&BD2B) en attendant que l'imprimante prenne le caractère (sans imprimante, le programme attend, comme le vrai BASIC) ; avant un caractère visible, si la ligne a déjà WIDTH caractères, CR LF est envoyé ; TXT GET CURSOR donne la colonne (POS(#8)), TXT GET WINDOW la largeur. WIDTH : 1 à 255, 132 au départ.
+- **Limites :** #8 seulement avec PRINT, WRITE et POS, écrit en nombre (un numéro de flux calculé qui vaut 8 n'est pas géré).
+- **Tests :** MiniZ80 a une imprimante (Printed). FileTests.cs et WindowTests.cs : PRINT #8 n'est plus refusé (remplacé par INPUT #8 et CLS #8).
+- **Fichiers :** Parser.cs, RuntimeLibrary.cs (module Printer), CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\PrinterTests.cs` (nouveau). Exemple : `examples\imprime.bas`.
+- **Lot K terminé** (K1 à K12, D088 à D100).
+
 ---
 
 ## Notes de fin de session (modèle)
