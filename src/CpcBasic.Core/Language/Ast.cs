@@ -62,6 +62,13 @@ public sealed record PrintUsingNumberStatement(int SourceLine, Expression Value,
 /// <summary>Emplacement de texte de PRINT USING (D074) : Width 1 pour « ! », n pour « \   \ », 0 pour « & » (tout le texte).</summary>
 public sealed record PrintUsingStringStatement(int SourceLine, Expression Value, int Width) : Statement(SourceLine);
 
+/// <summary>
+/// PRINT USING F$; valeurs (lot K10, D098) : le format n'est connu qu'à l'exécution (variable ou calcul) ; il est lu par
+/// le module UsingDyn avec les mêmes règles que le découpage à la compilation (D074).
+/// </summary>
+public sealed record PrintUsingDynamicStatement(int SourceLine, Expression Format, IReadOnlyList<Expression> Values)
+    : Statement(SourceLine);
+
 /// <summary>Indicateurs d'un emplacement de nombre de PRINT USING (D074), lus aussi par le module PrintUsing.</summary>
 public static class UsingFlags
 {
@@ -541,6 +548,7 @@ public static class AstWalker
         PrintTabStatement t => [t.Value],
         PrintUsingNumberStatement u => [u.Value],
         PrintUsingStringStatement u => [u.Value],
+        PrintUsingDynamicStatement d => d.Values.Prepend(d.Format),
         EnvelopeStatement env => env.Sections.SelectMany(x => new[] { x.A, x.B, x.C }).OfType<Expression>().Prepend(env.Number),
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
         OnStatement o => [o.Selector],

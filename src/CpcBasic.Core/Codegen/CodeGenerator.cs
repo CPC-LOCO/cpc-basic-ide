@@ -1928,6 +1928,7 @@ public static class CodeGenerator
                 || statement is ExternalCallStatement { Rsx: not null } || statement is KeyStatement or KeyDefStatement
                 || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || (statement is OnStatement onCheck && OnNeedsCheck(onCheck))
+                || statement is PrintUsingDynamicStatement      // « Improper argument », « Type mismatch » (D098)
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
@@ -2315,6 +2316,29 @@ public static class CodeGenerator
                     emitter.LdBcImm((usingNumber.Width << 8) | usingNumber.Before);
                     emitter.LdDeImm((usingNumber.Decimals << 8) | usingNumber.Flags);
                     emitter.CallLabel(RuntimeLibrary.UsingNumLabel);
+                    break;
+
+                case PrintUsingDynamicStatement usingDyn:           // PRINT USING F$; valeurs (D098)
+                    required.Add(RuntimeLibrary.UsingDynName);
+                    EmitString(usingDyn.Format);
+                    emitter.CallLabel(RuntimeLibrary.UsingDynStartLabel);
+                    foreach (Expression value in usingDyn.Values)
+                    {
+                        if (Types.IsString(value))
+                        {
+                            required.Add(RuntimeLibrary.UsingDynStrName);
+                            EmitString(value);
+                            emitter.CallLabel(RuntimeLibrary.UsingDynStrLabel);
+                        }
+                        else
+                        {
+                            required.Add(RuntimeLibrary.UsingDynNumName);
+                            EmitRealInto(value, 0);
+                            emitter.LdHlLabel(RealTemp(0));
+                            emitter.CallLabel(RuntimeLibrary.UsingDynNumLabel);
+                        }
+                    }
+                    emitter.CallLabel(RuntimeLibrary.UsingDynTailLabel);
                     break;
 
                 case PrintUsingStringStatement usingText:           // PRINT USING "!"; A$ (D074)
@@ -3292,6 +3316,7 @@ public static class CodeGenerator
         AstWalker.All(statement).Any(Types.IsReal)
         || statement is ScreenStatement { Command: "DEG" or "RAD" }
         || statement is PrintUsingNumberStatement                   // PRINT USING : calculs par la ROM (D074)
+        || (statement is PrintUsingDynamicStatement dyn && dyn.Values.Any(v => !Types.IsString(v)))   // D098
         || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable))
         || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable))
         || (statement is DataStatement data && data.Items.Any(item => item.IsReal));

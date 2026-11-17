@@ -1765,11 +1765,7 @@ public static class Parser
         newLine = true;
         pos++;
         if (tokens[pos].Kind != TokenKind.String || tokens[pos + 1].Kind != TokenKind.Semicolon)
-        {
-            Token wrong = tokens[pos].Kind == TokenKind.String ? tokens[pos + 1] : tokens[pos];
-            diagnostics.Add(new Diagnostic(DiagnosticCode.UsingFormatNotLiteral, line, wrong.Text));
-            return false;
-        }
+            return ParseUsingDynamic(tokens, ref pos, line, items, diagnostics, out newLine);
         string format = tokens[pos].Text;
         pos += 2;
 
@@ -1826,6 +1822,58 @@ public static class Parser
         }
         while (index < parts.Count && !parts[index].IsField)
             items.Add(new PrintStatement(line, parts[index++].Text!, false));
+        return true;
+    }
+
+    // Liste des valeurs de PRINT USING, séparées par « ; » ou « , » ; newLine faux si la liste finit par l'un d'eux
+    static List<Expression>? ParseUsingValues(IReadOnlyList<Token> tokens, ref int pos, int line,
+                                             List<Diagnostic> diagnostics, out bool newLine)
+    {
+        newLine = true;
+        var values = new List<Expression>();
+        while (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+            if (value is null)
+                return null;
+            values.Add(value);
+            newLine = true;
+            if (tokens[pos].Kind is not (TokenKind.Semicolon or TokenKind.Comma))
+                break;
+            pos++;
+            newLine = false;
+        }
+        if (values.Count == 0)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, line, tokens[pos].Text, "PRINT USING"));
+            return null;
+        }
+        return values;
+    }
+
+    // PRINT USING F$; valeurs (lot K10, D098) : format dans une variable ou un calcul, lu pendant l'exécution
+    static bool ParseUsingDynamic(IReadOnlyList<Token> tokens, ref int pos, int line, List<Statement> items,
+                                  List<Diagnostic> diagnostics, out bool newLine)
+    {
+        newLine = true;
+        Expression? format = ParseAnyExpression(tokens, ref pos, diagnostics);
+        if (format is null)
+            return false;
+        if (!Types.IsString(format))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, line, "le format doit être un texte", "PRINT USING"));
+            return false;
+        }
+        if (tokens[pos].Kind != TokenKind.Semicolon)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.UsingFormatNotLiteral, line, IsLineEnd(tokens[pos]) ? "" : tokens[pos].Text));
+            return false;
+        }
+        pos++;
+        List<Expression>? values = ParseUsingValues(tokens, ref pos, line, diagnostics, out newLine);
+        if (values is null)
+            return false;
+        items.Add(new PrintUsingDynamicStatement(line, format, values));
         return true;
     }
 

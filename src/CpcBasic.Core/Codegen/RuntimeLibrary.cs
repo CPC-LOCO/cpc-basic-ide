@@ -277,6 +277,14 @@ public static class RuntimeLibrary
     public const string ArrayElementSizeLabel = "rt_arr_esize";  // taille d'une case : 2 (entier) ou 3 (texte, D065)
     public const string ArrayElemLabel = "rt_arr_elem";
     public const string ArrayMemoryLabel = "rt_arr_memory";
+    // PRINT USING avec un format lu à l'exécution (lot K10, D098)
+    public const string UsingDynName = "UsingDyn";
+    public const string UsingDynStartLabel = "rt_ud_start";     // HL = fiche du format
+    public const string UsingDynTailLabel = "rt_ud_tail";       // après la dernière valeur : texte jusqu'à l'emplacement suivant
+    public const string UsingDynNumName = "UsingDynNum";
+    public const string UsingDynNumLabel = "rt_ud_numv";        // HL = nombre (5 octets) : emplacement suivant, puis affichage
+    public const string UsingDynStrName = "UsingDynStr";
+    public const string UsingDynStrLabel = "rt_ud_strv";        // HL = fiche du texte
     public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
     public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
@@ -3711,6 +3719,364 @@ public static class RuntimeLibrary
             e.Data([0]);
             e.Label("rt_er_dead");                   // fiche vide : aucun bloc ne lui appartient
             e.Data([0, 0, 0]);
+        }),
+
+        // PRINT USING F$; valeurs (lot K10, D098). Le format est lu pendant l'exécution, avec les règles de ParseUsingFormat
+        // (Parser.cs, D074) : « ! », « & », « \  \ » pour un texte ; [+] [** [$] | $$] # et , [. #] [^^^^] [+ ou -] pour
+        // un nombre. Le texte entre les emplacements est écrit tel quel (TXT OUTPUT). À la fin du format, on reprend au
+        // début ; un format sans aucun emplacement : son texte est écrit, puis « Improper argument » (vrai BASIC).
+        // La fiche du format est relue à chaque caractère : le ménage des textes peut déplacer ses lettres.
+        // rt_ud_w, rt_ud_b, rt_ud_d, rt_ud_f : largeur, places avant le point, décimales, indicateurs (comme D074).
+        [UsingDynName] = new RuntimeModule(UsingDynName, [ErrorName], e =>
+        {
+            e.Label(UsingDynStartLabel);
+            e.LdMemHl("rt_ud_fiche");
+            e.XorA();
+            e.LdMemA("rt_ud_i");
+            e.LdMemA("rt_ud_any");
+            e.Ret();
+
+            // Écrit le texte du format jusqu'à l'emplacement suivant ; rt_ud_kind = 1 (nombre) ou 2 (texte)
+            e.Label("rt_ud_next");
+            e.CallLabel("rt_ud_atend");
+            e.JrNzLabel("rt_ud_nnot");
+            e.LdAMem("rt_ud_any");
+            e.OrA();
+            e.JpZLabel("rt_ud_bad");                 // aucun emplacement dans tout le format
+            e.XorA();
+            e.LdMemA("rt_ud_i");
+            e.JrLabel("rt_ud_next");
+            e.Label("rt_ud_nnot");
+            e.CallLabel("rt_ud_field");
+            e.JrNcLabel("rt_ud_nlit");
+            e.LdAImm(1);
+            e.LdMemA("rt_ud_any");
+            e.Ret();
+            e.Label("rt_ud_nlit");
+            e.CallLabel("rt_ud_out");
+            e.JrLabel("rt_ud_next");
+
+            // Après la dernière valeur : le texte jusqu'à l'emplacement suivant ou la fin, sans reprendre au début
+            e.Label(UsingDynTailLabel);
+            e.CallLabel("rt_ud_atend");
+            e.RetZ();
+            e.CallLabel("rt_ud_field");
+            e.RetC();
+            e.CallLabel("rt_ud_out");
+            e.JrLabel(UsingDynTailLabel);
+
+            // Écrit le caractère en cours et avance
+            e.Label("rt_ud_out");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CallAddress(TxtOutput);
+            e.LdHlLabel("rt_ud_i");
+            e.IncMemHl();
+            e.Ret();
+
+            // Z si le format est fini
+            e.Label("rt_ud_atend");
+            e.LdHlMem("rt_ud_fiche");
+            e.LdAHl();
+            e.LdHlLabel("rt_ud_i");
+            e.CpMemHl();
+            e.Ret();
+
+            // E = écart -> A = caractère à rt_ud_i + E, 0 après la fin. Garde DE et HL.
+            e.Label("rt_ud_ch");
+            e.PushHl();
+            e.PushDe();
+            e.LdAMem("rt_ud_i");
+            e.AddAE();
+            e.JrCLabel("rt_ud_chend");
+            e.LdEA();
+            e.LdHlMem("rt_ud_fiche");
+            e.LdAHl();                               // longueur
+            e.SubE();
+            e.JrCLabel("rt_ud_chend");
+            e.JrZLabel("rt_ud_chend");
+            e.IncHl();
+            e.LdAHl();
+            e.IncHl();
+            e.LoadHFromHl();
+            e.LdLA();                                // HL = lettres
+            e.LdDZero();
+            e.AddHlDe();
+            e.LdAHl();
+            e.PopDe();
+            e.PopHl();
+            e.Ret();
+            e.Label("rt_ud_chend");
+            e.XorA();
+            e.PopDe();
+            e.PopHl();
+            e.Ret();
+
+            // Emplacement au caractère en cours ? Retenue : oui (rt_ud_i passe après lui), sinon rt_ud_i ne bouge pas
+            e.Label("rt_ud_field");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('!');
+            e.JrZLabel("rt_ud_f1");
+            e.CpImm('&');
+            e.JrZLabel("rt_ud_f0");
+            e.CpImm('\\');
+            e.JrNzLabel("rt_ud_fnum");
+            e.LdDeImm(1);
+            e.Label("rt_ud_fbs");
+            e.CallLabel("rt_ud_ch");
+            e.CpImm(' ');
+            e.JrNzLabel("rt_ud_fbs2");
+            e.IncDe();
+            e.JrLabel("rt_ud_fbs");
+            e.Label("rt_ud_fbs2");
+            e.CpImm('\\');
+            e.JrNzLabel("rt_ud_fnum");
+            e.LdAE();                                // « \  \ » : largeur = E + 1
+            e.IncA();
+            e.LdMemA("rt_ud_w");
+            e.LdHlLabel("rt_ud_i");
+            e.AddAMemHl();
+            e.LdHlA();
+            e.JrLabel("rt_ud_fstr");
+            e.Label("rt_ud_f1");
+            e.LdAImm(1);                             // « ! » : la première lettre
+            e.JrLabel("rt_ud_fone");
+            e.Label("rt_ud_f0");
+            e.XorA();                                // « & » : tout le texte
+            e.Label("rt_ud_fone");
+            e.LdMemA("rt_ud_w");
+            e.LdHlLabel("rt_ud_i");
+            e.IncMemHl();
+            e.Label("rt_ud_fstr");
+            e.LdAImm(2);
+            e.LdMemA("rt_ud_kind");
+            e.Scf();
+            e.Ret();
+            e.Label("rt_ud_fnum");
+            e.CallLabel("rt_ud_num");
+            e.RetNc();
+            e.LdAImm(1);
+            e.LdMemA("rt_ud_kind");
+            e.Scf();
+            e.Ret();
+
+            // Emplacement de nombre (comme TryUsingNumber, D074)
+            e.Label("rt_ud_num");
+            e.LdAMem("rt_ud_i");
+            e.LdMemA("rt_ud_s");
+            e.XorA();
+            e.LdMemA("rt_ud_f");
+            e.LdMemA("rt_ud_b");
+            e.LdMemA("rt_ud_d");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('+');
+            e.JrNzLabel("rt_ud_n1");
+            e.LdAImm(Language.UsingFlags.PlusLead);
+            e.CallLabel("rt_ud_flag");
+            e.CallLabel("rt_ud_inc");
+            e.Label("rt_ud_n1");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('*');
+            e.JrNzLabel("rt_ud_n2");
+            e.LdEImm(1);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('*');
+            e.JrNzLabel("rt_ud_n2");
+            e.LdAImm(Language.UsingFlags.Asterisk);  // « ** »
+            e.CallLabel("rt_ud_flag");
+            e.CallLabel("rt_ud_before");
+            e.CallLabel("rt_ud_before");
+            e.CallLabel("rt_ud_inc");
+            e.CallLabel("rt_ud_inc");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('$');
+            e.JrNzLabel("rt_ud_n4");
+            e.LdAImm(Language.UsingFlags.Dollar);    // « **$ »
+            e.CallLabel("rt_ud_flag");
+            e.CallLabel("rt_ud_before");
+            e.CallLabel("rt_ud_inc");
+            e.JrLabel("rt_ud_n4");
+            e.Label("rt_ud_n2");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('$');
+            e.JrNzLabel("rt_ud_n4");
+            e.LdEImm(1);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('$');
+            e.JrNzLabel("rt_ud_n4");
+            e.LdAImm(Language.UsingFlags.Dollar);    // « $$ »
+            e.CallLabel("rt_ud_flag");
+            e.CallLabel("rt_ud_before");
+            e.CallLabel("rt_ud_before");
+            e.CallLabel("rt_ud_inc");
+            e.CallLabel("rt_ud_inc");
+            e.Label("rt_ud_n4");                     // # et , (la virgule après au moins une place)
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('#');
+            e.JrZLabel("rt_ud_n5");
+            e.CpImm(',');
+            e.JrNzLabel("rt_ud_n6");
+            e.LdAMem("rt_ud_b");
+            e.OrA();
+            e.JrZLabel("rt_ud_n6");
+            e.LdAImm(Language.UsingFlags.Comma);
+            e.CallLabel("rt_ud_flag");
+            e.Label("rt_ud_n5");
+            e.CallLabel("rt_ud_before");
+            e.CallLabel("rt_ud_inc");
+            e.JrLabel("rt_ud_n4");
+            e.Label("rt_ud_n6");                     // point : après des places, ou suivi de #
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('.');
+            e.JrNzLabel("rt_ud_n8");
+            e.LdAMem("rt_ud_b");
+            e.OrA();
+            e.JrNzLabel("rt_ud_n7");
+            e.LdEImm(1);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('#');
+            e.JrNzLabel("rt_ud_n8");
+            e.Label("rt_ud_n7");
+            e.LdAImm(Language.UsingFlags.Point);
+            e.CallLabel("rt_ud_flag");
+            e.CallLabel("rt_ud_inc");
+            e.Label("rt_ud_n7b");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('#');
+            e.JrNzLabel("rt_ud_n8");
+            e.LdHlLabel("rt_ud_d");
+            e.IncMemHl();
+            e.CallLabel("rt_ud_inc");
+            e.JrLabel("rt_ud_n7b");
+            e.Label("rt_ud_n8");                     // ni place ni point : pas un emplacement
+            e.LdAMem("rt_ud_b");
+            e.OrA();
+            e.JrNzLabel("rt_ud_n9");
+            e.LdAMem("rt_ud_f");
+            e.AndImm(Language.UsingFlags.Point);
+            e.JrNzLabel("rt_ud_n9");
+            e.LdAMem("rt_ud_s");
+            e.LdMemA("rt_ud_i");
+            e.OrA();                                 // pas de retenue
+            e.Ret();
+            e.Label("rt_ud_n9");                     // « ^^^^ »
+            e.LdEImm(0);
+            e.Label("rt_ud_n9b");
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('^');
+            e.JrNzLabel("rt_ud_n10");
+            e.IncDe();
+            e.LdAE();
+            e.CpImm(4);
+            e.JrNzLabel("rt_ud_n9b");
+            e.LdAImm(Language.UsingFlags.Exponent);
+            e.CallLabel("rt_ud_flag");
+            e.LdAMem("rt_ud_i");
+            e.AddAImm(4);
+            e.LdMemA("rt_ud_i");
+            e.Label("rt_ud_n10");                    // « - » ou « + » derrière, sans « + » devant
+            e.LdAMem("rt_ud_f");
+            e.AndImm(Language.UsingFlags.PlusLead);
+            e.JrNzLabel("rt_ud_n11");
+            e.LdEImm(0);
+            e.CallLabel("rt_ud_ch");
+            e.CpImm('-');
+            e.JrNzLabel("rt_ud_n10b");
+            e.LdAImm(Language.UsingFlags.TrailMinus);
+            e.JrLabel("rt_ud_n10c");
+            e.Label("rt_ud_n10b");
+            e.CpImm('+');
+            e.JrNzLabel("rt_ud_n11");
+            e.LdAImm(Language.UsingFlags.TrailPlus);
+            e.Label("rt_ud_n10c");
+            e.CallLabel("rt_ud_flag");
+            e.CallLabel("rt_ud_inc");
+            e.Label("rt_ud_n11");                    // largeur = caractères lus
+            e.LdAMem("rt_ud_s");
+            e.LdEA();
+            e.LdAMem("rt_ud_i");
+            e.SubE();
+            e.LdMemA("rt_ud_w");
+            e.Scf();
+            e.Ret();
+
+            e.Label("rt_ud_flag");                   // rt_ud_f = rt_ud_f OR A
+            e.LdHlLabel("rt_ud_f");
+            e.OrMemHl();
+            e.LdHlA();
+            e.Ret();
+            e.Label("rt_ud_before");                 // une place de plus avant le point
+            e.LdHlLabel("rt_ud_b");
+            e.IncMemHl();
+            e.Ret();
+            e.Label("rt_ud_inc");                    // caractère suivant
+            e.LdHlLabel("rt_ud_i");
+            e.IncMemHl();
+            e.Ret();
+
+            e.Label("rt_ud_bad");
+            e.LdHlLabel("rt_ud_msg_bad");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_ud_mismatch");
+            e.LdHlLabel("rt_ud_msg_type");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_ud_msg_bad");
+            e.Data(Ascii("Improper argument"));
+            e.Label("rt_ud_msg_type");
+            e.Data(Ascii("Type mismatch"));
+            foreach (string v in new[] { "rt_ud_fiche" })
+            {
+                e.Label(v);
+                e.Reserve(2);
+            }
+            foreach (string v in new[] { "rt_ud_i", "rt_ud_s", "rt_ud_any", "rt_ud_kind", "rt_ud_w", "rt_ud_b", "rt_ud_d", "rt_ud_f" })
+            {
+                e.Label(v);
+                e.Reserve(1);
+            }
+        }),
+
+        // Valeur à virgule dans un format lu à l'exécution (D098) : HL = nombre
+        [UsingDynNumName] = new RuntimeModule(UsingDynNumName, [UsingDynName, PrintUsingName], e =>
+        {
+            e.Label(UsingDynNumLabel);
+            e.PushHl();
+            e.CallLabel("rt_ud_next");
+            e.LdAMem("rt_ud_kind");
+            e.CpImm(1);
+            e.JpNzLabel("rt_ud_mismatch");
+            e.LdAMem("rt_ud_w");
+            e.LdBA();
+            e.LdAMem("rt_ud_b");
+            e.LdCA();
+            e.LdAMem("rt_ud_d");
+            e.LdDA();
+            e.LdAMem("rt_ud_f");
+            e.LdEA();
+            e.PopHl();
+            e.JpLabel(UsingNumLabel);
+        }),
+
+        // Texte dans un format lu à l'exécution (D098) : HL = fiche
+        [UsingDynStrName] = new RuntimeModule(UsingDynStrName, [UsingDynName, PrintUsingStrName], e =>
+        {
+            e.Label(UsingDynStrLabel);
+            e.PushHl();
+            e.CallLabel("rt_ud_next");
+            e.LdAMem("rt_ud_kind");
+            e.CpImm(2);
+            e.JpNzLabel("rt_ud_mismatch");
+            e.LdAMem("rt_ud_w");
+            e.PopHl();
+            e.JpLabel(UsingStrLabel);
         }),
 
         // ON x GOTO / GOSUB (D097) : x hors de 0 à 255 : « Improper argument », comme le Locomotive

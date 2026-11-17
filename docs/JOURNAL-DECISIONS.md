@@ -750,6 +750,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **À savoir (constaté par l'utilisateur) :** avec F8, les boucles d'attente `FOR K = 1 TO 30000` deviennent des boucles à virgule, bien plus lentes (comme sur le vrai CPC). Pour une boucle rapide avec F8 : `FOR K% = 1 TO 30000`.
 - **Fichiers :** Parser.cs, Ast.cs, RuntimeLibrary.cs (module OnRange), CodeGenerator.cs (OnNeedsCheck, TIME!), JumpTests.cs, `tests\CpcBasic.Tests\TimeFullTests.cs` (nouveau). Exemple : `examples\temps.bas`.
 
+## D098 : lot K10, PRINT USING avec un format dans une variable (Validé le 17 nov. 2026 : 1279 tests réussis ; `formats.bas` dans WinAPE identique à SugarBox)
+- **Référence (SugarBox, 17 nov. 2026) :** `F$="###.##"` : 3.14 ; `F$="PRIX ##.# EUR":PRINT USING F$;5;-7.25` : « PRIX  5.0 EURPRIX -7.3 EUR » (le format est repris au début pour la seconde valeur, sans passer à la ligne) ; « ! » : B ; « \  \ » : ABCD ; « & » avec "A"+"B" : AB ; `F$="X"` (aucun emplacement) : « X » est écrit, puis « Improper argument in 60 ». Le caractère « \ » se tape dans SugarBox avec CHR$(92).
+- **Conception :** un format écrit entre guillemets reste découpé à la compilation (D074). Un format dans une variable ou un calcul (`PRINT USING F$; …`, `PRINT USING "##"+".#"; …`) donne une instruction PrintUsingDynamicStatement : le module UsingDyn lit le format pendant l'exécution avec les mêmes règles (« ! », « & », « \  \ », [+] [** [$] | $$] # et , [. #] [^^^^] [+ ou -]), écrit le texte entre les emplacements, puis appelle les mêmes routines d'affichage que D074 (modules UsingDynNum et UsingDynStr). La fiche du format est relue à chaque caractère (le ménage des textes peut déplacer ses lettres).
+- **Erreurs à l'exécution :** format sans emplacement : son texte puis « Improper argument » ; texte dans un emplacement de nombre (ou l'inverse) : « Type mismatch ». À la compilation : format qui n'est pas un texte, ou pas suivi de « ; ».
+- **Tests :** chaque format donne exactement le même affichage écrit entre guillemets ou rangé dans F$ (16 formats). UsingTests.cs : l'ancien test « format dans une variable pas encore possible » vérifie maintenant le « ; » obligatoire.
+- **Fichiers :** Ast.cs, Parser.cs (ParseUsingValues, ParseUsingDynamic), Diagnostic.cs (message de UsingFormatNotLiteral), RuntimeLibrary.cs (modules UsingDyn, UsingDynNum, UsingDynStr), CodeGenerator.cs, `tests\CpcBasic.Tests\UsingDynamicTests.cs` (nouveau). Exemple : `examples\formats.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

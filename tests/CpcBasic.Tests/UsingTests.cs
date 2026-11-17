@@ -88,9 +88,10 @@ public class UsingTests
     // ---------- Erreurs ----------
 
     [Fact]
-    public void Format_dans_une_variable_pas_encore_possible()
+    public void Format_sans_point_virgule()
     {
-        Diagnostic error = Assert.Single(Errors("10 F$ = \"##\"\n20 PRINT USING F$; 5"));
+        // Depuis D098, le format peut être dans une variable ; il doit toujours être suivi de « ; »
+        Diagnostic error = Assert.Single(Errors("10 F$ = \"##\"\n20 PRINT USING F$ 5"));
         Assert.Equal(DiagnosticCode.UsingFormatNotLiteral, error.Code);
     }
 

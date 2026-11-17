@@ -101,7 +101,7 @@ Mise à jour le 16 nov. 2026 :
 |---|---|---|---|
 | `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateurs « ; » et « , » (zones), TAB, SPC (D073), fenêtres #0 à #7 (D072). USING avec un format entre guillemets (D074). Les accents sont remplacés par « ? ». |
 | `TAB / SPC` | positionne ou saute des colonnes dans PRINT | Faite | D073. |
-| `USING` | format d'affichage des nombres (PRINT USING) | Partielle | D074 : tous les formats, mais écrits entre guillemets (pas encore dans une variable). |
+| `USING` | format d'affichage des nombres (PRINT USING) | Faite | D074 : tous les formats ; D098 : format dans une variable ou un calcul, lu à l'exécution. |
 | `WRITE` | affiche avec guillemets et virgules | Faite | Avec #0 à #7 (D073). |
 | `LOCATE` | place le curseur de texte | Faite | Avec #n (D072). |
 | `CLS` | efface l'écran de texte | Faite | Avec #n (D072). |

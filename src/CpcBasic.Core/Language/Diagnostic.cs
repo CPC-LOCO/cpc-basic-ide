@@ -64,7 +64,7 @@ public enum DiagnosticCode
     ExpectedLetterRange,
     ExpectedStreamComma,     // lot H1 (D072) : PRINT #1 "A" sans virgule après le numéro de fenêtre
     ExpectedStream,          // lot H1 (D072) : POS(0) au lieu de POS(#0)
-    UsingFormatNotLiteral,   // lot H3 (D074) : PRINT USING F$; X (format pas entre guillemets)
+    UsingFormatNotLiteral,   // lot H3 (D074) ; depuis D098 : format sans « ; » après lui
     UsingWithoutField,       // lot H3 (D074) : format sans aucun emplacement
     SaveProgram,             // lot J2 (D085) : SAVE sans ,B (le programme BASIC n'existe plus une fois compilé)
     NotForCompiled,          // lot J3 (D086) : commande qui n'a pas de sens une fois compilé (CHAIN, MERGE...)
@@ -220,7 +220,7 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.ExpectedStream =>
             $"{(Context.Length == 0 ? "POS ou VPOS" : Context)} attend un numéro de fenêtre précédé de « # », comme le Locomotive (exemple : {(Context.Length == 0 ? "POS" : Context)}(#0)).{Why}",
         DiagnosticCode.UsingFormatNotLiteral =>
-            $"PRINT USING attend ici un format écrit entre guillemets suivi de « ; », par exemple PRINT USING \"###.##\"; X. Un format rangé dans une variable n'est pas encore possible.{Why}",
+            $"PRINT USING attend un format (entre guillemets, ou dans une variable texte) suivi de « ; », par exemple PRINT USING \"###.##\"; X ou PRINT USING F$; X.{Why}",
         DiagnosticCode.UsingWithoutField =>
             $"PRINT USING : le format « {Argument} » ne contient aucun emplacement (# pour un nombre, ! & ou \\  \\ pour un texte). Le vrai BASIC répondrait « Improper argument ».",
         DiagnosticCode.NotForCompiled => Argument,
