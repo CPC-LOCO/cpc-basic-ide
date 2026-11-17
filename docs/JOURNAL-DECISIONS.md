@@ -875,6 +875,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Déjà reconnues, pour les étapes suivantes :** AUTO, LIST, RENUM, DELETE.
 - **Fichiers :** src\CpcBasic.Core\Editing\DirectCommands.cs (reconnaissance, testable), MainWindow.axaml.cs (Entrée, RunDirectCommandAsync), DirectCommandTests.cs.
 
+## D116 : AUTO dans l'éditeur (17 nov. 2026 ; deuxième étape des commandes de l'éditeur) (validé par l'utilisateur dans l'éditeur)
+- **Comme le CPC :** AUTO [début][,pas], 10 et 10 si absents (AUTO 100,5 ; AUTO ,5). L'éditeur écrit « 10 », puis le numéro suivant à chaque Entrée.
+- **Arrêt :** ESC, ou Entrée sur une ligne sans rien après le numéro (le numéro seul disparaît, la ligne n'est pas créée, comme sur le CPC). Ouvrir un programme ou NEW arrête aussi AUTO.
+- **Écart voulu :** si le numéro suivant existe déjà, AUTO s'arrête avec un message (« la ligne 30 existe déjà ; EDIT 30 pour y aller ») au lieu d'afficher l'ancienne ligne comme le CPC : l'éditeur ne crée jamais deux lignes du même numéro. Plus de 65535 : AUTO s'arrête.
+- **Valeurs refusées (message ✗) :** 0, plus de 65535, pas nul, nombre négatif, autre chose qu'un nombre, plus de deux valeurs.
+- **Correction pendant l'essai :** la première version fermait l'éditeur à la deuxième ligne (le curseur avait déjà suivi le texte ajouté, la ligne cherchée n'existait pas). Corrigé ; de plus, un problème imprévu dans une commande de l'éditeur arrête la commande avec un message ✗ au lieu de fermer l'éditeur.
+- **Fichiers :** DirectCommands.cs (TryParseAuto), MainWindow.axaml.cs (StartAutoLine, ContinueAuto, StopAuto), DirectCommandTests.cs.
+
 ---
 
 ## Notes de fin de session (modèle)

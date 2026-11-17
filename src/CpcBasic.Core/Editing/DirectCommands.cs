@@ -95,6 +95,27 @@ public static class DirectCommands
     }
 
     /// <summary>
+    /// Valeurs de AUTO [début][,pas] (D116) : 10 et 10 si elles manquent, comme le CPC. Faux si elles ne conviennent pas
+    /// (numéro hors de 1 à 65535, pas nul, autre chose que des nombres).
+    /// </summary>
+    public static bool TryParseAuto(string argument, out int start, out int step)
+    {
+        start = 10;
+        step = 10;
+        string[] parts = argument.Split(',');
+        if (parts.Length > 2)
+            return false;
+        if (parts[0].Trim().Length > 0 && !TryLineNumber(parts[0], out start))
+            return false;
+        if (parts.Length == 2 && !TryLineNumber(parts[1], out step))
+            return false;
+        return true;
+    }
+
+    static bool TryLineNumber(string text, out int value) =>
+        int.TryParse(text.Trim(), System.Globalization.NumberStyles.None, null, out value) && value is >= 1 and <= 65535;
+
+    /// <summary>
     /// Ligne de l'éditeur (comptée à partir de 1) qui porte le numéro BASIC demandé ; null si aucune ligne ne l'a.
     /// </summary>
     public static int? FindLine(string text, int number)

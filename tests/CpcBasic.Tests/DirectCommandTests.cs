@@ -52,4 +52,26 @@ public class DirectCommandTests
         Assert.Null(DirectCommands.FindLine(text, 2));
         Assert.Null(DirectCommands.FindLine(text, 25));
     }
+
+    [Theory]
+    [InlineData("", 10, 10)]
+    [InlineData("100", 100, 10)]
+    [InlineData("100,5", 100, 5)]
+    [InlineData(" 100 , 5 ", 100, 5)]
+    [InlineData(",5", 10, 5)]
+    public void AUTO_valeurs(string argument, int start, int step)
+    {
+        Assert.True(DirectCommands.TryParseAuto(argument, out int s, out int p));
+        Assert.Equal(start, s);
+        Assert.Equal(step, p);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("100,0")]
+    [InlineData("70000")]
+    [InlineData("A")]
+    [InlineData("10,5,2")]
+    [InlineData("-10")]
+    public void AUTO_valeurs_refusees(string argument) => Assert.False(DirectCommands.TryParseAuto(argument, out _, out _));
 }

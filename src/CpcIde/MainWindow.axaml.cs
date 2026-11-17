@@ -68,6 +68,8 @@ public partial class MainWindow : Window
     string? currentPath;
     bool modified;
     bool loading;
+    int? autoNext;           // AUTO en cours (D116) : prochain numéro de ligne à écrire ; null sinon
+    int autoStep;
     string savedText = "";   // texte au dernier Ouvrir / Enregistrer : une commande effacée ne compte pas comme une modification
     double charWidth;        // largeur d'un caractère de l'éditeur, en points
     int visibleColumns;      // nombre de colonnes de caractères visibles dans la fenêtre d'édition
@@ -195,15 +197,46 @@ public partial class MainWindow : Window
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
 
         // Entrée sur une commande du mode direct tapée sans numéro (NEW, EDIT 20, CLEAR...) : D077, D115
+        // AUTO en cours : ESC l'arrête (D116)
+        if (e.Key == Key.Escape && autoNext is not null && Editor.TextArea.IsKeyboardFocusWithin)
+        {
+            e.Handled = true;
+            StopAuto();
+            return;
+        }
+
         if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && Editor.TextArea.IsKeyboardFocusWithin)
         {
             var line = Editor.Document.GetLineByNumber(Editor.TextArea.Caret.Line);
+            if (autoNext is not null)
+            {
+                e.Handled = true;
+                try
+                {
+                    ContinueAuto(line);
+                }
+                catch (Exception ex)
+                {
+                    // Jamais de fermeture de l'éditeur pour une commande : AUTO s'arrête et le problème est affiché
+                    autoNext = null;
+                    ShowError($"AUTO arrêté à cause d'un problème interne : {ex.Message}");
+                }
+                return;
+            }
             var command = DirectCommands.Recognize(Editor.Document.GetText(line));
             if (command is not null)
             {
                 e.Handled = true;
-                RemoveCommandLine(line);
-                await RunDirectCommandAsync(command);
+                try
+                {
+                    RemoveCommandLine(line);
+                    await RunDirectCommandAsync(command);
+                }
+                catch (Exception ex)
+                {
+                    autoNext = null;
+                    ShowError($"{command.Name} : problème interne, la commande n'a pas été faite ({ex.Message}).");
+                }
             }
             return;
         }
@@ -755,6 +788,16 @@ public partial class MainWindow : Window
                 ShowMessage($"EDIT {number} : le curseur est à la fin de la ligne {number}.");
                 break;
 
+            case DirectCommandKind.Auto:
+                if (!DirectCommands.TryParseAuto(command.Argument, out int start, out int step))
+                {
+                    ShowError("AUTO : écrivez AUTO, AUTO début ou AUTO début,pas (numéros de 1 à 65535), par exemple AUTO 100,5.");
+                    return;
+                }
+                autoStep = step;
+                StartAutoLine(start, newLine: false);
+                break;
+
             case DirectCommandKind.Explain:
                 ShowMessage(command.Explanation!);
                 break;
@@ -765,9 +808,78 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------- AUTO (D116) ----------
+
+    // Écrit le numéro de la ligne suivante (sur une nouvelle ligne après le curseur, ou à la place de la ligne AUTO).
+    // Si ce numéro existe déjà, AUTO s'arrête au lieu d'écrire une deuxième ligne du même numéro.
+    void StartAutoLine(int number, bool newLine)
+    {
+        if (number > 65535)
+        {
+            autoNext = null;
+            ShowMessage("AUTO s'arrête : 65535 est le plus grand numéro de ligne.");
+            return;
+        }
+        if (DirectCommands.FindLine(Editor.Text, number) is not null)
+        {
+            autoNext = null;
+            ShowMessage($"AUTO s'arrête : la ligne {number} existe déjà (EDIT {number} pour y aller).");
+            return;
+        }
+
+        var caret = Editor.TextArea.Caret;
+        string text = $"{number} ";
+        if (newLine)
+        {
+            // Le numéro de la nouvelle ligne est pris AVANT l'ajout : le curseur peut déjà avoir suivi le texte ajouté
+            var current = Editor.Document.GetLineByNumber(caret.Line);
+            int newLineNumber = current.LineNumber + 1;
+            Editor.Document.Insert(current.EndOffset, Environment.NewLine + text);
+            caret.Offset = Editor.Document.GetLineByNumber(newLineNumber).EndOffset;
+            autoNext = number + autoStep;
+            return;
+        }
+        else
+        {
+            // La ligne de la commande a été effacée : on écrit le numéro à sa place, sur une ligne à lui
+            int offset = caret.Offset;
+            var current = Editor.Document.GetLineByNumber(caret.Line);
+            bool emptyLine = current.Length == 0;
+            Editor.Document.Insert(offset, emptyLine ? text : text + Environment.NewLine);
+            caret.Offset = offset + text.Length;
+            autoNext = number + autoStep;
+            ShowMessage($"AUTO : numéros {number}, {number + autoStep}, {number + 2 * autoStep}... " +
+                        "Entrée passe à la ligne suivante ; ESC, ou Entrée sur une ligne sans rien après le numéro, arrête AUTO.");
+            return;
+        }
+    }
+
+    void ContinueAuto(AvaloniaEdit.Document.DocumentLine line)
+    {
+        string text = Editor.Document.GetText(line).Trim();
+        // Rien après le numéro : AUTO s'arrête et le numéro seul disparaît (comme sur le CPC, la ligne n'est pas créée)
+        if (text.Length == 0 || text.All(char.IsDigit))
+        {
+            StopAuto();
+            return;
+        }
+        StartAutoLine(autoNext!.Value, newLine: true);
+    }
+
+    void StopAuto()
+    {
+        autoNext = null;
+        var line = Editor.Document.GetLineByNumber(Editor.TextArea.Caret.Line);
+        string text = Editor.Document.GetText(line).Trim();
+        if (text.Length > 0 && text.All(char.IsDigit))
+            Editor.Document.Replace(line.Offset, line.Length, "");
+        ShowMessage("AUTO arrêté.");
+    }
+
     void SetText(string text)
     {
         loading = true;
+        autoNext = null;
         Editor.Text = text;
         loading = false;
         savedText = text;

@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Commandes NEW, EDIT et explications » (17 nov. 2026, **1372 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Commande AUTO dans l'editeur » (17 nov. 2026, **1383 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -63,7 +63,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 - **Reste de l'inventaire :** quelques remarques « Partielle » (MEMORY, @, PRINT, CURSOR ,1 et MASK ,1 sans première valeur) ; vérifier MASK sur un 464 (D110).
 - **Réglage F7 retiré (D111)** : un programme compilé marche toujours sur tous les CPC ; messages d'incompatibilité notés dans IDEES.md.
 - **Remodelage de l'éditeur (en cours)** : étape 1 faite, barre de menus Fichier / Compiler / Options / Aide à la place des boutons, F1 = raccourcis (D112). Étape 2 faite : barre d'état lisible, panneau des messages réglable, lignes longues à la ligne comme le CPC (D113). Étape 3 faite : icônes ✓/✗ devant les messages (D114). Suite possible : se souvenir de la hauteur du panneau.
-- **Commandes de l'éditeur (D077)** : étape 1 faite (D115) : NEW, EDIT et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro puis Entrée. Restent AUTO, LIST, RENUM, DELETE (déjà reconnues dans DirectCommands.cs).
+- **Commandes de l'éditeur (D077)** : étape 1 faite (D115) : NEW, EDIT et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro puis Entrée. Étape 2 faite : AUTO (D116). Restent LIST, RENUM, DELETE (déjà reconnues dans DirectCommands.cs).
 - Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
 
 ### Questions en attente (à reposer au bon moment)
@@ -146,4 +146,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Commandes NEW, EDIT et explications » ; 1372 tests passent. Les lots A à L sont finis, le remodelage de l'éditeur est en cours. Propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Commande AUTO dans l'editeur » ; 1383 tests passent. Les lots A à L sont finis, le remodelage de l'éditeur est en cours. Propose-moi la suite, une étape à la fois.
