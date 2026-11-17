@@ -112,6 +112,7 @@ public partial class MainWindow : Window
     void OnMachineClick(object? sender, RoutedEventArgs e) => NextMachine();
     void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
     void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
+    void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
 
     async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
@@ -201,6 +202,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleBreakKey();
         }
+        else if (e.Key == Key.F11)
+        {
+            e.Handled = true;
+            ToggleTextOnDisk();
+        }
     }
 
     // Ctrl + molette : taille du texte
@@ -277,8 +283,20 @@ public partial class MainWindow : Window
             : "Touche ESC ignorée (sauf ON BREAK dans le programme) : programme un peu plus petit et plus rapide.");
     }
 
+    // F11 : le texte du programme aussi sur la disquette (NOM.TXT), pour le vrai BASIC ; pour tous les programmes (D101)
+    void ToggleTextOnDisk()
+    {
+        settings.TextOnDisk = !settings.TextOnDisk;
+        settings.Save();
+        UpdateOptionButtons();
+        ShowMessage(settings.TextOnDisk
+            ? "Texte sur la disquette : oui. F5 ajoute NOM.TXT ; dans l'émulateur : LOAD\"NOM.TXT\" puis RUN pour le vrai BASIC."
+            : "Texte sur la disquette : non. F5 ne met que le programme compilé.");
+    }
+
     void UpdateOptionButtons()
     {
+        TextButton.Content = settings.TextOnDisk ? "Texte sur la disquette : oui (F11)" : "Texte sur la disquette : non (F11)";
         BreakButton.Content = breakKey ? "ESC : comme le CPC (F9)" : "ESC : ignorée (F9)";
         MachineButton.Content = $"Machine : {CompilerOptions.MachineName(settings.Machine)} (F7)";
         RealButton.Content = realByDefault ? "Sans signe : à virgule (F8)" : "Sans signe : entiers (F8)";
@@ -510,6 +528,19 @@ public partial class MainWindow : Window
         }
 
         string dskPath = Path.ChangeExtension(path, ".dsk");
+        string? textNote = null;
+        if (settings.TextOnDisk)
+        {
+            try
+            {
+                result.Disk!.AddTextFile(name, "TXT", Editor.Text);   // pour le vrai BASIC : LOAD"NOM.TXT" (D101)
+                textNote = $"Texte du programme aussi sur la disquette : {name}.TXT (dans l'émulateur : LOAD\"{name}.TXT\" puis RUN).";
+            }
+            catch (InvalidOperationException ex)
+            {
+                textNote = $"Le texte du programme n'a pas pu être mis sur la disquette : {ex.Message}";
+            }
+        }
         try
         {
             result.Disk!.Save(dskPath);
@@ -535,6 +566,8 @@ public partial class MainWindow : Window
                             $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}. " +
                             $"Touche ESC : {(breakKey ? "comme le CPC" : "ignorée")}.", 0)
         };
+        if (textNote is not null)
+            done.Add(new MessageItem(textNote, 0));
         foreach (LinkedProgram linked in result.Linked)   // D087
             done.Add(new MessageItem($"Aussi compilé et mis sur la disquette (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.", 0));
         foreach (string absent in result.Missing)
@@ -615,6 +648,7 @@ public partial class MainWindow : Window
                           $"Taille du texte : {settings.FontSize}   |   Contraste élevé : {contrast}   |   " +
                           $"Machine : {CompilerOptions.MachineName(settings.Machine)}   |   " +
                           $"Sans signe : {(realByDefault ? "à virgule" : "entiers")}   |   " +
-                          $"ESC : {(breakKey ? "comme le CPC" : "ignorée")}";
+                          $"ESC : {(breakKey ? "comme le CPC" : "ignorée")}   |   " +
+                          $"Texte sur la disquette : {(settings.TextOnDisk ? "oui" : "non")}";
     }
 }

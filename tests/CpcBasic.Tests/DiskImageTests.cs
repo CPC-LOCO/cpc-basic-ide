@@ -49,6 +49,24 @@ public class DiskImageTests
         Assert.Equal(0x13, dsk[0x33]);
     }
 
+    // D101 : le texte du programme, sans en-tête AMSDOS, pour LOAD"NOM.TXT" dans le vrai BASIC
+    [Fact]
+    public void Le_texte_du_programme_est_un_fichier_ASCII_sans_en_tete()
+    {
+        var disk = new DiskImage();
+        disk.AddFile("essai", "bas", AmsdosFileType.Binary, 0x4000, 0x4000, new byte[300]);
+        disk.AddTextFile("essai", "txt", "10 PRINT \"été\"\n20 END\n");
+        byte[] dsk = disk.ToDskBytes();
+
+        Assert.Equal("ESSAI   TXT", TextAt(dsk, 32 + 1, 11));                     // seconde entrée du répertoire
+        string expected = "10 PRINT \"?t?\"\r\n20 END\r\n";
+        Assert.Equal((expected.Length + 1 + 127) / 128, At(dsk, 32 + 15));         // enregistrements de 128 octets
+        int start = At(dsk, 32 + 16) * DiskImage.BlockSize;
+        Assert.Equal(expected, TextAt(dsk, start, expected.Length));
+        Assert.Equal(0x1A, At(dsk, start + expected.Length));
+        Assert.Equal(new[] { "ESSAI.BAS", "ESSAI.TXT" }, disk.FileNames);
+    }
+
     [Fact]
     public void Empty_disk_is_filled_with_E5()
     {

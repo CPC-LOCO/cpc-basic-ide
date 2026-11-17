@@ -772,6 +772,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fichiers :** Parser.cs, RuntimeLibrary.cs (module Printer), CodeGenerator.cs, MiniZ80.cs, `tests\CpcBasic.Tests\PrinterTests.cs` (nouveau). Exemple : `examples\imprime.bas`.
 - **Lot K terminé** (K1 à K12, D088 à D100).
 
+## D101 : réglage F11 « Texte sur la disquette » (idée de l'utilisateur ; Validé le 17 nov. 2026 : 1291 tests réussis ; `fonctfn.dsk` : LOAD"FONCTFN.TXT" puis RUN dans WinAPE donne le même écran que le programme compilé)
+- **Demande :** pouvoir lancer le même programme avec le vrai BASIC, sans le recopier dans l'émulateur (le copier-coller de WinAPE abîme les chiffres). Idée de l'utilisateur : une case « disquette virtuelle (on/off) » ; nom retenu : « Texte sur la disquette ».
+- **Réglage de l'éditeur** (pas un mot du BASIC) : bouton « Texte sur la disquette : oui / non (F11) », à côté de F7, F8 et F9, mémorisé pour tous les programmes (EditorSettings.TextOnDisk), affiché dans la barre d'état. F10 n'est pas pris car Windows s'en sert pour les menus.
+- **Effet :** quand il est sur « oui », F5 ajoute NOM.TXT sur la disquette : le texte du programme, sans en-tête AMSDOS (fichier ASCII), lignes en CR LF, caractères hors ASCII remplacés par « ? », &1A à la fin (DiskImage.AddTextFile). Dans l'émulateur : `LOAD"NOM.TXT"` puis `RUN` lance le vrai BASIC ; `RUN"NOM"` lance le programme compilé. Si le texte ne tient pas (plus de 16 Ko), la compilation réussit quand même, avec un message.
+- **Fichiers :** DiskImage.cs (AddTextFile), EditorSettings.cs, MainWindow.axaml, MainWindow.axaml.cs, DiskImageTests.cs.
+
 ---
 
 ## Notes de fin de session (modèle)

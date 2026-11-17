@@ -67,6 +67,9 @@
             <!-- Touche ESC (D083) : comme le vrai BASIC, ou ignorée -->
             <Button x:Name="BreakButton" Content="ESC : comme le CPC (F9)" Click="OnBreakClick"
                     AutomationProperties.Name="Touche ESC" />
+            <!-- Texte du programme sur la disquette, pour le vrai BASIC (D101) -->
+            <Button x:Name="TextButton" Content="Texte sur la disquette : non (F11)" Click="OnTextClick"
+                    AutomationProperties.Name="Texte du programme sur la disquette" />
         </WrapPanel>
 
         <!-- Barre d'état tout en bas -->

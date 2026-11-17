@@ -58,8 +58,25 @@ public sealed class DiskImage
         fileNames.Add($"{cleanName}.{cleanExt}");
 
         byte[] header = BuildHeader(cleanName, cleanExt, type, loadAddress, execAddress, content.Length);
-        byte[] file = [.. header, .. content];
+        AddRaw(cleanName, cleanExt, [.. header, .. content]);
+    }
 
+    /// <summary>
+    /// Ajoute le texte d'un programme BASIC, sans en-tête AMSDOS (fichier ASCII) : le vrai BASIC le lit avec
+    /// LOAD"NOM.TXT" (D101). Fins de ligne CR LF, caractères hors ASCII remplacés par « ? », &amp;1A à la fin.
+    /// </summary>
+    public void AddTextFile(string name, string extension, string text)
+    {
+        string cleanName = CleanName(name, 8, nameof(name));
+        string cleanExt = CleanName(extension, 3, nameof(extension));
+        fileNames.Add($"{cleanName}.{cleanExt}");
+        string lines = text.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd('\n').Replace("\n", "\r\n") + "\r\n";
+        byte[] bytes = lines.Select(c => c is >= ' ' and <= '~' or '\r' or '\n' ? (byte)c : (byte)'?').ToArray();
+        AddRaw(cleanName, cleanExt, [.. bytes, 0x1A]);
+    }
+
+    void AddRaw(string cleanName, string cleanExt, byte[] file)
+    {
         int blocks = (file.Length + BlockSize - 1) / BlockSize;
         if (blocks > MaxBlocksPerFile)
             throw new InvalidOperationException("Un fichier ne peut pas dépasser 16 Ko pour l'instant.");

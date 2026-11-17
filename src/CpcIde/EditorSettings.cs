@@ -44,6 +44,12 @@ public sealed class EditorSettings
     /// </summary>
     public List<string> BreakIgnoredFiles { get; set; } = new();
 
+    /// <summary>
+    /// Vrai si F5 met aussi le texte du programme sur la disquette (NOM.TXT), pour le lancer avec le vrai BASIC :
+    /// LOAD"NOM.TXT" puis RUN (D101). Réglage commun à tous les programmes, comme la machine.
+    /// </summary>
+    public bool TextOnDisk { get; set; }
+
     static string Key(string path) => Path.GetFullPath(path).ToUpperInvariant();
 
     public bool IsBreakIgnored(string path) => BreakIgnoredFiles.Contains(Key(path));
