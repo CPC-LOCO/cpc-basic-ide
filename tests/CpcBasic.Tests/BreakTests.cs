@@ -76,7 +76,7 @@ public class BreakTests
     [Fact]
     public void Sans_reglage_ni_ON_BREAK_rien_n_est_ajoute()
     {
-        Assert.Empty(Generate("10 PRINT 1").Modules.Where(m => m.StartsWith("Events")));
+        Assert.DoesNotContain(Generate("10 PRINT 1").Modules, m => m.StartsWith("Events"));
         Assert.Contains(RuntimeLibrary.EventsBreakName, Generate("10 PRINT 1", breakKey: true).Modules);
         Assert.Contains(RuntimeLibrary.EventsBreakName, Generate("10 ON BREAK CONT").Modules);
         Assert.Contains(RuntimeLibrary.EventsSoundBreakName,

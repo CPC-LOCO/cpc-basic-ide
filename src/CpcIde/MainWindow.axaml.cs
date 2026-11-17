@@ -17,6 +17,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using AvaloniaEdit;
 using CpcBasic.Core;
+using CpcBasic.Core.Editing;
 
 namespace CpcIde;
 
@@ -67,6 +68,7 @@ public partial class MainWindow : Window
     string? currentPath;
     bool modified;
     bool loading;
+    string savedText = "";   // texte au dernier Ouvrir / Enregistrer : une commande effacée ne compte pas comme une modification
     double charWidth;        // largeur d'un caractère de l'éditeur, en points
     int visibleColumns;      // nombre de colonnes de caractères visibles dans la fenêtre d'édition
     bool closeConfirmed;   // vrai quand on a déjà demandé quoi faire des modifications avant de fermer
@@ -191,6 +193,20 @@ public partial class MainWindow : Window
     async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+
+        // Entrée sur une commande du mode direct tapée sans numéro (NEW, EDIT 20, CLEAR...) : D077, D115
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && Editor.TextArea.IsKeyboardFocusWithin)
+        {
+            var line = Editor.Document.GetLineByNumber(Editor.TextArea.Caret.Line);
+            var command = DirectCommands.Recognize(Editor.Document.GetText(line));
+            if (command is not null)
+            {
+                e.Handled = true;
+                RemoveCommandLine(line);
+                await RunDirectCommandAsync(command);
+            }
+            return;
+        }
 
         if (e.Key == Key.F5)
         {
@@ -536,6 +552,7 @@ public partial class MainWindow : Window
         try
         {
             await File.WriteAllTextAsync(currentPath, Editor.Text);
+            savedText = Editor.Text;
             modified = false;
             UpdateTitle();
             return true;
@@ -694,11 +711,66 @@ public partial class MainWindow : Window
 
     // ---------- Titre et barre d'état ----------
 
+    // ---------- Commandes du mode direct (D077, D115) ----------
+
+    // La ligne de la commande disparaît du programme ; si le reste est comme au dernier enregistrement, il n'est plus « modifié »
+    void RemoveCommandLine(AvaloniaEdit.Document.DocumentLine line)
+    {
+        Editor.Document.Remove(line.Offset, line.TotalLength);
+        modified = Editor.Text != savedText;
+        UpdateTitle();
+    }
+
+    async Task RunDirectCommandAsync(DirectCommand command)
+    {
+        switch (command.Kind)
+        {
+            case DirectCommandKind.New:
+                if (!await ConfirmDiscardOrSaveAsync())
+                {
+                    ShowMessage("NEW annulé : le programme est gardé.");
+                    return;
+                }
+                SetText("");
+                currentPath = null;
+                UpdateTitle();
+                ShowMessage("NEW : nouveau programme, sans titre. Ctrl+S l'enregistre sous un nom.");
+                break;
+
+            case DirectCommandKind.Edit:
+                if (!int.TryParse(command.Argument, out int number) || number < 1 || number > 65535)
+                {
+                    ShowError("EDIT : il faut le numéro de la ligne, par exemple EDIT 20.");
+                    return;
+                }
+                int? target = DirectCommands.FindLine(Editor.Text, number);
+                if (target is null)
+                {
+                    ShowError($"EDIT {number} : cette ligne n'existe pas (Line does not exist).");
+                    return;
+                }
+                var found = Editor.Document.GetLineByNumber(target.Value);
+                Editor.TextArea.Caret.Offset = found.EndOffset;
+                Editor.TextArea.Caret.BringCaretToView();
+                ShowMessage($"EDIT {number} : le curseur est à la fin de la ligne {number}.");
+                break;
+
+            case DirectCommandKind.Explain:
+                ShowMessage(command.Explanation!);
+                break;
+
+            default:
+                ShowMessage($"{command.Name} : cette commande de l'éditeur arrive à une prochaine étape.");
+                break;
+        }
+    }
+
     void SetText(string text)
     {
         loading = true;
         Editor.Text = text;
         loading = false;
+        savedText = text;
         modified = false;
     }
 

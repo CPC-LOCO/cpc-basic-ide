@@ -247,13 +247,13 @@ Un programme compilé n'a pas de mode direct. **Décision de l'utilisateur (15 n
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `AUTO` | numérotation automatique | Éditeur, à faire | Met automatiquement le numéro des lignes, avec le pas demandé. |
-| `CONT` | reprend après STOP | Éditeur, à faire | Affiche son rôle en BASIC, comme CLEAR. |
+| `CONT` | reprend après STOP | Éditeur, faite | Affiche son rôle en BASIC, comme CLEAR (D115). |
 | `DELETE` | supprime des lignes | Éditeur, à faire | Même rôle que le vrai BASIC ; avertissement si des étiquettes sont utilisées, puis confirmation. |
-| `EDIT` | modifie une ligne | Éditeur, à faire | Place le curseur sur la ligne demandée. |
+| `EDIT` | modifie une ligne | Éditeur, faite | Place le curseur à la fin de la ligne demandée (D115). |
 | `LIST` | affiche le programme | Éditeur, à faire | Affiche le programme dans l'éditeur comme sur le CPC. |
-| `NEW` | efface le programme | Éditeur, à faire | Avec avertissement si le programme a été modifié (comme D043). |
+| `NEW` | efface le programme | Éditeur, faite | Avec la question « Enregistrer ? » si le programme a été modifié (D115). |
 | `RENUM` | renumérote | Éditeur, à faire | Erreur si des étiquettes sont utilisées. |
-| `CLEAR`, `MEMORY`, `RUN`, `LOAD`, `SAVE`, `MERGE`, `CAT`, `CHAIN`, commandes AMSDOS (`|DISC`, `|TAPE`, `|A`, `|B`, `|DIR`, `|ERA`, `|REN`, `|USER`) | tapées dans l'éditeur sans numéro de ligne | Éditeur, à faire | Afficher à quoi la commande correspond dans le langage BASIC (D077). |
+| `CLEAR`, `MEMORY`, `RUN`, `LOAD`, `SAVE`, `MERGE`, `CAT`, `CHAIN`, commandes AMSDOS (`|DISC`, `|TAPE`, `|A`, `|B`, `|DIR`, `|ERA`, `|REN`, `|USER`) | tapées dans l'éditeur sans numéro de ligne | Éditeur, faite | Affichent à quoi la commande correspond dans le langage BASIC (D077, D115). |
 
 ## 13. Ajouts du projet (hors Locomotive BASIC)
 

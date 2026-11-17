@@ -867,6 +867,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Accessibilité :** un lecteur d'écran lit « Erreur : » ou « Réussi : » à la place de l'icône (texte du message).
 - **Fichiers :** MainWindow.axaml.cs (MessageKind, ShowError).
 
+## D115 : commandes du mode direct dans l'éditeur, première étape : NEW, EDIT et les explications (17 nov. 2026 ; suite de D077) (validé par l'utilisateur dans l'éditeur)
+- **Règle :** la commande se tape seule sur une ligne, sans numéro, puis Entrée. La ligne de la commande disparaît du programme ; le résultat s'affiche dans les messages. Une ligne qui commence par un numéro (10 NEW) reste une ligne du programme ; le mot doit être entier (NEWS, LIST$, NEW2 ne sont pas des commandes).
+- **NEW :** efface le programme ; s'il a été modifié depuis le dernier Ouvrir / Enregistrer, la même question qu'à la fermeture (Enregistrer, Ne pas enregistrer, Annuler). La ligne « NEW » tapée ne compte pas comme une modification (texte comparé à celui du dernier enregistrement).
+- **EDIT n :** curseur à la fin de la ligne n ; sans numéro ou ligne absente : message ✗ (« Line does not exist », comme le CPC).
+- **Explications :** RUN, CONT, CLEAR, MEMORY, LOAD, SAVE, MERGE, CAT, CHAIN (et CHAIN MERGE) et les commandes AMSDOS |DISC, |TAPE, |A, |B, |DIR, |ERA, |REN, |USER affichent ce qu'elles deviennent ici (F5, Ctrl+O, Ctrl+S...) et dans un programme compilé.
+- **Déjà reconnues, pour les étapes suivantes :** AUTO, LIST, RENUM, DELETE.
+- **Fichiers :** src\CpcBasic.Core\Editing\DirectCommands.cs (reconnaissance, testable), MainWindow.axaml.cs (Entrée, RunDirectCommandAsync), DirectCommandTests.cs.
+
 ---
 
 ## Notes de fin de session (modèle)
