@@ -778,6 +778,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Effet :** quand il est sur « oui », F5 ajoute NOM.TXT sur la disquette : le texte du programme, sans en-tête AMSDOS (fichier ASCII), lignes en CR LF, caractères hors ASCII remplacés par « ? », &1A à la fin (DiskImage.AddTextFile). Dans l'émulateur : `LOAD"NOM.TXT"` puis `RUN` lance le vrai BASIC ; `RUN"NOM"` lance le programme compilé. Si le texte ne tient pas (plus de 16 Ko), la compilation réussit quand même, avec un message.
 - **Fichiers :** DiskImage.cs (AddTextFile), EditorSettings.cs, MainWindow.axaml, MainWindow.axaml.cs, DiskImageTests.cs.
 
+## D102 : lot L1, FRAME, CURSOR, COPYCHR$ (BASIC 1.1) (Validé le 17 nov. 2026 : 1301 tests réussis ; `basic11.bas` compilé dans WinAPE identique au vrai BASIC, curseur compris)
+- **Lot L : les mots du BASIC 1.1 (664, 6128).** Deux familles : ceux dont la routine du firmware existe aussi sur le 464 (FRAME, CURSOR, COPYCHR$, DEC$ : marchent sur tous les CPC) ; ceux qui utilisent des routines absentes du 464 (FILL, MASK, GRAPHICS PEN / PAPER) : que faire sur un 464, à décider plus tard avec l'utilisateur.
+- **Référence (vrai BASIC 1.1 dans WinAPE, 17 nov. 2026, disquette texte `essais\refl1.dsk`) :** après PRINT "ABC", LOCATE 2,1 : COPYCHR$(#0) = « B » (66) ; LOCATE 5,1 : un espace (32) ; 50 FRAME : 308 tops de TIME ; CURSOR 1 : curseur visible, CURSOR 0 : caché ; DEC$(3.14159,"##.##") = « 3.14 » avec un espace devant, DEC$(-5,"+###") = « -5 » avec deux espaces devant, DEC$(1234.5,"$$#,###.##") = « $1,234.50 » (pour L2).
+- **FRAME :** MC WAIT FLYBACK (&BD19).
+- **CURSOR système [, utilisateur] :** 0 ou 1 (vérifié à la compilation s'il est écrit en nombre ; une valeur calculée : tout ce qui n'est pas 0 vaut 1). Système : TXT CUR ON / OFF (&BB81 / &BB84) ; utilisateur : TXT CUR ENABLE / DISABLE (&BB7B / &BB7E). L'écriture « CURSOR ,1 » (sans la première valeur) n'est pas encore acceptée.
+- **COPYCHR$(#n) :** TXT RD CHAR (&BB60) dans la fenêtre n, puis retour à la fenêtre d'avant ; caractère non reconnu : texte vide (choix, pas encore vérifié sur le vrai BASIC).
+- **Fichiers :** Parser.cs, CodeGenerator.cs (EmitSwitch), MiniZ80.cs (FirmwareCalls), `tests\CpcBasic.Tests\Basic11Tests.cs` (nouveau), ArrayTests.cs (FRAME et CURSOR remplacés par FILL et GRAPHICS). Exemple : `examples\basic11.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -112,16 +112,16 @@ Mise à jour le 16 nov. 2026 :
 | `MODE` | mode d'écran 0, 1 ou 2 | Faite |  |
 | `WINDOW` | fenêtre de texte | Faite | D072. |
 | `WINDOW SWAP` | échange deux fenêtres | Faite | D072. |
-| `CURSOR` | affiche ou cache le curseur | À faire | BASIC 1.1 seulement (664, 6128). |
+| `CURSOR` | affiche ou cache le curseur | Faite | D102 (BASIC 1.1, marche sur tous les CPC). « CURSOR ,1 » pas encore accepté. |
 | `WIDTH` | largeur de ligne de l'imprimante | Faite | D100 : 1 à 255 (255 : pas de retour automatique), 132 au départ. |
 | `ZONE` | largeur des zones de PRINT | Faite | D073. |
 | `TAG` | texte aux coordonnées graphiques | Faite | Avec #n (D075). |
 | `TAGOFF` | fin de TAG | Faite | Avec #n (D075). |
 | `SPEED INK` | vitesse du clignotement des couleurs | Faite | D091. |
-| `FRAME` | attend le balayage de l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
+| `FRAME` | attend le balayage de l'écran | Faite | D102 (BASIC 1.1, marche sur tous les CPC). |
 | `POS` | colonne du curseur | Faite | POS(#0) à POS(#7), D072 ; POS(#8), D100. |
 | `VPOS` | ligne du curseur | Faite | D072. |
-| `COPYCHR$` | caractère lu à l'écran | À faire | BASIC 1.1 seulement (664, 6128). |
+| `COPYCHR$` | caractère lu à l'écran | Faite | D102 (BASIC 1.1, marche sur tous les CPC). |
 
 ## 4. Graphismes
 

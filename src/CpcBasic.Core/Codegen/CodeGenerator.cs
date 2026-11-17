@@ -244,6 +244,29 @@ public static class CodeGenerator
                             emitter.CallLabel(RealRuntime.StrLabel);
                             break;
 
+                        case "COPYCHR$":
+                        {
+                            // COPYCHR$(#n) (D102) : TXT RD CHAR dans la fenêtre n, puis retour à la fenêtre d'avant ;
+                            // caractère non reconnu : texte vide
+                            string read = $"cpy_{labelCount++}";
+                            EmitSelectStream(a[0]);
+                            emitter.PushAf();
+                            emitter.CallAddress(0xBB60);            // TXT RD CHAR : A = caractère, retenue = reconnu
+                            emitter.LdEA();
+                            emitter.LdCImm(1);
+                            emitter.JrCLabel(read);
+                            emitter.LdCImm(0);
+                            emitter.Label(read);
+                            emitter.PopAf();
+                            emitter.PushBc();
+                            emitter.PushDe();
+                            emitter.CallAddress(TxtStrSelect);
+                            emitter.PopDe();
+                            emitter.PopBc();
+                            emitter.CallLabel("rt_sf_fill");
+                            break;
+                        }
+
                         case "CHR$" or "SPACE$" or "STR$":
                             EmitExpression(a[0]);
                             emitter.CallLabel(call.Function switch { "CHR$" => "rt_chr", "SPACE$" => "rt_space", _ => "rt_strs" });
@@ -1429,6 +1452,27 @@ public static class CodeGenerator
             }
         }
 
+        // 1 : appelle « on », 0 : appelle « off » ; une valeur calculée : tout ce qui n'est pas 0 vaut 1 (D102)
+        void EmitSwitch(Expression value, int on, int off)
+        {
+            if (value is NumberExpression number)
+            {
+                emitter.CallAddress(number.Value != 0 ? on : off);
+                return;
+            }
+            string isOff = $"sw_{labelCount++}";
+            string done = $"sw_{labelCount++}";
+            EmitExpression(value);
+            emitter.LdAH();
+            emitter.OrL();
+            emitter.JrZLabel(isOff);
+            emitter.CallAddress(on);
+            emitter.JrLabel(done);
+            emitter.Label(isOff);
+            emitter.CallAddress(off);
+            emitter.Label(done);
+        }
+
         void EmitScreen(ScreenStatement screen)
         {
             IReadOnlyList<Expression> a = screen.Arguments;
@@ -1501,6 +1545,16 @@ public static class CodeGenerator
                     emitter.JrZLabel(wait);
                     break;
                 }
+
+                case "FRAME":                       // attend le début du balayage de l'écran (D102)
+                    emitter.CallAddress(0xBD19);    // MC WAIT FLYBACK
+                    break;
+
+                case "CURSOR":                      // CURSOR système [, utilisateur] (D102) : TXT CUR ON / OFF, ENABLE / DISABLE
+                    EmitSwitch(a[0], 0xBB81, 0xBB84);
+                    if (a.Count == 2)
+                        EmitSwitch(a[1], 0xBB7B, 0xBB7E);
+                    break;
 
                 case "WIDTH":                       // largeur de ligne de l'imprimante (D100)
                     required.Add(RuntimeLibrary.PrinterName);

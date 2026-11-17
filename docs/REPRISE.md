@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D101 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D102 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Réglage F11 : texte du programme sur la disquette » (17 nov. 2026, **1291 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Lot L1 : FRAME, CURSOR, COPYCHR$ » (17 nov. 2026, **1301 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -59,7 +59,7 @@ Documents de référence :
 ### Prochaine étape
 
 Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » et « Partielle ») :
-- BASIC 1.1 seulement : CURSOR, FRAME, COPYCHR$, GRAPHICS PEN / PAPER, MASK, FILL, DEC$, ORIGIN avec fenêtre graphique, PEN transparent.
+- **Lot L (en cours) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ fait (D102). Prochaine étape L2 : DEC$ (référence déjà relevée, voir D102). Restent : GRAPHICS PEN / PAPER, MASK, FILL, DEC$, ORIGIN avec fenêtre graphique, PEN transparent.
 - **Commandes de l'éditeur (D077)** : AUTO, LIST, EDIT, RENUM, DELETE, NEW, et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro de ligne.
 - Idée notée (D087) : mettre aussi sur la disquette les fichiers binaires prêts du dossier (LOAD "ECRAN" -> ECRAN.BIN).
 
@@ -143,4 +143,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Réglage F11 : texte du programme sur la disquette » ; 1291 tests passent. Les lots A à K sont finis. Propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Lot L1 : FRAME, CURSOR, COPYCHR$ » ; 1301 tests passent. Les lots A à K sont finis, le lot L (BASIC 1.1) est en cours (L1 fait). Propose-moi la suite, une étape à la fois.

@@ -27,6 +27,9 @@ internal sealed class MiniZ80
     /// <summary>Temps rendu par KL TIME PLEASE (&BD0D) dans DEHL.</summary>
     public uint Clock;
 
+    /// <summary>Appels du firmware sans résultat à simuler, dans l'ordre (CURSOR, FRAME, D102).</summary>
+    public readonly List<int> FirmwareCalls = new();
+
     /// <summary>Caractères envoyés à l'imprimante par MC PRINT CHAR (&BD2B, D100).</summary>
     public readonly StringBuilder Printed = new();
 
@@ -831,6 +834,10 @@ internal sealed class MiniZ80
                 else if (address == 0xBB8A || address == 0xBB8D)
                 {
                     // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
+                }
+                else if (address is 0xBB81 or 0xBB84 or 0xBB7B or 0xBB7E or 0xBD19)
+                {
+                    FirmwareCalls.Add(address);                        // TXT CUR ON / OFF, ENABLE / DISABLE, MC WAIT FLYBACK (D102)
                 }
                 else if (address == 0xBB60)
                 {

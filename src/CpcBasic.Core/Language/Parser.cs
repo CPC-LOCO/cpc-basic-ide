@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -118,6 +118,8 @@ public static class Parser
         ["VPOS"] = new("VPOS(#fenêtre)", 1, 1, StreamFirst: true),
         // Lot I1 (D079) : temps restant d'une minuterie, qui est arrêtée
         ["REMAIN"] = new("REMAIN(minuterie : 0 à 3)", 1, 1),
+        // Lot L1 (D102) : caractère lu à l'écran, à la place du curseur de la fenêtre
+        ["COPYCHR$"] = new("COPYCHR$(#fenêtre)", 1, 1, StreamFirst: true),
         // Lot K6 (D094) : mémoire libre (FRE("") fait d'abord le ménage des textes) ; adresse en entier signé
         ["FRE"] = new("FRE(0) ou FRE(\"\")", 1, 1, Patterns: ["A"]),
         ["UNT"] = new("UNT(adresse)", 1, 1, true)
@@ -164,6 +166,9 @@ public static class Parser
         ["MEMORY"] = new("MEMORY adresse", 1, [-32768], [32767], true),
         // Lot K12 (D100) : largeur de ligne de l'imprimante (255 : pas de retour à la ligne automatique)
         ["WIDTH"] = new("WIDTH largeur (1 à 255)", 1, [1], [255]),
+        // Lot L1 (D102) : BASIC 1.1, mais les routines du firmware existent aussi sur le 464
+        ["FRAME"] = new("FRAME", 0, [], []),
+        ["CURSOR"] = new("CURSOR système (0 ou 1) [, utilisateur (0 ou 1)]", 1, [0, 0], [1, 1]),
         // Lot K6 (D094) : attend que (INP(port) XOR inversion) AND masque ne vaille plus 0
         ["WAIT"] = new("WAIT port, masque [, inversion]", 2, [-32768, 0, 0], [32767, 255, 255], true),
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
@@ -990,7 +995,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
