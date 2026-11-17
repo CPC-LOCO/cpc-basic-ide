@@ -199,7 +199,7 @@ Tout cela attend les variables chaînes (A$).
 | `SPACE$` | suite d'espaces | Faite | D063. |
 | `BIN$` | nombre en binaire | Faite | D063. |
 | `HEX$` | nombre en hexadécimal | Faite | D063. |
-| `DEC$` | nombre formaté | À faire | BASIC 1.1 seulement (664, 6128). |
+| `DEC$` | nombre formaté | Faite | D103 (BASIC 1.1, marche sur tous les CPC) : format écrit ou dans une variable. |
 
 ## 9. Mathématiques et nombres au hasard
 

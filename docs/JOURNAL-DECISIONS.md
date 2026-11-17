@@ -786,6 +786,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **COPYCHR$(#n) :** TXT RD CHAR (&BB60) dans la fenêtre n, puis retour à la fenêtre d'avant ; caractère non reconnu : texte vide (choix, pas encore vérifié sur le vrai BASIC).
 - **Fichiers :** Parser.cs, CodeGenerator.cs (EmitSwitch), MiniZ80.cs (FirmwareCalls), `tests\CpcBasic.Tests\Basic11Tests.cs` (nouveau), ArrayTests.cs (FRAME et CURSOR remplacés par FILL et GRAPHICS). Exemple : `examples\basic11.bas`.
 
+## D103 : lot L2, DEC$ (Validé le 17 nov. 2026 : 1320 tests réussis ; `decimal.bas` dans WinAPE identique au vrai BASIC)
+- **Référence (vrai BASIC 1.1 dans WinAPE, 17 nov. 2026, `essais\refl1.dsk` et `essais\refl2.dsk`) :** `DEC$(3.14159,"##.##")` = « 3.14 » avec un espace devant ; `DEC$(-5,"+###")` = « -5 » avec deux espaces devant ; `DEC$(1234.5,"$$#,###.##")` = « $1,234.50 » avec un espace devant (format de 10 caractères) ; `DEC$(123456,"##")` = « %123456 » ; `F$="#.#":DEC$(2.25,F$)` = « 2.3 » ; formats « A## », « ##A », « ! » et "" : erreur 5 (Improper argument).
+- **Conception :** DEC$ appelle la routine de PRINT USING (D074) pendant que TXT OUTPUT, TXT GET CURSOR, TXT VALIDATE et TXT GET WINDOW sont détournés (module Dec) : les caractères vont dans une mémoire de 260 octets, au début d'une ligne de 255 colonnes (jamais de passage à la ligne), puis deviennent une fiche de texte temporaire (rt_sf_mem).
+- **Format :** un seul emplacement de nombre, sans rien autour. Écrit entre guillemets : vérifié à la compilation (message DecFormat, Parser.DecField) ; dans une variable ou un calcul : lu pendant l'exécution par UsingDyn (D098, module DecDyn), « Improper argument » s'il ne convient pas.
+- **Tests :** pour 9 formats, DEC$ avec le format écrit, DEC$ avec le format dans F$ et PRINT USING donnent exactement le même texte.
+- **Fichiers :** Parser.cs (DecField), Diagnostic.cs (DecFormat), RuntimeLibrary.cs (modules Dec et DecDyn), CodeGenerator.cs, `tests\CpcBasic.Tests\DecTests.cs` (nouveau). Exemple : `examples\decimal.bas`.
+
 ---
 
 ## Notes de fin de session (modèle)

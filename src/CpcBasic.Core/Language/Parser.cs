@@ -31,7 +31,7 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -120,6 +120,8 @@ public static class Parser
         ["REMAIN"] = new("REMAIN(minuterie : 0 à 3)", 1, 1),
         // Lot L1 (D102) : caractère lu à l'écran, à la place du curseur de la fenêtre
         ["COPYCHR$"] = new("COPYCHR$(#fenêtre)", 1, 1, StreamFirst: true),
+        // Lot L2 (D103) : nombre mis en forme comme PRINT USING, rendu comme un texte
+        ["DEC$"] = new("DEC$(nombre, format)", 2, 2, Patterns: ["NS"]),
         // Lot K6 (D094) : mémoire libre (FRE("") fait d'abord le ménage des textes) ; adresse en entier signé
         ["FRE"] = new("FRE(0) ou FRE(\"\")", 1, 1, Patterns: ["A"]),
         ["UNT"] = new("UNT(adresse)", 1, 1, true)
@@ -1882,6 +1884,15 @@ public static class Parser
             return false;
         items.Add(new PrintUsingDynamicStatement(line, format, values));
         return true;
+    }
+
+    /// <summary>
+    /// Format de DEC$ (D103) : un seul emplacement de nombre, sans rien autour ; null sinon (« Improper argument »).
+    /// </summary>
+    internal static (int Width, int Before, int Decimals, int Flags)? DecField(string format)
+    {
+        List<UsingPart> parts = ParseUsingFormat(format);
+        return parts is [{ IsField: true, IsString: false } field] ? (field.Width, field.Before, field.Decimals, field.Flags) : null;
     }
 
     // Découpe un format de PRINT USING (D074). Texte : « ! » (1re lettre), « & » (tout), « \  \ » (2 + espaces lettres).
@@ -3748,7 +3759,14 @@ public static class Parser
                 if (t.Text == "FN")
                     return ParseUserFunctionCall(tokens, ref pos, diagnostics);   // D095
                 if (Functions.TryGetValue(t.Text, out FunctionInfo? function))
-                    return ParseFunctionCall(tokens, ref pos, diagnostics, function);
+                {
+                    Expression? called = ParseFunctionCall(tokens, ref pos, diagnostics, function);
+                    // DEC$ avec un format écrit : vérifié ici, comme PRINT USING (D103)
+                    if (called is CallExpression { Function: "DEC$", Arguments: [_, StringLiteralExpression format] }
+                        && DecField(format.Text) is null)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.DecFormat, t.Line, format.Text));
+                    return called;
+                }
                 if (Commands.Contains(t.Text))
                 {
                     diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, t.Text));

@@ -244,6 +244,32 @@ public static class CodeGenerator
                             emitter.CallLabel(RealRuntime.StrLabel);
                             break;
 
+                        case "DEC$":
+                        {
+                            // DEC$(nombre, format) (D103) : comme PRINT USING, rendu comme un texte
+                            int decSaved = realFree;
+                            EmitRealInto(a[0], decSaved);
+                            if (a[1] is StringLiteralExpression decWritten && Parser.DecField(decWritten.Text) is (int decW, int decB, int decD, int decF))
+                            {
+                                required.Add(RuntimeLibrary.DecName);
+                                emitter.LdHlLabel(RealTemp(decSaved));
+                                emitter.LdBcImm((decW << 8) | decB);
+                                emitter.LdDeImm((decD << 8) | decF);
+                                emitter.CallLabel(RuntimeLibrary.DecLabel);
+                            }
+                            else
+                            {
+                                required.Add(RuntimeLibrary.DecDynName);
+                                realFree = decSaved + 1;                   // le nombre reste dans sa case pendant le format
+                                EmitString(a[1]);
+                                realFree = decSaved;
+                                emitter.ExDeHl();                       // DE = fiche du format
+                                emitter.LdHlLabel(RealTemp(decSaved));
+                                emitter.CallLabel(RuntimeLibrary.DecDynLabel);
+                            }
+                            break;
+                        }
+
                         case "COPYCHR$":
                         {
                             // COPYCHR$(#n) (D102) : TXT RD CHAR dans la fenêtre n, puis retour à la fenêtre d'avant ;
@@ -2006,6 +2032,7 @@ public static class CodeGenerator
                 || statement is StreamStatement { Stream: NumberExpression { Value: 9 } }
                 || (statement is OnStatement onCheck && OnNeedsCheck(onCheck))
                 || statement is PrintUsingDynamicStatement      // « Improper argument », « Type mismatch » (D098)
+                || AstWalker.All(statement).Any(x => x is CallExpression { Function: "DEC$" })   // D103
                 || statement is TimerStatement or OnSqStatement or ErrorStatement or ResumeStatement or StopStatement or ReturnStatement
                 || AstWalker.All(statement).Any(x => x is CallExpression { Function: "REMAIN" }))   // #N calculé : « Improper argument in 20 » (D072)
             {
@@ -3407,6 +3434,7 @@ public static class CodeGenerator
         AstWalker.All(statement).Any(Types.IsReal)
         || statement is ScreenStatement { Command: "DEG" or "RAD" }
         || statement is PrintUsingNumberStatement                   // PRINT USING : calculs par la ROM (D074)
+        || AstWalker.All(statement).Any(x => x is CallExpression { Function: "DEC$" })   // D103
         || (statement is PrintUsingDynamicStatement dyn && dyn.Values.Any(v => !Types.IsString(v)))   // D098
         || (statement is AssignStatement assign && VariableNames.IsReal(assign.Variable))
         || (statement is ForStatement loop && VariableNames.IsReal(loop.Variable))

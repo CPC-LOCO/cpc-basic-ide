@@ -291,6 +291,10 @@ public static class RuntimeLibrary
     public const string PrinterOffLabel = "rt_pr_off";
     public const string PrinterColumnLabel = "rt_pr_col";       // octet : colonne de l'imprimante (1 au début d'une ligne)
     public const string PrinterWidthLabel = "rt_pr_width";      // octet : WIDTH (132 au départ)
+    public const string DecName = "Dec";                         // DEC$ (lot L2, D103)
+    public const string DecLabel = "rt_dec";                    // HL = nombre, B, C, D, E comme rt_using_num -> HL = fiche
+    public const string DecDynName = "DecDyn";
+    public const string DecDynLabel = "rt_dec_dyn";             // HL = nombre, DE = fiche du format -> HL = fiche
     public const string OnRangeName = "OnRange";                 // ON x GOTO : x de 0 à 255 (D097)
     public const string OnRangeErrorLabel = "rt_on_bad";
     public const string ArrayEraseName = "ArrayErase";           // ERASE (lot K8, D096)
@@ -4209,6 +4213,108 @@ public static class RuntimeLibrary
                 e.Label($"rt_pr_s{k}");
                 e.Reserve(3);
             }
+        }),
+
+        // DEC$ (lot L2, D103) : le nombre est mis en forme par la routine de PRINT USING (D074), mais les caractères vont
+        // dans rt_dc_buf : pendant l'appel, TXT OUTPUT, TXT GET CURSOR, TXT VALIDATE et TXT GET WINDOW sont détournés
+        // (début de ligne, largeur 255 : jamais de passage à la ligne). Le texte devient une fiche temporaire (rt_sf_mem).
+        [DecName] = new RuntimeModule(DecName, [PrintUsingName, StrFunctionsName], e =>
+        {
+            (int Address, string Handler)[] patches =
+            [
+                (TxtOutput, "rt_dc_out"), (TxtGetCursor, "rt_dc_cur"), (TxtValidate, "rt_dc_val"), (TxtGetWindow, "rt_dc_win")
+            ];
+            e.Label(DecLabel);
+            e.PushHl();
+            e.PushBc();
+            e.PushDe();
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.LdHlImm(patches[k].Address);
+                e.LdDeLabel($"rt_dc_s{k}");
+                e.LdBcImm(3);
+                e.Ldir();
+                e.LdHlImm(patches[k].Address);
+                e.StoreHlImm(0xC3);
+                e.IncHl();
+                e.LdDeLabel(patches[k].Handler);
+                e.StoreHlE();
+                e.IncHl();
+                e.StoreHlD();
+            }
+            e.LdHlLabel("rt_dc_buf");
+            e.LdMemHl("rt_dc_ptr");
+            e.PopDe();
+            e.PopBc();
+            e.PopHl();
+            e.CallLabel(UsingNumLabel);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.LdHlLabel($"rt_dc_s{k}");
+                e.LdDeImm(patches[k].Address);
+                e.LdBcImm(3);
+                e.Ldir();
+            }
+            e.LdHlMem("rt_dc_ptr");
+            e.LdDeLabel("rt_dc_buf");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdCL();                                // C = longueur, DE = lettres
+            e.JpLabel("rt_sf_mem");
+
+            e.Label("rt_dc_out");                    // A = caractère, ajouté au texte (registres gardés)
+            e.PushHl();
+            e.LdHlMem("rt_dc_ptr");
+            e.LdHlA();
+            e.IncHl();
+            e.LdMemHl("rt_dc_ptr");
+            e.PopHl();
+            e.Ret();
+            e.Label("rt_dc_cur");                    // colonne 1, ligne 1
+            e.LdHlImm(0x0101);
+            e.XorA();
+            e.Ret();
+            e.Label("rt_dc_val");
+            e.Scf();
+            e.Ret();
+            e.Label("rt_dc_win");                    // colonnes 0 à 254
+            e.LdHlImm(0);
+            e.LdDeImm((254 << 8) | 24);
+            e.Ret();
+
+            e.Label("rt_dc_ptr");
+            e.Reserve(2);
+            for (int k = 0; k < patches.Length; k++)
+            {
+                e.Label($"rt_dc_s{k}");
+                e.Reserve(3);
+            }
+            e.Label("rt_dc_buf");
+            e.Reserve(260);
+        }),
+
+        // DEC$ avec un format dans une variable (D103) : lu par UsingDyn (D098) ; un seul emplacement de nombre, sinon
+        // « Improper argument »
+        [DecDynName] = new RuntimeModule(DecDynName, [DecName, UsingDynName], e =>
+        {
+            e.Label(DecDynLabel);
+            e.PushHl();
+            e.ExDeHl();
+            e.CallLabel(UsingDynStartLabel);
+            e.CallLabel("rt_ud_num");
+            e.JpNcLabel("rt_ud_bad");
+            e.CallLabel("rt_ud_atend");
+            e.JpNzLabel("rt_ud_bad");
+            e.LdAMem("rt_ud_w");
+            e.LdBA();
+            e.LdAMem("rt_ud_b");
+            e.LdCA();
+            e.LdAMem("rt_ud_d");
+            e.LdDA();
+            e.LdAMem("rt_ud_f");
+            e.LdEA();
+            e.PopHl();
+            e.JpLabel(DecLabel);
         }),
 
         // ON x GOTO / GOSUB (D097) : x hors de 0 à 255 : « Improper argument », comme le Locomotive

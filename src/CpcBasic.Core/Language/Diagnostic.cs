@@ -74,7 +74,8 @@ public enum DiagnosticCode
     UserFunctionTwice,       // deux DEF FN pour le même nom
     UserFunctionRecursive,   // FNA s'appelle elle-même (directement ou par une autre FN)
     UserFunctionNeedsReal,   // une virgule serait perdue : nombre à virgule donné à un entier (conseil : le signe !)
-    ExpectedEraseName        // lot K8 (D096) : ERASE sans nom de tableau
+    ExpectedEraseName,       // lot K8 (D096) : ERASE sans nom de tableau
+    DecFormat                // lot L2 (D103) : DEC$ avec un format qui n'est pas un seul emplacement de nombre
 }
 
 /// <summary>
@@ -224,6 +225,8 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.UsingWithoutField =>
             $"PRINT USING : le format « {Argument} » ne contient aucun emplacement (# pour un nombre, ! & ou \\  \\ pour un texte). Le vrai BASIC répondrait « Improper argument ».",
         DiagnosticCode.NotForCompiled => Argument,
+        DiagnosticCode.DecFormat =>
+            $"DEC$ : le format « {Argument} » doit être un seul emplacement de nombre, sans texte autour, par exemple DEC$(X, \"###.##\"). Le vrai BASIC répondrait « Improper argument ».",
         DiagnosticCode.ExpectedEraseName =>
             $"ERASE attend des noms de tableaux séparés par des virgules, sans parenthèses, par exemple ERASE T, N$.{Why}",
         DiagnosticCode.UserFunctionName =>
