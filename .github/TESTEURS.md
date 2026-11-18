@@ -13,14 +13,19 @@ Le fichier n'est pas signé numériquement : Windows ou votre antivirus peut le 
 
 ## 2. Que faut-il essayer ?
 
-- Ouvrez les programmes du dossier `examples` et compilez-les avec F5. Un fichier `.dsk` apparaît à côté.
-- Lancez le `.dsk` dans un émulateur (par exemple WinAPE) avec `RUN"NOM"`.
-- Écrivez vos propres petits programmes avec ce que décrit le `LISEZMOI.txt` (variables, calculs, boucles, conditions, fonctions, hasard).
-- Essayez de faire des erreurs exprès : les messages sont-ils clairs ? Disent-ils où est le problème et comment le corriger ?
+Presque tout le Locomotive BASIC est maintenant compilé : textes, nombres à virgule, tableaux, graphismes, sons, clavier, fichiers sur disquette, interruptions (EVERY, AFTER), erreurs (ON ERROR GOTO). Le fichier `COMPATIBILITE.md` du dossier donne la liste, commande par commande.
+
+- **Vos anciens programmes BASIC :** c'est l'essai le plus utile. Collez-les dans l'éditeur, compilez avec F5 et comparez avec le vrai BASIC. Le réglage F11 met aussi le texte sur la disquette (`LOAD"NOM.TXT"` puis `RUN`) pour comparer dans le même émulateur.
+- **Les exemples** du dossier `examples` : ouvrez-les, compilez-les avec F5, lancez le `.dsk` dans un émulateur (WinAPE, Caprice32, SugarBox...) avec `RUN"NOM"`.
+- **Le nouvel éditeur :** barre de menus (touche Alt), panneau des messages, et les commandes du CPC tapées sans numéro puis Entrée : `NEW`, `AUTO`, `EDIT 20`, `RENUM`, `DELETE 10-50`, `LIST`, et un numéro seul pour effacer une ligne. F1 affiche les raccourcis.
+- **Sur plusieurs machines :** un programme compilé doit marcher sur le 464, le 664 et le 6128. Dites-nous si ce n'est pas le cas.
+- **Les erreurs exprès :** les messages sont-ils clairs ? Disent-ils où est le problème et comment le corriger ?
 
 **Astuce : le réglage F8 et les boucles rapides.** Avec le réglage F8 (menu Options, « Variables sans signe : à virgule »), toutes les variables sans signe deviennent des nombres à virgule, comme sur le vrai CPC. Une boucle d'attente comme `FOR K = 1 TO 30000` devient alors beaucoup plus lente, car les calculs à virgule passent par la ROM. Pour la garder rapide, écrivez le compteur avec le signe des entiers : `FOR K% = 1 TO 30000`.
 
-Les graphismes, les sons et le clavier ne sont pas encore là : il est inutile de les tester.
+Pas encore là, inutile de les tester : sortie cassette, cartouche GX4000, sprites.
+
+Si l'éditeur affiche « Problème interne », joignez à votre message le fichier `%APPDATA%\CpcBasicIde\erreurs.txt`.
 
 ## 3. Signaler un problème ou donner une idée
 

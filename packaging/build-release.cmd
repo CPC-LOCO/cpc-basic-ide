@@ -3,7 +3,7 @@ rem Prepare la version a publier : dossier autonome + archive .zip + somme de co
 rem A lancer depuis la racine du depot : packaging\build-release.cmd
 setlocal
 
-set VERSION=0.2.0
+set VERSION=0.3.0
 set NAME=CpcBasic-%VERSION%-win-x64
 set OUT=release\%NAME%
 
@@ -20,10 +20,10 @@ if errorlevel 1 goto erreur
 echo.
 echo === Ajout des fichiers d'accompagnement ===
 mkdir "%OUT%\examples"
-for %%F in (hello variable boucles cond loops) do (
-    copy "examples\%%F.bas" "%OUT%\examples\" >nul
-    if errorlevel 1 goto erreur
-)
+copy "examples\*.bas" "%OUT%\examples\" >nul
+if errorlevel 1 goto erreur
+copy docs\COMPATIBILITE-LOCOMOTIVE.md "%OUT%\COMPATIBILITE.md" >nul
+if errorlevel 1 goto erreur
 copy packaging\LISEZMOI.txt "%OUT%\" >nul
 if errorlevel 1 goto erreur
 copy LICENSE "%OUT%\" >nul

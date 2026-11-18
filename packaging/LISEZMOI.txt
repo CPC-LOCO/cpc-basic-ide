@@ -1,13 +1,14 @@
-CPC BASIC IDE - version 0.2.0 (version de test)
+CPC BASIC IDE - version 0.3.0 (version de test)
 ================================================
 
 Un editeur colore et un compilateur pour un BASIC evolue, derive du
-Locomotive BASIC, qui cree des programmes pour Amstrad CPC.
+Locomotive BASIC, qui cree des programmes en langage machine pour
+Amstrad CPC (464, 664 et 6128).
 
-ATTENTION : c'est une version de test, publiee pour recueillir des retours.
-Elle sait compiler des programmes simples (variables, calculs, boucles,
-conditions), mais elle n'est pas encore utilisable pour creer un jeu :
-pas de graphismes, de sons, de sprites ni de clavier.
+C'est une version de test, publiee pour recueillir des retours. Presque
+tout le Locomotive BASIC est maintenant compile : textes, nombres a virgule,
+tableaux, graphismes, sons, clavier, fichiers, interruptions, erreurs.
+La liste complete, commande par commande, est dans COMPATIBILITE.md.
 
 
 1. LANCER L'EDITEUR
@@ -16,75 +17,87 @@ Decompressez tout le dossier, puis double-cliquez sur CpcIde.exe.
 Aucune installation n'est necessaire, et il n'est pas utile d'installer .NET.
 
 
-2. COMPILER UN PROGRAMME
+2. L'EDITEUR
+------------
+Barre de menus (touche Alt, puis la lettre soulignee) :
+  Fichier   Ouvrir (Ctrl+O), Enregistrer (Ctrl+S), Quitter
+  Edition   Annuler (Ctrl+Z), Retablir (Ctrl+Y), Couper, Copier, Coller,
+            Tout selectionner
+  Compiler  Compiler le programme (F5)
+  Options   reglages F8, F9, F11, lignes longues, contraste eleve (Ctrl+H),
+            taille du texte (Ctrl et +, Ctrl et -, Ctrl et 0)
+  Aide      Raccourcis clavier (F1), A propos
+
+Panneau des messages, en bas : les erreurs ont un X rouge, une compilation
+reussie un V vert. F6 passe de l'editeur aux messages ; Entree ou un clic
+sur une erreur amene le curseur sur la ligne. La barre grise au-dessus des
+messages se tire a la souris pour agrandir le panneau.
+
+Une ligne trop longue continue sur la ligne suivante de l'ecran, comme sur
+le CPC (menu Options pour revenir a une seule ligne).
+
+Un probleme imprevu ne ferme pas l'editeur : un message le signale, et le
+detail est note dans %APPDATA%\CpcBasicIde\erreurs.txt (envoyez-le-nous).
+
+
+3. LES COMMANDES DU CPC DANS L'EDITEUR
+--------------------------------------
+Tapez la commande seule sur une ligne, SANS numero, puis Entree :
+  NEW            efface le programme (demande d'abord s'il faut l'enregistrer)
+  AUTO           numerote les lignes : AUTO 100,5 ; ESC pour arreter
+  EDIT 20        met le curseur sur la ligne 20
+  RENUM          renumerote : RENUM 100,,5 ; les GOTO, GOSUB, THEN... suivent
+  DELETE 10-50   efface des lignes (toujours une question avant)
+  LIST           range les lignes par numero et les ecrit comme le CPC
+                 (mots en majuscules) ; LIST 100-200 amene aussi le curseur
+  100            un numero seul efface la ligne 100 (avec une question)
+RUN, LOAD, SAVE, CAT, CLEAR, MEMORY, CONT, MERGE, CHAIN et les commandes
+AMSDOS (|DIR, |DISC...) affichent ce qu'elles deviennent ici.
+Ctrl+Z annule RENUM, DELETE et LIST.
+
+
+4. COMPILER UN PROGRAMME
 ------------------------
-- Ouvrez un programme avec le bouton "Ouvrir" (exemples : dossier examples),
-  ou ecrivez le votre dans l'editeur.
-- Appuyez sur F5 (ou sur le bouton "Compiler").
-  Le programme est enregistre, puis un fichier .dsk est cree a cote.
-- Dans un emulateur (WinAPE par exemple), inserez le .dsk dans le lecteur A,
-  puis tapez : RUN"NOM"   (NOM = le nom du fichier .bas)
+- Ouvrez un programme (exemples : dossier examples) ou ecrivez le votre.
+- Appuyez sur F5. Le programme est enregistre, puis un fichier .dsk est
+  cree a cote.
+- Dans un emulateur (WinAPE, Caprice32, SugarBox...), inserez le .dsk dans
+  le lecteur A, puis tapez : RUN"NOM"   (NOM = le nom du fichier .bas)
 - Avant de recompiler le meme programme, fermez l'emulateur : il garde le
   fichier .dsk ouvert et l'editeur ne peut plus l'ecrire.
 
-Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus,
-sinon la compilation est refusee. Exemple : "boucles.bas" convient,
-"mon_programme.bas" est trop long.
+Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus.
+Un programme compile marche sur tous les CPC : il reconnait la machine au
+demarrage. Si un programme lance un autre programme (RUN "SUITE"), F5
+compile aussi SUITE.BAS et le met sur la meme disquette.
 
-Quand le programme est termine, il attend une touche, puis la machine
-redemarre. C'est normal : un programme compile ne revient pas au BASIC.
-
-
-3. CE QUI FONCTIONNE DANS CETTE VERSION
----------------------------------------
-Affichage
-  PRINT "texte", PRINT nombre, PRINT "A="; A  (le ; relie les elements ;
-  un ; final supprime le saut de ligne), ? comme raccourci de PRINT
-
-Variables et calculs
-  A = 5 ou LET A = 5 : entier de -32768 a 32767 (A et A% sont distincts)
-  BYTE c, d          : declare des variables de 0 a 255 (1 octet chacune)
-  Calculs avec + et -, parentheses, moins unaire
-  Un calcul qui depasse la limite "boucle" (255 + 1 donne 0 pour un BYTE)
-
-Boucles
-  FOR i = 1 TO 10 STEP 2 ... NEXT       (limite et pas : nombres ecrits
-                                          dans le programme)
-  WHILE condition ... WEND
-  REPEAT ... UNTIL condition
-  DO ... LOOP, avec WHILE ou UNTIL en haut ou en bas (une seule condition)
-  EXIT et CONTINUE, avec ou sans le type de boucle : EXIT FOR, EXIT DO...
-
-Conditions
-  IF a = 1 THEN PRINT "oui" ELSE PRINT "non"       (sur une ligne)
-  IF a > 1 THEN ... ELSE ... END IF                (sur plusieurs lignes)
-  Comparaisons : =  <>  <  <=  >  >=   reliees par AND et OR
-
-Autres
-  END, REM et ' pour les commentaires, : pour separer les instructions,
-  numeros de ligne facultatifs.
-  Messages d'erreur explicites, avec la ligne ; un clic sur l'erreur amene
-  le curseur sur la ligne concernee.
-
-Differences avec le Locomotive BASIC a connaitre
-  - A est un entier (et non un reel). Pas de reels ni de chaines pour
-    l'instant.
-  - Apres une boucle FOR, la variable garde sa derniere valeur.
-  - Les mots BYTE, DO, LOOP, REPEAT, UNTIL, EXIT, CONTINUE, ENDIF sont
-    reserves : ils ne peuvent plus servir de noms de variables.
-  - Une condition doit etre une comparaison (IF a THEN n'est pas accepte).
-
-Pas encore disponible : multiplication, division, GOTO, GOSUB, tableaux,
-chaines, reels, INPUT, graphismes, sons, sprites, sortie cassette,
-cartouche GX4000, choix de la machine cible.
-Les lettres accentuees ne sont pas gerees : elles s'affichent sous la
-forme "?".
-
-Les programmes d'exemple du dossier examples montrent chaque fonction :
-hello.bas, variable.bas, boucles.bas, cond.bas, loops.bas.
+Reglages (menu Options) :
+  F8   variables sans signe (A, X...) entieres ou a virgule, comme le CPC
+  F9   touche ESC comme le CPC (pause, puis arret) ou ignoree
+  F11  met aussi le texte du programme sur la disquette (NOM.TXT), pour le
+       comparer avec le vrai BASIC : LOAD"NOM.TXT" puis RUN
 
 
-4. ANTIVIRUS ET WINDOWS
+5. DIFFERENCES AVEC LE LOCOMOTIVE BASIC A CONNAITRE
+---------------------------------------------------
+  - Sans F8, A est un entier (et non un reel), et A et A% sont deux
+    variables differentes. Avec F8, A est a virgule comme sur le CPC.
+  - Sans F8, la division / est entiere (7/2 donne 3) ; avec F8, elle donne
+    un nombre a virgule, comme le CPC.
+  - CHAIN et MERGE sont refuses : utilisez RUN "nom" (et un fichier pour
+    garder des valeurs).
+  - Les lettres accentuees s'affichent sous la forme "?".
+  - Un programme compile ne revient pas au BASIC : a la fin, il attend
+    une touche, puis la machine redemarre.
+
+Ajouts du projet : BYTE, DO ... LOOP, REPEAT ... UNTIL, EXIT, CONTINUE,
+IF ... END IF sur plusieurs lignes, BOX, PAINT, CLAMP, RANDOM, HIBYTE,
+LOBYTE.
+
+Pas encore disponible : sortie cassette, cartouche GX4000, sprites.
+
+
+6. ANTIVIRUS ET WINDOWS
 -----------------------
 Le programme n'est pas signe numeriquement. Windows (SmartScreen) ou votre
 antivirus peut le signaler, ou bloquer son demarrage : c'est une fausse
@@ -95,16 +108,16 @@ alerte frequente pour les programmes libres non signes.
 - Si votre antivirus bloque le programme, ajoutez le dossier aux exclusions.
 
 
-5. VOS RETOURS
+7. VOS RETOURS
 --------------
 Tests, problemes, idees, conseils sur le Z80 et le firmware du CPC :
 ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
 
 
-6. LICENCE
+8. LICENCE
 ----------
 Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
 Les routines Z80 copiees dans vos programmes sont sous GPL v3 avec une
 exception de liaison : vos programmes gardent la licence de votre choix.
 Le texte de cette exception est un projet, en attente de relecture
-(voir docs\RUNTIME-EXCEPTION.md).
+(voir docs\RUNTIME-EXCEPTION.md sur GitHub).
