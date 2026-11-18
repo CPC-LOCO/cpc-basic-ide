@@ -20,7 +20,8 @@ Aucune installation n'est necessaire, et il n'est pas utile d'installer .NET.
 2. L'EDITEUR
 ------------
 Barre de menus (touche Alt, puis la lettre soulignee) :
-  Fichier   Ouvrir (Ctrl+O), Enregistrer (Ctrl+S), Quitter
+  Fichier   Ouvrir (Ctrl+O), Enregistrer (Ctrl+S),
+            Enregistrer sous (Ctrl+Maj+S), Quitter
   Edition   Annuler (Ctrl+Z), Retablir (Ctrl+Y), Couper, Copier, Coller,
             Tout selectionner
   Compiler  Compiler le programme (F5), Verifier sans enregistrer

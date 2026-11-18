@@ -1018,6 +1018,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé par l'utilisateur :** programme sans titre avec une erreur (55 goto remarque) : l'erreur s'affiche, rien n'est enregistré, « sans titre * » reste.
 - **Vérifié en passant :** après NEW, le programme est « sans titre » : F5 et Ctrl+S demandent un nom, le programme d'avant (format.bas) ne peut pas être écrasé. **Remarque suivante de l'utilisateur :** il manque « Enregistrer sous » (garder format.bas et enregistrer ses changements sous un autre nom).
 
+## D135 : Enregistrer sous (Ctrl+Maj+S) (18 nov. 2026) (validé par l'utilisateur)
+- **Remarque de l'utilisateur (D134) :** on ne pouvait pas enregistrer un programme sous un autre nom (il voulait garder format.bas).
+- **Fait :** menu Fichier, « Enregistrer sous... » (Ctrl+Maj+S) : fenêtre de Windows avec le dossier et le nom actuels proposés ; nom de plus de 8 caractères refusé tout de suite (disquette CPC), rien n'est enregistré ; l'éditeur travaille ensuite sur le nouveau fichier, qui garde les réglages F8 et F9 ; message : « L'ancien fichier (...) n'a pas changé. » Aide F1 et LISEZMOI.txt mis à jour.
+- **Essayé par l'utilisateur :** examples\formats.bas, ligne ajoutée, enregistré sous essais\essai.bas : titre « essai.bas », formats.bas identique à la version du dépôt (vérifié).
+
 ---
 
 ## Notes de fin de session (modèle)

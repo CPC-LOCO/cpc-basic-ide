@@ -65,6 +65,7 @@
             <MenuItem Header="_Fichier">
                 <MenuItem Header="_Ouvrir..." InputGesture="Ctrl+O" Click="OnOpenClick" />
                 <MenuItem Header="_Enregistrer" InputGesture="Ctrl+S" Click="OnSaveClick" />
+                <MenuItem Header="Enregistrer _sous..." InputGesture="Ctrl+Shift+S" Click="OnSaveAsClick" />
                 <Separator />
                 <MenuItem Header="_Quitter" InputGesture="Alt+F4" Click="OnQuitClick" />
             </MenuItem>

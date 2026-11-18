@@ -169,6 +169,7 @@ public partial class MainWindow : Window
 
     async void OnOpenClick(object? sender, RoutedEventArgs e) => await OpenFileAsync();
     async void OnSaveClick(object? sender, RoutedEventArgs e) => await SaveAsync();
+    async void OnSaveAsClick(object? sender, RoutedEventArgs e) => await SaveAsAsync();
     async void OnCompileClick(object? sender, RoutedEventArgs e) => await CompileAsync();
     void OnVerifyClick(object? sender, RoutedEventArgs e) => Verify();
     void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
@@ -214,7 +215,8 @@ public partial class MainWindow : Window
         ShowMessages(new[]
         {
             new MessageItem("Raccourcis clavier :", 0),
-            new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   F5 : compiler.   F4 : liste des variables.", 0),
+            new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   Ctrl+Maj+S : enregistrer sous un autre nom.", 0),
+            new MessageItem("F5 : compiler.   F4 : liste des variables.", 0),
             new MessageItem("Maj+F5 : vérifier sans enregistrer (rien n'est écrit : ni le programme, ni la disquette).", 0),
             new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
             new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
@@ -344,6 +346,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             GoToSelectedMessage(true);
             Editor.TextArea.Focus();   // même pour un message qui n'est lié à aucune ligne
+        }
+        else if (ctrl && e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            await SaveAsAsync();
         }
         else if (ctrl && e.Key == Key.S)
         {
@@ -741,6 +748,54 @@ public partial class MainWindow : Window
             ShowError($"Impossible d'enregistrer le fichier : {ex.Message}");
             return false;
         }
+    }
+
+    // Ctrl+Maj+S (D135, remarque de l'utilisateur) : enregistrer sous un autre nom. L'ancien fichier reste tel qu'il était ;
+    // l'éditeur travaille ensuite sur le nouveau, qui garde les réglages F8 et F9 du programme.
+    async Task<bool> SaveAsAsync()
+    {
+        IStorageFolder? start = null;
+        if (currentPath is not null && Path.GetDirectoryName(currentPath) is string folder)
+            start = await StorageProvider.TryGetFolderFromPathAsync(folder);
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Enregistrer le programme sous un autre nom",
+            SuggestedFileName = currentPath is null ? "jeu.bas" : Path.GetFileName(currentPath),
+            SuggestedStartLocation = start,
+            DefaultExtension = "bas",
+            FileTypeChoices = new[] { BasicFileType }
+        });
+        if (file is null)
+            return false;
+
+        string? chosen = file.TryGetLocalPath();
+        if (chosen is null)
+        {
+            ShowError("Impossible d'enregistrer ici : emplacement non accessible.");
+            return false;
+        }
+        string stem = Path.GetFileNameWithoutExtension(chosen);
+        if (stem.Length is 0 or > 8)
+        {
+            ShowError($"Le nom « {stem} » est trop long : une disquette CPC accepte 8 caractères au plus. " +
+                      "Rien n'a été enregistré ; choisissez un nom plus court (par exemple « essai.bas »).");
+            return false;
+        }
+
+        string? old = currentPath;
+        currentPath = chosen;
+        settings.SetRealByDefault(chosen, realByDefault);   // les réglages suivent le programme (D066, D083)
+        settings.SetBreakIgnored(chosen, !breakKey);
+        settings.Save();
+        if (!await SaveAsync())
+        {
+            currentPath = old;
+            return false;
+        }
+        ShowMessage(old is null
+            ? $"Programme enregistré : {chosen}"
+            : $"Programme enregistré sous un autre nom : {chosen}. L'ancien fichier ({Path.GetFileName(old)}) n'a pas changé.");
+        return true;
     }
 
     // ---------- Compilation ----------
