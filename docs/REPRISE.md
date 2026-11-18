@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D129 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D130 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -34,7 +34,7 @@ Documents de référence :
   5. écrire l'entrée de journal (D0xx), mettre à jour `docs\COMPATIBILITE-LOCOMOTIVE.md`, puis commit : double-clic sur `packaging\commit.cmd` (tests, liste des fichiers, message, push). Les programmes d'essai de l'utilisateur vont dans `essais\`, jamais dans `examples\`. Pas de longues séries de commandes à copier.
 - **Push :** après chaque commit, Claude s'occupe aussi de l'envoi sur GitHub. S'il ne peut pas (réseau refusé), le dire et donner la marche à suivre (`packaging\commit.cmd` propose le push).
 - **Accès de Claude (constaté le 13 nov. 2026) :** quand l'application Claude de l'ordinateur est ouverte et le dossier du dépôt ajouté, Claude lit et écrit directement les fichiers. Il ne peut ni lancer `dotnet test` (pas de .NET de son côté), ni faire le commit (git doit effacer des fichiers temporaires, ce qui lui est interdit sans permission) : l'utilisateur garde `packaging\commit.cmd`. Sans ce branchement, Claude peut toujours lire le dépôt public sur GitHub.
-- **Programmes d'exemple :** une attente avant chaque changement d'écran et avant le texte final « APPUYEZ SUR UNE TOUCHE », chacune un peu plus longue que la précédente, mais **courtes** (boucles 1, 2, 3…).
+- **Programmes d'exemple :** (règle du 18 nov. 2026, D130) attendre la **barre d'espace** avant chaque changement d'écran et à la fin, avec le texte « APPUYEZ SUR ESPACE » : `WHILE INKEY(47):WEND:WHILE INKEY(47)=0:WEND` (la seconde boucle attend que la touche soit relâchée). Sinon le tampon du clavier fait passer les écrans trop vite pour les capturer.
 - **Une chose à la fois (16 nov. 2026) :** l'utilisateur fait ses essais pas à pas ; ne demander qu'une action à la fois (« Prochaine étape, une seule : … ») et ne pas enchaîner plusieurs demandes dans le même message.
 - **Références :** avant chaque étape, faire lancer un petit programme par le vrai BASIC (SugarBox ou WinAPE) et relever l'écran ; les tests et l'exemple doivent donner le même résultat. Depuis D101, mieux que de le faire taper : le mettre dans un fichier .bas, compiler avec le réglage F11 sur « oui », puis `LOAD"NOM.TXT"` et `RUN` dans l'émulateur.
 - **Lire les tests :** l'utilisateur lance `dotnet test > essais\tests.txt` ; Claude lit ce fichier (lignes « réussite », « error CS », « Échoué »).
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.3.0 (pre-release GitHub, Windows 64 bits, 18 nov. 2026). Tout ce qui suit D122 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Commandes AMSDOS essayees (D129) » (18 nov. 2026, **1520 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « CIRCLE (D130) » (18 nov. 2026, **1545 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -75,7 +75,8 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ### En attente jusqu'à la fin des lots
 
-- **CIRCLE :** vrai rond corrigé en largeur selon le MODE (rayon en lignes ; largeur ×2,4 en MODE 2, ×1,2 en MODE 1, ×0,6 en MODE 0), contour et remplissage comme BOX, très rapide. Toute commande à écriture directe doit couper la ROM haute comme `rt_box` (D048).
+- **CIRCLE : fait (D130)**, largeur ×0,5 / ×1 / ×2 selon le MODE (le ×0,6 / ×1,2 / ×2,4 noté avant était faux). Toute commande à écriture directe doit couper la ROM haute comme `rt_box` (D048). Méthode à reprendre pour les formes suivantes : routine écrite une fois dans essais\circle\routine.py, vérifiée en Python contre une référence, puis code C# tiré de cette description.
+- **Ovale avec angle d'inclinaison :** demandé pour plus tard (IDEES.md), avec la question du facteur de largeur.
 - `PAINT`, ELLIPSE, STAR, POLYGON, calcul 3D en fil de fer (SIN et COS par tableau de 256 angles, virgule fixe, racine carrée entière, projection).
 - Ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80).
 - `PAUSE [heure,][minute,] seconde`, `CLIC code_ascii`.
@@ -84,7 +85,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 - D016 : vérifier qu'aucune ROM Amstrad n'est livrée.
 - D017 : relecture juridique de l'exception de liaison (`docs\RUNTIME-EXCEPTION.md`).
-- **Version 0.3.0 préparée (18 nov. 2026)** : LISEZMOI refait, TESTEURS.md mis à jour, version 0.3.0 aux deux endroits, `docs\RELEASE-NOTES-0.3.0.md` ; le paquet contient tous les exemples et COMPATIBILITE.md. Paquet construit et essayé par l'utilisateur (version 0.3.0 affichée, ouverture et compilation OK). **Publiée sur GitHub (pre-release v0.3.0, 18 nov. 2026).** Ensuite : CURSOR ,1 et MASK ,1 sans première valeur (fait, D123), @ fait (D124), MEMORY fait (D125), lettres accentuées faites (D126, D127). **Inventaire du Locomotive terminé** : plus aucun mot « À faire » ni « Partielle » dans COMPATIBILITE-LOCOMOTIVE.md (seulement des « Écart voulu »). Suite possible : commandes en attente (CIRCLE…), liste des variables A, B, C (IDEES.md). Idée notée : liste des variables A, B et C (IDEES.md).
+- **Version 0.3.0 préparée (18 nov. 2026)** : LISEZMOI refait, TESTEURS.md mis à jour, version 0.3.0 aux deux endroits, `docs\RELEASE-NOTES-0.3.0.md` ; le paquet contient tous les exemples et COMPATIBILITE.md. Paquet construit et essayé par l'utilisateur (version 0.3.0 affichée, ouverture et compilation OK). **Publiée sur GitHub (pre-release v0.3.0, 18 nov. 2026).** Ensuite : CURSOR ,1 et MASK ,1 sans première valeur (fait, D123), @ fait (D124), MEMORY fait (D125), lettres accentuées faites (D126, D127). **Inventaire du Locomotive terminé** : plus aucun mot « À faire » ni « Partielle » dans COMPATIBILITE-LOCOMOTIVE.md (seulement des « Écart voulu »). CIRCLE fait (D130). **Suite décidée par l'utilisateur : la liste des variables A, B, C (IDEES.md), puis l'ovale incliné.**
 
 ## 5. Points techniques à connaître
 
@@ -147,4 +148,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Commandes AMSDOS essayees (D129) » ; 1520 tests passent. La version 0.3.0 est publiée. L'inventaire n'a plus de « Partielle » ; propose-moi la suite : propose-moi la suite, une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « CIRCLE (D130) » ; 1545 tests passent. La version 0.3.0 est publiée. On continue avec la liste des variables (A, puis B, puis C, voir IDEES.md) : propose-moi la suite, une étape à la fois, une seule action par message.

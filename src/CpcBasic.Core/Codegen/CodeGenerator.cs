@@ -1898,6 +1898,43 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "CIRCLE":                      // D130 : x, y, rayon rangés dans le module, puis les stylos comme BOX
+                {
+                    EmitExpression(a[0]);
+                    emitter.LdMemHl(RuntimeLibrary.CircleXLabel);
+                    EmitExpression(a[1]);
+                    emitter.LdMemHl(RuntimeLibrary.CircleYLabel);
+                    EmitExpression(a[2]);
+                    emitter.LdMemHl(RuntimeLibrary.CircleRadiusLabel);
+                    if (a[2] is not NumberExpression)       // rayon calculé hors de 0 à 1000 : « Improper argument »
+                    {
+                        required.Add(RuntimeLibrary.ByteCheckName);
+                        emitter.LdDeImm(1001);
+                        emitter.OrA();
+                        emitter.SbcHlDe();
+                        emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
+                    }
+                    if (a.Count > 3)                        // stylo du contour (stylo courant du tracé s'il est omis)
+                    {
+                        EmitExpression(a[3]);
+                        emitter.LdAL();
+                    }
+                    else
+                        emitter.CallAddress(GraGetPen);
+                    emitter.LdMemA(RuntimeLibrary.CirclePenLabel);
+                    if (a.Count > 4)                        // stylo de l'intérieur (pas d'intérieur s'il est omis)
+                    {
+                        EmitExpression(a[4]);
+                        emitter.LdAL();
+                        emitter.LdMemA(RuntimeLibrary.CircleFillPenLabel);
+                    }
+                    emitter.LdAImm(a.Count > 4 ? 1 : 0);
+                    emitter.LdMemA(RuntimeLibrary.CircleDoFillLabel);
+                    required.Add(RuntimeLibrary.CircleName);
+                    emitter.CallLabel(RuntimeLibrary.CircleLabel);
+                    break;
+                }
+
                 default:
                     throw new NotSupportedException($"Commande d'écran non gérée : {screen.Command}");
             }
@@ -2122,6 +2159,7 @@ public static class CodeGenerator
                 || (usesHeap && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
+                || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement

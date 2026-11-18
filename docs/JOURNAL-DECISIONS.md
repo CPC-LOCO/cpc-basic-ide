@@ -975,6 +975,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 3 écritures de plus dans RsxTests.cs (Ecritures_acceptees).
 - **Version 0.4.0 :** pas maintenant (choix de l'utilisateur : la 0.3.0 vient d'être publiée ; d'abord plus d'essais).
 
+## D130 : CIRCLE (18 nov. 2026) (validé par l'utilisateur) ; première commande nouvelle après l'inventaire
+- **Mot vérifié dans WinAPE :** `CIRCLE=5` donne Ready, ce n'est pas un mot du Locomotive. Nouveau mot réservé : **CIRCLE**.
+- **Écriture :** `CIRCLE x, y, rayon [, stylo [, remplissage]]`, sur le modèle de BOX (D048, D052) : sans stylo, contour au stylo courant du tracé (GRA GET PEN) ; avec un second stylo, intérieur rempli. Repère natif (origine en haut à gauche, y de 0 à 199). Rayon compté en lignes, de 0 à 1000 (nombre écrit vérifié à la compilation ; calculé hors de 0 à 1000 : « Improper argument in N »). Centre : n'importe quelle valeur sur 16 bits (ce qui sort de l'écran est ignoré).
+- **Forme :** demi-largeur de la ligne à la distance d du centre = partie entière de k × racine((r + ½)² − d²). Le « + ½ » (règle habituelle) donne un haut et un bas plats ; sans lui, un point seul dépassait en haut et en bas (premier essai). Contour de chaque ligne de s = min(w(d+1) + 1, w(d)) à w(d), donc raccordé à la ligne voisine ; intérieur entre les deux : aucun point écrit deux fois.
+- **Facteur de largeur, choix A de l'utilisateur :** k = 0,5 (MODE 0), 1 (MODE 1), 2 (MODE 2) : rond parfait dans WinAPE (points affichés carrés en MODE 1), presque rond sur un vrai moniteur (calcul : point du MODE 1 environ 8 % plus étroit que haut, donc ×1,08 serait exact). **Remplace** le ×0,6 / ×1,2 / ×2,4 noté au début (REPRISE, D048) : il était mal calculé et donnait des ovales (premier essai dans WinAPE : 432 × 360). L'utilisateur dira si le résultat ne convient pas. Idée notée : réglage ou commande du facteur (IDEES.md).
+- **Réalisation :** module Circle (`rt_circle`), sans racine ni multiplication : sommes sur 32 bits de la ligne d = r à d = 0 ; tracé par lignes entières avec `rt_px_hline` (D048) ; ROM haute coupée puis remise. Écrit une fois dans une description à part (essais\circle\routine.py), exécutée et comparée à une référence (504 ronds dans les 3 MODES, centres extrêmes, rayon 0 à 1000), dont le code C# est tiré. Vitesse : environ 31 000 instructions Z80 de calcul pour un rayon de 99, plus le tracé des lignes.
+- **Tests :** CircleTests.cs (25 tests : ronds comparés point par point à une référence écrite à part, avec et sans remplissage, ROM haute, écritures acceptées et refusées, Improper argument). 1545 tests réussis.
+- **Vérifié dans WinAPE (18 nov. 2026) :** examples\cercles.bas dans les 3 MODES : « très rapide, et rond de rond à l'œil ». (L'encre 14 clignote par défaut : un rond dans ce stylo peut sembler absent sur une capture.)
+- **Règle nouvelle pour les programmes d'exemple (demande de l'utilisateur) :** attendre la barre d'espace entre les écrans et à la fin (« APPUYEZ SUR ESPACE », `WHILE INKEY(47):WEND:WHILE INKEY(47)=0:WEND`), sinon le tampon du clavier fait passer les écrans trop vite pour les capturer.
+- **Commandes suivantes demandées :** la liste des variables (A, B, C), puis plus tard un ovale avec un angle d'inclinaison.
+
 ---
 
 ## Notes de fin de session (modèle)

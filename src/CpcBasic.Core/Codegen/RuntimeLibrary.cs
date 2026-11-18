@@ -92,6 +92,15 @@ public static class RuntimeLibrary
     public const string BoxPenLabel = "rt_box_pen";
     public const string BoxFillPenLabel = "rt_box_fillpen";
     public const string BoxDoFillLabel = "rt_box_dofill";
+    // CIRCLE (D130) : centre, rayon et stylos rangés par le programme, puis CALL rt_circle
+    public const string CircleName = "Circle";
+    public const string CircleLabel = "rt_circle";
+    public const string CircleXLabel = "rt_ci_x";
+    public const string CircleYLabel = "rt_ci_y";
+    public const string CircleRadiusLabel = "rt_ci_r";
+    public const string CirclePenLabel = "rt_ci_pen";
+    public const string CircleFillPenLabel = "rt_ci_fillpen";
+    public const string CircleDoFillLabel = "rt_ci_dofill";
 
     // Tableaux (DIM, lot C, D058)
     /// <summary>TXT GET CURSOR : H = colonne, L = ligne du curseur de texte.</summary>
@@ -5891,6 +5900,318 @@ public static class RuntimeLibrary
             e.Reserve(1);
             e.Label("rt_px_cnt");
             e.Reserve(1);
+        }),
+
+        // CIRCLE : vrai rond à l'écran (D130). Coordonnées natives comme BOX (origine en haut à gauche, y de 0 à 199) ;
+        // rayon r de 0 à 1000, compté en lignes. Ligne à la distance d du centre : demi-largeur
+        // w(d) = partie entière de k * racine((r + 1/2)² - d²), k = 0,5, 1 ou 2 selon le MODE (choix A de l'utilisateur :
+        // rond parfait dans WinAPE, presque rond sur un vrai moniteur). Calcul sans racine ni multiplication : sommes sur
+        // 32 bits, de la ligne d = r (w = 0) à d = 0.
+        // Sur chaque ligne, le contour va de s = min(w(d + 1) + 1, w(d)) à w(d) de chaque côté (il se raccorde ainsi à la
+        // ligne voisine) ; l'intérieur (s'il est demandé) est entre les deux : aucun point écrit deux fois.
+        // Écrit une fois dans une description à part (essais\circle\routine.py), vérifiée contre une référence (504 ronds),
+        // dont ce code est tiré. La ROM haute est coupée pendant le tracé puis remise comme avant.
+        [CircleName] = new RuntimeModule(CircleName, [PixelName, Min16Name, Max16Name], e =>
+        {
+            e.Label("rt_circle");
+            e.CallAddress(0xB903);             // KL U ROM DISABLE : sans cela, le Z80 lirait la ROM du BASIC à la place de l'écran
+            e.PushAf();                        // état précédent
+            e.CallLabel("rt_ci_draw");
+            e.PopAf();
+            e.JpAddress(0xB90C);               // KL ROM RESTORE : remet la ROM comme avant, puis revient à l'appelant
+            e.Label("rt_ci_draw");
+            e.LdHlMem("rt_ci_x");              // centre trop loin (x hors de -3000 à 3699) : rien ne peut être visible
+            e.LdDeImm(3000);
+            e.AddHlDe();
+            e.LdDeImm(6700);
+            e.OrA();
+            e.SbcHlDe();
+            e.RetNc();
+            e.LdHlMem("rt_ci_y");              // de même pour y (hors de -1100 à 1299)
+            e.LdDeImm(1100);
+            e.AddHlDe();
+            e.LdDeImm(2400);
+            e.OrA();
+            e.SbcHlDe();
+            e.RetNc();
+            e.LdAMem("rt_ci_fillpen");         // bits du stylo de l'intérieur
+            e.CallLabel("rt_px_setup");
+            e.LdAMem("rt_px_pat");
+            e.LdMemA("rt_ci_fpat");
+            e.LdAMem("rt_ci_pen");             // puis du contour (rt_px_setup a lu le MODE)
+            e.CallLabel("rt_px_setup");
+            e.LdAMem("rt_px_pat");
+            e.LdMemA("rt_ci_opat");
+            e.LdAMem("rt_px_wmax_hi");         // MODE 0, 1 ou 2 (159, 319 ou 639) : largeur x 0,5, 1 ou 2 ; décalage = 2 + 2 * MODE
+            e.AddAA();
+            e.AddAImm(2);
+            e.LdMemA("rt_ci_sh");
+            e.LdHlImm(2);                      // pas de S : 2 << décalage
+            e.LdBA();
+            e.Label("rt_ci_k");
+            e.AddHlHl();
+            e.DjnzLabel("rt_ci_k");
+            e.LdMemHl("rt_ci_kk");
+            e.LdHlMem("rt_ci_r");              // S = (2r - 1) << décalage, sur 32 bits
+            e.AddHlHl();
+            e.DecHl();
+            e.LdMemHl("rt_ci_s");
+            e.LdHlImm(0);
+            e.LdMemHl("rt_ci_s2");
+            e.LdAMem("rt_ci_sh");
+            e.LdBA();
+            e.Label("rt_ci_ss");
+            e.LdHlLabel("rt_ci_s");
+            e.SlaMemHl();
+            e.IncHl();
+            e.RlMemHl();
+            e.IncHl();
+            e.RlMemHl();
+            e.IncHl();
+            e.RlMemHl();
+            e.DjnzLabel("rt_ci_ss");
+            e.LdHlMem("rt_ci_r");              // T = ((2r + 1)² - 4d²) << (2 * MODE) ; au départ (d = r) : (4r + 1) << (2 * MODE)
+            e.LdMemHl("rt_ci_d");
+            e.AddHlHl();
+            e.AddHlHl();
+            e.IncHl();
+            e.LdMemHl("rt_ci_t");
+            e.LdHlImm(0);
+            e.LdMemHl("rt_ci_t2");
+            e.LdAMem("rt_ci_sh");
+            e.SubImm(2);
+            e.JrZLabel("rt_ci_t0");
+            e.LdBA();
+            e.Label("rt_ci_ts");
+            e.LdHlLabel("rt_ci_t");
+            e.SlaMemHl();
+            e.IncHl();
+            e.RlMemHl();
+            e.IncHl();
+            e.RlMemHl();
+            e.IncHl();
+            e.RlMemHl();
+            e.DjnzLabel("rt_ci_ts");
+            e.Label("rt_ci_t0");
+            e.LdHlImm(0);                      // w = 0 ; Q = 16 (w + 1)² : seuil pour passer à w + 1 ; E = 16 (2w + 3) : pas de Q
+            e.LdMemHl("rt_ci_w");
+            e.LdMemHl("rt_ci_q2");
+            e.LdMemHl("rt_ci_dd2");
+            e.LdHlImm(16);
+            e.LdMemHl("rt_ci_q");
+            e.LdHlImm(48);
+            e.LdMemHl("rt_ci_dd");
+            e.LdHlImm(0xFFFF);                 // demi-largeur de la ligne d + 1 : aucune (-1)
+            e.LdMemHl("rt_ci_wp");
+            e.Label("rt_ci_loop");
+            e.LdHlMem("rt_ci_t");              // w grandit tant que Q <= T : w = partie entière de k * racine((r + 1/2)² - d²), k = 0,5, 1 ou 2
+            e.LdDeMem("rt_ci_q");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdHlMem("rt_ci_t2");
+            e.LdDeMem("rt_ci_q2");
+            e.SbcHlDe();
+            e.JpCLabel("rt_ci_draw2");
+            e.LdHlMem("rt_ci_w");
+            e.IncHl();
+            e.LdMemHl("rt_ci_w");
+            e.LdHlMem("rt_ci_q");              // Q = Q + E
+            e.LdDeMem("rt_ci_dd");
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_q");
+            e.LdHlMem("rt_ci_q2");
+            e.LdDeMem("rt_ci_dd2");
+            e.AdcHlDe();
+            e.LdMemHl("rt_ci_q2");
+            e.LdHlMem("rt_ci_dd");             // E = E + 32
+            e.LdDeImm(32);
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_dd");
+            e.LdHlMem("rt_ci_dd2");
+            e.LdDeImm(0);
+            e.AdcHlDe();
+            e.LdMemHl("rt_ci_dd2");
+            e.JrLabel("rt_ci_loop");
+            e.Label("rt_ci_draw2");
+            e.CallLabel("rt_ci_rows");         // lignes y - d et y + d
+            e.LdHlMem("rt_ci_d");
+            e.LdAH();
+            e.OrL();
+            e.RetZ();                          // la ligne du centre est faite
+            e.DecHl();
+            e.LdMemHl("rt_ci_d");
+            e.LdHlMem("rt_ci_t");              // T = T + S
+            e.LdDeMem("rt_ci_s");
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_t");
+            e.LdHlMem("rt_ci_t2");
+            e.LdDeMem("rt_ci_s2");
+            e.AdcHlDe();
+            e.LdMemHl("rt_ci_t2");
+            e.LdHlMem("rt_ci_s");              // S = S - 8n²
+            e.LdDeMem("rt_ci_kk");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_ci_s");
+            e.LdHlMem("rt_ci_s2");
+            e.LdDeImm(0);
+            e.SbcHlDe();
+            e.LdMemHl("rt_ci_s2");
+            e.LdHlMem("rt_ci_w");              // la ligne suivante se raccorde à celle-ci
+            e.LdMemHl("rt_ci_wp");
+            e.JpLabel("rt_ci_loop");
+            e.Label("rt_ci_rows");
+            e.LdHlMem("rt_ci_wp");             // le contour commence à s = min(w(d + 1) + 1, w) du centre
+            e.IncHl();
+            e.LdDeMem("rt_ci_w");
+            e.CallLabel("rt_min16");
+            e.LdMemHl("rt_ci_sv");
+            e.LdHlMem("rt_ci_y");
+            e.LdDeMem("rt_ci_d");
+            e.OrA();
+            e.SbcHlDe();
+            e.CallLabel("rt_ci_row");          // ligne y - d
+            e.LdHlMem("rt_ci_d");
+            e.LdAH();
+            e.OrL();
+            e.RetZ();                          // d = 0 : une seule ligne
+            e.LdHlMem("rt_ci_y");
+            e.LdDeMem("rt_ci_d");
+            e.AddHlDe();
+            e.Label("rt_ci_row");              // HL = ligne de l'écran
+            e.Bit7H();                         // hors de l'écran (0 à 199) : rien
+            e.RetNz();
+            e.LdAH();
+            e.OrA();
+            e.RetNz();
+            e.LdAL();
+            e.CpImm(200);
+            e.RetNc();
+            e.LdMemHl("rt_ci_cy");
+            e.LdHlMem("rt_ci_sv");
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel("rt_ci_two");
+            e.LdHlMem("rt_ci_x");              // s = 0 : une seule ligne de contour, de x - w à x + w
+            e.LdDeMem("rt_ci_w");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_ci_a1");
+            e.LdHlMem("rt_ci_x");
+            e.LdDeMem("rt_ci_w");
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_a2");
+            e.LdAMem("rt_ci_opat");
+            e.JpLabel("rt_ci_span");
+            e.Label("rt_ci_two");
+            e.LdHlMem("rt_ci_x");              // contour à gauche : de x - w à x - s
+            e.LdDeMem("rt_ci_w");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_ci_a1");
+            e.LdHlMem("rt_ci_x");
+            e.LdDeMem("rt_ci_sv");
+            e.OrA();
+            e.SbcHlDe();
+            e.LdMemHl("rt_ci_a2");
+            e.LdAMem("rt_ci_opat");
+            e.CallLabel("rt_ci_span");
+            e.LdHlMem("rt_ci_x");              // contour à droite : de x + s à x + w
+            e.LdDeMem("rt_ci_sv");
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_a1");
+            e.LdHlMem("rt_ci_x");
+            e.LdDeMem("rt_ci_w");
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_a2");
+            e.LdAMem("rt_ci_opat");
+            e.CallLabel("rt_ci_span");
+            e.LdAMem("rt_ci_dofill");          // intérieur demandé : de x - s + 1 à x + s - 1
+            e.OrA();
+            e.RetZ();
+            e.LdHlMem("rt_ci_x");
+            e.LdDeMem("rt_ci_sv");
+            e.OrA();
+            e.SbcHlDe();
+            e.IncHl();
+            e.LdMemHl("rt_ci_a1");
+            e.LdHlMem("rt_ci_x");
+            e.LdDeMem("rt_ci_sv");
+            e.AddHlDe();
+            e.DecHl();
+            e.LdMemHl("rt_ci_a2");
+            e.LdAMem("rt_ci_fpat");
+            e.Label("rt_ci_span");             // A = bits du stylo ; de a1 à a2 sur la ligne cy, découpé à l'écran
+            e.LdMemA("rt_px_pat");
+            e.LdHlMem("rt_ci_a1");
+            e.LdDeImm(0);
+            e.CallLabel("rt_max16");
+            e.LdMemHl("rt_ci_a1");
+            e.LdHlMem("rt_ci_a2");
+            e.LdDeMem("rt_px_wmax_lo");
+            e.CallLabel("rt_min16");
+            e.LdMemHl("rt_ci_a2");
+            e.LdDeMem("rt_ci_a1");             // rien si a2 < a1
+            e.OrA();
+            e.SbcHlDe();
+            e.Bit7H();
+            e.RetNz();
+            e.LdHlMem("rt_ci_a2");
+            e.LdBH();
+            e.LdCL();
+            e.LdDeMem("rt_ci_a1");
+            e.LdHlMem("rt_ci_cy");
+            e.JpLabel("rt_px_hline");
+            e.Label("rt_ci_x");
+            e.Reserve(2);
+            e.Label("rt_ci_y");
+            e.Reserve(2);
+            e.Label("rt_ci_r");
+            e.Reserve(2);
+            e.Label("rt_ci_pen");
+            e.Reserve(1);
+            e.Label("rt_ci_fillpen");
+            e.Reserve(1);
+            e.Label("rt_ci_dofill");
+            e.Reserve(1);
+            e.Label("rt_ci_opat");
+            e.Reserve(1);
+            e.Label("rt_ci_fpat");
+            e.Reserve(1);
+            e.Label("rt_ci_sh");
+            e.Reserve(1);
+            e.Label("rt_ci_kk");
+            e.Reserve(2);
+            e.Label("rt_ci_s");
+            e.Reserve(2);
+            e.Label("rt_ci_s2");
+            e.Reserve(2);
+            e.Label("rt_ci_t");
+            e.Reserve(2);
+            e.Label("rt_ci_t2");
+            e.Reserve(2);
+            e.Label("rt_ci_q");
+            e.Reserve(2);
+            e.Label("rt_ci_q2");
+            e.Reserve(2);
+            e.Label("rt_ci_dd");
+            e.Reserve(2);
+            e.Label("rt_ci_dd2");
+            e.Reserve(2);
+            e.Label("rt_ci_d");
+            e.Reserve(2);
+            e.Label("rt_ci_w");
+            e.Reserve(2);
+            e.Label("rt_ci_wp");
+            e.Reserve(2);
+            e.Label("rt_ci_sv");
+            e.Reserve(2);
+            e.Label("rt_ci_cy");
+            e.Reserve(2);
+            e.Label("rt_ci_a1");
+            e.Reserve(2);
+            e.Label("rt_ci_a2");
+            e.Reserve(2);
         }),
 
         // BOX : rectangle (D048, D051, D052). Les quatre valeurs sont d'abord rangées dans rt_box_x1, y1, x2, y2 par le programme,

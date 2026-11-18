@@ -22,7 +22,7 @@ public static class Parser
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
-        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX",
+        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX", "CIRCLE",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
         "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
@@ -192,7 +192,9 @@ public static class Parser
         // Lot K6 (D094) : attend que (INP(port) XOR inversion) AND masque ne vaille plus 0
         ["WAIT"] = new("WAIT port, masque [, inversion]", 2, [-32768, 0, 0], [32767, 255, 255], true),
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
-        ["BOX"] = new("BOX x1, y1, x2, y2 [, stylo [, remplissage]]", 4, [-32768, -32768, -32768, -32768, 0, 0], [32767, 32767, 32767, 32767, 15, 15])
+        ["BOX"] = new("BOX x1, y1, x2, y2 [, stylo [, remplissage]]", 4, [-32768, -32768, -32768, -32768, 0, 0], [32767, 32767, 32767, 32767, 15, 15]),
+        // D130 : rond, rayon compté en lignes (0 à 1000), largeur corrigée selon le MODE
+        ["CIRCLE"] = new("CIRCLE x, y, rayon (0 à 1000) [, stylo [, remplissage]]", 3, [-32768, -32768, 0, 0, 0], [32767, 32767, 1000, 15, 15])
     };
 
     // Tracé (D047) : écriture à montrer dans les messages. Le stylo va de 0 à 15, le mode de 0 à 3.
@@ -1029,7 +1031,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
