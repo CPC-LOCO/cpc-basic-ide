@@ -960,6 +960,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fichiers :** CharacterSet.cs (Shown, ConvertProgram, IsInString), EditorSettings.cs, MainWindow.axaml, MainWindow.axaml.cs, CharacterSetTests.cs (14 tests de plus), LISEZMOI.txt. 1511 tests réussis.
 - **Essayé par l'utilisateur (18 nov. 2026) :** examples\accents.bas, F7 deux fois : les textes passent à « Bonjour @ toi ! », « O| est le caf{ ? Il fait 20¨. » (comme le vrai CPC anglais), puis reviennent en français. La remarque « Partielle » de PRINT est levée : **l'inventaire du Locomotive n'a plus de « Partielle »**.
 
+## D128 : POKE et OUT, valeur calculée hors de 0 à 255 : « Improper argument » (18 nov. 2026) (validé par l'utilisateur) ; remplace une règle de D056
+- **Trouvé en relisant D056** (question de l'utilisateur sur OUT et INP) : une valeur calculée hors de 0 à 255 écrivait en silence l'octet du bas (D056), ce qui n'était pas noté comme écart.
+- **Vrai BASIC 1.1 (WinAPE, 18 nov. 2026) :** `A=256:POKE &9000,A` et `A=-1:POKE &9000,A` : Improper argument.
+- **Fait :** POKE et OUT avec une valeur calculée vérifient l'octet du haut ; s'il n'est pas 0 : « Improper argument in N » (ERR = 5, interceptée par ON ERROR), rien n'est écrit. Une valeur écrite en nombre reste vérifiée à la compilation (aucun octet ajouté). Module ByteCheck (`rt_byte_bad`), numéro de ligne rangé pour ces instructions.
+- **Vérifié dans WinAPE :** examples\poke256.bas : « POKE 255 : 255 », « POKE 256 : ERREUR 5 (Improper argument) ». Tests : MachineTests.cs (l'ancien test « octet du bas » remplacé par 7 tests). 1517 tests réussis.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -749,6 +749,18 @@ public static class CodeGenerator
             emitter.CallLabel(RealRuntime.RealToAddressLabel);
         }
 
+        // Valeur calculée de POKE et OUT (DE) hors de 0 à 255 : « Improper argument », comme le CPC (D128) ;
+        // une valeur écrite en nombre est vérifiée à la compilation
+        void EmitByteCheck(Expression value)
+        {
+            if (value is NumberExpression)
+                return;
+            required.Add(RuntimeLibrary.ByteCheckName);
+            emitter.LdAD();
+            emitter.OrA();
+            emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+        }
+
         // Adresse (HL) puis valeur (DE) : POKE, OUT (D094)
         void EmitAddressPair(Expression address, Expression value)
         {
@@ -1664,14 +1676,16 @@ public static class CodeGenerator
                     break;
                 }
 
-                case "POKE":                        // POKE adresse, valeur : seul l'octet de poids faible de la valeur est écrit
+                case "POKE":                        // POKE adresse, valeur (0 à 255)
                     EmitAddressPair(a[0], a[1]);
+                    EmitByteCheck(a[1]);
                     emitter.LdAE();
                     emitter.LdHlA();
                     break;
 
-                case "OUT":                         // OUT port, valeur : le port est dans BC
+                case "OUT":                         // OUT port, valeur (0 à 255) : le port est dans BC
                     EmitAddressPair(a[0], a[1]);
+                    EmitByteCheck(a[1]);
                     emitter.LdBH();
                     emitter.LdCL();
                     emitter.LdAE();
@@ -2107,6 +2121,7 @@ public static class CodeGenerator
                 || (usesReals && StatementUsesReals(statement))
                 || (usesHeap && statement is ScreenStatement { Command: "MEMORY" })
                 || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
+                || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement

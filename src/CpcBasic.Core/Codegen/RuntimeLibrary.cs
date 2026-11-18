@@ -317,6 +317,9 @@ public static class RuntimeLibrary
     // MEMORY avec une adresse calculée, sans tableaux ni textes (D125) : HL = adresse ; « Memory full » si elle est plus
     // haute que &A67B, ou si la limite (adresse + 1) est sous la fin du programme (rt_heap_start)
     public const string MemoryCheckName = "MemoryCheck";
+    // POKE et OUT avec une valeur calculée hors de 0 à 255 (D128) : on y saute, « Improper argument » comme le CPC
+    public const string ByteCheckName = "ByteCheck";
+    public const string ByteCheckLabel = "rt_byte_bad";
     public const string MemoryCheckLabel = "rt_mem_check";
     const string ErrRedim = "rt_arr_err_redim";
 
@@ -2461,6 +2464,15 @@ public static class RuntimeLibrary
         // Mémoire libre (D058, D062) : les tableaux montent depuis la fin du programme (rt_arr_heap), les textes descendent
         // depuis la limite (rt_str_ptr). rt_arr_limit : &A67C, ou l'adresse donnée par MEMORY + 1.
         //  rt_arr_memory : MEMORY. HL = adresse : la mémoire libre s'arrête là.
+        [ByteCheckName] = new RuntimeModule(ByteCheckName, [ErrorName], e =>
+        {
+            e.Label(ByteCheckLabel);
+            e.LdHlLabel("rt_byte_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_byte_msg");
+            e.Data(Ascii("Improper argument"));
+        }),
+
         [MemoryCheckName] = new RuntimeModule(MemoryCheckName, [ErrorName], e =>
         {
             e.Label(MemoryCheckLabel);

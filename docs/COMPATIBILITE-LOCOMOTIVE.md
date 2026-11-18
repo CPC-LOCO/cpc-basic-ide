@@ -84,9 +84,9 @@ Mise à jour le 16 nov. 2026 :
 | `HIMEM` | haut de la mémoire du BASIC | Faite | Lot K6 (D094) : nombre à virgule (42619, ou l'adresse de MEMORY). |
 | `FRE` | mémoire libre | Faite | Lot K6 (D094) : FRE(0), FRE("") avec ménage des textes. Le nombre diffère du vrai CPC (programme compilé). |
 | `PEEK` | lit un octet en mémoire | Faite | Adresse de 0 à 65535. |
-| `POKE` | écrit un octet en mémoire | Faite | Valeur de 0 à 255 ; adresse de 0 à 65535. |
+| `POKE` | écrit un octet en mémoire | Faite | Valeur de 0 à 255 ; adresse de 0 à 65535. Valeur calculée hors de 0 à 255 : « Improper argument », comme le CPC (D128). |
 | `INP` | lit un port | Faite | Port de 0 à 65535. |
-| `OUT` | écrit sur un port | Faite | Valeur de 0 à 255. |
+| `OUT` | écrit sur un port | Faite | Valeur de 0 à 255 ; valeur calculée hors de 0 à 255 : « Improper argument » (D128). |
 | `WAIT` | attend un état sur un port | Faite | Lot K6 (D094) : WAIT port, masque [, inversion]. |
 | `UNT` | convertit une adresse en entier signé | Faite | Lot K6 (D094). |
 | `| (commandes RSX)` | appelle une extension | Faite | |NOM, valeurs (D089) ; inconnue : « Unknown command ». |

@@ -133,12 +133,34 @@ public class MachineTests
         Assert.Equal(105, cpu.Memory[201]);
     }
 
-    [Fact]
-    public void POKE_n_ecrit_que_l_octet_de_poids_faible_d_une_valeur_calculee()
+    [Theory]
+    // D128 : vrai BASIC 1.1 (WinAPE, 18 nov. 2026) : A=256:POKE &9000,A et A=-1:POKE &9000,A : Improper argument
+    [InlineData("10 A = 300\n20 POKE 20000, A")]
+    [InlineData("10 A = 256\n20 POKE 20000, A")]
+    [InlineData("10 A = -1\n20 POKE 20000, A")]
+    [InlineData("10 A = 256\n20 OUT &F600, A")]
+    public void Une_valeur_calculee_hors_de_0_a_255_donne_Improper_argument(string source)
     {
-        MiniZ80 cpu = Run("10 A = 300\n20 POKE 20000, A");
+        MiniZ80 cpu = Run(source);
 
-        Assert.Equal(300 & 0xFF, cpu.Memory[20000]);
+        Assert.Equal("Improper argument in 20\r\n", cpu.Output.ToString());
+        Assert.Equal(0, cpu.Memory[20000]);                // rien n'est écrit
+    }
+
+    [Theory]
+    [InlineData("10 A = 255\n20 POKE 20000, A", 255)]
+    [InlineData("10 A = 0\n20 POKE 20000, A", 0)]
+    public void Une_valeur_calculee_de_0_a_255_est_ecrite(string source, int expected)
+    {
+        Assert.Equal(expected, Run(source).Memory[20000]);
+    }
+
+    [Fact]
+    public void Improper_argument_de_POKE_est_intercepte_par_ON_ERROR()
+    {
+        MiniZ80 cpu = Run("10 ON ERROR GOTO 100\n20 A = 256 : POKE 20000, A\n30 END\n100 PRINT ERR");
+
+        Assert.Equal(" 5 \r\n", cpu.Output.ToString());
     }
 
     [Fact]
