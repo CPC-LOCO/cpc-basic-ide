@@ -917,6 +917,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Annuler (Ctrl+Z), Rétablir (Ctrl+Y), Couper, Copier, Coller, Tout sélectionner ; entre Fichier et Compiler. Après le choix, le clavier revient dans l'éditeur.
 - **Fichiers :** MainWindow.axaml, MainWindow.axaml.cs.
 
+## D122 : LIST dans l'éditeur (choix 3 de l'utilisateur, 18 nov. 2026) (validé par l'utilisateur) ; fin des commandes de D077
+- **Ranger :** les lignes passent par ordre de numéro ; les lignes vides disparaissent ; une ligne sans numéro est gardée à la fin, avec un message ✗.
+- **Écrire comme le CPC :** mots du langage en majuscules (Parser.IsKeyword), « ? » écrit PRINT, &ff écrit &FF, un seul espace après le numéro, numéro sans zéro devant (010 -> 10). Gardés tels quels : noms de variables, textes entre guillemets, la suite de REM, ' et DATA, les autres espaces. FNdouble : FN en majuscules, le nom gardé.
+- **LIST plage** (LIST 30, 10-50, -50, 100-) : même rangement, puis curseur sur la première ligne de la plage (message ✗ si aucune).
+- **Ctrl+Z** annule LIST.
+- **Numéro en double :** LIST et RENUM refusent ; le message dit « plusieurs lignes ont le numéro 10 » et liste les lignes de l'éditeur concernées (clic ou Entrée : le curseur y va). Constat de l'essai : essais\chrono.bas contenait le programme deux fois.
+- **À vérifier sur le vrai CPC :** le Locomotive garde-t-il l'écriture des noms de variables (a reste a) et les espaces tapés ? Ici, oui.
+- **Fichiers :** src\CpcBasic.Core\Editing\Lister.cs, Parser.cs (IsKeyword), Renumber.cs (Duplicate), MainWindow.axaml.cs (ListProgram, ShowDuplicateError), ListerTests.cs.
+
 ---
 
 ## Notes de fin de session (modèle)

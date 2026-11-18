@@ -8,7 +8,7 @@ using CpcBasic.Core.Language;
 namespace CpcBasic.Core.Editing;
 
 /// <summary>Résultat de RENUM : le nouveau texte, ou un refus (Error) ; Warnings : renvois vers des lignes absentes.</summary>
-public sealed record RenumberResult(string? Text, string? Error, int LineCount, IReadOnlyList<string> Warnings);
+public sealed record RenumberResult(string? Text, string? Error, int LineCount, IReadOnlyList<string> Warnings, int? Duplicate = null);
 
 /// <summary>
 /// RENUM [nouveau][,[ancien][,pas]] comme le Locomotive BASIC (D117) : renumérote les lignes à partir de « ancien »
@@ -58,7 +58,7 @@ public static class Renumber
         var duplicate = lineNumbers.GroupBy(t => int.Parse(t.Text)).FirstOrDefault(g => g.Count() > 1);
         if (duplicate is not null)
             return new RenumberResult(null,
-                $"RENUM : deux lignes ont le numéro {duplicate.Key} ; corrigez-en une avant de renuméroter.", 0, []);
+                $"RENUM : plusieurs lignes ont le numéro {duplicate.Key} ; gardez-en une seule avant de renuméroter.", 0, [], duplicate.Key);
 
         var sorted = lineNumbers.Select(t => int.Parse(t.Text)).Order().ToList();
         int from = oldStart ?? sorted[0];

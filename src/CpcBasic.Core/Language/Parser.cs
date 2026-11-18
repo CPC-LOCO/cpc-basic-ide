@@ -240,6 +240,11 @@ public static class Parser
         return function;
     }
 
+    /// <summary>Vrai pour un mot du langage (commande, fonction, mot réservé), écrit en majuscules (LIST, D122).</summary>
+    public static bool IsKeyword(string word) =>
+        word == "REM" || Commands.Contains(word) || LocomotiveWords.Contains(word) || Functions.ContainsKey(word)
+        || OtherKeywords.Contains(word) || DefWords.Contains(word);
+
     static bool IsUserName(Token t) =>
         t.Kind == TokenKind.Word && t.Text[0] is >= 'A' and <= 'Z' && !Commands.Contains(t.Text)
         && !LocomotiveWords.Contains(t.Text) && !Functions.ContainsKey(t.Text) && !OtherKeywords.Contains(t.Text);

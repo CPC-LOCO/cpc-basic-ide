@@ -838,7 +838,7 @@ public partial class MainWindow : Window
                 var renumbered = Renumber.Apply(Editor.Text, newStart, oldStart, renumStep);
                 if (renumbered.Error is not null)
                 {
-                    ShowError(renumbered.Error);
+                    ShowDuplicateError(renumbered.Error, renumbered.Duplicate);
                     return;
                 }
                 // Remplacement par le document : Ctrl+Z peut annuler RENUM
@@ -852,6 +852,10 @@ public partial class MainWindow : Window
                 };
                 renumMessages.AddRange(renumbered.Warnings.Select(w => new MessageItem(w, 0, MessageKind.Error)));
                 ShowMessages(renumMessages);
+                break;
+
+            case DirectCommandKind.List:
+                ListProgram(command.Argument);
                 break;
 
             case DirectCommandKind.Delete:
@@ -925,6 +929,50 @@ public partial class MainWindow : Window
         modified = Editor.Text != savedText;
         UpdateTitle();
         ShowMessages(new[] { new MessageItem($"DELETE : {lines.Count} ligne(s) effacée(s). Ctrl+Z les remet.", 0, MessageKind.Success) });
+    }
+
+    // LIST [plage] (D122) : range les lignes, les écrit comme le CPC, puis curseur sur la première ligne de la plage
+    void ListProgram(string argument)
+    {
+        if (!DirectCommands.TryParseRange(argument, out int from, out int to))
+        {
+            ShowError("LIST : écrivez LIST, LIST 30, LIST 10-50, LIST -50 ou LIST 100-.");
+            return;
+        }
+        var listed = Lister.Apply(Editor.Text);
+        if (listed.Error is not null)
+        {
+            ShowDuplicateError(listed.Error, listed.Duplicate);
+            return;
+        }
+
+        if (listed.Text != Editor.Text)
+            Editor.Document.Replace(0, Editor.Document.TextLength, listed.Text!);   // Ctrl+Z annule LIST
+
+        var inRange = DirectCommands.LinesInRange(Editor.Text, from, to);
+        int target = inRange.Count > 0 ? inRange[0] : 1;
+        Editor.TextArea.Caret.Offset = Editor.Document.GetLineByNumber(target).Offset;
+        Editor.TextArea.Caret.BringCaretToView();
+
+        var items = new List<MessageItem>
+        {
+            new($"LIST : {listed.LineCount} ligne(s) rangée(s) par numéro et écrite(s) comme le CPC. Ctrl+Z annule LIST.",
+                0, MessageKind.Success)
+        };
+        if (argument.Trim().Length > 0 && inRange.Count == 0)
+            items.Add(new("Aucune ligne dans cette plage : le curseur est au début du programme.", 0, MessageKind.Error));
+        items.AddRange(listed.Warnings.Select(w => new MessageItem(w, 0, MessageKind.Error)));
+        ShowMessages(items);
+    }
+
+    // Numéro en double (D122) : le message dit où sont les lignes ; Entrée ou clic sur l'une d'elles y amène le curseur
+    void ShowDuplicateError(string error, int? number)
+    {
+        var items = new List<MessageItem> { new(error, 0, MessageKind.Error) };
+        if (number is int n)
+            foreach (int line in DirectCommands.LinesInRange(Editor.Text, n, n))
+                items.Add(new($"Ligne {line} de l'éditeur : {Shorten(Editor.Document.GetText(Editor.Document.GetLineByNumber(line)).Trim())}", line));
+        ShowMessages(items);
     }
 
     static string Shorten(string text) => text.Length <= 60 ? text : text[..60] + "...";
