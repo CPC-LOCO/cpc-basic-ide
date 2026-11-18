@@ -81,6 +81,7 @@
             </MenuItem>
             <MenuItem Header="_Compiler">
                 <MenuItem Header="_Compiler le programme" InputGesture="F5" Click="OnCompileClick" />
+                <MenuItem Header="_Liste des variables" InputGesture="F4" Click="OnVariablesClick" />
             </MenuItem>
             <MenuItem Header="_Options">
                 <!-- D126 : le texte dit la version actuelle, F7 passe de l'une à l'autre -->

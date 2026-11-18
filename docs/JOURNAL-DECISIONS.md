@@ -986,6 +986,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Règle nouvelle pour les programmes d'exemple (demande de l'utilisateur) :** attendre la barre d'espace entre les écrans et à la fin (« APPUYEZ SUR ESPACE », `WHILE INKEY(47):WEND:WHILE INKEY(47)=0:WEND`), sinon le tampon du clavier fait passer les écrans trop vite pour les capturer.
 - **Commandes suivantes demandées :** la liste des variables (A, B, C), puis plus tard un ovale avec un angle d'inclinaison.
 
+## D131 : liste des variables, solution A (touche F4) (18 nov. 2026) (validé par l'utilisateur)
+- **Demande de l'utilisateur :** liste des variables, solutions A, B et C (IDEES.md) ; A d'abord.
+- **Fait :** menu Compiler, « Liste des variables » (F4) ; la liste s'affiche dans le panneau des messages (lisible par un lecteur d'écran), une variable par ligne, par ordre alphabétique : nom, type (entier, nombre à virgule, texte, octet, tableau avec ses tailles), lignes où elle **reçoit une valeur** et lignes où elle est **utilisée** (mots choisis avec l'utilisateur à la place de « remplie » et « lue »). F6 puis Entrée sur une ligne : le curseur va à la première ligne de la variable.
+- **⚠ à vérifier :** variable utilisée mais qui ne reçoit jamais de valeur (« elle vaut toujours 0 » ou « un texte vide »), avec un nom proche proposé quand il existe (une lettre de différence ou deux lettres échangées, noms de 3 lettres ou plus : « Faute de frappe pour SCORE ? ») ; variable qui reçoit une valeur mais n'est jamais utilisée.
+- **Règles :** reçoivent une valeur : A=, FOR (compte aussi comme utilisée : la boucle s'en sert), INPUT, LINE INPUT, READ, DIM, T(I)=, MID$(A$...)= (aussi utilisée). A et A() sont deux variables, comme sur le CPC. Les valeurs d'une fonction DEF FN ne sont pas des variables du programme. Numéros BASIC ; sans numéro, ligne de l'éditeur. Avec des erreurs dans le programme, un avertissement dit que la liste peut être incomplète.
+- **Fichiers :** src\CpcBasic.Core\Editing\VariableList.cs (nouveau), MainWindow.axaml, MainWindow.axaml.cs, VariableListTests.cs (12 tests), examples\varliste.bas (faute de frappe exprès), LISEZMOI.txt. 1557 tests réussis.
+- **Essayé par l'utilisateur (18 nov. 2026) :** examples\varliste.bas : F4 affiche les 5 variables dont 2 à vérifier ; F6, flèches, Entrée : le curseur va à la bonne ligne.
+- **Suite :** solution B (adresse de chaque variable dans la mémoire du CPC), puis C.
+
 ---
 
 ## Notes de fin de session (modèle)

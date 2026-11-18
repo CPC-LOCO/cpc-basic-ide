@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D130 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D131 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.3.0 (pre-release GitHub, Windows 64 bits, 18 nov. 2026). Tout ce qui suit D122 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « CIRCLE (D130) » (18 nov. 2026, **1545 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Liste des variables F4 (D131) » (18 nov. 2026, **1557 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -76,6 +76,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 ### En attente jusqu'à la fin des lots
 
 - **CIRCLE : fait (D130)**, largeur ×0,5 / ×1 / ×2 selon le MODE (le ×0,6 / ×1,2 / ×2,4 noté avant était faux). Toute commande à écriture directe doit couper la ROM haute comme `rt_box` (D048). Méthode à reprendre pour les formes suivantes : routine écrite une fois dans essais\circle\routine.py, vérifiée en Python contre une référence, puis code C# tiré de cette description.
+- **Liste des variables :** solution A faite (F4, D131) ; à faire : B (adresses dans la mémoire du CPC), puis C (valeurs pendant l'exécution).
 - **Ovale avec angle d'inclinaison :** demandé pour plus tard (IDEES.md), avec la question du facteur de largeur.
 - `PAINT`, ELLIPSE, STAR, POLYGON, calcul 3D en fil de fer (SIN et COS par tableau de 256 angles, virgule fixe, racine carrée entière, projection).
 - Ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80).
@@ -148,4 +149,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « CIRCLE (D130) » ; 1545 tests passent. La version 0.3.0 est publiée. On continue avec la liste des variables (A, puis B, puis C, voir IDEES.md) : propose-moi la suite, une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Liste des variables F4 (D131) » ; 1557 tests passent. La version 0.3.0 est publiée. On continue avec la liste des variables, solution B (adresses), puis C (voir IDEES.md) : propose-moi la suite, une étape à la fois, une seule action par message.

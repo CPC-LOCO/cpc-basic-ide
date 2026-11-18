@@ -154,6 +154,7 @@ public partial class MainWindow : Window
     void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
     void OnVersionClick(object? sender, RoutedEventArgs e) => ToggleCpcVersion();
+    void OnVariablesClick(object? sender, RoutedEventArgs e) => ShowVariables();
     void OnWrapClick(object? sender, RoutedEventArgs e)
     {
         settings.WordWrap = !settings.WordWrap;
@@ -189,7 +190,7 @@ public partial class MainWindow : Window
         ShowMessages(new[]
         {
             new MessageItem("Raccourcis clavier :", 0),
-            new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   F5 : compiler.", 0),
+            new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   F5 : compiler.   F4 : liste des variables.", 0),
             new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
             new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
             new MessageItem("F8 : variables sans signe entières ou à virgule.   F9 : touche ESC comme le CPC ou ignorée.", 0),
@@ -344,6 +345,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleContrast();
         }
+        else if (e.Key == Key.F4)
+        {
+            e.Handled = true;
+            ShowVariables();
+        }
         else if (e.Key == Key.F7)
         {
             e.Handled = true;
@@ -427,6 +433,26 @@ public partial class MainWindow : Window
         ShowMessage(breakKey
             ? "Touche ESC comme le vrai BASIC : une fois = pause, deux fois = « Break in … » et arrêt (sauf ON BREAK)."
             : "Touche ESC ignorée (sauf ON BREAK dans le programme) : programme un peu plus petit et plus rapide.");
+    }
+
+    // F4 : liste des variables du programme (D131, solution A) : type, lignes où elles reçoivent une valeur et où elles
+    // sont utilisées ; ⚠ devant celles à vérifier. Entrée sur une ligne : le curseur va à sa première ligne.
+    void ShowVariables()
+    {
+        var options = new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion);
+        IReadOnlyList<VariableLine> variables = VariableList.Build(Editor.Text, options);
+        int warnings = variables.Count(v => v.Warning);
+        var items = new List<MessageItem>
+        {
+            new(variables.Count == 0
+                ? "Aucune variable dans ce programme."
+                : $"Variables du programme : {variables.Count}{(warnings > 0 ? $", dont {warnings} à vérifier (⚠)" : "")}. "
+                  + "F6 puis Entrée sur une ligne : aller à la variable dans le programme.", 0)
+        };
+        if (CpcBasic.Core.Language.BasicAnalyzer.Analyze(Editor.Text, options).HasErrors)
+            items.Add(new MessageItem("Le programme contient des erreurs (F5 pour les voir) : la liste peut être incomplète.", 0, MessageKind.Error));
+        items.AddRange(variables.Select(v => new MessageItem(v.Text, v.Line)));
+        ShowMessages(items);
     }
 
     // F7 : version du CPC, française ou anglaise ; pour tous les programmes (D126). Les textes entre guillemets du
