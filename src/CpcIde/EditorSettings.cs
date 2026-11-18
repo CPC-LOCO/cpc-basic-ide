@@ -48,6 +48,12 @@ public sealed class EditorSettings
     /// </summary>
     public bool TextOnDisk { get; set; }
 
+    /// <summary>
+    /// Version du CPC (F7, D126) : décide des codes des lettres accentuées et de ce que l'éditeur montre dans les textes.
+    /// Français par défaut (choix de l'utilisateur). Réglage commun à tous les programmes.
+    /// </summary>
+    public CpcLanguage CpcVersion { get; set; } = CpcLanguage.French;
+
     // Une ligne trop longue continue sur la ligne suivante de l'écran, comme sur le CPC (D113)
     public bool WordWrap { get; set; } = true;
 

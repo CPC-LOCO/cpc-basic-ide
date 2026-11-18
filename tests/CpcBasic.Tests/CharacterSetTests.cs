@@ -100,6 +100,53 @@ public class CharacterSetTests
         Assert.Contains("n'existe pas sur le CPC anglais", error.Message);
     }
 
+    // ---------- Éditeur (D126, partie 2) : touche F7 et caractères tapés ----------
+
+    [Theory]
+    [InlineData('{', CpcLanguage.French, 'é')]
+    [InlineData('@', CpcLanguage.French, 'à')]
+    [InlineData('é', CpcLanguage.French, 'é')]
+    [InlineData('é', CpcLanguage.English, '{')]
+    [InlineData('^', CpcLanguage.English, '↑')]
+    [InlineData('°', CpcLanguage.English, '¨')]
+    [InlineData('£', CpcLanguage.English, '£')]
+    [InlineData('ê', CpcLanguage.French, 'ê')]     // absent de tous les CPC : reste tel quel (la compilation le signale)
+    [InlineData('A', CpcLanguage.French, 'A')]
+    public void Un_caractere_tape_montre_ce_qu_affiche_le_CPC(char typed, CpcLanguage language, char shown)
+    {
+        Assert.Equal(shown, CharacterSet.Shown(typed, language));
+    }
+
+    [Fact]
+    public void F7_convertit_seulement_les_textes_entre_guillemets()
+    {
+        const string french = "10 PRINT \"été à 20°\";A$:|DISC\r\n20 A$=\"ça\":B=2^3 ' é hors texte";
+        const string english = "10 PRINT \"{t{ @ 20¨\";A$:|DISC\r\n20 A$=\"\\a\":B=2^3 ' é hors texte";
+
+        Assert.Equal(english, CharacterSet.ConvertProgram(french, CpcLanguage.French, CpcLanguage.English));
+        Assert.Equal(french, CharacterSet.ConvertProgram(english, CpcLanguage.English, CpcLanguage.French));
+    }
+
+    [Fact]
+    public void F7_aller_et_retour_rend_le_meme_programme()
+    {
+        // (une flèche ↑ tapée sur le CPC français, code 240, reviendrait en ^ : les deux s'affichent ↑ sur le CPC anglais)
+        const string source = "10 PRINT \"^ é à ç ù è ° £ ê\"";
+        string back = CharacterSet.ConvertProgram(
+            CharacterSet.ConvertProgram(source, CpcLanguage.French, CpcLanguage.English), CpcLanguage.English, CpcLanguage.French);
+
+        Assert.Equal(source, back);
+    }
+
+    [Theory]
+    [InlineData("10 PRINT \"abc", 12, true)]
+    [InlineData("10 PRINT \"abc\";", 15, false)]
+    [InlineData("10 PRINT ", 9, false)]
+    public void Le_curseur_est_il_dans_un_texte(string line, int position, bool inside)
+    {
+        Assert.Equal(inside, CharacterSet.IsInString(line, position));
+    }
+
     [Fact]
     public void Le_texte_pour_le_vrai_BASIC_suit_la_version()
     {

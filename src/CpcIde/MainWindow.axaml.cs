@@ -117,6 +117,7 @@ public partial class MainWindow : Window
                 ComputeColumns();
         };
         Editor.TextArea.Caret.PositionChanged += (_, _) => UpdateStatus();
+        Editor.TextArea.TextEntering += OnTextEntering;
         Editor.TextChanged += (_, _) =>
         {
             if (loading) return;
@@ -152,6 +153,7 @@ public partial class MainWindow : Window
     void OnRealClick(object? sender, RoutedEventArgs e) => ToggleRealByDefault();
     void OnBreakClick(object? sender, RoutedEventArgs e) => ToggleBreakKey();
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
+    void OnVersionClick(object? sender, RoutedEventArgs e) => ToggleCpcVersion();
     void OnWrapClick(object? sender, RoutedEventArgs e)
     {
         settings.WordWrap = !settings.WordWrap;
@@ -189,6 +191,7 @@ public partial class MainWindow : Window
             new MessageItem("Raccourcis clavier :", 0),
             new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   F5 : compiler.", 0),
             new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
+            new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
             new MessageItem("F8 : variables sans signe entières ou à virgule.   F9 : touche ESC comme le CPC ou ignorée.", 0),
             new MessageItem("F11 : texte du programme sur la disquette (pour le vrai BASIC : LOAD\"NOM.TXT\" puis RUN).", 0),
             new MessageItem("Ctrl et + / Ctrl et - / Ctrl et 0 : taille du texte.   Ctrl+H : contraste élevé.", 0),
@@ -341,6 +344,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ToggleContrast();
         }
+        else if (e.Key == Key.F7)
+        {
+            e.Handled = true;
+            ToggleCpcVersion();
+        }
         else if (e.Key == Key.F8)
         {
             e.Handled = true;
@@ -421,6 +429,57 @@ public partial class MainWindow : Window
             : "Touche ESC ignorée (sauf ON BREAK dans le programme) : programme un peu plus petit et plus rapide.");
     }
 
+    // F7 : version du CPC, française ou anglaise ; pour tous les programmes (D126). Les textes entre guillemets du
+    // programme sont convertis : chaque caractère garde son code et prend le dessin de la nouvelle version.
+    void ToggleCpcVersion()
+    {
+        CpcLanguage from = settings.CpcVersion;
+        CpcLanguage to = from == CpcLanguage.French ? CpcLanguage.English : CpcLanguage.French;
+        settings.CpcVersion = to;
+        settings.Save();
+        ConvertDocument(from, to);
+        UpdateOptionButtons();
+        ShowMessage(to == CpcLanguage.French
+            ? "Version du CPC : français (AZERTY). Les textes montrent é è à ç ù ° comme un CPC français."
+            : "Version du CPC : anglais (QWERTY). Les textes montrent ce qu'affiche un CPC anglais : { pour é, } pour è, @ pour à, \\ pour ç, | pour ù.");
+    }
+
+    // Remplace seulement les caractères qui changent (même longueur) : le curseur reste à sa place, Ctrl+Z annule tout
+    void ConvertDocument(CpcLanguage from, CpcLanguage to)
+    {
+        string text = Editor.Text;
+        string converted = CharacterSet.ConvertProgram(text, from, to);
+        if (converted == text)
+            return;
+        var document = Editor.Document;
+        using (document.RunUpdate())
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] != converted[i])
+                    document.Replace(i, 1, converted[i].ToString());
+            }
+        }
+    }
+
+    // Une touche tapée dans un texte entre guillemets donne le caractère que le CPC choisi affichera (D126) :
+    // sur le CPC français, « { » devient é ; sur le CPC anglais, é devient « { »
+    void OnTextEntering(object? sender, TextInputEventArgs e)
+    {
+        if (e.Text is not { Length: 1 } typed)
+            return;
+        char shown = CharacterSet.Shown(typed[0], settings.CpcVersion);
+        if (shown == typed[0])
+            return;
+        var caret = Editor.TextArea.Caret;
+        var line = Editor.Document.GetLineByNumber(caret.Line);
+        string before = Editor.Document.GetText(line.Offset, caret.Offset - line.Offset);
+        if (!CharacterSet.IsInString(before, before.Length))
+            return;
+        e.Handled = true;
+        Editor.TextArea.Selection.ReplaceSelectionWithText(shown.ToString());
+    }
+
     // F11 : le texte du programme aussi sur la disquette (NOM.TXT), pour le vrai BASIC ; pour tous les programmes (D101)
     void ToggleTextOnDisk()
     {
@@ -436,6 +495,9 @@ public partial class MainWindow : Window
     {
         // Menu Options (D112) : coché quand le réglage est actif
         TextMenu.IsChecked = settings.TextOnDisk;
+        VersionMenu.Header = settings.CpcVersion == CpcLanguage.French
+            ? "Version du _CPC : français (AZERTY)"
+            : "Version du _CPC : anglais (QWERTY)";
         BreakMenu.IsChecked = breakKey;
         RealMenu.Header = realByDefault
             ? "_Variables sans signe (A, X...) : à virgule"
@@ -568,7 +630,8 @@ public partial class MainWindow : Window
 
         try
         {
-            string text = await File.ReadAllTextAsync(path);
+            // Textes montrés comme le CPC choisi les affiche (D126) ; les codes ne changent pas
+            string text = CharacterSet.ConvertProgram(await File.ReadAllTextAsync(path), settings.CpcVersion, settings.CpcVersion);
             SetText(text);
             currentPath = path;
             realByDefault = settings.IsRealByDefault(path);   // réglage mémorisé pour ce programme (D066)
@@ -656,9 +719,11 @@ public partial class MainWindow : Window
                 if (file is null)
                     return null;
                 return new ProgramSource(File.ReadAllText(file),
-                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file)));
+                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
+                                                             settings.CpcVersion));
             }
-            result = Compiler.CompileWithLinked(Editor.Text, name, new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey), Find);
+            result = Compiler.CompileWithLinked(Editor.Text, name,
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -681,7 +746,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                result.Disk!.AddTextFile(name, "TXT", Editor.Text);   // pour le vrai BASIC : LOAD"NOM.TXT" (D101)
+                result.Disk!.AddTextFile(name, "TXT", Editor.Text, settings.CpcVersion);   // pour le vrai BASIC (D101, D126)
                 textNote = $"Texte du programme aussi sur la disquette : {name}.TXT (dans l'émulateur : LOAD\"{name}.TXT\" puis RUN).";
             }
             catch (InvalidOperationException ex)
@@ -1120,6 +1185,6 @@ public partial class MainWindow : Window
     {
         var caret = Editor.TextArea.Caret;
         StatusText.Text = $"Ligne {caret.Line}, colonne {caret.Column}";
-        StatusRight.Text = $"Largeur visible : {visibleColumns} colonnes";
+        StatusRight.Text = $"CPC {CharacterSet.Name(settings.CpcVersion)}   Largeur visible : {visibleColumns} colonnes";
     }
 }

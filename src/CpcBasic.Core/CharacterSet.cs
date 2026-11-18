@@ -87,6 +87,39 @@ public static class CharacterSet
     public static byte[] Encode(string text, CpcLanguage language) =>
         text.Select(c => c is '\r' or '\n' ? (byte)c : (byte)(CodeOf(c, language) ?? '?')).ToArray();
 
+    /// <summary>
+    /// Caractère tapé dans un texte : celui que le CPC choisi affichera (D126). Sur le CPC français, « { » donne é ;
+    /// sur le CPC anglais, é donne « { » et ^ donne ↑. Un caractère absent de tous les CPC reste tel quel.
+    /// </summary>
+    public static char Shown(char c, CpcLanguage language) =>
+        CodeOf(c, language) is int code && Glyph(code, language) is char shown ? shown : c;
+
+    /// <summary>
+    /// Change la version du CPC d'un programme (touche F7 de l'éditeur, D126) : dans les textes entre guillemets, chaque
+    /// caractère garde son code et prend le dessin de la nouvelle version (é du CPC français devient « { » sur le CPC
+    /// anglais). Le reste du programme ne change pas. Même longueur : les positions dans le texte restent valables.
+    /// </summary>
+    public static string ConvertProgram(string text, CpcLanguage from, CpcLanguage to)
+    {
+        char[] result = text.ToCharArray();
+        bool inString = false;
+        for (int i = 0; i < result.Length; i++)
+        {
+            char c = result[i];
+            if (c is '\r' or '\n')
+                inString = false;
+            else if (c == '"')
+                inString = !inString;
+            else if (inString && CodeOf(c, from) is int code && Glyph(code, to) is char shown)
+                result[i] = shown;
+        }
+        return new string(result);
+    }
+
+    /// <summary>Vrai si la position est dans un texte entre guillemets de cette ligne (nombre impair de guillemets avant).</summary>
+    public static bool IsInString(string line, int position) =>
+        line.Take(Math.Min(position, line.Length)).Count(c => c == '"') % 2 == 1;
+
     /// <summary>Lettre sans accent qui peut remplacer c (ê : e), ou null.</summary>
     public static char? Plain(char c)
     {

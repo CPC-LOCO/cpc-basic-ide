@@ -83,6 +83,9 @@
                 <MenuItem Header="_Compiler le programme" InputGesture="F5" Click="OnCompileClick" />
             </MenuItem>
             <MenuItem Header="_Options">
+                <!-- D126 : le texte dit la version actuelle, F7 passe de l'une à l'autre -->
+                <MenuItem x:Name="VersionMenu" Header="Version du _CPC : français (AZERTY)" InputGesture="F7"
+                          Click="OnVersionClick" />
                 <!-- Pas de coche ici : le texte dit l'état actuel (entières ou à virgule), F8 passe de l'un à l'autre -->
                 <MenuItem x:Name="RealMenu" Header="_Variables sans signe (A, X...) : entières" InputGesture="F8"
                           Click="OnRealClick" />

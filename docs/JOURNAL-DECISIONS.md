@@ -953,6 +953,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Partie 1 faite :** CharacterSet.cs (nouveau), CompilerOptions (Language, français par défaut), BasicAnalyzer (textes et DATA vérifiés), Diagnostic (UnknownCharacter), CodeGenerator (Encode), DiskImage (NOM.TXT du réglage F11 avec les mêmes codes). Tests : CharacterSetTests.cs (30), CodegenTests et DiskImageTests mis à jour (é donnait « ? »). 1497 tests réussis. Vérifié dans WinAPE (ROM AZERTY) : examples\accents.bas affiche à ù é ° ç è, puis £ ½ © § ♥ ♠ → α π.
 - **Partie 2 à faire (éditeur) :** touche F7 et menu Options « Version du CPC : français (AZERTY) / anglais (QWERTY) », gardée dans les réglages ; l'éditeur montre les textes comme le CPC choisi les affiche (en anglais, é tapé devient « { » ; en français, « { » tapé devient é) et convertit les textes quand on change de version.
 
+## D127 : lettres accentuées, partie 2 : éditeur, touche F7 (18 nov. 2026) (validé par l'utilisateur) ; suite de D126
+- **F7 et menu Options** « Version du CPC : français (AZERTY) / anglais (QWERTY) », français par défaut, gardé dans reglages.json (CpcVersion), commun à tous les programmes. La barre d'état dit « CPC français » ou « CPC anglais » ; F1 explique F7.
+- **L'éditeur montre ce que le CPC affichera** dans les textes entre guillemets : une touche tapée entre guillemets prend le dessin du CPC choisi (français : « { » donne é ; anglais : é donne « { », ^ donne ↑) ; à l'ouverture d'un fichier, même chose ; F7 convertit les textes du programme (chaque caractère garde son code et prend le dessin de l'autre version ; le reste du programme ne change pas ; Ctrl+Z annule ; le curseur ne bouge pas). F5 et le fichier NOM.TXT (F11) utilisent la version choisie.
+- **Limites connues :** le texte collé (Ctrl+V) n'est converti qu'au prochain F7 ou à la prochaine ouverture (les codes compilés sont justes de toute façon) ; sur le CPC anglais ^ et ↑ s'affichent pareil, donc un ↑ tapé en anglais redevient ^ en français.
+- **Fichiers :** CharacterSet.cs (Shown, ConvertProgram, IsInString), EditorSettings.cs, MainWindow.axaml, MainWindow.axaml.cs, CharacterSetTests.cs (14 tests de plus), LISEZMOI.txt. 1511 tests réussis.
+- **Essayé par l'utilisateur (18 nov. 2026) :** examples\accents.bas, F7 deux fois : les textes passent à « Bonjour @ toi ! », « O| est le caf{ ? Il fait 20¨. » (comme le vrai CPC anglais), puis reviennent en français. La remarque « Partielle » de PRINT est levée : **l'inventaire du Locomotive n'a plus de « Partielle »**.
+
 ---
 
 ## Notes de fin de session (modèle)

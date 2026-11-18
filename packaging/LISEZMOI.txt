@@ -72,6 +72,8 @@ demarrage. Si un programme lance un autre programme (RUN "SUITE"), F5
 compile aussi SUITE.BAS et le met sur la meme disquette.
 
 Reglages (menu Options) :
+  F7   version du CPC : francaise (AZERTY, lettres accentuees, par defaut)
+       ou anglaise (QWERTY) ; les textes montrent ce que le CPC affichera
   F8   variables sans signe (A, X...) entieres ou a virgule, comme le CPC
   F9   touche ESC comme le CPC (pause, puis arret) ou ignoree
   F11  met aussi le texte du programme sur la disquette (NOM.TXT), pour le
