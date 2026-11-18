@@ -161,6 +161,8 @@ public static class Parser
                                Command: "GRAPHICS PEN"),
         // Lot L4c (D110) : motif des lignes
         ["MASK"] = new("MASK motif (0 à 255) [, premier point (0 ou 1)]", 1, [0, 0], [255, 1]),
+        // D123 : « MASK ,1 » sans motif (accepté par le vrai BASIC 1.1 ; « MASK » seul : Operand missing)
+        ["MASK FIRST"] = new("MASK [motif (0 à 255)], premier point (0 ou 1)", 1, [0], [1], Command: "MASK FIRST"),
         // Lot L4b (D107) : remplissage ; PAINT est une commande nouvelle (seulement l'encre trouvée sous le curseur)
         ["FILL"] = new("FILL encre (0 à 15)", 1, [0], [15]),
         ["PAINT"] = new("PAINT encre (0 à 15)", 1, [0], [15]),
@@ -182,6 +184,8 @@ public static class Parser
         // Lot L1 (D102) : BASIC 1.1, mais les routines du firmware existent aussi sur le 464
         ["FRAME"] = new("FRAME", 0, [], []),
         ["CURSOR"] = new("CURSOR système (0 ou 1) [, utilisateur (0 ou 1)]", 1, [0, 0], [1, 1]),
+        // D123 : « CURSOR ,1 » sans interrupteur du système (accepté par le vrai BASIC 1.1 ; « CURSOR » seul : Operand missing)
+        ["CURSOR USER"] = new("CURSOR [système (0 ou 1)], utilisateur (0 ou 1)", 1, [0], [1], Command: "CURSOR USER"),
         // Lot K6 (D094) : attend que (INP(port) XOR inversion) AND masque ne vaille plus 0
         ["WAIT"] = new("WAIT port, masque [, inversion]", 2, [-32768, 0, 0], [32767, 255, 255], true),
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
@@ -897,6 +901,11 @@ public static class Parser
             // Stylo et fond des tracés (lot L4a, D106)
             case "GRAPHICS" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text is "PEN" or "PAPER":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands["GRAPHICS " + tokens[pos + 1].Text], pos + 2);
+
+            // Deuxième valeur seule (D123) : « CURSOR ,1 » et « MASK ,1 », le premier réglage ne change pas
+            case "CURSOR" or "MASK" when tokens[pos + 1].Kind == TokenKind.Comma:
+                return ParseScreenCommand(tokens, pos, statements, diagnostics,
+                                          ScreenCommands[t.Text == "CURSOR" ? "CURSOR USER" : "MASK FIRST"], pos + 2);
 
             // Caractères (lot H4, D075)
             case "SYMBOL" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "AFTER":

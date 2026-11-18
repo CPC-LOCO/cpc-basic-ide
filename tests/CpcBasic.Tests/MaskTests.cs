@@ -59,6 +59,22 @@ public class MaskTests
             Run(Reference).Output);
     }
 
+    [Theory]
+    // D123 : « MASK ,n » (accepté par le vrai BASIC 1.1, SugarBox, 18 nov. 2026) change le premier point, pas le motif :
+    // mêmes points que les lignes 60 et 70 de la référence
+    [InlineData("MASK &X11110000,1:MASK ,0", "21111000011110000111100001111000")]
+    [InlineData("MASK &X11110000,0:MASK ,1", "11110001110000111100001111000011")]
+    public void MASK_virgule_ne_change_que_le_premier_point(string masks, string expected)
+    {
+        string source =
+            "10 MODE 1:GRAPHICS PAPER 2:CLG:GRAPHICS PAPER 0:L=1\n" +
+            "20 " + masks + ":MOVE 0,140:DRAW 10,140:DRAW 20,140:DRAW 62,140:Y=140:GOSUB 200\n" +
+            "30 END\n" +
+            "200 S$=\"\":FOR X=0 TO 62 STEP 2:S$=S$+CHR$(48+TEST(X,Y)):NEXT:LOCATE 1,L:PRINT S$:L=L+1:RETURN";
+
+        Assert.Equal(expected + "\r\n", Run(source).Output);
+    }
+
     [Fact]
     public void Sans_MASK_les_lignes_ne_passent_pas_par_le_detournement()
     {
@@ -71,6 +87,9 @@ public class MaskTests
     [InlineData("10 MASK 256")]
     [InlineData("10 MASK 1,2")]
     [InlineData("10 MASK")]
+    [InlineData("10 MASK ,")]
+    [InlineData("10 MASK ,2")]
+    [InlineData("10 MASK ,1,0")]
     [InlineData("10 GRAPHICS PEN 1,2")]
     public void Ecritures_refusees(string source)
     {

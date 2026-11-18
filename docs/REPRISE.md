@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D111 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D123 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.3.0 (pre-release GitHub, Windows 64 bits, 18 nov. 2026). Tout ce qui suit D122 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Version 0.3.0 publiee » (18 nov. 2026, **1441 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « CURSOR ,1 et MASK ,1 sans premiere valeur (D123) » (18 nov. 2026, **1449 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -60,7 +60,7 @@ Documents de référence :
 
 Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » et « Partielle ») :
 - **Lot L (terminé) : BASIC 1.1.** L1 FRAME, CURSOR, COPYCHR$ (D102), L2 DEC$ (D103), L3 ORIGIN avec fenêtre graphique et PEN transparent (D104) faits. L4a GRAPHICS PEN / PAPER (D106) et L4b FILL et PAINT (D107, D108 ; accélérés en D109 : deux fois plus rapides que le FILL du 6128) faits. L4c MASK et GRAPHICS PEN stylo, mode (D110 : SCR WRITE détourné, points exactement ceux du firmware) fait. **Lot L terminé.** Nos propres routines (D105) : lecture et écriture directes de l'écran et calcul des lignes voisines (D109), réutilisables pour CIRCLE, POLYGON…
-- **Reste de l'inventaire :** quelques remarques « Partielle » (MEMORY, @, PRINT, CURSOR ,1 et MASK ,1 sans première valeur) ; MASK vérifié sur un 464 (D110, 18 nov. 2026 : identique au 6128).
+- **Reste de l'inventaire :** quelques remarques « Partielle » (MEMORY, @, PRINT) ; CURSOR ,1 et MASK ,1 sans première valeur faits (D123, 1449 tests) ; MASK vérifié sur un 464 (D110, 18 nov. 2026 : identique au 6128).
 - **Réglage F7 retiré (D111)** : un programme compilé marche toujours sur tous les CPC ; messages d'incompatibilité notés dans IDEES.md.
 - **Remodelage de l'éditeur (en cours)** : étape 1 faite, barre de menus Fichier / Compiler / Options / Aide à la place des boutons, F1 = raccourcis (D112). Étape 2 faite : barre d'état lisible, panneau des messages réglable, lignes longues à la ligne comme le CPC (D113). Étape 3 faite : icônes ✓/✗ devant les messages (D114). Suite possible : se souvenir de la hauteur du panneau.
 - **Commandes de l'éditeur (D077)** : étape 1 faite (D115) : NEW, EDIT et les explications de CLEAR, MEMORY, CONT, LOAD, SAVE, RUN, MERGE, CAT, CHAIN, AMSDOS, tapées sans numéro puis Entrée. Étape 2 faite : AUTO (D116). RENUM fait (D117). Numéro seul = effacer la ligne, avec confirmation ; numéro déjà pris = remplacer ? (D118). Protection : un problème imprévu ne ferme plus l'éditeur, détail dans %APPDATA%\CpcBasicIde\erreurs.txt (D119). DELETE fait (D120). Menu Édition (D121). LIST fait (D122) : **toutes les commandes de l'éditeur (D077) sont faites.**
@@ -83,7 +83,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 - D016 : vérifier qu'aucune ROM Amstrad n'est livrée.
 - D017 : relecture juridique de l'exception de liaison (`docs\RUNTIME-EXCEPTION.md`).
-- **Version 0.3.0 préparée (18 nov. 2026)** : LISEZMOI refait, TESTEURS.md mis à jour, version 0.3.0 aux deux endroits, `docs\RELEASE-NOTES-0.3.0.md` ; le paquet contient tous les exemples et COMPATIBILITE.md. Paquet construit et essayé par l'utilisateur (version 0.3.0 affichée, ouverture et compilation OK). **Publiée sur GitHub (pre-release v0.3.0, 18 nov. 2026).** Ensuite : CURSOR ,1 et MASK ,1 sans première valeur (compatibilité Locomotive), puis les autres « Partielle ».
+- **Version 0.3.0 préparée (18 nov. 2026)** : LISEZMOI refait, TESTEURS.md mis à jour, version 0.3.0 aux deux endroits, `docs\RELEASE-NOTES-0.3.0.md` ; le paquet contient tous les exemples et COMPATIBILITE.md. Paquet construit et essayé par l'utilisateur (version 0.3.0 affichée, ouverture et compilation OK). **Publiée sur GitHub (pre-release v0.3.0, 18 nov. 2026).** Ensuite : CURSOR ,1 et MASK ,1 sans première valeur (fait, D123), puis les autres « Partielle » (MEMORY, @, PRINT).
 
 ## 5. Points techniques à connaître
 
@@ -146,4 +146,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Version 0.3.0 publiee » ; 1441 tests passent. La version 0.3.0 est publiée. On continue avec CURSOR ,1 et MASK ,1 sans première valeur (compatibilité Locomotive) : propose-moi la suite, une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « CURSOR ,1 et MASK ,1 sans premiere valeur (D123) » ; 1449 tests passent. La version 0.3.0 est publiée. On continue avec les dernières remarques « Partielle » (MEMORY, @, PRINT) : propose-moi la suite, une étape à la fois, une seule action par message.

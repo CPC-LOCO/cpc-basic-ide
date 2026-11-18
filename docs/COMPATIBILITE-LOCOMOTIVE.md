@@ -112,7 +112,7 @@ Mise à jour le 16 nov. 2026 :
 | `MODE` | mode d'écran 0, 1 ou 2 | Faite |  |
 | `WINDOW` | fenêtre de texte | Faite | D072. |
 | `WINDOW SWAP` | échange deux fenêtres | Faite | D072. |
-| `CURSOR` | affiche ou cache le curseur | Faite | D102 (BASIC 1.1, marche sur tous les CPC). « CURSOR ,1 » pas encore accepté. |
+| `CURSOR` | affiche ou cache le curseur | Faite | D102 (BASIC 1.1, marche sur tous les CPC). « CURSOR ,1 » (utilisateur seul) accepté depuis D123. |
 | `WIDTH` | largeur de ligne de l'imprimante | Faite | D100 : 1 à 255 (255 : pas de retour automatique), 132 au départ. |
 | `ZONE` | largeur des zones de PRINT | Faite | D073. |
 | `TAG` | texte aux coordonnées graphiques | Faite | Avec #n (D075). |
@@ -136,7 +136,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | `CLG` | efface l'écran graphique | Faite | Avec un stylo facultatif. |
 | `GRAPHICS PEN` | stylo et mode de remplissage des tracés | Faite | GRAPHICS PEN stylo [, mode] (D106, D110, tous les CPC). |
 | `GRAPHICS PAPER` | fond des tracés | Faite | D106 (tous les CPC). |
-| `MASK` | motif des lignes | Faite | D110 : MASK motif [, premier point], sur tous les CPC (SCR WRITE détourné). « MASK ,1 » sans motif pas encore accepté. |
+| `MASK` | motif des lignes | Faite | D110 : MASK motif [, premier point], sur tous les CPC (SCR WRITE détourné). « MASK ,1 » sans motif accepté depuis D123. |
 | `FILL` | remplit une zone | Faite | D108, D109 : notre propre routine, sur tous les CPC (passage par les côtés seulement), deux fois plus rapide que celle du 6128. |
 | `TEST / TESTR` | lit la couleur d'un point | Faite | Le curseur graphique va au point, comme le vrai BASIC (D091). |
 | `XPOS / YPOS` | position du curseur graphique | Faite | D091. |

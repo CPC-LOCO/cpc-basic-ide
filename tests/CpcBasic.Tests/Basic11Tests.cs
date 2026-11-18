@@ -63,7 +63,19 @@ public class Basic11Tests
         Assert.Equal(new[] { 0xBB81, 0xBB84, 0xBB7B, 0xBB84, 0xBB7B }, cpu.FirmwareCalls);
     }
 
+    [Fact]
+    public void CURSOR_virgule_ne_touche_que_l_interrupteur_utilisateur()
+    {
+        // D123 : « CURSOR ,1 » accepté par le vrai BASIC 1.1 (SugarBox, 18 nov. 2026) ; seul ENABLE / DISABLE est appelé
+        MiniZ80 cpu = Run("10 CURSOR ,1:CURSOR ,0:A=1:CURSOR ,A").Cpu;
+
+        Assert.Equal(new[] { 0xBB7B, 0xBB7E, 0xBB7B }, cpu.FirmwareCalls);
+    }
+
     [Theory]
+    [InlineData("10 CURSOR ,")]
+    [InlineData("10 CURSOR ,2")]
+    [InlineData("10 CURSOR ,1,1")]
     [InlineData("10 CURSOR 2")]
     [InlineData("10 CURSOR")]
     [InlineData("10 FRAME 1")]

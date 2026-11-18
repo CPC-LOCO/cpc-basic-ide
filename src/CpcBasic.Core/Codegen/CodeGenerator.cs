@@ -167,7 +167,7 @@ public static class CodeGenerator
         bool usesReals = program.Statements.Any(StatementUsesReals);   // nombres à virgule (D068)
         // Mémoire libre (D058, D062) : tableaux, textes, ou HIMEM et FRE qui la lisent (D094)
         // MASK ou GRAPHICS PEN stylo, mode : SCR WRITE est détourné pendant DRAW (D110)
-        bool usesMask = program.Statements.Any(st => st is ScreenStatement { Command: "MASK" }
+        bool usesMask = program.Statements.Any(st => st is ScreenStatement { Command: "MASK" or "MASK FIRST" }
                                                          or ScreenStatement { Command: "GRAPHICS PEN", Arguments.Count: 2 });
         bool usesHeap = arrays.Count > 0 || usesStrings
                         || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }))
@@ -1610,6 +1610,14 @@ public static class CodeGenerator
                     emitter.CallLabel(RuntimeLibrary.MaskInstallLabel);
                     break;
 
+                case "MASK FIRST":                  // MASK ,premier point (D123) : le motif ne change pas
+                    required.Add(RuntimeLibrary.MaskName);
+                    EmitExpression(a[0]);
+                    emitter.LdAL();
+                    emitter.LdMemA(RuntimeLibrary.MaskFirstLabel);
+                    emitter.CallLabel(RuntimeLibrary.MaskInstallLabel);
+                    break;
+
                 case "GRAPHICS PAPER":              // fond des tracés, pour CLG (D106) : GRA SET PAPER
                     EmitCallWithA(a[0], GraSetPaper);
                     break;
@@ -1622,6 +1630,10 @@ public static class CodeGenerator
                     EmitSwitch(a[0], 0xBB81, 0xBB84);
                     if (a.Count == 2)
                         EmitSwitch(a[1], 0xBB7B, 0xBB7E);
+                    break;
+
+                case "CURSOR USER":                 // CURSOR ,utilisateur (D123) : TXT CUR ENABLE / DISABLE seulement
+                    EmitSwitch(a[0], 0xBB7B, 0xBB7E);
                     break;
 
                 case "WIDTH":                       // largeur de ligne de l'imprimante (D100)

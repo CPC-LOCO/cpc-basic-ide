@@ -926,6 +926,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérifié sur le vrai CPC (WinAPE, 18 nov. 2026) :** `5 a=5: A=9` est relisté tel quel : le Locomotive garde l'écriture des noms de variables et les espaces tapés, comme notre LIST ; a et A sont la même variable (RUN : 9 et 9).
 - **Fichiers :** src\CpcBasic.Core\Editing\Lister.cs, Parser.cs (IsKeyword), Renumber.cs (Duplicate), MainWindow.axaml.cs (ListProgram, ShowDuplicateError), ListerTests.cs.
 
+## D123 : CURSOR ,1 et MASK ,1 sans première valeur (18 nov. 2026) (validé par l'utilisateur)
+- **Vrai BASIC 1.1 (SugarBox, 18 nov. 2026) :** `MASK ,1` et `CURSOR ,1` sont acceptés (Ready) ; `MASK` seul et `CURSOR` seul donnent « Operand missing ».
+- **Choix :** sans première valeur, seul le deuxième réglage change. `CURSOR ,n` appelle seulement TXT CUR ENABLE / DISABLE (&BB7B / &BB7E) ; l'interrupteur du système ne bouge pas. `MASK ,n` change seulement le premier point ; le motif garde sa valeur (et sa rotation).
+- **Écrit :** deux entrées nouvelles du parser, « CURSOR USER » et « MASK FIRST », lues après la virgule (comme WINDOW SWAP). `CURSOR` et `MASK` seuls restent refusés (nombre de valeurs), `CURSOR ,`, `MASK ,`, `MASK ,2`, `CURSOR ,1,1` aussi.
+- **Vérifié dans WinAPE (18 nov. 2026) :** examples\curmask.bas donne les mêmes points que les lignes 60 et 70 de la référence de MASK (D110), et le curseur s'éteint puis s'allume au bon moment.
+- **Fichiers :** Parser.cs, CodeGenerator.cs, Basic11Tests.cs, MaskTests.cs, examples\curmask.bas. 1449 tests réussis.
+
 ---
 
 ## Notes de fin de session (modèle)
