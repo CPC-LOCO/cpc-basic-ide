@@ -81,6 +81,7 @@
             </MenuItem>
             <MenuItem Header="_Compiler">
                 <MenuItem Header="_Compiler le programme" InputGesture="F5" Click="OnCompileClick" />
+                <MenuItem Header="_Vérifier sans enregistrer" InputGesture="Shift+F5" Click="OnVerifyClick" />
                 <MenuItem Header="_Liste des variables" InputGesture="F4" Click="OnVariablesClick" />
             </MenuItem>
             <MenuItem Header="_Options">

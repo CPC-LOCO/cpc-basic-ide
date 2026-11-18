@@ -23,7 +23,8 @@ Barre de menus (touche Alt, puis la lettre soulignee) :
   Fichier   Ouvrir (Ctrl+O), Enregistrer (Ctrl+S), Quitter
   Edition   Annuler (Ctrl+Z), Retablir (Ctrl+Y), Couper, Copier, Coller,
             Tout selectionner
-  Compiler  Compiler le programme (F5), Liste des variables (F4)
+  Compiler  Compiler le programme (F5), Verifier sans enregistrer
+            (Maj+F5), Liste des variables (F4)
   Options   reglages F8, F9, F11, lignes longues, contraste eleve (Ctrl+H),
             taille du texte (Ctrl et +, Ctrl et -, Ctrl et 0)
   Aide      Raccourcis clavier (F1), A propos

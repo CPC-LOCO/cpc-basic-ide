@@ -1012,6 +1012,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Pour expliquer à l'utilisateur :** parler de ce qu'on voit à l'écran, pas des codes internes (mes explications sur « @i » et « |DISC » l'avaient embrouillé).
 - **Idée de l'utilisateur notée :** vérifier la compilation sans enregistrer le programme (F5 enregistre toujours) : par exemple Maj+F5 (IDEES.md).
 
+## D134 : Maj+F5, vérifier sans enregistrer (18 nov. 2026) (validé par l'utilisateur)
+- **Idée de l'utilisateur :** F5 enregistre toujours le programme ; on veut parfois seulement savoir si la compilation passe.
+- **Fait :** menu Compiler, « Vérifier sans enregistrer » (Maj+F5) : compile en mémoire comme F5 (programmes RUN "nom" du même dossier compris, lus seulement), sans enregistrer le .bas ni écrire de .dsk. Erreurs affichées comme avec F5, puis « Rien n'a été enregistré » ; sans erreur : « Vérification réussie : aucune erreur. Programme Z80 : N octets. Rien n'a été enregistré. » et un rappel si le programme n'est pas enregistré. L'étoile du titre reste. Aide F1 et LISEZMOI.txt mis à jour.
+- **Essayé par l'utilisateur :** programme sans titre avec une erreur (55 goto remarque) : l'erreur s'affiche, rien n'est enregistré, « sans titre * » reste.
+- **Vérifié en passant :** après NEW, le programme est « sans titre » : F5 et Ctrl+S demandent un nom, le programme d'avant (format.bas) ne peut pas être écrasé. **Remarque suivante de l'utilisateur :** il manque « Enregistrer sous » (garder format.bas et enregistrer ses changements sous un autre nom).
+
 ---
 
 ## Notes de fin de session (modèle)

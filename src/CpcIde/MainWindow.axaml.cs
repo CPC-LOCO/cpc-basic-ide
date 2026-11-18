@@ -170,6 +170,7 @@ public partial class MainWindow : Window
     async void OnOpenClick(object? sender, RoutedEventArgs e) => await OpenFileAsync();
     async void OnSaveClick(object? sender, RoutedEventArgs e) => await SaveAsync();
     async void OnCompileClick(object? sender, RoutedEventArgs e) => await CompileAsync();
+    void OnVerifyClick(object? sender, RoutedEventArgs e) => Verify();
     void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
     void OnBiggerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(+2);
     void OnContrastClick(object? sender, RoutedEventArgs e) => ToggleContrast();
@@ -214,6 +215,7 @@ public partial class MainWindow : Window
         {
             new MessageItem("Raccourcis clavier :", 0),
             new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   F5 : compiler.   F4 : liste des variables.", 0),
+            new MessageItem("Maj+F5 : vérifier sans enregistrer (rien n'est écrit : ni le programme, ni la disquette).", 0),
             new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
             new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
             new MessageItem("F8 : variables sans signe entières ou à virgule.   F9 : touche ESC comme le CPC ou ignorée.", 0),
@@ -299,7 +301,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.F5)
+        if (e.Key == Key.F5 && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            Verify();
+        }
+        else if (e.Key == Key.F5)
         {
             e.Handled = true;
             await CompileAsync();
@@ -833,6 +840,52 @@ public partial class MainWindow : Window
         done.Add(new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0));
         done.Add(new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0));
         ShowMessages(done);
+    }
+
+    // Maj+F5 (D134, idée de l'utilisateur) : compile en mémoire, comme F5, sans enregistrer le programme ni écrire de
+    // disquette ; l'étoile du titre reste si le programme n'est pas enregistré
+    void Verify()
+    {
+        string name = currentPath is null ? "VERIF" : Path.GetFileNameWithoutExtension(currentPath).ToUpperInvariant();
+        if (name.Length is 0 or > 8)
+            name = "VERIF";
+        string? folder = currentPath is null ? null : Path.GetDirectoryName(currentPath);
+        CompileResult result;
+        try
+        {
+            ProgramSource? Find(string program)        // RUN "nom" : comme F5, les programmes du même dossier (lus seulement)
+            {
+                if (folder is null)
+                    return null;
+                string? file = Directory.EnumerateFiles(folder, "*.bas")
+                    .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(program, StringComparison.OrdinalIgnoreCase));
+                return file is null ? null
+                    : new ProgramSource(File.ReadAllText(file),
+                                        new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
+                                                            settings.CpcVersion));
+            }
+            result = Compiler.CompileWithLinked(Editor.Text, name,
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion), Find);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            ShowError($"Vérification impossible : {ex.Message}");
+            return;
+        }
+
+        if (!result.Success)
+        {
+            var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0, MessageKind.Error)).ToList();
+            items.Add(new MessageItem($"{result.Diagnostics.Count} erreur(s). Rien n'a été enregistré.", 0));
+            ShowMessages(items);
+            return;
+        }
+        ShowMessages(new[]
+        {
+            new MessageItem($"Vérification réussie : aucune erreur. Programme Z80 : {result.BinarySize} octets. Rien n'a été enregistré.", 0, MessageKind.Success),
+            new MessageItem(modified ? "Le programme n'est pas encore enregistré (étoile dans le titre) : Ctrl+S ou F5 pour l'enregistrer."
+                                     : "F5 pour créer la disquette.", 0)
+        });
     }
 
     // ---------- Panneau de messages ----------
