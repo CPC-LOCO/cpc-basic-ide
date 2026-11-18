@@ -133,6 +133,9 @@ public static class Parser
                                     string? Command = null);
 
     // Commandes d'écran (D046) : les valeurs écrites en nombres sont vérifiées à la compilation
+    /// <summary>Plus haute adresse permise pour MEMORY : le HIMEM de départ (vrai BASIC 1.1, SugarBox, 18 nov. 2026, D125).</summary>
+    const int MemoryHighest = 0xA67B;
+
     static readonly Dictionary<string, ScreenCommandInfo> ScreenCommands = new()
     {
         ["MODE"] = new("MODE mode (0, 1 ou 2)", 1, [0], [2]),
@@ -2124,6 +2127,10 @@ public static class Parser
                 diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line,
                                                $"{number.Value}|{info.Min[i]} à {info.Max[i]}"));
         }
+
+        // MEMORY plus haut que le HIMEM de départ (&A67B) : « Memory full » sur le CPC (D125)
+        if (name.Text == "MEMORY" && arguments[0] is NumberExpression top && (top.Value & 0xFFFF) > MemoryHighest)
+            diagnostics.Add(new Diagnostic(DiagnosticCode.MemoryTooHigh, name.Line, $"{top.Value & 0xFFFF:X4}"));
 
         statements.Add(new ScreenStatement(name.Line, info.Command ?? name.Text, arguments));
         return pos;

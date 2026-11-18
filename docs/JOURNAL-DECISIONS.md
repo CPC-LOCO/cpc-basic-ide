@@ -938,6 +938,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Règle (« on fait du propre ») :** pour un texte, @ n'est obligatoire sur aucun CPC : avec ou sans @, c'est l'adresse de la fiche de 3 octets qui part. Pour une variable de nombre, sans @ c'est sa valeur qui part ; avec @, son adresse (à mettre obligatoirement si la routine veut l'adresse).
 - **État :** déjà fait ainsi depuis D089 ; ajout de 6 tests qui le vérifient (RsxTests.cs : texte avec et sans @, nombre avec et sans @, avec CALL et avec |NOM). 1455 tests réussis. `@` passe de « Partielle » à « Faite ».
 
+## D125 : MEMORY trop haut ou trop bas : « Memory full » comme le CPC (18 nov. 2026) (validé par l'utilisateur)
+- **Vrai BASIC 1.1 (SugarBox, 18 nov. 2026) :** HIMEM vaut 42619 (&A67B) au départ ; `MEMORY &1000` et `MEMORY &8000` : Ready (programme vide) ; `MEMORY HIMEM-1000` puis HIMEM : 31768 ; `MEMORY &A67B` : Ready ; `MEMORY &A67C` et `MEMORY &B000` : Memory full. Le plus haut permis est donc le HIMEM de départ.
+- **Choix (accord de l'utilisateur) :** un nombre écrit plus haut que &A67B (`MEMORY &B000`, `MEMORY 50000`, `MEMORY -1`) est une erreur de compilation (message MemoryTooHigh qui rappelle « Memory full »). Une adresse calculée est vérifiée à l'exécution : plus haute que &A67B, ou limite sous la fin du programme compilé (ou sous les tableaux déjà créés) : « Memory full in N », ERR = 7, interceptée par ON ERROR. Remplace la règle de D094 qui ramenait en silence une adresse trop haute à &A67B. Une adresse écrite en nombre n'ajoute toujours aucun octet (D057).
+- **Écrit :** Parser.cs (MemoryHighest), Diagnostic.cs (MemoryTooHigh), RuntimeLibrary.cs (module MemoryCheck `rt_mem_check` quand il n'y a ni tableaux ni textes ; module Heap : erreur au lieu de ramener), CodeGenerator.cs (numéro de ligne rangé pour MEMORY calculé ; étiquette rt_heap_start posée aussi pour MemoryCheck), MemoryTests.cs (12 tests ; un ancien test avec MEMORY 50000 passe à 42000).
+- **Vérifié dans WinAPE (18 nov. 2026) :** examples\memfull.bas : HIMEM 42619, après MEMORY HIMEM-1000 : 41619, MEMORY &A67C : ERR 7 (Memory full) attrapé par ON ERROR. 1467 tests réussis.
+- **Idée notée :** liste des variables A, B et C dans IDEES.md (demande de l'utilisateur).
+
 ---
 
 ## Notes de fin de session (modèle)

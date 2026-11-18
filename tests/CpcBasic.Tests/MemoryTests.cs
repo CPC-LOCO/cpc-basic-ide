@@ -39,9 +39,9 @@ public class MemoryTests
     [Fact]
     public void Avec_plusieurs_MEMORY_la_limite_la_plus_basse_compte()
     {
-        GeneratedProgram program = Generate("10 MEMORY 50000\n20 MEMORY 45000\n30 MEMORY 48000");
+        GeneratedProgram program = Generate("10 MEMORY 42000\n20 MEMORY 41000\n30 MEMORY 41500");
 
-        Assert.Equal(45000, program.MemoryLimit);
+        Assert.Equal(41000, program.MemoryLimit);
         Assert.Equal(2, program.MemoryLine);
     }
 
@@ -84,6 +84,52 @@ public class MemoryTests
         Assert.Equal(2, error.Line);
         Assert.Contains("&4010", error.Message);
         Assert.StartsWith("ERREUR en ligne 2 : MEMORY : le programme compilé occupe de &4000 à &", error.Message);
+    }
+
+    // ---------- D125 : plus haut que le HIMEM de départ, « Memory full » comme le CPC ----------
+    // Vrai BASIC 1.1 (SugarBox, 18 nov. 2026) : MEMORY &A67B : Ready ; MEMORY &A67C et MEMORY &B000 : Memory full.
+
+    static string Run(string source)
+    {
+        GeneratedProgram program = Generate(source);
+        var cpu = new MiniZ80();
+        cpu.Load(program.Code, 0x4000);
+        cpu.Memory[0xBB18] = 0xC9;
+        cpu.Call(0x4000);
+        return cpu.Output.ToString();
+    }
+
+    [Theory]
+    [InlineData("10 MEMORY &A67C", "A67C")]
+    [InlineData("10 MEMORY &B000", "B000")]
+    [InlineData("10 MEMORY 50000", "C350")]
+    [InlineData("10 MEMORY -1", "FFFF")]
+    public void MEMORY_ecrit_trop_haut_est_refuse(string source, string address)
+    {
+        Diagnostic error = Assert.Single(BasicAnalyzer.Analyze(source).Diagnostics);
+
+        Assert.Equal(DiagnosticCode.MemoryTooHigh, error.Code);
+        Assert.Contains("&" + address + " est trop haute", error.Message);
+        Assert.Contains("Memory full", error.Message);
+    }
+
+    [Fact]
+    public void MEMORY_A67B_est_le_plus_haut_permis()
+    {
+        Assert.Equal(0xA67B, Generate("10 MEMORY &A67B").MemoryLimit);
+    }
+
+    [Theory]
+    [InlineData("10 M=&A67B\n20 MEMORY M\n30 PRINT \"OK\"", "OK\r\n")]
+    [InlineData("10 M=&A67C\n20 MEMORY M\n30 PRINT \"OK\"", "Memory full in 20\r\n")]
+    [InlineData("10 M=-1\n20 MEMORY M\n30 PRINT \"OK\"", "Memory full in 20\r\n")]
+    [InlineData("10 M=&4000\n20 MEMORY M\n30 PRINT \"OK\"", "Memory full in 20\r\n")]   // sous la fin du programme
+    [InlineData("10 MEMORY HIMEM+1\n20 PRINT \"OK\"", "Memory full in 10\r\n")]       // avec HIMEM (module Heap)
+    [InlineData("10 MEMORY HIMEM\n20 PRINT \"OK\"", "OK\r\n")]
+    [InlineData("10 ON ERROR GOTO 100\n20 M=-1:MEMORY M\n30 END\n100 PRINT ERR", " 7 \r\n")]
+    public void MEMORY_calcule_est_verifie_a_l_execution(string source, string expected)
+    {
+        Assert.Equal(expected, Run(source));
     }
 
     [Theory]

@@ -49,6 +49,7 @@ public enum DiagnosticCode
     DuplicateLineNumber,
     ExpectedGoto,
     ProgramTooLarge,
+    MemoryTooHigh,
     ExpectedArrayName,
     ArrayDimensionMismatch,
     ByteArrayNotYet,
@@ -190,6 +191,8 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             },
         DiagnosticCode.ProgramTooLarge =>
             $"MEMORY : le programme compilé occupe de &4000 à &{Argument.Split('|')[0]}, ce qui dépasse la limite &{Argument.Split('|')[1]} demandée. Mettez une limite plus haute, ou raccourcissez le programme.",
+        DiagnosticCode.MemoryTooHigh =>
+            $"MEMORY : l'adresse &{Argument} est trop haute. Le plus haut permis est &A67B (42619) ; au-dessus, le CPC répond « Memory full ».",
         DiagnosticCode.ExpectedArrayName =>
             $"DIM attend un nom de tableau suivi de sa taille entre parenthèses, par exemple DIM A(10).{Why}",
         DiagnosticCode.ArrayDimensionMismatch =>

@@ -1655,6 +1655,12 @@ public static class CodeGenerator
                         EmitAddress(a[0]);                          // tableaux et textes restent sous cette adresse (D058, D062)
                         emitter.CallLabel(RuntimeLibrary.ArrayMemoryLabel);
                     }
+                    else if (a[0] is not NumberExpression)          // adresse calculée : vérifiée à l'exécution (D125)
+                    {
+                        required.Add(RuntimeLibrary.MemoryCheckName);
+                        EmitAddress(a[0]);
+                        emitter.CallLabel(RuntimeLibrary.MemoryCheckLabel);
+                    }
                     break;
                 }
 
@@ -2100,6 +2106,7 @@ public static class CodeGenerator
             if (AstWalker.UsesArrays(statement) || statement is ReadStatement || StatementUsesStrings(statement)
                 || (usesReals && StatementUsesReals(statement))
                 || (usesHeap && statement is ScreenStatement { Command: "MEMORY" })
+                || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
@@ -3457,8 +3464,9 @@ public static class CodeGenerator
             emitter.Reserve(symbolChars * 8);
         }
 
-        if (usesHeap)
-            emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);   // la mémoire libre commence ici
+        // La mémoire libre commence ici ; sert aussi à MEMORY avec une adresse calculée (D125)
+        if (usesHeap || program.Statements.Any(st => st is ScreenStatement { Command: "MEMORY" } m && m.Arguments[0] is not NumberExpression))
+            emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);
 
         return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine);
     }

@@ -314,6 +314,10 @@ public static class RuntimeLibrary
     const string ArrayAutoDimLabel = "rt_arr_autodim";
     const string ErrSubscript = "rt_arr_err_sub";
     public const string ErrMemory = "rt_heap_err_mem";
+    // MEMORY avec une adresse calculée, sans tableaux ni textes (D125) : HL = adresse ; « Memory full » si elle est plus
+    // haute que &A67B, ou si la limite (adresse + 1) est sous la fin du programme (rt_heap_start)
+    public const string MemoryCheckName = "MemoryCheck";
+    public const string MemoryCheckLabel = "rt_mem_check";
     const string ErrRedim = "rt_arr_err_redim";
 
     static byte[] Ascii(string text) => [.. System.Text.Encoding.ASCII.GetBytes(text), 0];
@@ -2457,21 +2461,41 @@ public static class RuntimeLibrary
         // Mémoire libre (D058, D062) : les tableaux montent depuis la fin du programme (rt_arr_heap), les textes descendent
         // depuis la limite (rt_str_ptr). rt_arr_limit : &A67C, ou l'adresse donnée par MEMORY + 1.
         //  rt_arr_memory : MEMORY. HL = adresse : la mémoire libre s'arrête là.
+        [MemoryCheckName] = new RuntimeModule(MemoryCheckName, [ErrorName], e =>
+        {
+            e.Label(MemoryCheckLabel);
+            e.IncHl();                               // limite = adresse + 1
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_mem_full");               // MEMORY 65535
+            e.LdDeImm(DefaultHeapLimit + 1);
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrNcLabel("rt_mem_full");              // plus haut que &A67B
+            e.LdDeLabel(ArrayHeapStartLabel);        // le programme compilé doit rester dessous
+            e.OrA();
+            e.SbcHlDe();
+            e.RetNc();
+            e.Label("rt_mem_full");
+            e.LdHlLabel("rt_mem_msg");
+            e.JpLabel(ErrorLabel);
+            e.Label("rt_mem_msg");
+            e.Data(Ascii("Memory full"));
+        }),
+
         [HeapName] = new RuntimeModule(HeapName, [ErrorName], e =>
         {
             e.Label(ArrayMemoryLabel);
             e.IncHl();                               // limite = adresse + 1
             e.LdAH();
             e.OrL();
-            e.JrZLabel("rt_arr_mem_default");        // MEMORY 65535
-            e.LdDeImm(DefaultHeapLimit);
+            e.JpZLabel(ErrMemory);                   // MEMORY 65535 : trop haut
+            e.LdDeImm(DefaultHeapLimit + 1);         // plus haut que &A67B : « Memory full », comme le CPC (D125)
             e.OrA();
             e.SbcHlDe();
             e.AddHlDe();
-            e.JrCLabel("rt_arr_mem_set");
-            e.Label("rt_arr_mem_default");
-            e.LdHlImm(DefaultHeapLimit);
-            e.Label("rt_arr_mem_set");
+            e.JpNcLabel(ErrMemory);
             e.LdDeMem(ArrayHeapLabel);               // les tableaux déjà créés doivent rester dessous
             e.OrA();
             e.SbcHlDe();
