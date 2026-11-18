@@ -163,12 +163,10 @@ public class CodeGeneratorTests
     }
 
     [Fact]
-    public void Characters_outside_ascii_become_question_marks()
+    public void Characters_take_the_code_of_the_french_cpc()
     {
-        byte[] code = Generate("10 PRINT \"\u00e9\";").Code;
-
-        byte[] text = [(byte)'?', 0x00];
-        Assert.Equal(text, code[^2..]);
+        // D126 : é a le code 123 du CPC français (par défaut)
+        Assert.Equal(new byte[] { 123, 0x00 }, Generate("10 PRINT \"\u00e9\";").Code[^2..]);
     }
 }
 

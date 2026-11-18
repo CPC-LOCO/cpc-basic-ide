@@ -50,6 +50,7 @@ public enum DiagnosticCode
     ExpectedGoto,
     ProgramTooLarge,
     MemoryTooHigh,
+    UnknownCharacter,
     ExpectedArrayName,
     ArrayDimensionMismatch,
     ByteArrayNotYet,
@@ -191,6 +192,9 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             },
         DiagnosticCode.ProgramTooLarge =>
             $"MEMORY : le programme compilé occupe de &4000 à &{Argument.Split('|')[0]}, ce qui dépasse la limite &{Argument.Split('|')[1]} demandée. Mettez une limite plus haute, ou raccourcissez le programme.",
+        DiagnosticCode.UnknownCharacter =>
+            $"le caractère « {Argument.Split('|')[0]} » n'existe pas sur le CPC {Argument.Split('|')[1]}, ni sur un autre CPC." +
+            (Argument.Split('|')[2].Length == 0 ? " Remplacez-le par un autre caractère." : $" Écrivez par exemple « {Argument.Split('|')[2]} »."),
         DiagnosticCode.MemoryTooHigh =>
             $"MEMORY : l'adresse &{Argument} est trop haute. Le plus haut permis est &A67B (42619) ; au-dessus, le CPC répond « Memory full ».",
         DiagnosticCode.ExpectedArrayName =>

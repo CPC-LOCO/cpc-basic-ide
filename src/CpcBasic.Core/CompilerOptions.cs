@@ -21,9 +21,10 @@ public enum TargetMachine
 /// RealByDefault : une variable sans signe (A) est un nombre à virgule, comme le Locomotive ; sinon un entier (D026).
 /// BreakKey : touche ESC comme le vrai BASIC (pause, puis « Break in N ») ; sinon ignorée, sauf ON BREAK (D083).
 /// L'éditeur la met par défaut (F9) ; ici, faux par défaut pour garder les programmes de test tels quels.
+/// Language : version du CPC, qui décide des codes des lettres accentuées dans les textes (D126) ; français par défaut.
 /// </summary>
 public sealed record CompilerOptions(TargetMachine Target = TargetMachine.AllCpc, bool RealByDefault = false,
-                                     bool BreakKey = false)
+                                     bool BreakKey = false, CpcLanguage Language = CpcLanguage.French)
 {
     /// <summary>Les réglages par défaut : tous les CPC, variables sans signe entières.</summary>
     public static CompilerOptions Default { get; } = new();

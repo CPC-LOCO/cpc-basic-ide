@@ -63,15 +63,16 @@ public sealed class DiskImage
 
     /// <summary>
     /// Ajoute le texte d'un programme BASIC, sans en-tête AMSDOS (fichier ASCII) : le vrai BASIC le lit avec
-    /// LOAD"NOM.TXT" (D101). Fins de ligne CR LF, caractères hors ASCII remplacés par « ? », &amp;1A à la fin.
+    /// LOAD"NOM.TXT" (D101). Fins de ligne CR LF, &amp;1A à la fin. Les caractères prennent les codes de la version
+    /// du CPC choisie (D126) ; un caractère qui n'existe sur aucun CPC devient « ? ».
     /// </summary>
-    public void AddTextFile(string name, string extension, string text)
+    public void AddTextFile(string name, string extension, string text, CpcLanguage language = CpcLanguage.French)
     {
         string cleanName = CleanName(name, 8, nameof(name));
         string cleanExt = CleanName(extension, 3, nameof(extension));
         fileNames.Add($"{cleanName}.{cleanExt}");
         string lines = text.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd('\n').Replace("\n", "\r\n") + "\r\n";
-        byte[] bytes = lines.Select(c => c is >= ' ' and <= '~' or '\r' or '\n' ? (byte)c : (byte)'?').ToArray();
+        byte[] bytes = CharacterSet.Encode(lines, language);
         AddRaw(cleanName, cleanExt, [.. bytes, 0x1A]);
     }
 

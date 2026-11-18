@@ -117,7 +117,7 @@ Pas encore implémentés. Aujourd'hui, le compilateur produit toujours : adresse
 
 **Organisation du binaire produit :** instructions du programme, fin de programme, modules utilisés, textes terminés par 0, puis variables (à 0). Un programme sans `PRINT` ne contient aucun module (liaison sélective vérifiée par les tests).
 
-**Limite connue :** les caractères hors ASCII (accents) sont remplacés par « ? » à l'affichage. La table des caractères du CPC reste à gérer.
+**Caractères (D126) :** `CharacterSet.cs` donne le code du CPC de chaque caractère selon la version choisie (`CompilerOptions.Language`, français par défaut) ; un caractère absent de tous les CPC est refusé par `BasicAnalyzer` (UnknownCharacter).
 
 ## 8. Écarts avec le Locomotive BASIC
 

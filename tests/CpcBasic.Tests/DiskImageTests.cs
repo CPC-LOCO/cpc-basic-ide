@@ -55,11 +55,11 @@ public class DiskImageTests
     {
         var disk = new DiskImage();
         disk.AddFile("essai", "bas", AmsdosFileType.Binary, 0x4000, 0x4000, new byte[300]);
-        disk.AddTextFile("essai", "txt", "10 PRINT \"été\"\n20 END\n");
+        disk.AddTextFile("essai", "txt", "10 PRINT \"été\"\n20 END\n");   // D126 : é a le code 123 du CPC français
         byte[] dsk = disk.ToDskBytes();
 
         Assert.Equal("ESSAI   TXT", TextAt(dsk, 32 + 1, 11));                     // seconde entrée du répertoire
-        string expected = "10 PRINT \"?t?\"\r\n20 END\r\n";
+        string expected = "10 PRINT \"{t{\"\r\n20 END\r\n";
         Assert.Equal((expected.Length + 1 + 127) / 128, At(dsk, 32 + 15));         // enregistrements de 128 octets
         int start = At(dsk, 32 + 16) * DiskImage.BlockSize;
         Assert.Equal(expected, TextAt(dsk, start, expected.Length));

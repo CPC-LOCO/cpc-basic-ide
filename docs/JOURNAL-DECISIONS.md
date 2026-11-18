@@ -945,6 +945,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérifié dans WinAPE (18 nov. 2026) :** examples\memfull.bas : HIMEM 42619, après MEMORY HIMEM-1000 : 41619, MEMORY &A67C : ERR 7 (Memory full) attrapé par ON ERROR. 1467 tests réussis.
 - **Idée notée :** liste des variables A, B et C dans IDEES.md (demande de l'utilisateur).
 
+## D126 : lettres accentuées et version du CPC (français par défaut) (18 nov. 2026) ; partie 1 (compilateur) validée
+- **Demande de l'utilisateur :** les accents dépendent de la ROM choisie (menu de choix de la ROM prévu au début, D001). Version **française par défaut** (« le projet vient de moi »), anglaise en deuxième ; d'autres pays plus tard (liste des ROM : https://www.cpcwiki.eu/index.php/ROM_List).
+- **Relevé dans les ROM** (OS6128.ROM et OS6128-AZERTY.rom de l'utilisateur, copiées dans essais\roms, jamais publiées : essais\ est exclu de git) : dessins des caractères en &3800. Seuls 7 codes changent : 64 @/à, 92 \\/ç, 94 ↑/^, 123 {/é, 124 |/ù, 125 }/è, 162 ¨/°. Vérifié dans WinAPE, ROM AZERTY : PRINT CHR$(123) affiche é. Pas de ê, â, ô, Ç sur aucun CPC.
+- **Pas besoin d'inclure les ROM** (question de l'utilisateur) : l'éditeur ne fait pas tourner de CPC ; il lui suffit d'une petite table écrite par nous (CharacterSet.cs). D016 reste ouvert seulement pour un futur émulateur intégré (autorisation donnée autrefois par Amstrad aux émulateurs : conditions à vérifier).
+- **Règles (accord de l'utilisateur) :** un caractère de l'alphabet anglais garde son code (comme une touche du CPC) ; un autre caractère prend le code qui l'affiche sur le CPC choisi, sinon sur un autre CPC (é sur un CPC anglais : 123, qui affiche « { ») ; un caractère absent de tous les CPC est une erreur à la compilation (« le caractère « ê » n'existe pas sur le CPC français, ni sur un autre CPC. Écrivez par exemple « e » »). Les signes communs aux deux ROM ont leur vrai code (£ © § ¶ ¼ ½ ¾ ± ÷ ¬ ¿ ¡, lettres grecques, ☺ ♣ ♦ ♥ ♠ ○ ● □ ■, flèches) au lieu de « ? ».
+- **Partie 1 faite :** CharacterSet.cs (nouveau), CompilerOptions (Language, français par défaut), BasicAnalyzer (textes et DATA vérifiés), Diagnostic (UnknownCharacter), CodeGenerator (Encode), DiskImage (NOM.TXT du réglage F11 avec les mêmes codes). Tests : CharacterSetTests.cs (30), CodegenTests et DiskImageTests mis à jour (é donnait « ? »). 1497 tests réussis. Vérifié dans WinAPE (ROM AZERTY) : examples\accents.bas affiche à ù é ° ç è, puis £ ½ © § ♥ ♠ → α π.
+- **Partie 2 à faire (éditeur) :** touche F7 et menu Options « Version du CPC : français (AZERTY) / anglais (QWERTY) », gardée dans les réglages ; l'éditeur montre les textes comme le CPC choisi les affiche (en anglais, é tapé devient « { » ; en français, « { » tapé devient é) et convertit les textes quand on change de version.
+
 ---
 
 ## Notes de fin de session (modèle)

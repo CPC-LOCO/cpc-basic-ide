@@ -99,7 +99,7 @@ Mise à jour le 16 nov. 2026 :
 
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
-| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateurs « ; » et « , » (zones), TAB, SPC (D073), fenêtres #0 à #7 (D072). USING (D074, D098). Les accents sont remplacés par « ? ». |
+| `PRINT et ?` | affiche du texte et des nombres | Partielle | Séparateurs « ; » et « , » (zones), TAB, SPC (D073), fenêtres #0 à #7 (D072). USING (D074, D098). Lettres accentuées et signes du CPC avec les codes de la version choisie, français par défaut (D126) ; un caractère absent de tous les CPC (ê) est refusé à la compilation. |
 | `TAB / SPC` | positionne ou saute des colonnes dans PRINT | Faite | D073. |
 | `USING` | format d'affichage des nombres (PRINT USING) | Faite | D074 : tous les formats ; D098 : format dans une variable ou un calcul, lu à l'exécution. |
 | `WRITE` | affiche avec guillemets et virgules | Faite | Avec #0 à #7 (D073). |

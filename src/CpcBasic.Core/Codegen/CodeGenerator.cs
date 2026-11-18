@@ -80,7 +80,7 @@ public static class CodeGenerator
             required.Add(RuntimeLibrary.PrintStringName);
             emitter.LdHlLabel(StringLabel(strings.Count));
             emitter.CallLabel(RuntimeLibrary.PrintStringLabel);
-            strings.Add(Encode(text));
+            strings.Add(Encode(text, options.Language));
         }
 
         // Trouve l'emplacement d'une variable, en le réservant à la première utilisation
@@ -3349,7 +3349,7 @@ public static class CodeGenerator
         // Textes écrits dans le programme (D062) : fiche (longueur, adresse), puis les lettres
         for (int k = 0; k < literals.Count; k++)
         {
-            byte[] letters = Encode(literals[k]);
+            byte[] letters = Encode(literals[k], options.Language);
             emitter.Label($"lit_{k}");
             emitter.Bytes((byte)(letters.Length - 1));
             emitter.Word($"lit_{k}_c");
@@ -3370,7 +3370,7 @@ public static class CodeGenerator
                     // Nombre : 0, valeur, longueur et lettres de son écriture ; texte : 1, longueur, lettres (D064) ;
                     // nombre à virgule : 2, ses 5 octets, longueur et lettres (D070)
                     DataItem item = dataValues[k];
-                    byte[] written = Encode(item.Text);
+                    byte[] written = Encode(item.Text, options.Language);
                     emitter.Bytes((byte)(item.IsText ? 1 : item.IsReal ? 2 : 0));
                     if (item.IsReal)
                         emitter.Data(LocoReal.Encode(item.Real)!);
@@ -3531,17 +3531,6 @@ public static class CodeGenerator
         || (statement is InputStatement input && input.Variables.Any(VariableNames.IsString))
         || statement is LineInputStatement;
 
-    // Texte en octets, avec 0 à la fin. Les caractères hors ASCII sont remplacés par « ? » pour
-    // l'instant : la table des caractères du CPC n'est pas encore gérée.
-    static byte[] Encode(string text)
-    {
-        byte[] bytes = new byte[text.Length + 1];
-        for (int i = 0; i < text.Length; i++)
-        {
-            char c = text[i];
-            bool allowed = (c >= ' ' && c <= '~') || c == '\r' || c == '\n';
-            bytes[i] = allowed ? (byte)c : (byte)'?';
-        }
-        return bytes;
-    }
+    // Texte en octets, avec 0 à la fin : codes de la version du CPC choisie (D126 ; é : 123 sur le CPC français)
+    static byte[] Encode(string text, CpcLanguage language) => [.. CharacterSet.Encode(text, language), 0];
 }

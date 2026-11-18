@@ -21,6 +21,21 @@ public static class BasicAnalyzer
         var diagnostics = new List<Diagnostic>();
         List<Token> tokens = Lexer.Tokenize(source, diagnostics);
         BasicProgram program = Parser.Parse(tokens, diagnostics, options.RealByDefault);   // réglage F8 (D068)
+        CheckCharacters(tokens, diagnostics, options.Language);
         return new AnalysisResult(program, diagnostics);
+    }
+
+    // Textes entre guillemets et éléments de DATA : chaque caractère doit exister sur un CPC (D126)
+    static void CheckCharacters(List<Token> tokens, List<Diagnostic> diagnostics, CpcLanguage language)
+    {
+        foreach (Token t in tokens.Where(t => t.Kind is TokenKind.String or TokenKind.DataItem))
+        {
+            foreach (char c in t.Text.Distinct())
+            {
+                if (CharacterSet.CodeOf(c, language) is null)
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCharacter, t.Line,
+                                                   $"{c}|{CharacterSet.Name(language)}|{CharacterSet.Plain(c)}"));
+            }
+        }
     }
 }
