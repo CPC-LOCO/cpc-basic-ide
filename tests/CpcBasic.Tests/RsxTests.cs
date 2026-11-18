@@ -80,6 +80,34 @@ public class RsxTests
     }
 
     [Theory]
+    // D124 (règle de l'utilisateur) : un texte passe la même adresse avec ou sans @, sur tous les CPC (sur le 464, le
+    // Locomotive exige @ ; sur le 6128 les deux marchent) ; avec CALL comme avec une commande RSX
+    [InlineData("|TEST,@A$", "|TEST,A$")]
+    [InlineData("CALL &9000,@A$", "CALL &9000,A$")]
+    public void Un_texte_avec_ou_sans_arobase_passe_la_meme_adresse(string with, string without)
+    {
+        (string output, _) = Run("10 A$=\"XYZ\":" + with + ":B=PEEK(&9102)+256*PEEK(&9103)\n" +
+                                 "20 " + without + ":C=PEEK(&9102)+256*PEEK(&9103)\n" +
+                                 "30 PRINT B=C;B=@A$;PEEK(B)");
+
+        Assert.Equal("-1 -1  3 \r\n", output);   // même adresse, celle de la fiche, dont le premier octet est la longueur
+    }
+
+    [Theory]
+    // D124 : une variable de nombre passe sa valeur ; avec @, son adresse
+    [InlineData("|TEST,A", " 1234 ")]
+    [InlineData("CALL &9000,A", " 1234 ")]
+    [InlineData("|TEST,@A", "-1 ")]
+    [InlineData("CALL &9000,@A", "-1 ")]
+    public void Un_nombre_passe_sa_valeur_ou_avec_arobase_son_adresse(string call, string expected)
+    {
+        (string output, _) = Run("10 A=1234:" + call + ":B=PEEK(&9102)+256*PEEK(&9103)\n" +
+                                 "20 IF B=@A THEN PRINT -1 ELSE PRINT B");
+
+        Assert.Equal(expected + "\r\n", output);
+    }
+
+    [Theory]
     [InlineData("10 |INCONNUE,1", "Unknown command in 10\r\n")]
     [InlineData("10 ON ERROR GOTO 100\n20 |INCONNUE\n30 END\n100 PRINT ERR", " 28 \r\n")]
     public void Commande_inconnue(string source, string expected)

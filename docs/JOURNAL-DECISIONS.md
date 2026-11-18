@@ -933,6 +933,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérifié dans WinAPE (18 nov. 2026) :** examples\curmask.bas donne les mêmes points que les lignes 60 et 70 de la référence de MASK (D110), et le curseur s'éteint puis s'allume au bon moment.
 - **Fichiers :** Parser.cs, CodeGenerator.cs, Basic11Tests.cs, MaskTests.cs, examples\curmask.bas. 1449 tests réussis.
 
+## D124 : @ avec CALL et les commandes RSX (règle de l'utilisateur, 18 nov. 2026) (validé)
+- **Constat de l'utilisateur :** sur le 464, le Locomotive exige @ devant un texte (`CALL @a$`, `|NOM,@a$`) ; sur le 6128, `CALL a$` fait la même chose que `CALL @a$`, et de même pour toutes les commandes RSX.
+- **Règle (« on fait du propre ») :** pour un texte, @ n'est obligatoire sur aucun CPC : avec ou sans @, c'est l'adresse de la fiche de 3 octets qui part. Pour une variable de nombre, sans @ c'est sa valeur qui part ; avec @, son adresse (à mettre obligatoirement si la routine veut l'adresse).
+- **État :** déjà fait ainsi depuis D089 ; ajout de 6 tests qui le vérifient (RsxTests.cs : texte avec et sans @, nombre avec et sans @, avec CALL et avec |NOM). 1455 tests réussis. `@` passe de « Partielle » à « Faite ».
+
 ---
 
 ## Notes de fin de session (modèle)
