@@ -966,6 +966,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fait :** POKE et OUT avec une valeur calculée vérifient l'octet du haut ; s'il n'est pas 0 : « Improper argument in N » (ERR = 5, interceptée par ON ERROR), rien n'est écrit. Une valeur écrite en nombre reste vérifiée à la compilation (aucun octet ajouté). Module ByteCheck (`rt_byte_bad`), numéro de ligne rangé pour ces instructions.
 - **Vérifié dans WinAPE :** examples\poke256.bas : « POKE 255 : 255 », « POKE 256 : ERREUR 5 (Improper argument) ». Tests : MachineTests.cs (l'ancien test « octet du bas » remplacé par 7 tests). 1517 tests réussis.
 
+## D129 : commandes AMSDOS essayées dans un programme compilé (18 nov. 2026) (validé par l'utilisateur)
+- **Choix 4 de l'utilisateur.** Aucune ligne de code à changer : elles passent par le mécanisme général des commandes RSX (D089) ; le nom peut contenir un point (|DISC.IN).
+- **examples\amsdos.bas** : |DIR,"*.DAT", |REN, |ERA (et fichier absent : « ABSENT  .DAT not found », le programme continue), |USER,1 puis |USER,0, |TAPE, |DISC, |A. **examples\amsdos2.bas** : variables texte sans @ (|REN,N$,F$) et avec @ (|ERA,@N$), |DRIVE,D$, |USER,U, |TAPE.OUT, |DISC.OUT, |TAPE.IN, |DISC.IN.
+- **Méthode :** vrai BASIC 1.1 (LOAD"AMSDOS.TXT" avec le réglage F11) puis programme compilé, sur la même disquette (WinAPE, 18 nov. 2026) : **écrans identiques**. Astuce de l'utilisateur pour les captures : finir par `WHILE INKEY(47):WEND` (attend la barre d'espace).
+- **Constat :** « ERA avec @ » s'affiche « ERA avec à » avec la ROM française, et l'éditeur réglé sur « CPC français » l'a montré et enregistré ainsi (D127) : comportement voulu.
+- **Pas essayés :** |B (demande une disquette dans le lecteur B, sinon « disc missing ») et |CPM (quitte le BASIC pour CP/M).
+- **Tests :** 3 écritures de plus dans RsxTests.cs (Ecritures_acceptees).
+- **Version 0.4.0 :** pas maintenant (choix de l'utilisateur : la 0.3.0 vient d'être publiée ; d'abord plus d'essais).
+
 ---
 
 ## Notes de fin de session (modèle)

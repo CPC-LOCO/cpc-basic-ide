@@ -89,7 +89,7 @@ Mise à jour le 16 nov. 2026 :
 | `OUT` | écrit sur un port | Faite | Valeur de 0 à 255 ; valeur calculée hors de 0 à 255 : « Improper argument » (D128). |
 | `WAIT` | attend un état sur un port | Faite | Lot K6 (D094) : WAIT port, masque [, inversion]. |
 | `UNT` | convertit une adresse en entier signé | Faite | Lot K6 (D094). |
-| `| (commandes RSX)` | appelle une extension | Faite | |NOM, valeurs (D089) ; inconnue : « Unknown command ». |
+| `| (commandes RSX)` | appelle une extension | Faite | |NOM, valeurs (D089) ; inconnue : « Unknown command ». Commandes AMSDOS essayées dans un programme compilé, écrans identiques au vrai BASIC (D129) : |DIR, |REN, |ERA, |USER, |DRIVE, |A, |DISC, |TAPE, |DISC.IN, |DISC.OUT, |TAPE.IN, |TAPE.OUT, avec textes, variables avec ou sans @. Pas essayées : |B, |CPM. |
 | `@` | adresse d'une variable | Faite | `@A`, `@A%`, `@T(3)` (D061), `@A$` = adresse de la fiche de 3 octets (D064). CALL et RSX (D089, D124) : un texte passe l'adresse de sa fiche avec ou sans @ sur tous les CPC (le 464 exige @) ; un nombre passe sa valeur, ou son adresse avec @. |
 | `DI / EI` | coupe / remet les interruptions | Faite | Retient / laisse partir les appels des minuteries (D079). |
 | `SYMBOL` | redéfinit un caractère | Faite | D075. |

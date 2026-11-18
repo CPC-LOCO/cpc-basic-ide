@@ -129,6 +129,10 @@ public class RsxTests
     [InlineData("10 |ERA,\"X.BAK\"")]
     [InlineData("10 a$=\"AB\":|GPRINT,@a$:|GPAS,-6,8")]
     [InlineData("10 IF 1 THEN |A ELSE |B")]
+    // D129 : commandes AMSDOS essayées dans WinAPE (examples\amsdos.bas, examples\amsdos2.bas)
+    [InlineData("10 |DIR,\"*.DAT\":|REN,\"AUTRE.DAT\",\"ESSAI.DAT\":|USER,1")]
+    [InlineData("10 F$=\"A.DAT\":N$=\"B.DAT\":D$=\"A\":U=0:|REN,N$,F$:|ERA,@N$:|DRIVE,D$:|USER,U")]
+    [InlineData("10 |TAPE.OUT:|DISC.OUT:|TAPE.IN:|DISC.IN:|TAPE:|DISC:|A")]
     [InlineData("10 CALL &BD19")]
     public void Ecritures_acceptees(string source)
     {
