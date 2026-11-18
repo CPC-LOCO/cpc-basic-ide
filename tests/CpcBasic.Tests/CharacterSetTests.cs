@@ -118,20 +118,54 @@ public class CharacterSetTests
     }
 
     [Fact]
-    public void F7_convertit_seulement_les_textes_entre_guillemets()
+    public void F7_convertit_tout_le_programme_par_les_codes_de_la_ROM()
     {
-        const string french = "10 PRINT \"été à 20°\";A$:|DISC\r\n20 A$=\"ça\":B=2^3 ' é hors texte";
-        const string english = "10 PRINT \"{t{ @ 20¨\";A$:|DISC\r\n20 A$=\"\\a\":B=2^3 ' é hors texte";
+        // D133 (règle de l'utilisateur) : un caractère est un code de la ROM choisie, partout dans le programme
+        const string typed = "10 PRINT \"été\":|DISC:B=2^3:C=@B";
+        const string french = "10 PRINT \"été\":ùDISC:B=2^3:C=àB";
+        const string english = "10 PRINT \"{t{\":|DISC:B=2↑3:C=@B";
 
+        Assert.Equal(french, CharacterSet.ConvertProgram(typed, CpcLanguage.French, CpcLanguage.French));
         Assert.Equal(english, CharacterSet.ConvertProgram(french, CpcLanguage.French, CpcLanguage.English));
         Assert.Equal(french, CharacterSet.ConvertProgram(english, CpcLanguage.English, CpcLanguage.French));
+    }
+
+    [Theory]
+    // Le programme est lu avec les codes de la ROM : sur le CPC français, ài est @i et ùDISC est |DISC
+    [InlineData("10 I=3:PRINT HEX$(ài,4)", "10 I=3:PRINT HEX$(@i,4)", CpcLanguage.French)]
+    [InlineData("10 ùDISC", "10 |DISC", CpcLanguage.French)]
+    [InlineData("10 B=2↑3:PRINT B", "10 B=2^3:PRINT B", CpcLanguage.English)]
+    [InlineData("10 PRINT \"été\"", "10 PRINT \"{t{\"", CpcLanguage.French)]
+    public void Le_programme_est_compile_par_les_codes_de_la_ROM(string written, string same, CpcLanguage language)
+    {
+        var options = new CompilerOptions(Language: language);
+        AnalysisResult a = BasicAnalyzer.Analyze(written, options);
+        AnalysisResult b = BasicAnalyzer.Analyze(same, options);
+        Assert.Empty(a.Diagnostics);
+
+        Assert.Equal(CodeGenerator.Generate(b.Program, 0x4000, options).Code, CodeGenerator.Generate(a.Program, 0x4000, options).Code);
+    }
+
+    [Theory]
+    // Plus jamais de variable « ÀI » à 0 sans rien dire (premier essai de HEX$(ài,4), 18 nov. 2026)
+    [InlineData("10 fête=1")]
+    [InlineData("10 A=1:PRINT Aê")]
+    public void Une_lettre_accentuee_sans_code_dans_un_nom_est_refusee(string source)
+    {
+        Assert.Contains(BasicAnalyzer.Analyze(source).Diagnostics, d => d.Message.Contains("lettres sans accent"));
+    }
+
+    [Fact]
+    public void Un_signe_de_la_ROM_hors_d_un_texte_est_refuse()
+    {
+        Assert.NotEmpty(BasicAnalyzer.Analyze("10 A=£").Diagnostics);
     }
 
     [Fact]
     public void F7_aller_et_retour_rend_le_meme_programme()
     {
         // (une flèche ↑ tapée sur le CPC français, code 240, reviendrait en ^ : les deux s'affichent ↑ sur le CPC anglais)
-        const string source = "10 PRINT \"^ é à ç ù è ° £ ê\"";
+        const string source = "10 PRINT \"^ é à ç ù è ° £ ê\":ùDISC:C=àB";
         string back = CharacterSet.ConvertProgram(
             CharacterSet.ConvertProgram(source, CpcLanguage.French, CpcLanguage.English), CpcLanguage.English, CpcLanguage.French);
 

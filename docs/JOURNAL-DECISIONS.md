@@ -1003,6 +1003,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Remarque de l'utilisateur :** « tu vas trop vite » : attendre sa réponse avant de changer une deuxième fois ; une chose à la fois (rappel de la règle du 16 nov.).
 - **Suite :** solution C (voir les valeurs pendant l'exécution, sur l'écran du CPC) : commande ou touche nouvelle, à décider avec l'utilisateur.
 
+## D133 : un caractère est un code de la ROM choisie, partout dans le programme (18 nov. 2026) (validé par l'utilisateur) ; complète D126 et D127
+- **Constat de l'utilisateur :** `PRINT HEX$(ài,4)` (à pour @, tapé comme sur un CPC français) affichait &0000 une fois compilé, mais la bonne adresse avec le vrai BASIC (NOM.TXT). Cause : hors des textes, le compilateur prenait « ài » pour une variable « ÀI » (lettres accentuées acceptées dans les noms), qui valait 0.
+- **Règle de l'utilisateur :** « les caractères doivent correspondre aux codes des ROM » ; « celui qui tape dans l'éditeur doit voir exactement la même chose que s'il tapait sur l'Amstrad de son pays ».
+- **Vérifié sur le vrai CPC 6128 AZERTY de l'utilisateur (18 nov. 2026, photos) :** la touche ù affiche ù ; la touche « @ \\ $ » donne $, avec SHIFT à (code 64), avec CONTROL ç (code 92). La ROM française n'a aucun dessin de @ ni de \\ (vérifié dans OS6128-AZERTY.rom) : un CPC français ne montre jamais @.
+- **Fait :** l'éditeur montre partout (pas seulement dans les textes) le caractère de la ROM choisie : sur le CPC français, @ tapé s'affiche à, | s'affiche ù (commandes RSX : ùDISC) ; sur le CPC anglais, ^ s'affiche ↑. F7 convertit tout le programme. Le compilateur lit chaque caractère par son code dans la ROM (`CharacterSet.ToKeyboardCodes` avant l'analyse) : ài = @i, ùDISC = |DISC. Les noms de variables ne prennent que des lettres sans accent (A à Z), comme le CPC ; une lettre accentuée sans code (fête) est refusée avec un message clair.
+- **Vérifié :** plein.bas de l'utilisateur, compilé : « ADRESSE &4F36 », la même adresse que la liste F4 pour I. Tests : CharacterSetTests.cs (ài et @i, ùDISC et |DISC, 2↑3 et 2^3 donnent le même programme compilé ; lettre accentuée refusée). 1567 tests réussis.
+- **Pour expliquer à l'utilisateur :** parler de ce qu'on voit à l'écran, pas des codes internes (mes explications sur « @i » et « |DISC » l'avaient embrouillé).
+- **Idée de l'utilisateur notée :** vérifier la compilation sans enregistrer le programme (F5 enregistre toujours) : par exemple Maj+F5 (IDEES.md).
+
 ---
 
 ## Notes de fin de session (modèle)

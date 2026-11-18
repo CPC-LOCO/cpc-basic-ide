@@ -95,23 +95,36 @@ public static class CharacterSet
         CodeOf(c, language) is int code && Glyph(code, language) is char shown ? shown : c;
 
     /// <summary>
-    /// Change la version du CPC d'un programme (touche F7 de l'éditeur, D126) : dans les textes entre guillemets, chaque
-    /// caractère garde son code et prend le dessin de la nouvelle version (é du CPC français devient « { » sur le CPC
-    /// anglais). Le reste du programme ne change pas. Même longueur : les positions dans le texte restent valables.
+    /// Change la version du CPC d'un programme (touche F7 de l'éditeur, D126) : partout dans le programme (D133, règle
+    /// de l'utilisateur : un caractère est un code de la ROM choisie), chaque caractère garde son code et prend le dessin
+    /// de la nouvelle version (é du CPC français devient « { » sur le CPC anglais ; @ devient à sur le CPC français).
+    /// Même longueur : les positions dans le texte restent valables.
     /// </summary>
     public static string ConvertProgram(string text, CpcLanguage from, CpcLanguage to)
     {
         char[] result = text.ToCharArray();
-        bool inString = false;
         for (int i = 0; i < result.Length; i++)
         {
             char c = result[i];
-            if (c is '\r' or '\n')
-                inString = false;
-            else if (c == '"')
-                inString = !inString;
-            else if (inString && CodeOf(c, from) is int code && Glyph(code, to) is char shown)
+            if (c is not ('\r' or '\n' or '\t') && CodeOf(c, from) is int code && Glyph(code, to) is char shown)
                 result[i] = shown;
+        }
+        return new string(result);
+    }
+
+    /// <summary>
+    /// Pour l'analyse (D133) : chaque caractère dont le code est dans l'alphabet anglais (32 à 126) est remplacé par ce
+    /// caractère. Sur le CPC français, « ài » devient « @i » et « ùDISC » devient « |DISC », comme le lit la ROM.
+    /// Les autres caractères ne changent pas (les signes de 128 à 255 restent dans les textes). Même longueur.
+    /// </summary>
+    public static string ToKeyboardCodes(string text, CpcLanguage language)
+    {
+        char[] result = text.ToCharArray();
+        for (int i = 0; i < result.Length; i++)
+        {
+            char c = result[i];
+            if (c is < ' ' or > '~' && CodeOf(c, language) is int code and >= 32 and <= 126)
+                result[i] = (char)code;
         }
         return new string(result);
     }

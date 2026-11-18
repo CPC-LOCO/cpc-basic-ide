@@ -165,10 +165,11 @@ public static class Lexer
             }
 
             // Mot : commande ou variable. Suffixes : $ chaîne, % entier, ! réel.
-            if (char.IsLetter(c))
+            // D133 : lettres sans accent seulement (A à Z), comme le CPC ; une lettre accentuée hors d'un texte est refusée
+            if (char.IsAsciiLetter(c))
             {
                 int start = i;
-                while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '.'))
+                while (i < text.Length && (char.IsAsciiLetterOrDigit(text[i]) || text[i] == '.'))
                     i++;
                 if (i < text.Length && (text[i] == '$' || text[i] == '%' || text[i] == '!'))
                     i++;

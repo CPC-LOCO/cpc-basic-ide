@@ -104,7 +104,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
     string Body => Code switch
     {
         DiagnosticCode.UnexpectedCharacter =>
-            $"caractère inattendu « {Argument} ». Ce signe n'est pas utilisé dans ce langage.",
+            $"caractère inattendu « {Argument} ». Ce signe n'est pas utilisé dans ce langage." +
+            (Argument.Length == 1 && char.IsLetter(Argument[0]) && !char.IsAsciiLetter(Argument[0])
+                ? " Un nom de variable ne prend que des lettres sans accent (A à Z), des chiffres et des points."
+                : ""),
         DiagnosticCode.UnterminatedString =>
             $"un texte commence par un guillemet mais n'est jamais refermé. Ajoutez un guillemet à la fin du texte.",
         DiagnosticCode.UnknownCommand =>

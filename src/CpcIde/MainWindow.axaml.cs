@@ -490,8 +490,8 @@ public partial class MainWindow : Window
         ConvertDocument(from, to);
         UpdateOptionButtons();
         ShowMessage(to == CpcLanguage.French
-            ? "Version du CPC : français (AZERTY). Les textes montrent é è à ç ù ° comme un CPC français."
-            : "Version du CPC : anglais (QWERTY). Les textes montrent ce qu'affiche un CPC anglais : { pour é, } pour è, @ pour à, \\ pour ç, | pour ù.");
+            ? "Version du CPC : français (AZERTY). Le programme montre ce qu'affiche un CPC français : é è à ç ù °, à pour @, ù pour | (commandes RSX)."
+            : "Version du CPC : anglais (QWERTY). Le programme montre ce qu'affiche un CPC anglais : { pour é, } pour è, @ pour à, \\ pour ç, | pour ù, ↑ pour ^.");
     }
 
     // Remplace seulement les caractères qui changent (même longueur) : le curseur reste à sa place, Ctrl+Z annule tout
@@ -512,19 +512,14 @@ public partial class MainWindow : Window
         }
     }
 
-    // Une touche tapée dans un texte entre guillemets donne le caractère que le CPC choisi affichera (D126) :
-    // sur le CPC français, « { » devient é ; sur le CPC anglais, é devient « { »
+    // Une touche tapée donne, partout dans le programme, le caractère que le CPC choisi affichera (D126, D133) :
+    // sur le CPC français, « { » devient é et @ devient à ; sur le CPC anglais, é devient « { »
     void OnTextEntering(object? sender, TextInputEventArgs e)
     {
         if (e.Text is not { Length: 1 } typed)
             return;
         char shown = CharacterSet.Shown(typed[0], settings.CpcVersion);
         if (shown == typed[0])
-            return;
-        var caret = Editor.TextArea.Caret;
-        var line = Editor.Document.GetLineByNumber(caret.Line);
-        string before = Editor.Document.GetText(line.Offset, caret.Offset - line.Offset);
-        if (!CharacterSet.IsInString(before, before.Length))
             return;
         e.Handled = true;
         Editor.TextArea.Selection.ReplaceSelectionWithText(shown.ToString());
