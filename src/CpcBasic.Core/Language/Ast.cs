@@ -198,6 +198,21 @@ public sealed record DrawStatement(int SourceLine, string Command, Expression X,
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 
+/// <summary>
+/// DEBUG (D136) : avec le réglage « Mise au point » (F2), affiche les variables et leurs valeurs, attend ESPACE (suite)
+/// ou S (stop : plus aucun DEBUG jusqu'à la fin) ; sans le réglage, ne fait rien et n'ajoute rien.
+/// </summary>
+public sealed record DebugStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>Début de la routine d'affichage de DEBUG, ajoutée à la fin du programme par le générateur (D136).</summary>
+public sealed record DebugBodyStatement() : Statement(0);
+
+/// <summary>Avant chaque variable affichée par DEBUG : arrêt quand l'écran est plein (D136).</summary>
+public sealed record DebugPageStatement() : Statement(0);
+
+/// <summary>Fin de la routine de DEBUG : dernière attente de ESPACE ou S, puis retour (D136).</summary>
+public sealed record DebugEndStatement() : Statement(0);
+
 /// <summary>Une expression entière. Son résultat est toujours calculé sur 16 bits.</summary>
 public abstract record Expression;
 

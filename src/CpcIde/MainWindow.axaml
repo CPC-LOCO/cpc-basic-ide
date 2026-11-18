@@ -96,6 +96,8 @@
                           ToggleType="CheckBox" Click="OnBreakClick" />
                 <MenuItem x:Name="TextMenu" Header="_Texte du programme sur la disquette" InputGesture="F11"
                           ToggleType="CheckBox" Click="OnTextClick" />
+                <MenuItem x:Name="DebugMenu" Header="_Mise au point (DEBUG)" InputGesture="F2"
+                          ToggleType="CheckBox" Click="OnDebugClick" />
                 <Separator />
                 <MenuItem x:Name="WrapMenu" Header="_Lignes longues sur plusieurs lignes, comme le CPC"
                           ToggleType="CheckBox" Click="OnWrapClick" />

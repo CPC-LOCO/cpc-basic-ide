@@ -54,6 +54,9 @@ public sealed class EditorSettings
     /// </summary>
     public CpcLanguage CpcVersion { get; set; } = CpcLanguage.French;
 
+    /// <summary>Mise au point (F2, D136) : les DEBUG du programme affichent les variables ; décoché au départ, pour tous les programmes.</summary>
+    public bool DebugMode { get; set; }
+
     // Une ligne trop longue continue sur la ligne suivante de l'écran, comme sur le CPC (D113)
     public bool WordWrap { get; set; } = true;
 

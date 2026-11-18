@@ -80,6 +80,8 @@ Reglages (menu Options) :
   F9   touche ESC comme le CPC (pause, puis arret) ou ignoree
   F11  met aussi le texte du programme sur la disquette (NOM.TXT), pour le
        comparer avec le vrai BASIC : LOAD"NOM.TXT" puis RUN
+  F2   mise au point : les commandes DEBUG du programme affichent les
+       variables et leurs valeurs (ESPACE : suite, S : stop) ; sinon ignorees
 
 
 5. DIFFERENCES AVEC LE LOCOMOTIVE BASIC A CONNAITRE

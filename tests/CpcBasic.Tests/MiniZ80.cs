@@ -963,6 +963,7 @@ internal sealed class MiniZ80
                     string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
                     H = (byte)(shown.Length - shown.LastIndexOf('\n'));
                     L = (byte)(1 + shown.Count(c => c == '\n'));
+                    A = 0;                                             // nombre de défilements : jamais ici (D136)
                 }
                 else if (address == 0xBCEF)
                 {

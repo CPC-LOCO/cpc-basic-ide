@@ -60,6 +60,7 @@ public static class CodeGenerator
     public static GeneratedProgram Generate(BasicProgram program, int origin, CompilerOptions? options = null)
     {
         options ??= CompilerOptions.Default;   // machine cible et nombres à virgule (D066)
+        program = ExpandDebug(program, options);   // DEBUG avec le réglage « Mise au point » (D136)
         var emitter = new Z80Emitter(origin);
         var required = new HashSet<string>();
         var strings = new List<byte[]>();
@@ -3320,6 +3321,38 @@ public static class CodeGenerator
                     emitter.JpLabel(EndLabel);
                     break;
 
+                // DEBUG (D136) : sans le réglage « Mise au point », rien ; sinon titre, routine d'affichage, attente
+                case DebugStatement when !options.Debug:
+                    break;
+
+                case DebugStatement:
+                {
+                    string skip = $"dbg_skip_{labelCount++}";
+                    required.Add(RuntimeLibrary.DebugName);
+                    emitter.LdAMem(RuntimeLibrary.DebugOffLabel);   // S a été tapé : plus aucun DEBUG
+                    emitter.OrA();
+                    emitter.JrNzLabel(skip);
+                    emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
+                    emitter.CallLabel(RuntimeLibrary.DebugTitleLabel);
+                    emitter.CallLabel("dbg_body");
+                    emitter.Label(skip);
+                    break;
+                }
+
+                case DebugBodyStatement:
+                    emitter.Label("dbg_body");
+                    break;
+
+                case DebugPageStatement:                            // écran plein : ESPACE ou S ; S : retour tout de suite
+                    emitter.CallLabel(RuntimeLibrary.DebugPageLabel);
+                    emitter.RetNz();
+                    break;
+
+                case DebugEndStatement:
+                    emitter.CallLabel(RuntimeLibrary.DebugWaitLabel);
+                    emitter.Ret();
+                    break;
+
                 case DefFnStatement:                    // DEF FN : rien à faire ici, le calcul est recopié à chaque appel (D095)
                     break;
 
@@ -3599,6 +3632,78 @@ public static class CodeGenerator
         || (statement is AssignStatement assign && VariableNames.IsString(assign.Variable))
         || (statement is InputStatement input && input.Variables.Any(VariableNames.IsString))
         || statement is LineInputStatement;
+
+    // DEBUG (D136) : avec le réglage « Mise au point », la routine d'affichage est ajoutée à la fin du programme, après
+    // une fin de programme (on n'y entre que par CALL) : pour chaque variable, par ordre alphabétique, un arrêt si l'écran
+    // est plein, puis « NOM= valeur » avec les PRINT habituels (nombres, nombres à virgule, textes entre guillemets) ;
+    // pour un tableau, son nombre de cases (DIM écrit en nombres) ou « tableau ».
+    static BasicProgram ExpandDebug(BasicProgram program, CompilerOptions options)
+    {
+        if (!options.Debug || !program.Statements.Any(s => s is DebugStatement))
+            return program;
+
+        var hidden = new HashSet<string>(program.Statements.OfType<DefFnStatement>().SelectMany(d => d.Function.Parameters));
+        var names = new HashSet<string>();
+        var arrays = new Dictionary<string, string?>();
+        foreach (Statement s in program.Statements)
+        {
+            foreach (Expression e in AstWalker.All(s))
+            {
+                if (e is VariableExpression v && !hidden.Contains(v.Name))
+                    names.Add(v.Name);
+                else if (e is ArrayElementExpression a)
+                    arrays.TryAdd(a.Name, null);
+            }
+            switch (s)
+            {
+                case AssignStatement assign:
+                    names.Add(assign.Variable);
+                    break;
+                case ForStatement loop:
+                    names.Add(loop.Variable);
+                    break;
+                case DeclareStatement declare:
+                    foreach (string name in declare.Names)
+                        names.Add(name);
+                    break;
+                case ArrayAssignStatement array:
+                    arrays.TryAdd(array.Name, null);
+                    break;
+                case DimStatement dim:
+                    foreach (ArrayDeclaration array in dim.Arrays)
+                    {
+                        long cases = 1;
+                        foreach (Expression size in array.Sizes)
+                            cases = size is NumberExpression n ? cases * (n.Value + 1) : -1;
+                        string text = array.Sizes.All(x => x is NumberExpression) ? $"{cases} cases" : "tableau";
+                        if (!arrays.TryGetValue(array.Name, out string? known) || known is null)
+                            arrays[array.Name] = text;
+                    }
+                    break;
+            }
+        }
+
+        var all = names.Select(n => (Key: n, Array: false)).Concat(arrays.Keys.Select(n => (Key: n + "()", Array: true)))
+                       .OrderBy(x => x.Key, StringComparer.Ordinal);
+        var statements = program.Statements.ToList();
+        statements.Add(new EndStatement(0));
+        statements.Add(new DebugBodyStatement());
+        foreach ((string key, bool array) in all)
+        {
+            statements.Add(new DebugPageStatement());
+            if (array)
+            {
+                statements.Add(new PrintStatement(0, $"{key} : {arrays[key[..^2]] ?? "tableau"}  ", false));
+                continue;
+            }
+            bool text = VariableNames.IsString(key);
+            statements.Add(new PrintStatement(0, text ? $"{key}=\"" : $"{key}=", false));
+            statements.Add(new PrintValueStatement(0, new VariableExpression(key), false));
+            statements.Add(new PrintStatement(0, text ? "\"  " : " ", false));
+        }
+        statements.Add(new DebugEndStatement());
+        return program with { Statements = statements };
+    }
 
     // Texte en octets, avec 0 à la fin : codes de la version du CPC choisie (D126 ; é : 123 sur le CPC français)
     static byte[] Encode(string text, CpcLanguage language) => [.. CharacterSet.Encode(text, language), 0];

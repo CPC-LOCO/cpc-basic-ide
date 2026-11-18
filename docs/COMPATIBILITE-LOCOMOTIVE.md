@@ -262,6 +262,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `BOX` | rectangle : contour et remplissage | Ajout du projet | BOX x1, y1, x2, y2 [, stylo [, remplissage]], repère natif (D048, D051). |
+| `DEBUG` | affiche les variables et leurs valeurs (mise au point) | Ajout du projet | Seulement avec le réglage « Mise au point » (F2) ; sinon ignoré. ESPACE : suite ; S : plus aucun DEBUG (D136). |
 | `CIRCLE` | rond : contour et remplissage | Ajout du projet | CIRCLE x, y, rayon (0 à 1000) [, stylo [, remplissage]], repère natif, rond à l'écran : largeur ×0,5 / ×1 / ×2 selon le MODE (D130). |
 | `BYTE` | variable sur un octet | Ajout du projet | Déclaration obligatoire avant usage. |
 | `EXIT / CONTINUE` | sortie / suite d'une boucle | Ajout du projet |  |

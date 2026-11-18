@@ -22,7 +22,7 @@ public static class Parser
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
-        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX", "CIRCLE",
+        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX", "CIRCLE", "DEBUG",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
         "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
@@ -1087,6 +1087,15 @@ public static class Parser
             case "CLEAR" when tokens[pos + 1].Kind == TokenKind.Word && tokens[pos + 1].Text == "INPUT":
                 statements.Add(new ClearInputStatement(t.Line));
                 return pos + 2;
+
+            case "DEBUG":                               // D136 : seul pour l'instant (DEBUG T() viendra peut-être)
+                if (!IsStatementEnd(tokens[pos + 1]) && !IsElse(tokens[pos + 1]))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, t.Line, tokens[pos + 1].Text));
+                    return SkipToStatementEnd(tokens, pos + 1);
+                }
+                statements.Add(new DebugStatement(t.Line));
+                return pos + 1;
 
             case "CLEAR":                               // lot K3 (D090)
                 statements.Add(new ClearStatement(t.Line));

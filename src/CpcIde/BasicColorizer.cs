@@ -64,7 +64,7 @@ public class BasicColorizer : DocumentColorizingTransformer
 
     static readonly HashSet<string> NewCommands = new(StringComparer.OrdinalIgnoreCase)
     {
-        "CIRCLE", "ELLIPSE", "STAR", "PAINT", "BOX", "POLYGON",
+        "CIRCLE", "ELLIPSE", "STAR", "PAINT", "BOX", "POLYGON", "DEBUG",
         "SPRITE", "COLLIDE", "SCROLL",
         "SELECT", "CASE", "BYTE", "EXIT", "CONTINUE", "ENDIF", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "DO", "LOOP", "REPEAT", "UNTIL",
         "VROOM", "BOOM", "SHOT", "FALL", "WAVE"

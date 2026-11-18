@@ -92,6 +92,12 @@ public static class RuntimeLibrary
     public const string BoxPenLabel = "rt_box_pen";
     public const string BoxFillPenLabel = "rt_box_fillpen";
     public const string BoxDoFillLabel = "rt_box_dofill";
+    // DEBUG (D136) : titre (HL = numéro de ligne), arrêt quand l'écran est plein, attente de ESPACE ou S
+    public const string DebugName = "Debug";
+    public const string DebugTitleLabel = "rt_dbg_title";
+    public const string DebugPageLabel = "rt_dbg_page";      // Z : on continue ; NZ : S tapé, fin de l'affichage
+    public const string DebugWaitLabel = "rt_dbg_wait";      // même chose, mais attend toujours
+    public const string DebugOffLabel = "rt_dbg_off";        // octet : 1 après S, plus aucun DEBUG
     // CIRCLE (D130) : centre, rayon et stylos rangés par le programme, puis CALL rt_circle
     public const string CircleName = "Circle";
     public const string CircleLabel = "rt_circle";
@@ -2480,6 +2486,93 @@ public static class RuntimeLibrary
             e.JpLabel(ErrorLabel);
             e.Label("rt_byte_msg");
             e.Data(Ascii("Improper argument"));
+        }),
+
+        // DEBUG (D136). Les lignes écrites depuis le dernier arrêt sont comptées avec TXT GET CURSOR : ligne (L) + nombre
+        // de défilements (A) ; quand elles remplissent la fenêtre (TXT GET WINDOW : bas - haut), on attend ESPACE ou S.
+        // L'invite « ESPACE:suite S:stop » (19 caractères : tient aussi en MODE 0) est effacée après ESPACE.
+        [DebugName] = new RuntimeModule(DebugName, [PrintStringName, PrintIntName], e =>
+        {
+            e.Label(DebugTitleLabel);                 // « DEBUG ligne 120 », au début d'une ligne
+            e.PushHl();
+            e.CallLabel("rt_dbg_nl");
+            e.LdHlLabel("rt_dbg_msg");
+            e.CallLabel(PrintStringLabel);
+            e.PopHl();
+            e.CallLabel(PrintIntLabel);
+            e.LdHlLabel("rt_dbg_crlf");
+            e.CallLabel(PrintStringLabel);
+            e.JpLabel("rt_dbg_base");
+
+            e.Label("rt_dbg_nl");                     // à la ligne si le curseur n'est pas au début d'une ligne
+            e.CallAddress(TxtGetCursor);
+            e.LdAH();
+            e.CpImm(1);
+            e.RetZ();
+            e.LdHlLabel("rt_dbg_crlf");
+            e.JpLabel(PrintStringLabel);
+
+            e.Label("rt_dbg_base");                   // départ du comptage des lignes : ligne + défilements
+            e.CallAddress(TxtGetCursor);
+            e.AddAL();
+            e.LdMemA("rt_dbg_start");
+            e.Ret();
+
+            e.Label(DebugPageLabel);
+            e.CallAddress(TxtGetCursor);
+            e.AddAL();                                // A = ligne + défilements
+            e.LdBA();
+            e.LdAMem("rt_dbg_start");
+            e.LdCA();
+            e.LdAB();
+            e.SubC();                                 // lignes écrites depuis le dernier arrêt
+            e.PushAf();
+            e.CallAddress(0xBB69);                    // TXT GET WINDOW : L = haut, E = bas
+            e.LdAE();
+            e.SubL();                                 // hauteur de la fenêtre - 1
+            e.LdBA();
+            e.PopAf();
+            e.CpB();
+            e.JrCLabel("rt_dbg_go");                  // pas encore plein : on continue (Z)
+
+            e.Label(DebugWaitLabel);
+            e.CallLabel("rt_dbg_nl");
+            e.LdHlLabel("rt_dbg_ask");
+            e.CallLabel(PrintStringLabel);
+            e.Label("rt_dbg_key");
+            e.CallAddress(0xBB06);                    // KM WAIT CHAR
+            e.CpImm(' ');
+            e.JrZLabel("rt_dbg_space");
+            e.AndImm(0xDF);                           // s ou S
+            e.CpImm('S');
+            e.JrNzLabel("rt_dbg_key");
+            e.LdAImm(1);                              // S : plus aucun DEBUG jusqu'à la fin du programme
+            e.LdMemA(DebugOffLabel);
+            e.LdHlLabel("rt_dbg_erase");             // l'invite est effacée aussi (demande de l'utilisateur)
+            e.CallLabel(PrintStringLabel);
+            e.LdAImm(1);
+            e.OrA();                                  // NZ : fin de l'affichage
+            e.Ret();
+            e.Label("rt_dbg_space");                  // ESPACE : l'invite est effacée, on recompte
+            e.LdHlLabel("rt_dbg_erase");
+            e.CallLabel(PrintStringLabel);
+            e.CallLabel("rt_dbg_base");
+            e.Label("rt_dbg_go");
+            e.XorA();                                 // Z : on continue
+            e.Ret();
+
+            e.Label("rt_dbg_msg");
+            e.Data(Ascii("DEBUG ligne"));
+            e.Label("rt_dbg_ask");
+            e.Data(Ascii("ESPACE:suite S:stop"));
+            e.Label("rt_dbg_erase");
+            e.Data(Ascii("\r                   \r"));
+            e.Label("rt_dbg_crlf");
+            e.Data(Ascii("\r\n"));
+            e.Label("rt_dbg_start");
+            e.Data([0]);
+            e.Label(DebugOffLabel);
+            e.Data([0]);
         }),
 
         [MemoryCheckName] = new RuntimeModule(MemoryCheckName, [ErrorName], e =>

@@ -180,6 +180,7 @@ public partial class MainWindow : Window
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
     void OnVersionClick(object? sender, RoutedEventArgs e) => ToggleCpcVersion();
     void OnVariablesClick(object? sender, RoutedEventArgs e) => ShowVariables();
+    void OnDebugClick(object? sender, RoutedEventArgs e) => ToggleDebug();
     void OnWrapClick(object? sender, RoutedEventArgs e)
     {
         settings.WordWrap = !settings.WordWrap;
@@ -222,6 +223,7 @@ public partial class MainWindow : Window
             new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
             new MessageItem("F8 : variables sans signe entières ou à virgule.   F9 : touche ESC comme le CPC ou ignorée.", 0),
             new MessageItem("F11 : texte du programme sur la disquette (pour le vrai BASIC : LOAD\"NOM.TXT\" puis RUN).", 0),
+            new MessageItem("F2 : mise au point : les DEBUG du programme affichent les variables (sinon ils sont ignorés).", 0),
             new MessageItem("Ctrl et + / Ctrl et - / Ctrl et 0 : taille du texte.   Ctrl+H : contraste élevé.", 0),
             new MessageItem("Alt : ouvrir la barre de menus (les lettres soulignées choisissent un menu).   F1 : cette aide.", 0)
         });
@@ -407,6 +409,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ShowShortcuts();
         }
+        else if (e.Key == Key.F2)
+        {
+            e.Handled = true;
+            ToggleDebug();
+        }
         else if (e.Key == Key.F11)
         {
             e.Handled = true;
@@ -539,6 +546,21 @@ public partial class MainWindow : Window
         Editor.TextArea.Selection.ReplaceSelectionWithText(shown.ToString());
     }
 
+    // F2 : mise au point (D136) : les DEBUG du programme affichent les variables ; sinon ignorés ; pour tous les programmes
+    void ToggleDebug()
+    {
+        settings.DebugMode = !settings.DebugMode;
+        settings.Save();
+        UpdateOptionButtons();
+        ShowMessage(settings.DebugMode
+            ? "Mise au point : oui. Chaque DEBUG du programme affiche les variables ; ESPACE : suite, S : stop (plus aucun DEBUG)."
+            : "Mise au point : non. Les DEBUG du programme sont ignorés : le programme garde sa taille normale.");
+    }
+
+    // Nombre de DEBUG du programme (D136), pour le rappeler quand ils sont ignorés
+    int CountDebug() => CpcBasic.Core.Language.BasicAnalyzer.Analyze(Editor.Text,
+            new CompilerOptions(Language: settings.CpcVersion)).Program.Statements.OfType<CpcBasic.Core.Language.DebugStatement>().Count();
+
     // F11 : le texte du programme aussi sur la disquette (NOM.TXT), pour le vrai BASIC ; pour tous les programmes (D101)
     void ToggleTextOnDisk()
     {
@@ -554,6 +576,7 @@ public partial class MainWindow : Window
     {
         // Menu Options (D112) : coché quand le réglage est actif
         TextMenu.IsChecked = settings.TextOnDisk;
+        DebugMenu.IsChecked = settings.DebugMode;
         VersionMenu.Header = settings.CpcVersion == CpcLanguage.French
             ? "Version du _CPC : français (AZERTY)"
             : "Version du _CPC : anglais (QWERTY)";
@@ -827,10 +850,10 @@ public partial class MainWindow : Window
                     return null;
                 return new ProgramSource(File.ReadAllText(file),
                                          new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
-                                                             settings.CpcVersion));
+                                                             settings.CpcVersion, settings.DebugMode));
             }
             result = Compiler.CompileWithLinked(Editor.Text, name,
-                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion), Find);
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -892,6 +915,11 @@ public partial class MainWindow : Window
             done.Add(new MessageItem($"Aussi compilé et mis sur la disquette (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.", 0));
         foreach (string absent in result.Missing)
             done.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier ; ce programme n'est pas sur la disquette.", 0));
+        int debugs = CountDebug();
+        if (debugs > 0)
+            done.Add(new MessageItem(settings.DebugMode
+                ? $"Mise au point : {debugs} DEBUG actif(s) (ESPACE : suite, S : stop). F2 pour les couper."
+                : $"{debugs} DEBUG ignoré(s) (mise au point coupée, F2).", 0));
         done.Add(new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0));
         done.Add(new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0));
         ShowMessages(done);
@@ -917,10 +945,10 @@ public partial class MainWindow : Window
                 return file is null ? null
                     : new ProgramSource(File.ReadAllText(file),
                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
-                                                            settings.CpcVersion));
+                                                            settings.CpcVersion, settings.DebugMode));
             }
             result = Compiler.CompileWithLinked(Editor.Text, name,
-                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion), Find);
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
