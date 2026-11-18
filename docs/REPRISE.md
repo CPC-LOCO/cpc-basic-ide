@@ -43,8 +43,8 @@ Documents de référence :
 
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
-- **Version publique :** 0.2.0 (pre-release GitHub, Windows 64 bits). Tout ce qui suit D040 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Version 0.3.0 preparee » (18 nov. 2026, **1441 tests**, tous réussis).
+- **Version publique :** 0.3.0 (pre-release GitHub, Windows 64 bits, 18 nov. 2026). Tout ce qui suit D122 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
+- **Dernier commit sur GitHub :** « Version 0.3.0 publiee » (18 nov. 2026, **1441 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -83,7 +83,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 - D016 : vérifier qu'aucune ROM Amstrad n'est livrée.
 - D017 : relecture juridique de l'exception de liaison (`docs\RUNTIME-EXCEPTION.md`).
-- **Version 0.3.0 préparée (18 nov. 2026)** : LISEZMOI refait, TESTEURS.md mis à jour, version 0.3.0 aux deux endroits, `docs\RELEASE-NOTES-0.3.0.md` ; le paquet contient tous les exemples et COMPATIBILITE.md. Paquet construit et essayé par l'utilisateur (version 0.3.0 affichée, ouverture et compilation OK). Reste : publier la pre-release v0.3.0 sur GitHub (texte : docs\RELEASE-NOTES-0.3.0.md, SHA256 dedans). Ensuite : CURSOR ,1 et MASK ,1 sans première valeur (compatibilité Locomotive), puis les autres « Partielle ».
+- **Version 0.3.0 préparée (18 nov. 2026)** : LISEZMOI refait, TESTEURS.md mis à jour, version 0.3.0 aux deux endroits, `docs\RELEASE-NOTES-0.3.0.md` ; le paquet contient tous les exemples et COMPATIBILITE.md. Paquet construit et essayé par l'utilisateur (version 0.3.0 affichée, ouverture et compilation OK). **Publiée sur GitHub (pre-release v0.3.0, 18 nov. 2026).** Ensuite : CURSOR ,1 et MASK ,1 sans première valeur (compatibilité Locomotive), puis les autres « Partielle ».
 
 ## 5. Points techniques à connaître
 
@@ -146,4 +146,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Version 0.3.0 preparee » ; 1441 tests passent. Les lots A à L sont finis, le remodelage de l'éditeur est en cours. Propose-moi la suite, une étape à la fois.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Version 0.3.0 publiee » ; 1441 tests passent. La version 0.3.0 est publiée. On continue avec CURSOR ,1 et MASK ,1 sans première valeur (compatibilité Locomotive) : propose-moi la suite, une étape à la fois, une seule action par message.
