@@ -995,6 +995,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé par l'utilisateur (18 nov. 2026) :** examples\varliste.bas : F4 affiche les 5 variables dont 2 à vérifier ; F6, flèches, Entrée : le curseur va à la bonne ligne.
 - **Suite :** solution B (adresse de chaque variable dans la mémoire du CPC), puis C.
 
+## D132 : liste des variables, solution B : adresses (18 nov. 2026) (validé par l'utilisateur)
+- **Fait :** la liste F4 (D131) donne aussi l'adresse de chaque variable dans la mémoire du CPC, et sa taille : entier 2 octets (poids faible en premier), octet 1 octet, nombre à virgule 5 octets (format du Locomotive), texte : fiche de 3 octets (longueur, puis adresse des lettres), tableau : sa fiche (adresse de ses cases, puis leur nombre). F4 compile le programme en mémoire (sans disquette) ; avec une erreur, pas d'adresse, et le message le dit. Aucun octet ajouté au programme compilé.
+- **Présentation (choix de l'utilisateur) :** l'adresse **au début** de la ligne (après ⚠), en gras, jaune sur bleu comme l'écran du CPC (noir sur blanc en contraste élevé) ; la taille à la fin, entre parenthèses. Exemple : `⚠ &4A4A  SCOER : entier. Utilisée ligne 50, mais ne reçoit jamais de valeur (elle vaut toujours 0). Faute de frappe pour SCORE ? (2 octets, poids faible en premier)`.
+- **Pour lire une valeur :** débogueur de WinAPE (menu Debug), mémoire à cette adresse, pendant que le programme tourne.
+- **Fichiers :** CodeGenerator.cs (GeneratedProgram.Addresses), VariableList.cs, MainWindow.axaml.cs (MessageItem.Highlight), VariableListTests.cs (3 tests, dont un qui lance le programme sur le mini-Z80 et relit la valeur à l'adresse annoncée). 1560 tests réussis.
+- **Remarque de l'utilisateur :** « tu vas trop vite » : attendre sa réponse avant de changer une deuxième fois ; une chose à la fois (rappel de la règle du 16 nov.).
+- **Suite :** solution C (voir les valeurs pendant l'exécution, sur l'écran du CPC) : commande ou touche nouvelle, à décider avec l'utilisateur.
+
 ---
 
 ## Notes de fin de session (modèle)

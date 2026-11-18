@@ -12,7 +12,10 @@ namespace CpcBasic.Core.Codegen;
 /// Le programme compilé. MemoryLimit : la plus basse adresse écrite après MEMORY (un nombre écrit dans le programme), ou -1
 /// s'il n'y en a pas ; MemoryLine : la ligne de ce MEMORY. Le compilateur vérifie que le programme tient en dessous (D057).
 /// </summary>
-public sealed record GeneratedProgram(byte[] Code, IReadOnlyList<string> Modules, int MemoryLimit = -1, int MemoryLine = 0);
+/// <param name="Addresses">Adresse de chaque variable dans la mémoire du CPC (D132, liste des variables F4) : nom écrit,
+/// signe compris ; « () » ajouté pour un tableau (adresse de sa fiche).</param>
+public sealed record GeneratedProgram(byte[] Code, IReadOnlyList<string> Modules, int MemoryLimit = -1, int MemoryLine = 0,
+                                      IReadOnlyDictionary<string, int>? Addresses = null);
 
 /// <summary>
 /// Transforme un programme analysé en code Z80. Organisation du binaire :
@@ -3521,7 +3524,20 @@ public static class CodeGenerator
         if (usesHeap || program.Statements.Any(st => st is ScreenStatement { Command: "MEMORY" } m && m.Arguments[0] is not NumberExpression))
             emitter.Label(RuntimeLibrary.ArrayHeapStartLabel);
 
-        return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine);
+        // Adresses des variables et des fiches des tableaux (D132)
+        // (une étiquette qui n'aurait pas été placée est simplement ignorée : la compilation ne doit jamais échouer ici)
+        var addresses = new Dictionary<string, int>();
+        void AddAddress(string key, string label)
+        {
+            try { addresses[key] = emitter.AddressOf(label); }
+            catch (InvalidOperationException) { }
+        }
+        foreach ((string name, VariableSlot slot) in variables)
+            AddAddress(name, slot.Label);
+        foreach ((string name, (string label, int _)) in arrays)
+            AddAddress(name + "()", label);
+
+        return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine, addresses);
     }
 
     // Routines du firmware appelées par les commandes d'écran (décision D046)

@@ -3,12 +3,16 @@
 // selon les termes de la licence publique générale GNU, version 3.
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
+using CpcBasic.Core.Codegen;
 using CpcBasic.Core.Language;
 
 namespace CpcBasic.Core.Editing;
 
-/// <summary>Une ligne de la liste des variables. Line : ligne de l'éditeur où aller (0 : aucune) ; Warning : à vérifier.</summary>
-public sealed record VariableLine(string Text, int Line, bool Warning);
+/// <summary>
+/// Une ligne de la liste des variables. Line : ligne de l'éditeur où aller (0 : aucune) ; Warning : à vérifier ;
+/// Address : « &amp;4A48 », écrit au début de Text (après ⚠), que l'éditeur met en valeur (D132), ou null.
+/// </summary>
+public sealed record VariableLine(string Text, int Line, bool Warning, string? Address = null);
 
 /// <summary>
 /// Liste des variables du programme (touche F4, D131, solution A de l'utilisateur) : nom, type, lignes où la variable
@@ -26,7 +30,8 @@ public static class VariableList
         public string? Sizes;                           // tableau : tailles données par DIM
     }
 
-    public static IReadOnlyList<VariableLine> Build(string source, CompilerOptions? options = null)
+    /// <param name="withAddresses">Ajoute l'adresse de chaque variable (D132) ; faux : seulement la solution A.</param>
+    public static IReadOnlyList<VariableLine> Build(string source, CompilerOptions? options = null, bool withAddresses = true)
     {
         AnalysisResult analysis = BasicAnalyzer.Analyze(source, options);
         string[] lines = source.Replace("\r\n", "\n").Split('\n');
@@ -163,6 +168,34 @@ public static class VariableList
             return info.Sizes is null ? $"tableau {of}" : $"tableau {of} ({info.Sizes})";
         }
 
+        // Solution B (D132) : adresses dans la mémoire du CPC, si le programme se compile sans erreur
+        IReadOnlyDictionary<string, int>? addresses = null;
+        if (withAddresses && !analysis.HasErrors)
+        {
+            try { addresses = CodeGenerator.Generate(analysis.Program, Compiler.LoadAddress, options).Addresses; }
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException) { }
+        }
+
+        // Taille de la variable, écrite à la fin ; l'adresse est au début de la ligne (choix A de l'utilisateur :
+        // les adresses alignées se voient vite)
+        string Address(string key)
+        {
+            if (AddressText(key) is null)
+                return "";
+            string name = key.EndsWith("()") ? key[..^2] : key;
+            string what = key.EndsWith("()") ? "fiche du tableau : adresse de ses cases, puis leur nombre"
+                : bytes.Contains(name) ? "1 octet"
+                : name.EndsWith('$') ? "fiche de 3 octets : longueur, puis adresse des lettres"
+                : name.EndsWith('!') ? "5 octets, nombre à virgule du Locomotive"
+                : "2 octets, poids faible en premier";
+            return $" ({what})";
+        }
+
+        string? AddressText(string key) =>
+            addresses is not null && addresses.TryGetValue(key, out int address) ? $"&{address:X4}" : null;
+
+        string Start(string key) => AddressText(key) is string a ? a + "  " : "";
+
         var result = new List<VariableLine>();
         foreach (string key in all.Keys.OrderBy(k => k, StringComparer.Ordinal))
         {
@@ -173,13 +206,13 @@ public static class VariableList
                 string empty = key.Contains('$') ? "un texte vide" : "0";
                 string? near = Near(key, all.Keys.Where(k => all[k].Set.Count > 0));
                 string hint = near is null ? "" : $" Faute de frappe pour {near} ?";
-                result.Add(new VariableLine($"⚠ {key} : {Kind(key)}. Utilisée {Lines(info.Used)}, mais ne reçoit jamais de valeur (elle vaut toujours {empty}).{hint}",
-                                            first, true));
+                result.Add(new VariableLine($"⚠ {Start(key)}{key} : {Kind(key)}. Utilisée {Lines(info.Used)}, mais ne reçoit jamais de valeur (elle vaut toujours {empty}).{hint}{Address(key)}",
+                                            first, true, AddressText(key)));
             }
             else if (info.Used.Count == 0)
-                result.Add(new VariableLine($"⚠ {key} : {Kind(key)}. Reçoit une valeur {Lines(info.Set)}, mais n'est jamais utilisée.", first, true));
+                result.Add(new VariableLine($"⚠ {Start(key)}{key} : {Kind(key)}. Reçoit une valeur {Lines(info.Set)}, mais n'est jamais utilisée.{Address(key)}", first, true, AddressText(key)));
             else
-                result.Add(new VariableLine($"{key} : {Kind(key)}. Reçoit une valeur {Lines(info.Set)} ; utilisée {Lines(info.Used)}.", first, false));
+                result.Add(new VariableLine($"{Start(key)}{key} : {Kind(key)}. Reçoit une valeur {Lines(info.Set)} ; utilisée {Lines(info.Used)}.{Address(key)}", first, false, AddressText(key)));
         }
         return result;
     }

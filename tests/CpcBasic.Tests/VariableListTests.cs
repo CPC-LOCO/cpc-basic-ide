@@ -4,7 +4,9 @@
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
 using System.Linq;
+using CpcBasic.Core.Codegen;
 using CpcBasic.Core.Editing;
+using CpcBasic.Core.Language;
 using Xunit;
 
 namespace CpcBasic.Tests;
@@ -12,7 +14,8 @@ namespace CpcBasic.Tests;
 /// <summary>Liste des variables, touche F4 de l'éditeur (D131, solution A de l'utilisateur).</summary>
 public class VariableListTests
 {
-    static string[] Texts(string source) => VariableList.Build(source).Select(v => v.Text).ToArray();
+    // Solution A seule ; les adresses (solution B, D132) sont essayées à la fin
+    static string[] Texts(string source) => VariableList.Build(source, withAddresses: false).Select(v => v.Text).ToArray();
 
     [Fact]
     public void Une_variable_qui_recoit_une_valeur_puis_est_utilisee()
@@ -23,7 +26,7 @@ public class VariableListTests
     [Fact]
     public void Une_faute_de_frappe_est_signalee_avec_le_nom_proche()
     {
-        var list = VariableList.Build("10 SCORE=0\n20 SCORE=SCORE+1\n30 PRINT SCOER");
+        var list = VariableList.Build("10 SCORE=0\n20 SCORE=SCORE+1\n30 PRINT SCOER", withAddresses: false);
 
         Assert.Equal(new[]
         {
@@ -116,5 +119,53 @@ public class VariableListTests
     public void Un_programme_sans_variable_donne_une_liste_vide()
     {
         Assert.Empty(VariableList.Build("10 PRINT \"BONJOUR\"\n20 END"));
+    }
+
+    // ---------- Solution B (D132) : adresses dans la mémoire du CPC ----------
+
+    [Fact]
+    public void L_adresse_donnee_est_celle_ou_le_programme_range_la_valeur()
+    {
+        const string source = "10 A=1234:B$=\"XYZ\":X!=1.5\n20 PRINT A;B$";
+        var lines = VariableList.Build(source);
+        GeneratedProgram program = CodeGenerator.Generate(BasicAnalyzer.Analyze(source).Program, 0x4000);
+        int a = program.Addresses!["A"];
+
+        Assert.Equal($"&{a:X4}  A : entier. Reçoit une valeur ligne 10 ; utilisée ligne 20. (2 octets, poids faible en premier)",
+                     lines[0].Text);
+        Assert.Equal($"&{a:X4}", lines[0].Address);
+        Assert.Equal($"&{program.Addresses["B$"]:X4}  B$ : texte. Reçoit une valeur ligne 10 ; utilisée ligne 20. (fiche de 3 octets : longueur, puis adresse des lettres)",
+                     lines[1].Text);
+        Assert.Equal($"⚠ &{program.Addresses["X!"]:X4}  X! : nombre à virgule. Reçoit une valeur ligne 10, mais n'est jamais utilisée. (5 octets, nombre à virgule du Locomotive)",
+                     lines[2].Text);
+
+        // Le programme lancé range bien 1234 à cette adresse, et la fiche de B$ commence par la longueur 3
+        var cpu = new MiniZ80();
+        cpu.Load(program.Code, 0x4000);
+        cpu.Memory[0xBB18] = 0xC9;
+        cpu.Call(0x4000);
+        Assert.Equal(1234, cpu.Memory[a] | (cpu.Memory[a + 1] << 8));
+        Assert.Equal(3, cpu.Memory[program.Addresses["B$"]]);
+    }
+
+    [Fact]
+    public void Un_tableau_et_un_octet_ont_leur_adresse()
+    {
+        const string source = "10 BYTE C\n20 DIM T(5):T(1)=C:C=2:PRINT T(1);C";
+        var lines = VariableList.Build(source);
+        GeneratedProgram program = CodeGenerator.Generate(BasicAnalyzer.Analyze(source).Program, 0x4000);
+
+        Assert.StartsWith($"&{program.Addresses!["C"]:X4}  C : octet (0 à 255).", lines[0].Text);
+        Assert.EndsWith("(1 octet)", lines[0].Text);
+        Assert.StartsWith($"&{program.Addresses["T()"]:X4}  T() : tableau d'entiers (5).", lines[1].Text);
+        Assert.EndsWith("(fiche du tableau : adresse de ses cases, puis leur nombre)", lines[1].Text);
+    }
+
+    [Fact]
+    public void Avec_une_erreur_la_liste_n_a_pas_d_adresse()
+    {
+        VariableLine line = VariableList.Build("10 A=5\n20 PRINT A\n30 GOTO 999")[0];
+        Assert.Equal("A : entier. Reçoit une valeur ligne 10 ; utilisée ligne 20.", line.Text);
+        Assert.Null(line.Address);
     }
 }

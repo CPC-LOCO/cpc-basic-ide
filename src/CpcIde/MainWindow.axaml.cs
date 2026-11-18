@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -42,14 +43,17 @@ public partial class MainWindow : Window
 
     sealed class MessageItem
     {
-        public MessageItem(string text, int line, MessageKind kind = MessageKind.Info)
+        public MessageItem(string text, int line, MessageKind kind = MessageKind.Info, string? highlight = null)
         {
             Text = text;
             Line = line;
             Kind = kind;
+            Highlight = highlight;
         }
 
         public string Text { get; }
+        // Partie du texte mise en valeur (adresse d'une variable, D132), ou null
+        public string? Highlight { get; }
         public int Line { get; }
         public MessageKind Kind { get; }
 
@@ -99,7 +103,26 @@ public partial class MainWindow : Window
                 icon.Text = "✓";
                 icon.Foreground = Make("#40E040");
             }
-            var text = new TextBlock { Text = item?.Text ?? "", TextWrapping = TextWrapping.Wrap };
+            var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            if (item?.Highlight is string highlight && item.Text.IndexOf(highlight, StringComparison.Ordinal) is int at and >= 0)
+            {
+                // Adresse d'une variable (D132) : en gras, jaune sur bleu comme l'écran du CPC (noir sur blanc en contraste
+                // élevé), lisible aussi sur la ligne choisie
+                bool high = settings.HighContrast;
+                text.Inlines = new InlineCollection
+                {
+                    new Run(item.Text[..at]),
+                    new Run(" " + highlight + " ")
+                    {
+                        FontWeight = FontWeight.Bold,
+                        Foreground = Make(high ? "#000000" : "#FFFF00"),
+                        Background = Make(high ? "#FFFFFF" : "#000080")
+                    },
+                    new Run(item.Text[(at + highlight.Length)..])
+                };
+            }
+            else
+                text.Text = item?.Text ?? "";
             Grid.SetColumn(text, 1);
             row.Children.Add(icon);
             row.Children.Add(text);
@@ -436,7 +459,8 @@ public partial class MainWindow : Window
     }
 
     // F4 : liste des variables du programme (D131, solution A) : type, lignes où elles reçoivent une valeur et où elles
-    // sont utilisées ; ⚠ devant celles à vérifier. Entrée sur une ligne : le curseur va à sa première ligne.
+    // sont utilisées ; ⚠ devant celles à vérifier ; adresse dans la mémoire du CPC (D132, solution B).
+    // Entrée sur une ligne : le curseur va à sa première ligne.
     void ShowVariables()
     {
         var options = new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion);
@@ -450,8 +474,8 @@ public partial class MainWindow : Window
                   + "F6 puis Entrée sur une ligne : aller à la variable dans le programme.", 0)
         };
         if (CpcBasic.Core.Language.BasicAnalyzer.Analyze(Editor.Text, options).HasErrors)
-            items.Add(new MessageItem("Le programme contient des erreurs (F5 pour les voir) : la liste peut être incomplète.", 0, MessageKind.Error));
-        items.AddRange(variables.Select(v => new MessageItem(v.Text, v.Line)));
+            items.Add(new MessageItem("Le programme contient des erreurs (F5 pour les voir) : la liste peut être incomplète, et les adresses ne sont pas données.", 0, MessageKind.Error));
+        items.AddRange(variables.Select(v => new MessageItem(v.Text, v.Line, MessageKind.Info, v.Address)));
         ShowMessages(items);
     }
 
