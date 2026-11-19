@@ -1325,6 +1325,11 @@ internal sealed class MiniZ80
                 break;
             case 0x1D: L = Rl_Right(L); break;                         // RR L
             case 0x1C: H = Rl_Right(H); break;                         // RR H (STAR, D151)
+            case 0x2C:                                                 // SRA H (STAR, D152)
+                CarryFlag = (H & 0x01) != 0;
+                H = (byte)((H >> 1) | (H & 0x80));
+                ZeroFlag = H == 0;
+                break;
             case 0x3C: CarryFlag = (H & 0x01) != 0; H = (byte)(H >> 1); ZeroFlag = H == 0; break;   // SRL H
             // Nombres à virgule (lot F1b, D068) : décalages d'un octet en mémoire
             case 0x26:                                                 // SLA (HL)
@@ -1369,6 +1374,12 @@ internal sealed class MiniZ80
             {
                 int at = Fetch16();
                 sp = Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8);
+                break;
+            }
+            case 0x4B:                                                 // LD BC,(nn) (STAR, D152)
+            {
+                int at = Fetch16();
+                BC = (ushort)(Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8));
                 break;
             }
             case 0x5B:                                                 // LD DE,(nn)

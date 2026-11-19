@@ -11,7 +11,7 @@ using CpcBasic.Core.Libraries;
 namespace CpcBasic.Tests;
 
 /// <summary>
-/// STAR, première commande de la bibliothèque GRAPHIQUE du projet (D150, D151), lue dans le dossier bibliotheques du dépôt.
+/// STAR, première commande de la bibliothèque GRAPHIQUE du projet (D150, D151 ; intérieur D152), lue dans le dossier bibliotheques du dépôt.
 /// Les traits attendus viennent du simulateur Python du texte assembleur (essais\star\sim.py) ; ils sont aussi comparés
 /// au calcul exact avec virgule (moins d'un point d'écart).
 /// </summary>
@@ -56,6 +56,7 @@ public class StarTests
         Assert.Equal("GRAPHIQUE", star.Library);
         Assert.True(star.Protected);
         Assert.Equal(new[] { "X", "Y", "R1", "R2", "POINTES", "STYLO", "REMPLISSAGE", "ANGLE" }, star.Parameters.Select(p => p.Name));
+        Assert.Equal(32, star.Parameters[4].Max);                // 32 pointes au plus (D152)
         Assert.Equal(3, star.Parameters.Count(p => p.IsOptional));
     }
 
@@ -107,7 +108,56 @@ public class StarTests
     [Fact]
     public void STAR_avec_des_valeurs_calculees_hors_limites_ne_dessine_rien()
     {
-        Assert.Empty(Run("10 N=1:STAR 160,100,30,80,N:N=101:STAR 160,100,30,80,N:R=1001:STAR 160,100,R,80,5", 1).Lines);
+        Assert.Empty(Run("10 N=1:STAR 160,100,30,80,N,,2:N=33:STAR 160,100,30,80,N,,2:R=1001:STAR 160,100,R,80,5,,2", 1).Lines);
+    }
+
+    static long FloorDiv(long n, long d) => n >= 0 ? n / d : -((-n + d - 1) / d);
+
+    // Intérieur (D152) : comparé à la règle écrite ici en nombres exacts, à partir des sommets du contour :
+    // ligne y, bords avec y1 <= y < y2, croisements rangés, de l'entier au-dessus du 1er à l'entier au-dessous du 2e...
+    [Theory]
+    [InlineData(5, 30, 80, 0, 1, 100)]
+    [InlineData(7, 40, 99, 33, 0, 100)]
+    [InlineData(6, 35, 40, 0, 2, 100)]
+    [InlineData(5, 30, 80, 17, 1, -20)]
+    [InlineData(3, 10, 120, 200, 1, 190)]
+    public void STAR_remplit_l_interieur_comme_le_calcul_exact(int points, int r1, int r2, int angle, byte mode, int y)
+    {
+        MiniZ80 cpu = Run($"10 STAR 160,{y},{r1},{r2},{points},1,2,{angle}", mode);
+        int scale = new[] { 4, 2, 1 }[mode];
+        var contour = cpu.Lines.Where(l => l.Pen == 1).ToList();
+        Assert.Equal(2 * points, contour.Count);
+        var vertices = contour.Select(l => (X: (long)(l.X1 / scale), Y: (long)(199 - l.Y1 / 2))).ToList();
+
+        var expected = new List<string>();
+        for (long row = Math.Max(0, vertices.Min(v => v.Y)); row <= Math.Min(199, vertices.Max(v => v.Y)); row++)
+        {
+            var crossings = new List<(long Num, long Den)>();
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                var (x1, y1) = vertices[i];
+                var (x2, y2) = vertices[(i + 1) % vertices.Count];
+                if (y1 == y2)
+                    continue;
+                if (y1 > y2)
+                    (x1, y1, x2, y2) = (x2, y2, x1, y1);
+                if (y1 <= row && row < y2)
+                    crossings.Add((x1 * (y2 - y1) + (row - y1) * (x2 - x1), y2 - y1));
+            }
+            crossings.Sort((a, b) => (a.Num * b.Den).CompareTo(b.Num * a.Den));
+            for (int k = 0; k + 1 < crossings.Count; k += 2)
+            {
+                long left = -FloorDiv(-crossings[k].Num, crossings[k].Den);
+                long right = FloorDiv(crossings[k + 1].Num, crossings[k + 1].Den);
+                if (left <= right)
+                    expected.Add($"{left}-{right}@{row}");
+            }
+        }
+        var filled = cpu.Lines.Where(l => l.Pen == 2).Select(l => $"{l.X1 / scale}-{l.X2 / scale}@{199 - l.Y1 / 2}").ToList();
+
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, filled);
+        Assert.Equal(1, cpu.GraphicsPen);
     }
 
     [Theory]

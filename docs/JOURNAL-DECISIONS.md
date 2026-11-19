@@ -1175,6 +1175,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests C# :** `tests\CpcBasic.Tests\StarTests.cs` (12 tests : traits identiques au simulateur Python dans les 3 MODES, écart au calcul exact, valeurs hors limites, messages). MiniZ80 : RRA, INC L, RR H, BIT 7,A ajoutés, et la liste des traits tracés (Lines). 1830 tests réussis.
 - **Essayé dans WinAPE (19 nov. 2026) :** examples\etoiles.bas : six figures (5, 3, 4 pointes ; 6 pointes tournée de 30 degrés ; hexagone ; 8 pointes fines), une étoile qui tourne (12 étoiles, rosace), MODE 0 et MODE 2 : conformes ; message de F5 « Bibliothèques utilisées : GRAPHIQUE (STAR) » ; « Il y a de quoi être fier ! ».
 
+## D152 : intérieur de STAR ; 32 pointes au plus (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; complète D151
+- **Méthode :** tous les sommets sont d'abord calculés et gardés (repère natif) ; intérieur ligne par ligne (de 0 à 199 seulement) : pour chaque bord (y1 <= ligne < y2, bords à plat sautés), croisement x = x1 + (ligne - y1) × (x2 - x1) / (y2 - y1) calculé exactement (multiplication 16 × 16 bits, division 32 / 16 bits) ; croisements rangés ; remplissage du point entier à droite du 1er au point entier à gauche du 2e, du 3e au 4e... (règle pair-impair, juste pour une étoile) ; lignes tracées par le firmware au stylo du remplissage. Puis le contour par-dessus, au stylo du contour.
+- **32 pointes au plus (au lieu de 100, D151) :** les sommets et les croisements sont gardés dans des cases (3 × 128 octets) ; au-delà, une étoile ressemble à un rond.
+- **Vitesse :** environ 330 000 instructions pour une étoile à 5 pointes de 160 lignes de haut avec intérieur (contour seul : 15 000) ; le plus long : les multiplications et divisions de chaque croisement, et la lecture des sommets. À accélérer si l'essai dans WinAPE le montre (croisements suivis d'une ligne à la suivante sans division).
+- **Vérification :** `essais\star\test_star2.py` : 312 étoiles (3 MODES, centres hors de l'écran, angles et rayons au hasard), chaque morceau de chaque ligne identique à la même règle calculée en fractions exactes ; tests C# : StarTests.cs (5 de plus : intérieur comparé à la règle écrite en nombres exacts). MiniZ80 : LD BC,(nn) et SRA H ajoutés.
+- **Exemple :** examples\etoiles.bas, nouvel écran « ETOILES REMPLIES ».
+- **Essayé dans WinAPE (19 nov. 2026) :** quatre étoiles remplies (5 et 8 pointes, hexagone, 4 pointes tournée de 45 degrés) : intérieur et contour justes, sans trou ; « le remplissage est un peu lent, sinon c'est super cette instruction » : accélération à faire.
+
 ---
 
 ## Notes de fin de session (modèle)
