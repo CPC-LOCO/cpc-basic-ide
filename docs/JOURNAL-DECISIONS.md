@@ -1135,6 +1135,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Routine :** pas de VALEUR, elle reçoit ses valeurs dans les registres (l'AIDE le dit).
 - **Extension :** provisoire `.cmd.asm`, à choisir par l'utilisateur (D144) ; elle est écrite à un seul endroit (`LibraryCommandFile.Extension`).
 
+## D147 : catalogue des bibliothèques, étape B2 (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; applique D144 et D146
+- **Fichier :** `src\CpcBasic.Core\Libraries\LibraryCatalog.cs` ; tests dans `tests\CpcBasic.Tests\LibraryCatalogTests.cs`.
+- **Deux dossiers :** celui du projet (commandes protégées) puis celui du programmeur ; dans chacun, un sous-dossier par bibliothèque et un fichier par commande. Une bibliothèque présente dans les deux dossiers n'en fait qu'une.
+- **Un nom, une seule fois :** le second fichier qui donne un nom déjà pris est refusé ; le dossier du projet est lu en premier, ses commandes passent donc avant.
+- **Refusés avec un message (fichier, ligne, explication) :** un fichier faux, un nom de dossier qui ne convient pas, un fichier rangé hors d'une bibliothèque. Les autres fichiers restent au catalogue.
+- **Complément à D146 :** une COMMANDE ou une FONCTION ne peut pas contenir _ (le BASIC ne l'accepte pas dans un nom), ni commencer par FN (DEF FN), ni être déjà un mot du BASIC (PLOT...) ; une ROUTINE peut contenir _ (`MA_ROUTINE_PLOT`).
+- **Pas encore :** l'emplacement des deux dossiers sur le disque (il sera choisi avec l'éditeur, étape B4).
+
 ---
 
 ## Notes de fin de session (modèle)

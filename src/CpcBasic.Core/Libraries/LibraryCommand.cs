@@ -6,6 +6,7 @@
 // de votre choix. Voir aussi le fichier LICENSE.
 
 using System.Globalization;
+using CpcBasic.Core.Language;
 
 namespace CpcBasic.Core.Libraries;
 
@@ -156,6 +157,16 @@ public static class LibraryCommandFile
             errors.Add(new(kindLine, "une ROUTINE n'a pas de VALEUR : elle reçoit ses valeurs dans les registres (décrivez-les dans AIDE)."));
         if (parameters.Count > MaxParameters)
             errors.Add(new(kindLine, $"{parameters.Count} valeurs : {MaxParameters} au plus."));
+        if (name is not null && kind is LibraryKind.Command or LibraryKind.Function)
+        {
+            // le BASIC n'accepte pas _ dans un nom, lit FNXXX comme FN XXX, et un mot du langage ne peut pas changer de sens
+            if (name.Contains('_'))
+                errors.Add(new(nameLine, $"{name} : une commande ou une fonction ne peut pas contenir _ (le BASIC ne l'accepte pas dans un nom ; une ROUTINE le peut)."));
+            else if (name.StartsWith("FN"))
+                errors.Add(new(nameLine, $"{name} : un nom qui commence par FN est réservé aux fonctions DEF FN du BASIC."));
+            else if (Parser.IsKeyword(name))
+                errors.Add(new(nameLine, $"{name} est déjà un mot du BASIC : choisissez un autre nom."));
+        }
         if (name is not null && parameters.Any(p => p.Name == name))
             errors.Add(new(nameLine, $"une valeur ne peut pas s'appeler comme la commande ({name})."));
 

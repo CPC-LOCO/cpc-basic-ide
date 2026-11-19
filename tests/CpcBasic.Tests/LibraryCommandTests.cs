@@ -79,12 +79,24 @@ public class LibraryCommandTests
     [InlineData(";@NOM STAR\n;@GENRE COMMANDE\n;@VALEUR STAR, 0, 9", "comme la commande")]
     [InlineData(";@NOM STAR\n;@GENRE ROUTINE\n;@VALEUR X, 0, 9", "registres")]
     [InlineData(";@NOM STAR\n;@NOM STAR\n;@GENRE COMMANDE", "deux fois")]
-    public void Une_faute_donne_un_message_clair(string text, string word)
+    [InlineData(";@NOM PLOT\n;@GENRE COMMANDE", "déjà un mot du BASIC", "PLOT.cmd.asm")]
+    [InlineData(";@NOM FNDOUBLE\n;@GENRE FONCTION", "DEF FN", "FNDOUBLE.cmd.asm")]
+    [InlineData(";@NOM MA_STAR\n;@GENRE COMMANDE", "ne peut pas contenir _", "MA_STAR.cmd.asm")]
+    public void Une_faute_donne_un_message_clair(string text, string word, string file = "STAR.cmd.asm")
     {
-        var (command, errors) = Read(text);
+        var (command, errors) = Read(text, file);
 
         Assert.Null(command);
         Assert.Contains(errors, e => e.Message.Contains(word));
+    }
+
+    [Fact]
+    public void Une_routine_peut_contenir_un_souligne()
+    {
+        var (routine, errors) = Read(";@NOM MA_ROUTINE_PLOT\n;@GENRE ROUTINE\n  RET", "MA_ROUTINE_PLOT.cmd.asm");
+
+        Assert.Empty(errors);
+        Assert.Equal("MA_ROUTINE_PLOT", routine!.Name);
     }
 
     [Fact]
