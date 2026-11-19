@@ -1090,6 +1090,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé dans WinAPE (19 nov. 2026) :** examples\angles.bas : 360 points avec SIN et COS en 11,3 s, avec ISIN et ICOS en 0,75 s (dont la plus grande part est le PLOT de chaque point) ; ronds identiques ; « y a pas photo ».
 - **Place :** table 182 octets (une seule fois), fonctions environ 150 octets, seulement si le programme s'en sert.
 
+## D143 : préparation de la version 0.4.0 ; exception de liaison en vigueur (19 nov. 2026) ; applique D016 et D017
+- **Idée de l'utilisateur :** publier une version avant le chantier des bibliothèques (idée notée dans IDEES.md), pour avoir des retours et un point stable.
+- **D016 (ROM) vérifié par Claude :** aucun fichier suivi par git ne ressemble à une ROM ; essais\ (où sont les ROM de l'utilisateur) est exclu par .gitignore ; le paquet ne contient que l'éditeur compilé, les exemples .bas, COMPATIBILITE.md, LISEZMOI.txt, LICENSE (et maintenant EXCEPTION-LIAISON.md) ; aucun tableau d'octets recopié d'une ROM dans le code (la table des lettres accentuées ne contient que des numéros de caractères).
+- **D017 (exception de liaison) relue par Claude, qui n'est pas juriste :** le texte visait un dossier `runtime` qui n'existe pas (les modules sont écrits en C# depuis D024) ; les en-têtes des fichiers disaient l'exception appliquée, le README parlait de « futurs modules » ; l'exception n'était pas dans le paquet.
+- **Choix de l'utilisateur (choix 1) :** l'exception s'applique dès la 0.4.0 (« si c'est pour dire que les jeux créés avec mon projet peuvent être utilisés et distribués, alors c'est oui »), avec la mention « texte en attente de relecture ». Texte corrigé sans changer son intention : bibliothèque d'exécution définie comme le code Z80 copié par le compilateur (RuntimeLibrary.cs, RealRuntime.cs, suites écrites par CodeGenerator.cs, et les futures bibliothèques du projet) ; paragraphe « En bref » ; les bibliothèques d'autres auteurs gardent leur licence. README et LISEZMOI accordés ; le paquet contient EXCEPTION-LIAISON.md. Relecture conseillée : licensing@fsf.org ou un forum de logiciel libre.
+- **Numéro de version :** 0.4.0 dans Directory.Build.props et packaging\build-release.cmd.
+- **packaging\build-release.cmd :** lancé par un double-clic, il partait du dossier packaging\ et échouait aussitôt (fenêtre refermée) ; il se place maintenant lui-même à la racine du dépôt (`cd /d "%~dp0.."`) et attend une touche à la fin. Au deuxième essai, le paquet a été construit, mais la fenêtre s'est encore refermée (cause inconnue) : Claude a calculé la somme de contrôle sur le fichier.
+- **Paquet :** release\CpcBasic-0.4.0-win-x64.zip (environ 75 Mo, 81 exemples, EXCEPTION-LIAISON.md, aucune ROM) ; SHA256 0d3af79aebb4571beef93f7c061fcf55ff7d7015a194d55aeb3c510ca917584e (dans RELEASE-NOTES-0.4.0.md). **Essayé par l'utilisateur :** décompressé hors du projet ; Avast analyse CpcIde.exe puis le laisse passer (fichier non signé, prévu dans LISEZMOI) ; examples\ovales.bas du paquet compilé et lancé dans WinAPE.
+
 ---
 
 ## Notes de fin de session (modèle)

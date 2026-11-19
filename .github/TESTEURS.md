@@ -18,6 +18,8 @@ Presque tout le Locomotive BASIC est maintenant compilé : textes, nombres à vi
 - **Vos anciens programmes BASIC :** c'est l'essai le plus utile. Collez-les dans l'éditeur, compilez avec F5 et comparez avec le vrai BASIC. Le réglage F11 met aussi le texte sur la disquette (`LOAD"NOM.TXT"` puis `RUN`) pour comparer dans le même émulateur.
 - **Les exemples** du dossier `examples` : ouvrez-les, compilez-les avec F5, lancez le `.dsk` dans un émulateur (WinAPE, Caprice32, SugarBox...) avec `RUN"NOM"`.
 - **Le nouvel éditeur :** barre de menus (touche Alt), panneau des messages, et les commandes du CPC tapées sans numéro puis Entrée : `NEW`, `AUTO`, `EDIT 20`, `RENUM`, `DELETE 10-50`, `LIST`, et un numéro seul pour effacer une ligne. F1 affiche les raccourcis.
+- **Les nouveautés de la 0.4.0 :** `CIRCLE` et `ELLIPSE` (exemples `cercles.bas`, `ovales.bas`, `moniteur.bas`), `ISIN` et `ICOS` (exemple `angles.bas`), `DEBUG` avec le réglage F2 (exemples `debug.bas`, `debugvar.bas`, `debugtab.bas`), la liste des variables (F4), les lettres accentuées (F7).
+- **Les ronds sur un vrai CPC :** CIRCLE et ELLIPSE sont faits pour un vrai moniteur Amstrad ; dans un émulateur à points carrés, ils paraissent environ 8 % plus larges que hauts. Si vous avez un vrai CPC, une photo de `moniteur.bas` (le carré doit paraître carré, les ronds ronds) nous aiderait beaucoup.
 - **Sur plusieurs machines :** un programme compilé doit marcher sur le 464, le 664 et le 6128. Dites-nous si ce n'est pas le cas.
 - **Les erreurs exprès :** les messages sont-ils clairs ? Disent-ils où est le problème et comment le corriger ?
 

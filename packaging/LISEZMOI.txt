@@ -126,6 +126,7 @@ ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
 ----------
 Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
 Les routines Z80 copiees dans vos programmes sont sous GPL v3 avec une
-exception de liaison : vos programmes gardent la licence de votre choix.
-Le texte de cette exception est un projet, en attente de relecture
-(voir docs\RUNTIME-EXCEPTION.md sur GitHub).
+exception de liaison, en vigueur depuis la version 0.4.0 : les jeux que
+vous creez vous appartiennent ; vous pouvez les diffuser ou les vendre
+sous la licence de votre choix. Texte complet : EXCEPTION-LIAISON.md
+(dans ce dossier), en attente de relecture.

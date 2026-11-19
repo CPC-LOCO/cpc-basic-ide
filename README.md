@@ -4,15 +4,15 @@ Un éditeur coloré et un compilateur pour un **BASIC évolué**, dérivé du Lo
 
 Pensé pour celles et ceux qui veulent créer des jeux sans bien connaître la programmation, avec une bible d'instructions illustrée d'exemples réels.
 
-> **État du projet : jalon J1 terminé, développement en cours.** On peut écrire un tout petit programme, le compiler en `.dsk` et le lancer dans un émulateur. Le langage ne reconnaît pour l'instant que `PRINT` (ou `?`) et `END`. Ce n'est pas encore utilisable pour créer un jeu.
+> **État du projet : version de test 0.4.0.** Presque tout le Locomotive BASIC est compilé en langage machine (l'inventaire est terminé : voir [`docs/COMPATIBILITE-LOCOMOTIVE.md`](docs/COMPATIBILITE-LOCOMOTIVE.md)), avec des commandes en plus (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG...). Sorties cassette et cartouche GX4000, sprites : pas encore. Téléchargement : onglet **Releases** ; aide pour les testeurs : [`.github/TESTEURS.md`](.github/TESTEURS.md).
 
 ## Ce qui fonctionne aujourd'hui
 
-- **Éditeur** : fenêtre avec coloration du BASIC, numéros de ligne, copier/coller, ouvrir, enregistrer, compiler (F5), et panneau d'erreurs où un clic mène à la ligne fautive.
-- **Compilateur** : analyse le programme, génère du code Z80, ne lie que les routines utilisées, et crée un `.dsk` avec un chargeur BASIC. Lancement dans l'émulateur par `RUN"NOM"`.
+- **Éditeur** : coloration du BASIC, barre de menus, commandes du CPC tapées sans numéro (NEW, AUTO, RENUM, LIST...), compilation (F5) ou simple vérification (Maj+F5), panneau des messages où Entrée mène à la ligne fautive, liste des variables (F4), lettres accentuées telles que le CPC les affichera (F7).
+- **Compilateur** : textes, nombres à virgule (mêmes résultats que le vrai BASIC), tableaux, graphismes, sons, fichiers, interruptions, erreurs ; ne lie que les routines utilisées ; crée un `.dsk` avec un chargeur BASIC. Un programme compilé marche sur le 464, le 664 et le 6128. Lancement dans l'émulateur par `RUN"NOM"`.
 - **Messages d'erreur explicites** : la ligne, la cause, et une piste de correction.
 - **Outil en ligne de commande** pour compiler sans l'éditeur.
-- **46 tests automatiques** qui protègent le projet à chaque modification.
+- **Plus de 1600 tests automatiques** qui protègent le projet à chaque modification.
 
 Exemple de programme (`examples/hello.bas`) :
 
@@ -25,7 +25,7 @@ Exemple de programme (`examples/hello.bas`) :
 60 END
 ```
 
-Les lettres accentuées ne sont pas encore gérées : elles s'affichent sous forme de « ? ».
+Les lettres accentuées s'écrivent normalement : l'éditeur montre ce que le CPC choisi (français ou anglais, F7) affichera.
 
 ## L'essayer depuis le code source
 
@@ -81,7 +81,7 @@ Pour l'instant, le code n'accepte pas de contributions directes (voir le journal
 
 ## Licence
 
-Le code de l'éditeur et du compilateur est publié sous licence **GNU GPL v3**. Voir le fichier [`LICENSE`](LICENSE). Les futurs modules Z80 de la bibliothèque seront sous GPL v3 avec une exception qui laisse les jeux créés avec l'outil à leurs auteurs (voir [`docs/RUNTIME-EXCEPTION.md`](docs/RUNTIME-EXCEPTION.md), texte à faire relire).
+Le code de l'éditeur et du compilateur est publié sous licence **GNU GPL v3**. Voir le fichier [`LICENSE`](LICENSE). Les routines Z80 que le compilateur copie dans vos programmes sont sous GPL v3 avec une **exception de liaison**, en vigueur depuis la version 0.4.0 : **les jeux créés avec l'outil appartiennent à leur auteur**, qui peut les diffuser ou les vendre sous la licence de son choix (voir [`docs/RUNTIME-EXCEPTION.md`](docs/RUNTIME-EXCEPTION.md) ; texte en attente de relecture).
 
 ---
 
@@ -89,4 +89,4 @@ Le code de l'éditeur et du compilateur est publié sous licence **GNU GPL v3**.
 
 An editor and compiler for an enhanced BASIC dialect derived from Locomotive BASIC, aimed at making Amstrad CPC games: `.dsk` disk images today, tape files and GX4000 cartridges planned. Designed for beginners, with a documented command reference.
 
-**Status:** milestone J1 completed. You can write a tiny program (`PRINT` or `?`, and `END` only for now), compile it to a `.dsk` and run it in an emulator such as WinAPE. Not yet usable to create games. Accented letters are not supported yet. The documentation is currently in French. Feedback from the CPC community is very welcome through the repository's Issues tab. Licensed under GPL v3.
+**Status:** test version 0.4.0. Almost all of Locomotive BASIC is compiled to machine code (the inventory is complete), plus extra commands (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG...). Compiled programs run on the 464, 664 and 6128. Tape and GX4000 cartridge output, sprites: not yet. The documentation is currently in French. Feedback from the CPC community is very welcome through the repository's Issues tab. Licensed under GPL v3; the games you create belong to you (runtime library exception, see `docs/RUNTIME-EXCEPTION.md`).

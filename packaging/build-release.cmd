@@ -1,9 +1,10 @@
 @echo off
 rem Prepare la version a publier : dossier autonome + archive .zip + somme de controle.
-rem A lancer depuis la racine du depot : packaging\build-release.cmd
+rem Double-clic possible : le script se place lui-meme a la racine du depot (D143).
 setlocal
+cd /d "%~dp0.."
 
-set VERSION=0.3.0
+set VERSION=0.4.0
 set NAME=CpcBasic-%VERSION%-win-x64
 set OUT=release\%NAME%
 
@@ -28,6 +29,8 @@ copy packaging\LISEZMOI.txt "%OUT%\" >nul
 if errorlevel 1 goto erreur
 copy LICENSE "%OUT%\" >nul
 if errorlevel 1 goto erreur
+copy docs\RUNTIME-EXCEPTION.md "%OUT%\EXCEPTION-LIAISON.md" >nul
+if errorlevel 1 goto erreur
 
 echo.
 echo === Creation de l'archive .zip ===
@@ -45,7 +48,10 @@ goto fin
 :erreur
 echo.
 echo ERREUR : la preparation a echoue. Copiez les messages ci-dessus.
+pause
 exit /b 1
 
 :fin
+echo.
+pause
 endlocal
