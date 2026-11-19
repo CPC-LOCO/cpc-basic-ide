@@ -77,14 +77,14 @@ public class CircleTests
         }
     }
 
-    // Demi-largeur de la ligne à la distance d du centre : la plus grande w avec w <= k * racine((r + 1/2)² - d²),
-    // k = 0,5 / 1 / 2 selon le MODE (choix A de l'utilisateur, D130)
+    // Demi-largeur de la ligne à la distance d du centre : la plus grande w avec w <= k * f * racine((r + 1/2)² - d²),
+    // k = 0,5 / 1 / 2 selon le MODE, f = 69/64 (vrai moniteur Amstrad, D140 ; avant : f = 1, D130)
     static int HalfWidth(int mode, int r, int d)
     {
         long k4 = mode switch { 0 => 1, 1 => 4, _ => 16 };          // 4 k²
-        double exact = (1 << mode) / 2.0 * Math.Sqrt((r + 0.5) * (r + 0.5) - (double)d * d);
+        double exact = (1 << mode) / 2.0 * 69 / 64 * Math.Sqrt((r + 0.5) * (r + 0.5) - (double)d * d);
         int w = Math.Max(0, (int)Math.Floor(exact) - 1);
-        while (16L * (w + 1) * (w + 1) <= k4 * ((2L * r + 1) * (2L * r + 1) - 4L * d * d))
+        while (65536L * (w + 1) * (w + 1) <= k4 * 4761 * ((2L * r + 1) * (2L * r + 1) - 4L * d * d))
             w++;
         return w;
     }
@@ -175,10 +175,10 @@ public class CircleTests
     }
 
     [Theory]
-    // Rayon 10 : au centre, demi-largeur 0,5 / 1 / 2 fois 10,5 ; en haut et en bas, une ligne plate (pas de point seul)
+    // Rayon 10 : au centre, demi-largeur 0,5 / 1 / 2 fois 10,5 x 69/64 ; en haut et en bas, une ligne plate (pas de point seul)
     [InlineData(0, 5, 1)]
-    [InlineData(1, 10, 3)]
-    [InlineData(2, 21, 6)]
+    [InlineData(1, 11, 3)]
+    [InlineData(2, 22, 6)]
     public void Le_rond_est_corrige_en_largeur_selon_le_MODE(int mode, int middle, int top)
     {
         Assert.Equal(middle, HalfWidth(mode, 10, 0));

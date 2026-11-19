@@ -1060,6 +1060,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé dans WinAPE (19 nov. 2026) :** examples\ovales.bas : six ovales (0, 30, 60, 90, 120 degrés rempli, ovale fin) puis « un ovale qui tourne » (18 angles, et un rond rempli au centre) : conformes ; « comme c'est beau... ».
 - **Question de l'utilisateur :** SQR serait-il plus rapide ? Même idée (une racine par ligne au lieu de SIN et COS par point), mais la racine de la ROM sur 5 octets coûte plusieurs millisecondes par appel ; ici la racine avance de quelques pas d'une ligne à l'autre, en entiers.
 
+
+## D140 : ronds et ovales pour un vrai moniteur Amstrad (19 nov. 2026) (validé par l'utilisateur) ; remplace le choix A de D130
+- **Question de l'utilisateur :** les autres émulateurs ont-ils le même problème ? Réponse : cela dépend de l'émulateur et de ses réglages (la plupart montrent des points carrés ; certains imitent un écran 4:3 ; une fenêtre étirée change tout) ; sur un vrai CPC, un point du MODE 1 est environ 8 % plus étroit que haut (cpcwiki).
+- **Choix de l'utilisateur :** CIRCLE et ELLIPSE dessinent pour un vrai moniteur Amstrad, sans option (ni commande ni réglage) : « le programme est adapté pour un vrai CPC et non pas pour des émulateurs ». Remplace le choix A de D130 (ronds parfaits dans l'émulateur) ; les programmes déjà écrits dessinent des ronds un peu plus larges.
+- **Facteur :** 69/64 = 1,078 (au lieu de 1,08 : la différence de 0,2 % ne se voit pas, et ce nombre garde les calculs exacts en entiers). Largeur ×0,54 / ×1,078 / ×2,16 selon le MODE. Demi-largeur de CIRCLE : partie entière de k × 69/64 × racine((r + 1/2)² - d²). ELLIPSE : P × 4761/4096 et glissement × 69/64 au calcul de départ. Deux rayons égaux redonnent toujours exactement CIRCLE (vérifié par les tests).
+- **Réalisation :** CIRCLE : sommes sur 40 bits au lieu de 32 (valeurs de départ × 4761 = 69² par une petite multiplication), environ 26 600 instructions pour un rayon de 99 (du même ordre qu'avant), environ 755 octets au lieu de 610. ELLIPSE : trois lignes du calcul de départ. Erreur trouvée par les tests C# : un saut court (JR) devenu trop long dans CIRCLE ; les vérifications Python mesurent maintenant la longueur des sauts (essais\circle\jumps.py, essais\ellipse\jumps.py). Nouveau : essais\circle\tocs.py (écrit le module C# de CIRCLE).
+- **Dans WinAPE (réglage « Display » de l'utilisateur) :** traduit pour l'utilisateur ; aucun réglage de proportions ; avec « DirectX Stretch » coché, l'image suit la taille de la fenêtre (on peut la rétrécir en largeur pour imiter le moniteur : Alt + Espace, Taille, flèches) ; décoché, la fenêtre garde sa taille et ses points carrés.
+- **Essayé dans WinAPE (19 nov. 2026) :** examples\moniteur.bas (carré de 108 points sur 100 lignes, CIRCLE, ELLIPSE de deux rayons égaux) : environ 8 % plus larges que hauts, comme prévu.
+- **Suite décidée avec l'utilisateur (étape 2) :** quand un programme utilise CIRCLE et ELLIPSE, CIRCLE se sert du dessin des lignes d'ELLIPSE (place gagnée) ; CIRCLE seul garde sa petite routine ; les points restent exactement les mêmes.
+
 ---
 
 ## Notes de fin de session (modèle)

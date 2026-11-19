@@ -6008,9 +6008,10 @@ public static class RuntimeLibrary
 
         // CIRCLE : vrai rond à l'écran (D130). Coordonnées natives comme BOX (origine en haut à gauche, y de 0 à 199) ;
         // rayon r de 0 à 1000, compté en lignes. Ligne à la distance d du centre : demi-largeur
-        // w(d) = partie entière de k * racine((r + 1/2)² - d²), k = 0,5, 1 ou 2 selon le MODE (choix A de l'utilisateur :
-        // rond parfait dans WinAPE, presque rond sur un vrai moniteur). Calcul sans racine ni multiplication : sommes sur
-        // 32 bits, de la ligne d = r (w = 0) à d = 0.
+        // w(d) = partie entière de k * f * racine((r + 1/2)² - d²), k = 0,5, 1 ou 2 selon le MODE, f = 69/64 (D140 :
+        // rond sur un vrai moniteur Amstrad, un peu plus large que haut dans un émulateur à points carrés ; remplace le
+        // choix A de D130). Calcul sans racine : sommes sur 40 bits (x 4761 = 69² au départ), de la ligne d = r (w = 0)
+        // à d = 0.
         // Sur chaque ligne, le contour va de s = min(w(d + 1) + 1, w(d)) à w(d) de chaque côté (il se raccorde ainsi à la
         // ligne voisine) ; l'intérieur (s'il est demandé) est entre les deux : aucun point écrit deux fois.
         // Écrit une fois dans une description à part (essais\circle\routine.py), vérifiée contre une référence (504 ronds),
@@ -6050,22 +6051,29 @@ public static class RuntimeLibrary
             e.AddAA();
             e.AddAImm(2);
             e.LdMemA("rt_ci_sh");
-            e.LdHlImm(2);                      // pas de S : 2 << décalage
+            e.LdHlImm(2);                      // pas de S : (2 << décalage) x 4761 (largeur x 69/64 pour un vrai moniteur, D140)
             e.LdBA();
             e.Label("rt_ci_k");
             e.AddHlHl();
             e.DjnzLabel("rt_ci_k");
+            e.LdMemHl("rt_ci_mv");
+            e.LdHlImm(0);
+            e.LdMemHl("rt_ci_mv2");
+            e.CallLabel("rt_ci_m47");
+            e.LdHlMem("rt_ci_mr");
             e.LdMemHl("rt_ci_kk");
-            e.LdHlMem("rt_ci_r");              // S = (2r - 1) << décalage, sur 32 bits
+            e.LdHlMem("rt_ci_mr2");
+            e.LdMemHl("rt_ci_kk2");
+            e.LdHlMem("rt_ci_r");              // S = ((2r - 1) << décalage) x 4761, sur 32 bits
             e.AddHlHl();
             e.DecHl();
-            e.LdMemHl("rt_ci_s");
+            e.LdMemHl("rt_ci_mv");
             e.LdHlImm(0);
-            e.LdMemHl("rt_ci_s2");
+            e.LdMemHl("rt_ci_mv2");
             e.LdAMem("rt_ci_sh");
             e.LdBA();
             e.Label("rt_ci_ss");
-            e.LdHlLabel("rt_ci_s");
+            e.LdHlLabel("rt_ci_mv");
             e.SlaMemHl();
             e.IncHl();
             e.RlMemHl();
@@ -6074,52 +6082,61 @@ public static class RuntimeLibrary
             e.IncHl();
             e.RlMemHl();
             e.DjnzLabel("rt_ci_ss");
-            e.LdHlMem("rt_ci_r");              // T = ((2r + 1)² - 4d²) << (2 * MODE) ; au départ (d = r) : (4r + 1) << (2 * MODE)
+            e.CallLabel("rt_ci_m47");
+            e.LdHlMem("rt_ci_mr");
+            e.LdMemHl("rt_ci_s");
+            e.LdHlMem("rt_ci_mr2");
+            e.LdMemHl("rt_ci_s2");
+            e.LdHlMem("rt_ci_r");              // T = ((2r + 1)² - 4d²) x 4^MODE x 4761, sur 40 bits ; au départ (d = r) : (4r + 1) x 4^MODE x 4761
             e.LdMemHl("rt_ci_d");
             e.AddHlHl();
             e.AddHlHl();
             e.IncHl();
-            e.LdMemHl("rt_ci_t");
-            e.LdHlImm(0);
-            e.LdMemHl("rt_ci_t2");
             e.LdAMem("rt_ci_sh");
             e.SubImm(2);
             e.JrZLabel("rt_ci_t0");
             e.LdBA();
             e.Label("rt_ci_ts");
-            e.LdHlLabel("rt_ci_t");
-            e.SlaMemHl();
-            e.IncHl();
-            e.RlMemHl();
-            e.IncHl();
-            e.RlMemHl();
-            e.IncHl();
-            e.RlMemHl();
+            e.AddHlHl();                       // 4r + 1 <= 4001 : x 16 au plus, tient sur 16 bits
             e.DjnzLabel("rt_ci_ts");
             e.Label("rt_ci_t0");
-            e.LdHlImm(0);                      // w = 0 ; Q = 16 (w + 1)² : seuil pour passer à w + 1 ; E = 16 (2w + 3) : pas de Q
+            e.LdMemHl("rt_ci_mv");
+            e.LdHlImm(0);
+            e.LdMemHl("rt_ci_mv2");
+            e.CallLabel("rt_ci_m47");
+            e.LdHlMem("rt_ci_mr");
+            e.LdMemHl("rt_ci_t");
+            e.LdHlMem("rt_ci_mr2");
+            e.LdMemHl("rt_ci_t2");
+            e.XorA();
+            e.LdMemA("rt_ci_t3");
+            e.LdHlImm(0);                      // w = 0 ; Q = 65536 (w + 1)² : seuil pour passer à w + 1 (40 bits) ; E = 65536 (2w + 3) : pas de Q
             e.LdMemHl("rt_ci_w");
-            e.LdMemHl("rt_ci_q2");
-            e.LdMemHl("rt_ci_dd2");
-            e.LdHlImm(16);
             e.LdMemHl("rt_ci_q");
-            e.LdHlImm(48);
             e.LdMemHl("rt_ci_dd");
-            e.LdHlImm(0xFFFF);                 // demi-largeur de la ligne d + 1 : aucune (-1)
+            e.LdMemA("rt_ci_q3");
+            e.LdHlImm(1);
+            e.LdMemHl("rt_ci_q2");
+            e.LdHlImm(3);
+            e.LdMemHl("rt_ci_dd2");
+            e.LdHlImm(65535);                  // demi-largeur de la ligne d + 1 : aucune (-1)
             e.LdMemHl("rt_ci_wp");
             e.Label("rt_ci_loop");
-            e.LdHlMem("rt_ci_t");              // w grandit tant que Q <= T : w = partie entière de k * racine((r + 1/2)² - d²), k = 0,5, 1 ou 2
+            e.LdHlMem("rt_ci_t");              // w grandit tant que Q <= T : w = partie entière de k f racine((r + 1/2)² - d²), k = 0,5, 1 ou 2, f = 69/64
             e.LdDeMem("rt_ci_q");
             e.OrA();
             e.SbcHlDe();
             e.LdHlMem("rt_ci_t2");
             e.LdDeMem("rt_ci_q2");
             e.SbcHlDe();
-            e.JpCLabel("rt_ci_draw2");
+            e.LdAMem("rt_ci_t3");
+            e.LdHlLabel("rt_ci_q3");
+            e.SbcAMemHl();
+            e.JrCLabel("rt_ci_draw2");
             e.LdHlMem("rt_ci_w");
             e.IncHl();
             e.LdMemHl("rt_ci_w");
-            e.LdHlMem("rt_ci_q");              // Q = Q + E
+            e.LdHlMem("rt_ci_q");              // Q = Q + E (40 bits)
             e.LdDeMem("rt_ci_dd");
             e.AddHlDe();
             e.LdMemHl("rt_ci_q");
@@ -6127,13 +6144,12 @@ public static class RuntimeLibrary
             e.LdDeMem("rt_ci_dd2");
             e.AdcHlDe();
             e.LdMemHl("rt_ci_q2");
-            e.LdHlMem("rt_ci_dd");             // E = E + 32
-            e.LdDeImm(32);
-            e.AddHlDe();
-            e.LdMemHl("rt_ci_dd");
-            e.LdHlMem("rt_ci_dd2");
-            e.LdDeImm(0);
-            e.AdcHlDe();
+            e.LdAMem("rt_ci_q3");
+            e.AdcAImm(0);
+            e.LdMemA("rt_ci_q3");
+            e.LdHlMem("rt_ci_dd2");            // E = E + 131072 (2 dans les octets 2 et 3)
+            e.IncHl();
+            e.IncHl();
             e.LdMemHl("rt_ci_dd2");
             e.JrLabel("rt_ci_loop");
             e.Label("rt_ci_draw2");
@@ -6144,7 +6160,7 @@ public static class RuntimeLibrary
             e.RetZ();                          // la ligne du centre est faite
             e.DecHl();
             e.LdMemHl("rt_ci_d");
-            e.LdHlMem("rt_ci_t");              // T = T + S
+            e.LdHlMem("rt_ci_t");              // T = T + S (40 bits)
             e.LdDeMem("rt_ci_s");
             e.AddHlDe();
             e.LdMemHl("rt_ci_t");
@@ -6152,18 +6168,21 @@ public static class RuntimeLibrary
             e.LdDeMem("rt_ci_s2");
             e.AdcHlDe();
             e.LdMemHl("rt_ci_t2");
-            e.LdHlMem("rt_ci_s");              // S = S - 8n²
+            e.LdAMem("rt_ci_t3");
+            e.AdcAImm(0);
+            e.LdMemA("rt_ci_t3");
+            e.LdHlMem("rt_ci_s");              // S = S - pas
             e.LdDeMem("rt_ci_kk");
             e.OrA();
             e.SbcHlDe();
             e.LdMemHl("rt_ci_s");
             e.LdHlMem("rt_ci_s2");
-            e.LdDeImm(0);
+            e.LdDeMem("rt_ci_kk2");
             e.SbcHlDe();
             e.LdMemHl("rt_ci_s2");
             e.LdHlMem("rt_ci_w");              // la ligne suivante se raccorde à celle-ci
             e.LdMemHl("rt_ci_wp");
-            e.JpLabel("rt_ci_loop");
+            e.JpLabel("rt_ci_loop");           // saut long : la boucle fait plus de 128 octets
             e.Label("rt_ci_rows");
             e.LdHlMem("rt_ci_wp");             // le contour commence à s = min(w(d + 1) + 1, w) du centre
             e.IncHl();
@@ -6266,6 +6285,38 @@ public static class RuntimeLibrary
             e.LdDeMem("rt_ci_a1");
             e.LdHlMem("rt_ci_cy");
             e.JpLabel("rt_px_hline");
+            e.Label("rt_ci_m47");              // mr = mv x 4761 (32 bits) : un bit de 4761 à la fois
+            e.LdHlImm(0);
+            e.LdMemHl("rt_ci_mr");
+            e.LdMemHl("rt_ci_mr2");
+            e.LdHlImm(4761);
+            e.LdMemHl("rt_ci_mk");
+            e.Label("rt_ci_m1");
+            e.LdHlMem("rt_ci_mk");
+            e.SrlH();
+            e.RrL();
+            e.LdMemHl("rt_ci_mk");
+            e.JrNcLabel("rt_ci_m2");
+            e.LdHlMem("rt_ci_mr");
+            e.LdDeMem("rt_ci_mv");
+            e.AddHlDe();
+            e.LdMemHl("rt_ci_mr");
+            e.LdHlMem("rt_ci_mr2");
+            e.LdDeMem("rt_ci_mv2");
+            e.AdcHlDe();
+            e.LdMemHl("rt_ci_mr2");
+            e.Label("rt_ci_m2");
+            e.LdHlMem("rt_ci_mv");
+            e.AddHlHl();
+            e.LdMemHl("rt_ci_mv");
+            e.LdHlMem("rt_ci_mv2");
+            e.AdcHlHl();
+            e.LdMemHl("rt_ci_mv2");
+            e.LdHlMem("rt_ci_mk");
+            e.LdAH();
+            e.OrL();
+            e.JrNzLabel("rt_ci_m1");
+            e.Ret();
             e.Label("rt_ci_x");
             e.Reserve(2);
             e.Label("rt_ci_y");
@@ -6286,6 +6337,8 @@ public static class RuntimeLibrary
             e.Reserve(1);
             e.Label("rt_ci_kk");
             e.Reserve(2);
+            e.Label("rt_ci_kk2");
+            e.Reserve(2);
             e.Label("rt_ci_s");
             e.Reserve(2);
             e.Label("rt_ci_s2");
@@ -6294,10 +6347,14 @@ public static class RuntimeLibrary
             e.Reserve(2);
             e.Label("rt_ci_t2");
             e.Reserve(2);
+            e.Label("rt_ci_t3");
+            e.Reserve(1);
             e.Label("rt_ci_q");
             e.Reserve(2);
             e.Label("rt_ci_q2");
             e.Reserve(2);
+            e.Label("rt_ci_q3");
+            e.Reserve(1);
             e.Label("rt_ci_dd");
             e.Reserve(2);
             e.Label("rt_ci_dd2");
@@ -6316,6 +6373,16 @@ public static class RuntimeLibrary
             e.Reserve(2);
             e.Label("rt_ci_a2");
             e.Reserve(2);
+            e.Label("rt_ci_mv");
+            e.Reserve(2);
+            e.Label("rt_ci_mv2");
+            e.Reserve(2);
+            e.Label("rt_ci_mr");
+            e.Reserve(2);
+            e.Label("rt_ci_mr2");
+            e.Reserve(2);
+            e.Label("rt_ci_mk");
+            e.Reserve(2);
         }),
 
         // ELLIPSE (D139) : ovale de rayons a (sur x) et b (sur y), incliné de t degrés (le côté droit monte quand t > 0).
@@ -6323,6 +6390,7 @@ public static class RuntimeLibrary
         // nombres entiers de plusieurs octets (table de sinus de 0 à 90 degrés, multiplications, divisions, une racine),
         // gardé pour l'ovale suivant s'il a les mêmes rayons, angle et MODE ; puis les lignes de d = D à 0 : bords à
         // racine(T) de part et d'autre du centre glissé de la ligne, T = P - Q d², racine qui ne fait que grandir.
+        // Largeur x 69/64 comme CIRCLE (vrai moniteur Amstrad, D140).
         // Contour : points qui touchent l'extérieur, prolongés jusqu'à la ligne voisine si elles ne se touchent pas.
         // Deux rayons égaux : exactement les points de CIRCLE. Écrit une fois dans une description à part
         // (essais\ellipse\routine.py), vérifiée contre la méthode en nombres entiers (essais\ellipse\entiers.py,
@@ -6565,9 +6633,27 @@ public static class RuntimeLibrary
             e.LdDeLabel("rt_el_X");
             e.LdBcImm(771);
             e.LdAImm(8);
-            e.CallLabel("rt_el_mulp");           // P = X² (en points du MODE 1 ; k est appliqué aux bords)
+            e.CallLabel("rt_el_mulp");           // X² (en points du MODE 1 ; k est appliqué aux bords)
             e.LdDeLabel("rt_el_P");
             e.CallLabel("rt_el_mout");
+            e.LdHlImm(4761);
+            e.LdMemHl("rt_el_f2");               // f² = (69/64)² = 4761 / 4096 : largeur pour un vrai moniteur (D140)
+            e.LdHlLabel("rt_el_P");
+            e.LdDeLabel("rt_el_f2");
+            e.LdBcImm(1538);
+            e.LdAImm(8);
+            e.CallLabel("rt_el_mulp");           // P = X² x 4761 / 4096
+            e.LdDeLabel("rt_el_P");
+            e.CallLabel("rt_el_mout");
+            e.LdAImm(12);
+            e.LdMemA("rt_el_cnt");
+            e.Label("rt_el_p3");
+            e.LdHlLabel("rt_el_P");
+            e.LdBImm(8);
+            e.CallLabel("rt_el_shr");
+            e.LdHlLabel("rt_el_cnt");
+            e.DecMemHl();
+            e.JrNzLabel("rt_el_p3");
             e.LdHlLabel("rt_el_Y");
             e.LdDeLabel("rt_el_Y");
             e.LdBcImm(771);
@@ -6645,19 +6731,27 @@ public static class RuntimeLibrary
             e.CallLabel("rt_el_mulp");           // sin cos
             e.LdDeLabel("rt_el_SC");
             e.CallLabel("rt_el_mout");
-            e.LdHlLabel("rt_el_da");
-            e.LdBImm(10);
-            e.CallLabel("rt_el_clr");
             e.LdHlLabel("rt_el_a2");
             e.LdDeLabel("rt_el_SC");
             e.LdBcImm(772);
             e.LdAImm(8);
-            e.CallLabel("rt_el_mulp");           // x 2^16 : produit posé 2 octets plus haut
-            e.LdDeLabel("rt_el_da2");
+            e.CallLabel("rt_el_mulp");
+            e.LdDeLabel("rt_el_tmp");
             e.CallLabel("rt_el_mout");
-            e.LdAMem("rt_el_mode");              // puis x 2^MODE : k (1/2, 1 ou 2) et 2 pour l'arrondi
-            e.OrA();
-            e.JrZLabel("rt_el_s3");
+            e.LdAImm(69);
+            e.LdMemA("rt_el_f69");
+            e.LdHlLabel("rt_el_da");
+            e.LdBImm(10);
+            e.CallLabel("rt_el_clr");
+            e.LdHlLabel("rt_el_tmp");
+            e.LdDeLabel("rt_el_f69");
+            e.LdBcImm(1793);
+            e.LdAImm(8);
+            e.CallLabel("rt_el_mulp");           // x 69 (f = 69/64), posé 1 octet plus haut : x 2^8
+            e.LdDeLabel("rt_el_da1");
+            e.CallLabel("rt_el_mout");
+            e.LdAMem("rt_el_mode");              // puis x 2^(2 + MODE) : 2^16 / 64, k (1/2, 1 ou 2) et 2 pour l'arrondi
+            e.AddAImm(2);
             e.LdMemA("rt_el_cnt");
             e.Label("rt_el_s2");
             e.LdHlLabel("rt_el_da");
@@ -6666,7 +6760,6 @@ public static class RuntimeLibrary
             e.LdHlLabel("rt_el_cnt");
             e.DecMemHl();
             e.JrNzLabel("rt_el_s2");
-            e.Label("rt_el_s3");
             e.LdHlLabel("rt_el_zero2");
             e.LdBImm(2);
             e.CallLabel("rt_el_clr");
@@ -7677,11 +7770,17 @@ public static class RuntimeLibrary
             e.Label("rt_el_mp");
             e.Reserve(2);
             e.Label("rt_el_da");
-            e.Reserve(2);
+            e.Reserve(1);
+            e.Label("rt_el_da1");
+            e.Reserve(1);
             e.Label("rt_el_da2");
             e.Reserve(1);
             e.Label("rt_el_da3");
             e.Reserve(7);
+            e.Label("rt_el_f2");
+            e.Reserve(2);
+            e.Label("rt_el_f69");
+            e.Reserve(1);
             e.Label("rt_el_db");
             e.Reserve(9);
             e.Label("rt_el_db9");

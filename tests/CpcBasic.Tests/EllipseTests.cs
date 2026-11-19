@@ -123,12 +123,12 @@ public class EllipseTests
         long h14 = ISqrt(a28);
         long x = h14 == 0 ? ((a * c + b * s) >> 2) + 2048 : ((long)a * b << 26) / h14 + 2048;
         long y = (h14 >> 2) + 2048;
-        long p = x * x;
+        long p = x * x * 4761 >> 12;                  // largeur x 69/64 : vrai moniteur Amstrad (D140)
         long q = (long)(((BigInteger)p << 24) / ((BigInteger)y * y));
         long s16 = 0;
         if (a28 != 0 && a != b)
         {
-            BigInteger num = (BigInteger)Math.Abs((long)a * a - (long)b * b) * s * c << (15 + mode);
+            BigInteger num = (BigInteger)Math.Abs((long)a * a - (long)b * b) * s * c * 69 << (9 + mode);
             s16 = (long)((2 * num + a28) / (2 * (BigInteger)a28));
             if ((a < b) != neg)
                 s16 = -s16;
