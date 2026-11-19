@@ -12,7 +12,7 @@ namespace CpcBasic.Core.Codegen;
 /// </summary>
 public sealed class Z80Emitter
 {
-    readonly record struct Fixup(int Position, string Label, bool Relative);
+    readonly record struct Fixup(int Position, string Label, bool Relative, int Addend = 0);
 
     readonly List<byte> code = new();
     readonly Dictionary<string, int> labels = new();
@@ -284,6 +284,7 @@ public sealed class Z80Emitter
             if (!labels.TryGetValue(f.Label, out int target))
                 throw new InvalidOperationException($"Étiquette inconnue : {f.Label}");
 
+            target += f.Addend;                 // étiquette + décalage (assembleur des bibliothèques, D145)
             if (f.Relative)
             {
                 int offset = target - (f.Position + 1);
@@ -306,6 +307,21 @@ public sealed class Z80Emitter
     {
         code.Add((byte)(value & 0xFF));
         code.Add((byte)((value >> 8) & 0xFF));
+    }
+
+    /// <summary>Deux octets : l'adresse de l'étiquette plus un décalage (DW TABLE+2, LD HL,TABLE+2 ; D145).</summary>
+    public void AbsoluteWord(string label, int addend)
+    {
+        fixups.Add(new Fixup(code.Count, label, false, addend));
+        code.Add(0);
+        code.Add(0);
+    }
+
+    /// <summary>Un octet : le décalage d'un saut relatif (JR, DJNZ) vers l'étiquette plus un décalage (D145).</summary>
+    public void RelativeByte(string label, int addend)
+    {
+        fixups.Add(new Fixup(code.Count, label, true, addend));
+        code.Add(0);
     }
 
     void AddAbsolute(string label)
