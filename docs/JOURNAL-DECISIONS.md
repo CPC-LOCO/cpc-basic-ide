@@ -1159,6 +1159,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Message de F5 :** une ligne « Bibliothèques utilisées : GRAPHIQUE (STAR, POLYGON) » ; les modules du compilateur restent sur leur ligne. Un fichier de commande refusé par le catalogue est signalé (en rouge) à la fin du compte rendu, avec son dossier, sa ligne et l'explication.
 - **Fichiers :** `src\CpcIde\LibraryFolders.cs` (nouveau), `MainWindow.axaml.cs`, `CpcIde.csproj`, `bibliotheques\LISEZMOI.txt`.
 
+## D150 : valeurs facultatives des commandes de bibliothèque ; la commande STAR (19 nov. 2026) (validé par l'utilisateur ; forme du fichier choisie par l'assistant) ; complète D146 et D148
+- **Demande de l'utilisateur :** pouvoir sauter des valeurs, comme avec ELLIPSE (choix 1).
+- **Dans le fichier :** `;@OPTION nom, plus petite, plus grande, valeur si sautée, rôle`. La valeur si sautée peut être hors des limites : la routine sait ainsi que la valeur a été sautée (par exemple -1 pour « stylo du moment »). Les OPTION viennent après toutes les VALEUR.
+- **En BASIC :** une OPTION se saute par une place vide (`STAR 320,200,30,80,5,,2`) ou en s'arrêtant avant (`STAR 320,200,30,80,5`) ; une virgule à la fin est une faute. Une fonction dont toutes les valeurs sont facultatives peut s'écrire sans parenthèses.
+- **Message d'erreur :** la bonne écriture montre les OPTION entre crochets : « STAR x, y, r1, r2, pointes [, stylo] [, remplissage] [, angle] ».
+- **STAR (décision de l'utilisateur) :** une seule commande pour les étoiles avec le nombre de pointes voulu ; les polygones s'obtiennent avec un rayon interne assez grand ; pas de commande POLYGON. Forme : `STAR x, y, rayon interne, rayon externe, pointes [, stylo] [, remplissage] [, angle]` ; nom STAR gardé (« simple à retenir »). Le contour d'abord, le remplissage ensuite.
+
 ---
 
 ## Notes de fin de session (modèle)

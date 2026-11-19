@@ -52,6 +52,32 @@ public class LibraryCompileTests
                     RET
             """, false),
         new CatalogSource("CALCUL", "DEUX.cmd.asm", ";@NOM DEUX\n;@GENRE FONCTION\n  LD HL,2\n  RET", false),
+        // OPT(n1 [, n2] [, n3]) = n1 + n2 + n3, avec n2 = -1 et n3 = 7 quand elles sont sautées (D150)
+        new CatalogSource("CALCUL", "OPT.cmd.asm", """
+            ;@NOM OPT
+            ;@GENRE FONCTION
+            ;@VALEUR N1, -100, 100
+            ;@OPTION N2, -100, 100, -1
+            ;@OPTION N3, -100, 100, 7
+                    LD HL,(N1)
+                    LD DE,(N2)
+                    ADD HL,DE
+                    LD DE,(N3)
+                    ADD HL,DE
+                    RET
+            """, false),
+        // DEUXL code1 [, code2] : deux caractères, « ! » si le second est sauté
+        new CatalogSource("TEXTE", "DEUXL.cmd.asm", """
+            ;@NOM DEUXL
+            ;@GENRE COMMANDE
+            ;@VALEUR CODE1, 32, 255
+            ;@OPTION CODE2, 32, 255, 33
+                    LD A,(CODE1)
+                    CALL &BB5A
+                    LD A,(CODE2)
+                    CALL &BB5A
+                    RET
+            """, false),
         new CatalogSource("CALCUL", "CASSE.cmd.asm", ";@NOM CASSE\n;@GENRE COMMANDE\n  LD A,\n  CALL NULLEPART\n  RET", false)
     ]);
 
@@ -121,12 +147,29 @@ public class LibraryCompileTests
         Assert.Equal(DiagnosticCode.UnknownCommand, Error("10 LETTRE 65", CompilerOptions.Default).Code);
     }
 
+    [Theory]
+    [InlineData("10 PRINT OPT(1)", " 7 ")]
+    [InlineData("10 PRINT OPT(1,5)", " 13 ")]
+    [InlineData("10 PRINT OPT(1,,2)", " 2 ")]
+    [InlineData("10 PRINT OPT(1,5,2)", " 8 ")]
+    [InlineData("10 DEUXL 65", "A!")]
+    [InlineData("10 DEUXL 65,66", "AB")]
+    public void Une_option_peut_etre_sautee(string source, string expected)
+    {
+        Assert.StartsWith(expected, Run(source).Output);
+    }
+
     // ---------- erreurs ----------
 
     [Theory]
     [InlineData("10 LETTRE", "LETTRE code")]
     [InlineData("10 LETTRE 65,66", "LETTRE code")]
     [InlineData("10 X=SOMME(1)", "SOMME(a1, b1)")]
+    [InlineData("10 X=OPT(,2)", "OPT(n1 [, n2] [, n3])")]
+    [InlineData("10 X=OPT(1,2,3,4)", "OPT(n1 [, n2] [, n3])")]
+    [InlineData("10 X=OPT(1,)", "OPT(n1 [, n2] [, n3])")]
+    [InlineData("10 DEUXL 65,", "DEUXL code1 [, code2]")]
+    [InlineData("10 DEUXL ,66", "DEUXL code1 [, code2]")]
     public void Le_nombre_de_valeurs_est_verifie(string source, string signature)
     {
         Diagnostic error = Error(source);

@@ -1171,98 +1171,133 @@ public static class Parser
 
     // ----- Bibliothèques (D144, D148) -----
 
-    // STAR x, y, rayon : toutes les valeurs, dans l'ordre du questionnaire
+    // STAR x, y, r1, r2, pointes [, stylo] [, remplissage] [, angle] : valeurs dans l'ordre du questionnaire ;
+    // une OPTION peut être sautée (place vide « ,, » ou omise à la fin), comme pour ELLIPSE (D150)
     static int ParseLibraryCommand(IReadOnlyList<Token> tokens, int pos, LibraryCommand command, List<Statement> statements,
                                    List<Diagnostic> diagnostics)
     {
         Token name = tokens[pos];
         pos++;
-        var arguments = new List<Expression>();
+        var written = new List<Expression?>();
+        if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos])
+            && !ParseLibraryValues(tokens, ref pos, written, diagnostics, out bool _))
+            return SkipToStatementEnd(tokens, pos);
         if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
-        {
-            while (true)
-            {
-                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
-                if (value is null)
-                    return SkipToStatementEnd(tokens, pos);
-                arguments.Add(value);
-                if (tokens[pos].Kind != TokenKind.Comma)
-                    break;
-                pos++;
-            }
-        }
-        if (arguments.Count != command.Parameters.Count || (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos])))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, LibrarySignature(command)));
             return SkipToStatementEnd(tokens, pos);
         }
-        CheckLibraryArguments(command, arguments, name.Line, diagnostics);
+        List<Expression>? arguments = CompleteLibraryArguments(command, written, name.Line, diagnostics);
+        if (arguments is null)
+            return SkipToStatementEnd(tokens, pos);
         statements.Add(new LibraryCallStatement(name.Line, command.Name, arguments));
         return pos;
     }
 
-    // LUNE(n) ; une fonction sans valeur s'écrit sans parenthèses, comme TIME
+    // LUNE(n [, option]) ; une fonction sans valeur obligatoire peut s'écrire sans parenthèses, comme TIME
     static Expression? ParseLibraryFunction(IReadOnlyList<Token> tokens, ref int pos, LibraryCommand function,
                                             List<Diagnostic> diagnostics)
     {
         Token name = tokens[pos];
         pos++;
-        var arguments = new List<Expression>();
-        if (function.Parameters.Count > 0)
+        var written = new List<Expression?>();
+        if (tokens[pos].Kind == TokenKind.LeftParen && function.Parameters.Count > 0)
         {
-            if (tokens[pos].Kind != TokenKind.LeftParen)
-            {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedOpenParenthesis, name.Line, LibrarySignature(function)));
-                return null;
-            }
             pos++;
-            while (true)
-            {
-                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
-                if (value is null)
-                    return null;
-                arguments.Add(value);
-                if (tokens[pos].Kind != TokenKind.Comma)
-                    break;
-                pos++;
-            }
+            if (!ParseLibraryValues(tokens, ref pos, written, diagnostics, out bool _))
+                return null;
             if (tokens[pos].Kind != TokenKind.RightParen)
             {
                 diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, name.Line));
                 return null;
             }
             pos++;
-            if (arguments.Count != function.Parameters.Count)
-            {
-                diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, LibrarySignature(function)));
-                return null;
-            }
         }
-        CheckLibraryArguments(function, arguments, name.Line, diagnostics);
-        return new LibraryCallExpression(function.Name, arguments);
+        else if (function.Parameters.Any(p => !p.IsOptional))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedOpenParenthesis, name.Line, LibrarySignature(function)));
+            return null;
+        }
+        List<Expression>? arguments = CompleteLibraryArguments(function, written, name.Line, diagnostics);
+        return arguments is null ? null : new LibraryCallExpression(function.Name, arguments);
     }
 
-    // « STAR x, y, rayon » ou « LUNE(n) », avec les noms du questionnaire
+    // Valeurs séparées par des virgules ; une place vide (« 5,,2 ») donne null. Une virgule à la fin (« 5, ») est une faute.
+    static bool ParseLibraryValues(IReadOnlyList<Token> tokens, ref int pos, List<Expression?> values,
+                                   List<Diagnostic> diagnostics, out bool trailingComma)
+    {
+        trailingComma = false;
+        while (true)
+        {
+            if (tokens[pos].Kind == TokenKind.Comma)
+                values.Add(null);                                // place vide
+            else if (IsStatementEnd(tokens[pos]) || IsElse(tokens[pos]) || tokens[pos].Kind == TokenKind.RightParen)
+            {
+                if (values.Count > 0)
+                {
+                    trailingComma = true;
+                    values.Add(null);                            // « STAR 1,2, » : repéré par CompleteLibraryArguments
+                }
+                return true;
+            }
+            else
+            {
+                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                if (value is null)
+                    return false;
+                values.Add(value);
+            }
+            if (tokens[pos].Kind != TokenKind.Comma)
+                return true;
+            pos++;
+        }
+    }
+
+    // Vérifie les valeurs écrites et met à la place des OPTION sautées la valeur prévue ; null s'il y a une faute
+    static List<Expression>? CompleteLibraryArguments(LibraryCommand command, List<Expression?> written, int line,
+                                                      List<Diagnostic> diagnostics)
+    {
+        bool emptyAtEnd = written.Count > 0 && written[^1] is null;
+        if (written.Count > command.Parameters.Count || emptyAtEnd
+            || command.Parameters.Where((p, i) => !p.IsOptional && (i >= written.Count || written[i] is null)).Any())
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, line, LibrarySignature(command)));
+            return null;
+        }
+        var arguments = new List<Expression>();
+        for (int i = 0; i < command.Parameters.Count; i++)
+        {
+            LibraryParameter parameter = command.Parameters[i];
+            Expression? value = i < written.Count ? written[i] : null;
+            if (value is null)
+            {
+                arguments.Add(new NumberExpression(parameter.Default!.Value));     // OPTION sautée (D150)
+                continue;
+            }
+            int before = diagnostics.Count;
+            CheckConstantRange(value, parameter.Min, parameter.Max, line, diagnostics);
+            if (diagnostics.Count > before)
+                diagnostics[^1] = diagnostics[^1] with { Context = $"{command.Name}, valeur {parameter.Name.ToLowerInvariant()}" };
+            arguments.Add(value);
+        }
+        libraryUses?.TryAdd(command.Name, line);
+        return arguments;
+    }
+
+    // « STAR x, y [, stylo] » ou « LUNE(n [, option]) », avec les noms du questionnaire
     static string LibrarySignature(LibraryCommand command)
     {
-        string names = string.Join(", ", command.Parameters.Select(p => p.Name.ToLowerInvariant()));
+        var text = new System.Text.StringBuilder();
+        foreach (LibraryParameter p in command.Parameters)
+        {
+            string separator = text.Length == 0 ? "" : ", ";
+            string word = p.Name.ToLowerInvariant();
+            text.Append(p.IsOptional ? $" [{separator}{word}]" : separator + word);
+        }
+        string names = text.ToString().Trim();
         if (command.Kind == LibraryKind.Function)
             return command.Parameters.Count == 0 ? command.Name : $"{command.Name}({names})";
         return command.Parameters.Count == 0 ? command.Name : $"{command.Name} {names}";
-    }
-
-    // Un nombre écrit hors des limites du questionnaire : erreur dès la compilation ; note la première utilisation
-    static void CheckLibraryArguments(LibraryCommand command, List<Expression> arguments, int line, List<Diagnostic> diagnostics)
-    {
-        for (int i = 0; i < arguments.Count; i++)
-        {
-            LibraryParameter parameter = command.Parameters[i];
-            int before = diagnostics.Count;
-            CheckConstantRange(arguments[i], parameter.Min, parameter.Max, line, diagnostics);
-            if (diagnostics.Count > before)
-                diagnostics[^1] = diagnostics[^1] with { Context = $"{command.Name}, valeur {parameter.Name.ToLowerInvariant()}" };
-        }
-        libraryUses?.TryAdd(command.Name, line);
     }
 
     // Le code assembleur des commandes utilisées (et des routines qu'elles appellent) est vérifié ici

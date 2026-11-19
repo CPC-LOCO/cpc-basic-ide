@@ -91,6 +91,29 @@ public class LibraryCommandTests
     }
 
     [Fact]
+    public void Une_option_a_sa_valeur_si_elle_est_sautee()
+    {
+        var (command, errors) = Read(";@NOM STAR\n;@GENRE COMMANDE\n;@VALEUR X, 0, 639\n;@OPTION STYLO, 0, 15, -1, couleur, du contour\n  RET");
+
+        Assert.Empty(errors);
+        Assert.False(command!.Parameters[0].IsOptional);
+        Assert.Equal(new LibraryParameter("STYLO", 0, 15, "couleur, du contour", -1), command.Parameters[1]);
+        Assert.True(command.Parameters[1].IsOptional);
+    }
+
+    [Theory]
+    [InlineData(";@NOM STAR\n;@GENRE COMMANDE\n;@OPTION S, 0, 15, -1\n;@VALEUR X, 0, 9", "après une OPTION")]
+    [InlineData(";@NOM STAR\n;@GENRE COMMANDE\n;@OPTION S, 0, 15", "valeur si elle est sautée")]
+    [InlineData(";@NOM STAR\n;@GENRE COMMANDE\n;@OPTION S, 0, 15, rien", "« rien »")]
+    public void Une_option_mal_ecrite_est_refusee(string text, string word)
+    {
+        var (command, errors) = Read(text);
+
+        Assert.Null(command);
+        Assert.Contains(errors, e => e.Message.Contains(word));
+    }
+
+    [Fact]
     public void Une_routine_peut_contenir_un_souligne()
     {
         var (routine, errors) = Read(";@NOM MA_ROUTINE_PLOT\n;@GENRE ROUTINE\n  RET", "MA_ROUTINE_PLOT.cmd.asm");

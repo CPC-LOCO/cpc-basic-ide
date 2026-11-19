@@ -13,8 +13,15 @@ namespace CpcBasic.Core.Libraries;
 /// <summary>Genre d'un élément de bibliothèque (D144) : commande ou fonction du BASIC, ou routine pour l'assembleur seulement.</summary>
 public enum LibraryKind { Command, Function, Routine }
 
-/// <summary>Une valeur donnée à une commande ou à une fonction : son nom (celui de sa case mémoire), ses limites et son rôle.</summary>
-public sealed record LibraryParameter(string Name, int Min, int Max, string Description);
+/// <summary>
+/// Une valeur donnée à une commande ou à une fonction : son nom (celui de sa case mémoire), ses limites et son rôle.
+/// Default : pour une valeur facultative (;@OPTION, D150), ce que reçoit la routine quand la valeur est sautée
+/// (elle peut être hors des limites : la routine sait ainsi qu'elle a été sautée) ; null : valeur obligatoire.
+/// </summary>
+public sealed record LibraryParameter(string Name, int Min, int Max, string Description, int? Default = null)
+{
+    public bool IsOptional => Default is not null;
+}
 
 /// <summary>Une erreur dans un fichier de commande : numéro de ligne (à partir de 1) et explication.</summary>
 public sealed record LibraryError(int Line, string Message)
@@ -44,6 +51,7 @@ public sealed record LibraryCommand(
 /// ;@GENRE COMMANDE                       (COMMANDE, FONCTION ou ROUTINE)
 /// ;@VALEUR X, 0, 639, position horizontale du centre
 /// ;@VALEUR Y, 0, 399, position verticale du centre
+/// ;@OPTION STYLO, 0, 15, -1, couleur du contour (sautée : la routine reçoit -1)
 /// ;@AIDE Dessine une étoile
 /// ;@AUTEUR RetroPoke
 ///         LD HL,(X)
@@ -124,8 +132,15 @@ public static class LibraryCommandFile
                     break;
 
                 case "VALEUR":
-                    if (ParseParameter(value, parameters) is string parameterError)
+                    if (parameters.Any(p => p.IsOptional))
+                        errors.Add(new(number, "une VALEUR obligatoire ne peut pas venir après une OPTION : mettez les OPTION à la fin."));
+                    else if (ParseParameter(value, parameters, optional: false) is string parameterError)
                         errors.Add(new(number, parameterError));
+                    break;
+
+                case "OPTION":                  // valeur facultative (D150)
+                    if (ParseParameter(value, parameters, optional: true) is string optionError)
+                        errors.Add(new(number, optionError));
                     break;
 
                 case "AIDE":
@@ -137,7 +152,7 @@ public static class LibraryCommandFile
                     break;
 
                 default:
-                    errors.Add(new(number, $"« ;@{keyword} » n'est pas connu (NOM, GENRE, VALEUR, AIDE ou AUTEUR)."));
+                    errors.Add(new(number, $"« ;@{keyword} » n'est pas connu (NOM, GENRE, VALEUR, OPTION, AIDE ou AUTEUR)."));
                     break;
             }
         }
@@ -198,12 +213,16 @@ public static class LibraryCommandFile
         return null;
     }
 
-    // VALEUR nom, min, max[, description]
-    static string? ParseParameter(string value, List<LibraryParameter> parameters)
+    // VALEUR nom, min, max[, description] ; OPTION nom, min, max, valeur si sautée[, description] (D150)
+    static string? ParseParameter(string value, List<LibraryParameter> parameters, bool optional)
     {
-        string[] parts = value.Split(',', 4);
-        if (parts.Length < 3)
-            return $"VALEUR « {value} » : écrivez VALEUR nom, plus petite valeur, plus grande valeur, rôle (par exemple VALEUR X, 0, 639, position horizontale).";
+        string keyword = optional ? "OPTION" : "VALEUR";
+        int fixedParts = optional ? 4 : 3;
+        string[] parts = value.Split(',', fixedParts + 1);
+        if (parts.Length < fixedParts)
+            return optional
+                ? $"OPTION « {value} » : écrivez OPTION nom, plus petite valeur, plus grande valeur, valeur si elle est sautée, rôle (par exemple OPTION STYLO, 0, 15, -1, couleur du contour)."
+                : $"VALEUR « {value} » : écrivez VALEUR nom, plus petite valeur, plus grande valeur, rôle (par exemple VALEUR X, 0, 639, position horizontale).";
         string name = parts[0].Trim();
         if (CheckName(name, "le nom d'une valeur") is string nameError)
             return nameError;
@@ -211,14 +230,21 @@ public static class LibraryCommandFile
         if (parameters.Any(p => p.Name == name))
             return $"la valeur {name} est déjà déclarée.";
         if (!TryNumber(parts[1].Trim(), out int min))
-            return $"VALEUR {name} : « {parts[1].Trim()} » n'est pas un nombre entier de -32768 à 65535.";
+            return $"{keyword} {name} : « {parts[1].Trim()} » n'est pas un nombre entier de -32768 à 65535.";
         if (!TryNumber(parts[2].Trim(), out int max))
-            return $"VALEUR {name} : « {parts[2].Trim()} » n'est pas un nombre entier de -32768 à 65535.";
+            return $"{keyword} {name} : « {parts[2].Trim()} » n'est pas un nombre entier de -32768 à 65535.";
         if (min > max)
-            return $"VALEUR {name} : la plus petite valeur ({min}) dépasse la plus grande ({max}).";
+            return $"{keyword} {name} : la plus petite valeur ({min}) dépasse la plus grande ({max}).";
         if (max - min > 65535)
-            return $"VALEUR {name} : de {min} à {max}, c'est trop pour une case de 2 octets.";
-        parameters.Add(new LibraryParameter(name, min, max, parts.Length == 4 ? parts[3].Trim() : ""));
+            return $"{keyword} {name} : de {min} à {max}, c'est trop pour une case de 2 octets.";
+        int? fallback = null;
+        if (optional)
+        {
+            if (!TryNumber(parts[3].Trim(), out int skipped))
+                return $"OPTION {name} : la valeur si elle est sautée, « {parts[3].Trim()} », n'est pas un nombre entier de -32768 à 65535.";
+            fallback = skipped;
+        }
+        parameters.Add(new LibraryParameter(name, min, max, parts.Length > fixedParts ? parts[fixedParts].Trim() : "", fallback));
         return null;
     }
 
