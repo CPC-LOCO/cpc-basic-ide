@@ -265,6 +265,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `DEBUG` | affiche les variables et leurs valeurs (mise au point) | Ajout du projet | Seulement avec le réglage « Mise au point » (F2) ; sinon ignoré. ESPACE : suite ; S : plus aucun DEBUG (D136). `DEBUG A,B$` : seulement ces variables, dans l'ordre écrit (D137) ; `DEBUG T(I)` : une seule case, avec son vrai numéro (D138). |
 | `CIRCLE` | rond : contour et remplissage | Ajout du projet | CIRCLE x, y, rayon (0 à 1000) [, stylo [, remplissage]], repère natif, rond sur un vrai moniteur Amstrad : largeur ×0,54 / ×1,078 / ×2,16 selon le MODE (D130, D140 ; un peu plus large que haut dans un émulateur à points carrés). |
 | `ELLIPSE` | ovale droit ou incliné : contour et remplissage | Ajout du projet | ELLIPSE x, y, rayon x, rayon y (0 à 1000) [, stylo [, remplissage [, angle]]], places vides permises (`ELLIPSE 160,100,50,20,,,30`) ; angle en degrés, le côté droit monte quand il est positif ; même largeur que CIRCLE (vrai moniteur, D140) ; deux rayons égaux = CIRCLE (D139). |
+| `STAR` | étoile (et polygone) : contour | Ajout du projet, **bibliothèque GRAPHIQUE** (D150, D151) | STAR x, y, rayon interne, rayon externe, pointes (2 à 100) [, stylo] [, remplissage] [, angle] ; repère natif et largeur de CIRCLE ; angle 0 : une pointe en haut ; remplissage accepté mais pas encore dessiné. Écrite en assembleur dans `bibliotheques\GRAPHIQUE\STAR.cmd.asm`. |
 | `ISIN`, `ICOS` | sinus et cosinus rapides en entiers | Ajout du projet | ISIN(angle, échelle), ICOS(angle, échelle) : sinus ou cosinus x échelle, arrondi ; angle en degrés au degré près (table) ; environ 15 fois plus rapide que SIN et COS pour placer des points ; SIN et COS restent ceux du Locomotive (D142). |
 | `BYTE` | variable sur un octet | Ajout du projet | Déclaration obligatoire avant usage. |
 | `EXIT / CONTINUE` | sortie / suite d'une boucle | Ajout du projet |  |
@@ -276,7 +277,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `RANDOM` | nombre au hasard entre deux bornes | Ajout du projet | RANDOM(min, max). |
 | `PAINT` | colorie la zone de l'encre qui est sous le curseur graphique | Ajout du projet | PAINT encre (D107, D108) : seulement les points de cette encre qui se touchent par les côtés. Idée de l'utilisateur. |
 
-**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : STAR, POLYGON, SPRITE, COLLIDE, SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE.
+**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : SPRITE, COLLIDE, SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE. (STAR est faite, dans la bibliothèque GRAPHIQUE ; POLYGON ne sera pas faite : STAR dessine aussi les polygones, D150.)
 
 ## Règles pour les prochaines commandes
 
