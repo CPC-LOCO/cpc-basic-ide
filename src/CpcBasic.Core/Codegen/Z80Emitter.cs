@@ -127,6 +127,7 @@ public sealed class Z80Emitter
     public void Rla() => code.Add(0x17);                                           // RLA
     public void RlC() { code.Add(0xCB); code.Add(0x11); }                          // RL C
     public void RlD() { code.Add(0xCB); code.Add(0x12); }                          // RL D
+    public void RlE() { code.Add(0xCB); code.Add(0x13); }                          // RL E (D142)
     public void SlaE() { code.Add(0xCB); code.Add(0x23); }                         // SLA E
     public void Bit7D() { code.Add(0xCB); code.Add(0x7A); }                        // BIT 7,D
     public void Bit0B() { code.Add(0xCB); code.Add(0x40); }                        // BIT 0,B

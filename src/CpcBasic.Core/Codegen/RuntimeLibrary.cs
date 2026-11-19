@@ -118,6 +118,13 @@ public static class RuntimeLibrary
     public const string EllipsePenLabel = "rt_el_pen";
     public const string EllipseFillPenLabel = "rt_el_fillpen";
     public const string EllipseDoFillLabel = "rt_el_dofill";
+    // Table des sinus de 0 à 90 degrés x 16384, commune à ELLIPSE et à ISIN / ICOS (D142)
+    public const string SinTableName = "SinTable";
+    public const string SinTableLabel = "rt_sintab";
+    // ISIN(angle, échelle), ICOS(angle, échelle) (D142) : HL = angle en degrés, DE = échelle ; rend HL
+    public const string ISinName = "ISin";
+    public const string ISinLabel = "rt_isin";
+    public const string ICosLabel = "rt_icos";
 
     // Tableaux (DIM, lot C, D058)
     /// <summary>TXT GET CURSOR : H = colonne, L = ligne du curseur de texte.</summary>
@@ -6385,6 +6392,178 @@ public static class RuntimeLibrary
             e.Reserve(2);
         }),
 
+        // Table des sinus de 0 à 90 degrés, x 16384 et arrondis (D142) ; commune à ELLIPSE (D139) et à ISIN / ICOS
+        [SinTableName] = new RuntimeModule(SinTableName, [], e =>
+        {
+            e.Label(SinTableLabel);
+            e.Word(0); e.Word(286); e.Word(572); e.Word(857); e.Word(1143); e.Word(1428); e.Word(1713); e.Word(1997); e.Word(2280); e.Word(2563);
+            e.Word(2845); e.Word(3126); e.Word(3406); e.Word(3686); e.Word(3964); e.Word(4240); e.Word(4516); e.Word(4790); e.Word(5063); e.Word(5334);
+            e.Word(5604); e.Word(5872); e.Word(6138); e.Word(6402); e.Word(6664); e.Word(6924); e.Word(7182); e.Word(7438); e.Word(7692); e.Word(7943);
+            e.Word(8192); e.Word(8438); e.Word(8682); e.Word(8923); e.Word(9162); e.Word(9397); e.Word(9630); e.Word(9860); e.Word(10087); e.Word(10311);
+            e.Word(10531); e.Word(10749); e.Word(10963); e.Word(11174); e.Word(11381); e.Word(11585); e.Word(11786); e.Word(11982); e.Word(12176); e.Word(12365);
+            e.Word(12551); e.Word(12733); e.Word(12911); e.Word(13085); e.Word(13255); e.Word(13421); e.Word(13583); e.Word(13741); e.Word(13894); e.Word(14044);
+            e.Word(14189); e.Word(14330); e.Word(14466); e.Word(14598); e.Word(14726); e.Word(14849); e.Word(14968); e.Word(15082); e.Word(15191); e.Word(15296);
+            e.Word(15396); e.Word(15491); e.Word(15582); e.Word(15668); e.Word(15749); e.Word(15826); e.Word(15897); e.Word(15964); e.Word(16026); e.Word(16083);
+            e.Word(16135); e.Word(16182); e.Word(16225); e.Word(16262); e.Word(16294); e.Word(16322); e.Word(16344); e.Word(16362); e.Word(16374); e.Word(16382);
+            e.Word(16384);
+        }),
+
+        // ISIN(angle, échelle) et ICOS(angle, échelle) (D142) : sinus ou cosinus x échelle, arrondi au plus près, en entier.
+        // Angle en degrés (n'importe quel entier, ramené de 0 à 359 ; ICOS = ISIN de l'angle + 90), échelle de -32768 à
+        // 32767 ; table de 91 sinus x 16384 ; résultat = signe x ((sinus x |échelle| + 8192) / 16384). Seul cas hors des
+        // entiers : 32768 (sinus négatif et échelle -32768), rendu comme 32767. Environ 30 à 60 fois plus rapide que SIN.
+        [ISinName] = new RuntimeModule(ISinName, [SinTableName], e =>
+        {
+            e.Label(ICosLabel);                 // HL = angle, DE = échelle
+            e.PushDe();                         // échelle mise de côté (rt_is_mod se sert de DE)
+            e.CallLabel("rt_is_mod");
+            e.LdBcImm(90);
+            e.AddHlBc();                        // de 90 à 449
+            e.JrLabel("rt_is_go");
+            e.Label(ISinLabel);                 // HL = angle, DE = échelle
+            e.PushDe();                         // échelle mise de côté (rt_is_mod se sert de DE)
+            e.CallLabel("rt_is_mod");
+            e.Label("rt_is_go");
+            e.XorA();
+            e.LdMemA("rt_is_sg");               // signe du résultat
+            e.Label("rt_is_half");              // demi-tour de plus (180 degrés) : signe inversé
+            e.LdDeImm(180);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrCLabel("rt_is_q");
+            e.LdAMem("rt_is_sg");
+            e.XorImm(1);
+            e.LdMemA("rt_is_sg");
+            e.JrLabel("rt_is_half");
+            e.Label("rt_is_q");
+            e.AddHlDe();                        // de 0 à 179
+            e.LdDeImm(91);                      // plus de 90 : 180 - angle
+            e.OrA();
+            e.SbcHlDe();
+            e.AddHlDe();
+            e.JrCLabel("rt_is_t");
+            e.ExDeHl();
+            e.LdHlImm(180);
+            e.OrA();
+            e.SbcHlDe();
+            e.Label("rt_is_t");                 // de 0 à 90 : BC = sinus x 16384
+            e.AddHlHl();
+            e.LdDeLabel(SinTableLabel);
+            e.AddHlDe();
+            e.LoadCFromHl();
+            e.IncHl();
+            e.LoadBFromHl();
+            e.PopDe();                          // échelle négative : valeur absolue, signe inversé
+            e.LdAD();
+            e.Rla();
+            e.JrNcLabel("rt_is_m");
+            e.XorA();
+            e.SubE();
+            e.LdEA();
+            e.SbcAA();
+            e.SubD();
+            e.LdDA();
+            e.LdAMem("rt_is_sg");
+            e.XorImm(1);
+            e.LdMemA("rt_is_sg");
+            e.Label("rt_is_m");                 // DE:HL = |échelle| x sinus (16 bits x 16 bits)
+            e.LdHlImm(0);
+            e.LdAImm(16);
+            e.Label("rt_is_m1");
+            e.AddHlHl();
+            e.RlE();
+            e.RlD();
+            e.JrNcLabel("rt_is_m2");
+            e.AddHlBc();
+            e.JrNcLabel("rt_is_m2");
+            e.IncDe();
+            e.Label("rt_is_m2");
+            e.DecA();
+            e.JrNzLabel("rt_is_m1");
+            e.LdBcImm(0x2000);                  // + 8192 : arrondi au plus près
+            e.AddHlBc();
+            e.JrNcLabel("rt_is_r");
+            e.IncDe();
+            e.Label("rt_is_r");
+            e.AddHlHl();                        // / 16384 : x 4 puis les deux octets du haut
+            e.RlE();
+            e.RlD();
+            e.AddHlHl();
+            e.RlE();
+            e.RlD();
+            e.ExDeHl();                         // HL = résultat sans signe (0 à 32768)
+            e.LdAMem("rt_is_sg");
+            e.OrA();
+            e.JrZLabel("rt_is_p");
+            e.XorA();                           // HL = -HL
+            e.SubL();
+            e.LdLA();
+            e.SbcAA();
+            e.SubH();
+            e.LdHA();
+            e.Ret();
+            e.Label("rt_is_p");                 // 32768 positif : 32767
+            e.Bit7H();
+            e.RetZ();
+            e.LdHlImm(32767);
+            e.Ret();
+            e.Label("rt_is_mod");               // HL (entier signé) ramené de 0 à 359
+            e.Bit7H();
+            e.JrZLabel("rt_is_mp");
+            e.LdDeImm(32760);                   // 91 x 360
+            e.AddHlDe();
+            e.Bit7H();
+            e.JrZLabel("rt_is_mp");
+            e.LdDeImm(360);
+            e.AddHlDe();
+            e.Label("rt_is_mp");
+            e.LdDeImm(23040);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d6");
+            e.AddHlDe();
+            e.Label("rt_is_d6");
+            e.LdDeImm(11520);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d5");
+            e.AddHlDe();
+            e.Label("rt_is_d5");
+            e.LdDeImm(5760);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d4");
+            e.AddHlDe();
+            e.Label("rt_is_d4");
+            e.LdDeImm(2880);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d3");
+            e.AddHlDe();
+            e.Label("rt_is_d3");
+            e.LdDeImm(1440);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d2");
+            e.AddHlDe();
+            e.Label("rt_is_d2");
+            e.LdDeImm(720);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d1");
+            e.AddHlDe();
+            e.Label("rt_is_d1");
+            e.LdDeImm(360);
+            e.OrA();
+            e.SbcHlDe();
+            e.JrNcLabel("rt_is_d0");
+            e.AddHlDe();
+            e.Label("rt_is_d0");
+            e.Ret();
+            e.Label("rt_is_sg");
+            e.Reserve(1);
+        }),
+
         // ELLIPSE (D139) : ovale de rayons a (sur x) et b (sur y), incliné de t degrés (le côté droit monte quand t > 0).
         // Un ovale incliné, ligne par ligne, est un ovale droit dont chaque ligne glisse sur le côté. Calcul de départ en
         // nombres entiers de plusieurs octets (table de sinus de 0 à 90 degrés, multiplications, divisions, une racine),
@@ -6396,7 +6575,7 @@ public static class RuntimeLibrary
         // Deux rayons égaux : exactement les points de CIRCLE. Écrit une fois dans une description à part
         // (essais\ellipse\routine.py), vérifiée contre la méthode en nombres entiers (essais\ellipse\entiers.py,
         // 522 ovales), dont ce code est tiré par essais\ellipse\tocs.py. La ROM haute est coupée pendant le tracé.
-        [EllipseName] = new RuntimeModule(EllipseName, [PixelName, Min16Name, Max16Name], e =>
+        [EllipseName] = new RuntimeModule(EllipseName, [PixelName, Min16Name, Max16Name, SinTableName], e =>
         {
             e.Label("rt_ellipse");
             e.CallAddress(0xB903);               // KL U ROM DISABLE : sans cela, le Z80 lirait la ROM du BASIC à la place de l'écran
@@ -7295,7 +7474,7 @@ public static class RuntimeLibrary
             e.JpLabel("rt_px_hline");            // DE = x1, BC = x2, HL = ligne
             e.Label("rt_el_sin");                // DE = sinus(HL degrés) x 16384, HL de 0 à 90
             e.AddHlHl();
-            e.LdDeLabel("rt_el_sintab");
+            e.LdDeLabel("rt_sintab");            // table commune (module SinTable, D142)
             e.AddHlDe();
             e.LoadEFromHl();
             e.IncHl();
@@ -7873,17 +8052,6 @@ public static class RuntimeLibrary
             e.Reserve(5);
             e.Label("rt_el_st");
             e.Reserve(5);
-            e.Label("rt_el_sintab");                   // sinus de 0 à 90 degrés x 16384
-            e.Word(0); e.Word(286); e.Word(572); e.Word(857); e.Word(1143); e.Word(1428); e.Word(1713); e.Word(1997); e.Word(2280); e.Word(2563);
-            e.Word(2845); e.Word(3126); e.Word(3406); e.Word(3686); e.Word(3964); e.Word(4240); e.Word(4516); e.Word(4790); e.Word(5063); e.Word(5334);
-            e.Word(5604); e.Word(5872); e.Word(6138); e.Word(6402); e.Word(6664); e.Word(6924); e.Word(7182); e.Word(7438); e.Word(7692); e.Word(7943);
-            e.Word(8192); e.Word(8438); e.Word(8682); e.Word(8923); e.Word(9162); e.Word(9397); e.Word(9630); e.Word(9860); e.Word(10087); e.Word(10311);
-            e.Word(10531); e.Word(10749); e.Word(10963); e.Word(11174); e.Word(11381); e.Word(11585); e.Word(11786); e.Word(11982); e.Word(12176); e.Word(12365);
-            e.Word(12551); e.Word(12733); e.Word(12911); e.Word(13085); e.Word(13255); e.Word(13421); e.Word(13583); e.Word(13741); e.Word(13894); e.Word(14044);
-            e.Word(14189); e.Word(14330); e.Word(14466); e.Word(14598); e.Word(14726); e.Word(14849); e.Word(14968); e.Word(15082); e.Word(15191); e.Word(15296);
-            e.Word(15396); e.Word(15491); e.Word(15582); e.Word(15668); e.Word(15749); e.Word(15826); e.Word(15897); e.Word(15964); e.Word(16026); e.Word(16083);
-            e.Word(16135); e.Word(16182); e.Word(16225); e.Word(16262); e.Word(16294); e.Word(16322); e.Word(16344); e.Word(16362); e.Word(16374); e.Word(16382);
-            e.Word(16384);
         }),
 
         // BOX : rectangle (D048, D051, D052). Les quatre valeurs sont d'abord rangées dans rt_box_x1, y1, x2, y2 par le programme,

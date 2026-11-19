@@ -1305,6 +1305,7 @@ internal sealed class MiniZ80
             case 0x3B: CarryFlag = (E & 0x01) != 0; E = (byte)(E >> 1); ZeroFlag = E == 0; break;   // SRL E (D110)
             case 0x3F: CarryFlag = (A & 0x01) != 0; A = (byte)(A >> 1); ZeroFlag = A == 0; break;   // SRL A
             case 0x12: D = Rl(D); break;                               // RL D
+            case 0x13: E = Rl(E); break;                               // RL E (D142)
             case 0x23:                                                 // SLA E
                 CarryFlag = (E & 0x80) != 0;
                 E = (byte)(E << 1);

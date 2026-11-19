@@ -1080,6 +1080,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 5 de plus dans EllipseTests.cs (mêmes points avec les deux priorités et programme plus petit, CIRCLE seul garde sa routine, Improper argument). 1648 tests réussis. **Essayé par l'utilisateur :** l'éditeur se compile ; F3 et le message de F5 avec examples\moniteur.bas sont conformes.
 - **Ensuite (demande de l'utilisateur) :** mesurer la vitesse de SIN et COS du Locomotive dans un programme compilé, avant de décider de fonctions rapides en nombres entiers (par exemple ISIN, ICOS avec une table, à côté de SIN et COS qui restent ceux du Locomotive).
 
+## D142 : ISIN et ICOS, sinus et cosinus rapides en entiers (19 nov. 2026) (validé par l'utilisateur)
+- **Question de l'utilisateur :** SIN et COS du Locomotive ne sont pas rapides ; des commandes à nous prendraient-elles trop de place, et que gagnerait-on ? **Mesure** (essais\vitsin.bas, programme compilé, WinAPE à 108 %) : SIN et COS environ 14 ms chacun, une multiplication à virgule 0,9 ms, lecture d'un tableau de sinus en BASIC 0,6 ms. SIN et COS restent ceux du Locomotive (règle 100 % compatible) ; les fonctions rapides viennent à côté.
+- **Choix de l'utilisateur :** noms **ISIN** et **ICOS** (I comme entier ; `isin=1` et `icos=1` donnent Ready dans WinAPE : mots libres ; deux nouveaux mots réservés) ; angle **au degré près** (choix 1 : table de 91 sinus).
+- **Écriture :** `ISIN(angle, échelle)`, `ICOS(angle, échelle)` : sinus ou cosinus x échelle, arrondi au plus près, en entier. Angle en degrés, n'importe quel entier, ramené de 0 à 359 (DEG et RAD n'y changent rien) ; échelle de -32768 à 32767 ; seul cas hors des entiers : ISIN(270,-32768) = 32768, rendu comme 32767. Exemple : `PLOT 320+ICOS(A,100),200+ISIN(A,100)`.
+- **Réalisation :** table des sinus x 16384 dans un module commun **SinTable** (`rt_sintab`), partagé avec ELLIPSE (qui n'a plus sa propre copie ; vérifié en Python : 162 cas) ; module **ISin** (`rt_isin`, `rt_icos`) : angle ramené par soustractions de 360 x 2^k, demi-tours et quart de tour, une multiplication 16 bits x 16 bits, arrondi. Instruction RL E ajoutée (Z80Emitter, MiniZ80). Une fonction ne peut plus recevoir de valeur (`ISIN=5` refusé ; règle étendue à toutes les fonctions, aucun ancien test touché). ISIN et ICOS colorés dans l'éditeur.
+- **Erreur trouvée par les tests :** la réduction de l'angle écrasait l'échelle dans DE avant qu'elle soit mise de côté (résultats 180, 360...) ; l'échelle est maintenant poussée sur la pile d'abord.
+- **Tests :** ISinTests.cs (tous les angles de -720 à 720, 13 échelles, ISIN et ICOS, comparés à une référence à part ; angles extrêmes ; valeurs connues ; table identique ; programme complet ; table liée une seule fois avec ELLIPSE ; écritures refusées). 1673 tests réussis.
+- **Essayé dans WinAPE (19 nov. 2026) :** examples\angles.bas : 360 points avec SIN et COS en 11,3 s, avec ISIN et ICOS en 0,75 s (dont la plus grande part est le PLOT de chaque point) ; ronds identiques ; « y a pas photo ».
+- **Place :** table 182 octets (une seule fois), fonctions environ 150 octets, seulement si le programme s'en sert.
+
 ---
 
 ## Notes de fin de session (modèle)

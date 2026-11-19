@@ -1168,6 +1168,12 @@ public static class CodeGenerator
                             emitter.CallLabel(RuntimeLibrary.RandomRangeLabel);
                             break;
 
+                        case "ISIN" or "ICOS":              // D142 : HL = angle, DE = échelle, table des sinus
+                            EmitPair(call.Arguments[0], call.Arguments[1]);
+                            required.Add(RuntimeLibrary.ISinName);
+                            emitter.CallLabel(call.Function == "ISIN" ? RuntimeLibrary.ISinLabel : RuntimeLibrary.ICosLabel);
+                            break;
+
                         case "CLAMP":                       // CLAMP(v, mini, maxi) = MIN(MAX(v, mini), maxi)
                             EmitMinMax(RuntimeLibrary.Min16Name, RuntimeLibrary.Min16Label,
                                        new CallExpression("MAX", [call.Arguments[0], call.Arguments[1]]),
