@@ -409,4 +409,50 @@ public class EllipseTests
         GeneratedProgram program = CodeGenerator.Generate(BasicAnalyzer.Analyze("10 CIRCLE 50,50,5").Program, Origin);
         Assert.DoesNotContain(RuntimeLibrary.EllipseName, program.Modules);
     }
+
+    // ---------- Priorité vitesse ou place (F3, D141) ----------
+
+    static (MiniZ80 Cpu, GeneratedProgram Program) RunWith(string source, bool preferSize)
+    {
+        AnalysisResult analysis = BasicAnalyzer.Analyze(source);
+        Assert.False(analysis.HasErrors, string.Join(" / ", analysis.Diagnostics.Select(d => d.Message)));
+        GeneratedProgram program = CodeGenerator.Generate(analysis.Program, Origin, new CpcBasic.Core.CompilerOptions(PreferSize: preferSize));
+        var cpu = new MiniZ80();
+        cpu.Load(program.Code, Origin);
+        cpu.Memory[0xBB18] = 0xC9;
+        cpu.Call(Origin);
+        return (cpu, program);
+    }
+
+    [Theory]
+    [InlineData("10 CIRCLE 160,100,50,1,2")]
+    [InlineData("10 R=37:CIRCLE 100,80,R,3")]
+    [InlineData("10 CIRCLE 300,190,90,1")]
+    public void Priorite_place_CIRCLE_passe_par_ELLIPSE_avec_les_memes_points(string circle)
+    {
+        string both = circle + "\n20 IF 0 THEN ELLIPSE 1,1,1,1";
+        (MiniZ80 fast, GeneratedProgram fastProgram) = RunWith(both, false);
+        (MiniZ80 small, GeneratedProgram smallProgram) = RunWith(both, true);
+
+        Assert.Contains(RuntimeLibrary.CircleName, fastProgram.Modules);          // vitesse : CIRCLE garde sa routine
+        Assert.DoesNotContain(RuntimeLibrary.CircleName, smallProgram.Modules);   // place : il passe par ELLIPSE
+        Assert.True(smallProgram.Code.Length < fastProgram.Code.Length);
+        Assert.True(fast.Memory[0xC000..].SequenceEqual(small.Memory[0xC000..]), "mêmes points");
+    }
+
+    [Fact]
+    public void Priorite_place_sans_ELLIPSE_CIRCLE_garde_sa_routine()
+    {
+        (_, GeneratedProgram program) = RunWith("10 CIRCLE 160,100,50", true);
+
+        Assert.Contains(RuntimeLibrary.CircleName, program.Modules);
+        Assert.DoesNotContain(RuntimeLibrary.EllipseName, program.Modules);
+    }
+
+    [Theory]
+    [InlineData("10 R=1001:CIRCLE 160,100,R\n20 IF 0 THEN ELLIPSE 1,1,1,1")]
+    public void Priorite_place_un_rayon_hors_limites_donne_toujours_Improper_argument(string source)
+    {
+        Assert.Equal("Improper argument in 10\r\n", RunWith(source, true).Cpu.Output.ToString());
+    }
 }

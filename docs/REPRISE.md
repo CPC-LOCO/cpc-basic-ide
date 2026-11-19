@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D140 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D141 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -44,7 +44,7 @@ Documents de référence :
 ## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
 
 - **Version publique :** 0.3.0 (pre-release GitHub, Windows 64 bits, 18 nov. 2026). Tout ce qui suit D122 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
-- **Dernier commit sur GitHub :** « Ronds pour un vrai moniteur (D140) » (19 nov. 2026, **1643 tests**, tous réussis).
+- **Dernier commit sur GitHub :** « Priorité vitesse ou place F3 (D141) » (19 nov. 2026, **1648 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
 
@@ -78,7 +78,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 - **CIRCLE : fait (D130)**, largeur ×0,5 / ×1 / ×2 selon le MODE (le ×0,6 / ×1,2 / ×2,4 noté avant était faux). Toute commande à écriture directe doit couper la ROM haute comme `rt_box` (D048). Méthode à reprendre pour les formes suivantes : routine écrite une fois dans essais\circle\routine.py, vérifiée en Python contre une référence, puis code C# tiré de cette description.
 - **Liste des variables :** A faite (F4, D131), B faite (adresses, D132), C faite (commande DEBUG et réglage « Mise au point » F2, D136) ; `DEBUG A,B$` fait (ordre écrit, D137) ; `DEBUG T(I)` fait (une case, vrai numéro, D138). Liste des variables terminée.
-- **ELLIPSE : fait (D139)**, ovale droit ou incliné, même méthode de travail que CIRCLE (essais\ellipse\). Facteur de largeur : vrai moniteur Amstrad, ×69/64, sans option (D140). **Étape suivante décidée :** quand un programme utilise CIRCLE et ELLIPSE, CIRCLE se sert du dessin des lignes d'ELLIPSE ; CIRCLE seul garde sa routine ; mêmes points.
+- **ELLIPSE : fait (D139)**, ovale droit ou incliné, même méthode de travail que CIRCLE (essais\ellipse\). Facteur de largeur : vrai moniteur Amstrad, ×69/64, sans option (D140). Réglage **F3 « Priorité : vitesse / place »** (D141) : avec « place » et ELLIPSE dans le programme, CIRCLE passe par ELLIPSE (mêmes points) ; règle pour les commandes à venir. **Suite décidée :** mesurer SIN et COS compilés, puis peut-être des fonctions rapides en entiers (IDEES.md).
 - `PAINT`, ELLIPSE, STAR, POLYGON, calcul 3D en fil de fer (SIN et COS par tableau de 256 angles, virgule fixe, racine carrée entière, projection).
 - Ligne verticale discrète dans l'éditeur à la colonne de la largeur du MODE (20, 40 ou 80).
 - `PAUSE [heure,][minute,] seconde`, `CLIC code_ascii`.
@@ -150,4 +150,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Ronds pour un vrai moniteur (D140) » ; 1643 tests passent. La version 0.3.0 est publiée. Suite décidée : CIRCLE utilise le dessin des lignes d'ELLIPSE quand le programme contient les deux (voir D140) : propose-moi la suite, une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Priorité vitesse ou place F3 (D141) » ; 1648 tests passent. La version 0.3.0 est publiée. Suite décidée : mesurer la vitesse de SIN et COS dans un programme compilé (voir D141 et IDEES.md) : propose-moi la suite, une étape à la fois, une seule action par message.

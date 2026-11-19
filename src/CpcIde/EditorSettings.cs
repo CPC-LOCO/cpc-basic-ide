@@ -57,6 +57,13 @@ public sealed class EditorSettings
     /// <summary>Mise au point (F2, D136) : les DEBUG du programme affichent les variables ; décoché au départ, pour tous les programmes.</summary>
     public bool DebugMode { get; set; }
 
+    /// <summary>
+    /// Priorité (F3, D141) : faux = vitesse (par défaut), vrai = place. Ne change jamais le dessin, seulement la vitesse
+    /// et la taille du programme compilé ; aujourd'hui : CIRCLE passe par ELLIPSE si le programme contient les deux.
+    /// Réglage commun à tous les programmes.
+    /// </summary>
+    public bool PreferSize { get; set; }
+
     // Une ligne trop longue continue sur la ligne suivante de l'écran, comme sur le CPC (D113)
     public bool WordWrap { get; set; } = true;
 

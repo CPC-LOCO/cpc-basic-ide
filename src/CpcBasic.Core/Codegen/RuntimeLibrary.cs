@@ -6390,7 +6390,8 @@ public static class RuntimeLibrary
         // nombres entiers de plusieurs octets (table de sinus de 0 à 90 degrés, multiplications, divisions, une racine),
         // gardé pour l'ovale suivant s'il a les mêmes rayons, angle et MODE ; puis les lignes de d = D à 0 : bords à
         // racine(T) de part et d'autre du centre glissé de la ligne, T = P - Q d², racine qui ne fait que grandir.
-        // Largeur x 69/64 comme CIRCLE (vrai moniteur Amstrad, D140).
+        // Largeur x 69/64 comme CIRCLE (vrai moniteur Amstrad, D140). Rond (deux rayons égaux) : racine et divisions sautées
+        // (D141) ; sert aussi à CIRCLE quand le programme contient ELLIPSE et que la priorité est « place » (F3).
         // Contour : points qui touchent l'extérieur, prolongés jusqu'à la ligne voisine si elles ne se touchent pas.
         // Deux rayons égaux : exactement les points de CIRCLE. Écrit une fois dans une description à part
         // (essais\ellipse\routine.py), vérifiée contre la méthode en nombres entiers (essais\ellipse\entiers.py,
@@ -6501,6 +6502,53 @@ public static class RuntimeLibrary
             e.LdAImm(1);
             e.Label("rt_el_t5");
             e.LdMemA("rt_el_tneg");
+            e.LdHlMem("rt_el_a");
+            e.LdDeMem("rt_el_b");
+            e.OrA();
+            e.SbcHlDe();
+            e.JpNzLabel("rt_el_g0");
+            e.LdHlLabel("rt_el_H");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_clr");
+            e.LdHlMem("rt_el_a");
+            e.LdMemHl("rt_el_H2");               // H = a x 2^14 : (a x 2^16) / 4
+            e.LdHlLabel("rt_el_H");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_shr");
+            e.LdHlLabel("rt_el_H");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_shr");
+            e.LdHlLabel("rt_el_X");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_clr");
+            e.LdHlMem("rt_el_a");
+            e.LdMemHl("rt_el_Xh");               // X = Y = a x 2^12 + 2048 : (a x 2^16) / 16 + 2048
+            e.LdHlLabel("rt_el_X");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_shr");
+            e.LdHlLabel("rt_el_X");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_shr");
+            e.LdHlLabel("rt_el_X");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_shr");
+            e.LdHlLabel("rt_el_X");
+            e.LdBImm(4);
+            e.CallLabel("rt_el_shr");
+            e.LdHlMem("rt_el_X");
+            e.LdDeImm(2048);
+            e.AddHlDe();
+            e.LdMemHl("rt_el_X");
+            e.LdHlMem("rt_el_Xh");
+            e.LdDeImm(0);
+            e.AdcHlDe();
+            e.LdMemHl("rt_el_Xh");
+            e.LdHlLabel("rt_el_X");
+            e.LdDeLabel("rt_el_Y");
+            e.LdBcImm(4);
+            e.Ldir();
+            e.JpLabel("rt_el_pp");
+            e.Label("rt_el_g0");
             e.LdHlLabel("rt_el_a");
             e.LdDeLabel("rt_el_S");
             e.LdBcImm(514);
@@ -6629,6 +6677,7 @@ public static class RuntimeLibrary
             e.LdDeImm(0);
             e.AdcHlDe();
             e.LdMemHl("rt_el_Yh");
+            e.Label("rt_el_pp");
             e.LdHlLabel("rt_el_X");
             e.LdDeLabel("rt_el_X");
             e.LdBcImm(771);
@@ -6654,6 +6703,20 @@ public static class RuntimeLibrary
             e.LdHlLabel("rt_el_cnt");
             e.DecMemHl();
             e.JrNzLabel("rt_el_p3");
+            e.LdHlMem("rt_el_a");
+            e.LdDeMem("rt_el_b");
+            e.OrA();
+            e.SbcHlDe();
+            e.JpNzLabel("rt_el_q0");
+            e.LdHlLabel("rt_el_Q");
+            e.LdBImm(8);
+            e.CallLabel("rt_el_clr");
+            e.LdHlImm(36864);
+            e.LdMemHl("rt_el_Q");
+            e.LdHlImm(297);
+            e.LdMemHl("rt_el_Qh");               // rond : Q = P 2^24 / X² = 4761 x 4096
+            e.JpLabel("rt_el_q1");
+            e.Label("rt_el_q0");
             e.LdHlLabel("rt_el_Y");
             e.LdDeLabel("rt_el_Y");
             e.LdBcImm(771);
@@ -6682,6 +6745,7 @@ public static class RuntimeLibrary
             e.LdDeLabel("rt_el_Q");
             e.LdBcImm(8);
             e.Ldir();
+            e.Label("rt_el_q1");
             e.LdHlLabel("rt_el_S16");
             e.LdBImm(4);
             e.CallLabel("rt_el_clr");
@@ -7614,7 +7678,9 @@ public static class RuntimeLibrary
             e.Label("rt_el_tmph");
             e.Reserve(6);
             e.Label("rt_el_H");
-            e.Reserve(4);
+            e.Reserve(2);
+            e.Label("rt_el_H2");
+            e.Reserve(2);
             e.Label("rt_el_X");
             e.Reserve(2);
             e.Label("rt_el_Xh");
@@ -7628,7 +7694,9 @@ public static class RuntimeLibrary
             e.Label("rt_el_YY");
             e.Reserve(6);
             e.Label("rt_el_Q");
-            e.Reserve(8);
+            e.Reserve(2);
+            e.Label("rt_el_Qh");
+            e.Reserve(6);
             e.Label("rt_el_Q2");
             e.Reserve(2);
             e.Label("rt_el_Q22");

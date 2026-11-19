@@ -61,6 +61,8 @@ public static class CodeGenerator
     {
         options ??= CompilerOptions.Default;   // machine cible et nombres à virgule (D066)
         program = ExpandDebug(program, options);   // DEBUG avec le réglage « Mise au point » (D136)
+        // Priorité « place » (F3, D141) : avec ELLIPSE dans le programme, CIRCLE x, y, r = ELLIPSE x, y, r, r (mêmes points)
+        bool circleViaEllipse = options.PreferSize && program.Statements.Any(s => s is EllipseStatement);
         var emitter = new Z80Emitter(origin);
         var required = new HashSet<string>();
         var strings = new List<byte[]>();
@@ -1904,12 +1906,16 @@ public static class CodeGenerator
 
                 case "CIRCLE":                      // D130 : x, y, rayon rangés dans le module, puis les stylos comme BOX
                 {
+                    // D141 : priorité « place » et ELLIPSE dans le programme : le module Ellipse avec deux rayons égaux
+                    bool viaEllipse = circleViaEllipse;
                     EmitExpression(a[0]);
-                    emitter.LdMemHl(RuntimeLibrary.CircleXLabel);
+                    emitter.LdMemHl(viaEllipse ? RuntimeLibrary.EllipseXLabel : RuntimeLibrary.CircleXLabel);
                     EmitExpression(a[1]);
-                    emitter.LdMemHl(RuntimeLibrary.CircleYLabel);
+                    emitter.LdMemHl(viaEllipse ? RuntimeLibrary.EllipseYLabel : RuntimeLibrary.CircleYLabel);
                     EmitExpression(a[2]);
-                    emitter.LdMemHl(RuntimeLibrary.CircleRadiusLabel);
+                    emitter.LdMemHl(viaEllipse ? RuntimeLibrary.EllipseRadiusXLabel : RuntimeLibrary.CircleRadiusLabel);
+                    if (viaEllipse)
+                        emitter.LdMemHl(RuntimeLibrary.EllipseRadiusYLabel);
                     if (a[2] is not NumberExpression)       // rayon calculé hors de 0 à 1000 : « Improper argument »
                     {
                         required.Add(RuntimeLibrary.ByteCheckName);
@@ -1918,6 +1924,11 @@ public static class CodeGenerator
                         emitter.SbcHlDe();
                         emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
                     }
+                    if (viaEllipse)                         // angle 0
+                    {
+                        emitter.LdHlImm(0);
+                        emitter.LdMemHl(RuntimeLibrary.EllipseAngleLabel);
+                    }
                     if (a.Count > 3)                        // stylo du contour (stylo courant du tracé s'il est omis)
                     {
                         EmitExpression(a[3]);
@@ -1925,17 +1936,17 @@ public static class CodeGenerator
                     }
                     else
                         emitter.CallAddress(GraGetPen);
-                    emitter.LdMemA(RuntimeLibrary.CirclePenLabel);
+                    emitter.LdMemA(viaEllipse ? RuntimeLibrary.EllipsePenLabel : RuntimeLibrary.CirclePenLabel);
                     if (a.Count > 4)                        // stylo de l'intérieur (pas d'intérieur s'il est omis)
                     {
                         EmitExpression(a[4]);
                         emitter.LdAL();
-                        emitter.LdMemA(RuntimeLibrary.CircleFillPenLabel);
+                        emitter.LdMemA(viaEllipse ? RuntimeLibrary.EllipseFillPenLabel : RuntimeLibrary.CircleFillPenLabel);
                     }
                     emitter.LdAImm(a.Count > 4 ? 1 : 0);
-                    emitter.LdMemA(RuntimeLibrary.CircleDoFillLabel);
-                    required.Add(RuntimeLibrary.CircleName);
-                    emitter.CallLabel(RuntimeLibrary.CircleLabel);
+                    emitter.LdMemA(viaEllipse ? RuntimeLibrary.EllipseDoFillLabel : RuntimeLibrary.CircleDoFillLabel);
+                    required.Add(viaEllipse ? RuntimeLibrary.EllipseName : RuntimeLibrary.CircleName);
+                    emitter.CallLabel(viaEllipse ? RuntimeLibrary.EllipseLabel : RuntimeLibrary.CircleLabel);
                     break;
                 }
 

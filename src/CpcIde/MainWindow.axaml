@@ -98,6 +98,7 @@
                           ToggleType="CheckBox" Click="OnTextClick" />
                 <MenuItem x:Name="DebugMenu" Header="_Mise au point (DEBUG)" InputGesture="F2"
                           ToggleType="CheckBox" Click="OnDebugClick" />
+                <MenuItem x:Name="PriorityMenu" Header="_Priorité : vitesse" InputGesture="F3" Click="OnPriorityClick" />
                 <Separator />
                 <MenuItem x:Name="WrapMenu" Header="_Lignes longues sur plusieurs lignes, comme le CPC"
                           ToggleType="CheckBox" Click="OnWrapClick" />

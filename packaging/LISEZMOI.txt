@@ -82,6 +82,8 @@ Reglages (menu Options) :
        comparer avec le vrai BASIC : LOAD"NOM.TXT" puis RUN
   F2   mise au point : les commandes DEBUG du programme affichent les
        variables et leurs valeurs (ESPACE : suite, S : stop) ; sinon ignorees
+  F3   priorite vitesse (par defaut) ou place : le dessin reste le meme ;
+       avec la place, CIRCLE passe par ELLIPSE si le programme a les deux
 
 
 5. DIFFERENCES AVEC LE LOCOMOTIVE BASIC A CONNAITRE

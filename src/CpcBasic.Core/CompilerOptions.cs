@@ -23,9 +23,13 @@ public enum TargetMachine
 /// L'éditeur la met par défaut (F9) ; ici, faux par défaut pour garder les programmes de test tels quels.
 /// Language : version du CPC, qui décide des codes des lettres accentuées dans les textes (D126) ; français par défaut.
 /// Debug : réglage « Mise au point » (F2, D136) : les DEBUG du programme affichent les variables ; sinon ils sont ignorés.
+/// PreferSize : réglage « Priorité : place » (F3, D141) : quand deux commandes peuvent partager une routine au prix de la
+/// vitesse, on partage (le dessin reste exactement le même) ; sinon (par défaut) chaque commande garde sa routine rapide.
+/// Aujourd'hui : CIRCLE passe par ELLIPSE quand le programme contient les deux.
 /// </summary>
 public sealed record CompilerOptions(TargetMachine Target = TargetMachine.AllCpc, bool RealByDefault = false,
-                                     bool BreakKey = false, CpcLanguage Language = CpcLanguage.French, bool Debug = false)
+                                     bool BreakKey = false, CpcLanguage Language = CpcLanguage.French, bool Debug = false,
+                                     bool PreferSize = false)
 {
     /// <summary>Les réglages par défaut : tous les CPC, variables sans signe entières.</summary>
     public static CompilerOptions Default { get; } = new();
