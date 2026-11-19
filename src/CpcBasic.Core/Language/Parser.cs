@@ -22,7 +22,7 @@ public static class Parser
         "WHILE", "WEND", "REPEAT", "UNTIL", "DO", "LOOP", "MOD",
         "ABS", "SGN", "MIN", "MAX", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "RANDOMIZE", "TIME",
         "MODE", "CLS", "LOCATE", "PEN", "PAPER", "INK", "BORDER",
-        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX", "CIRCLE", "DEBUG",
+        "MOVE", "MOVER", "PLOT", "PLOTR", "DRAW", "DRAWR", "CLG", "ORIGIN", "BOX", "CIRCLE", "ELLIPSE", "DEBUG",
         "GOTO", "GOSUB", "RETURN", "STOP", "ON", "INKEY", "JOY", "CLEAR", "INPUT", "POKE", "PEEK", "OUT", "INP", "CALL", "MEMORY", "DIM",
         "DATA", "READ", "RESTORE", "XOR", "NOT", "LEN",
         "LEFT$", "RIGHT$", "MID$", "CHR$", "ASC", "STR$", "VAL", "STRING$", "SPACE$", "UPPER$", "LOWER$", "INSTR", "HEX$", "BIN$",
@@ -1037,6 +1037,9 @@ public static class Parser
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
                 return ParseDrawCommand(tokens, pos, statements, diagnostics, DrawCommands[t.Text]);
+
+            case "ELLIPSE":                             // D139
+                return ParseEllipse(tokens, pos, statements, diagnostics);
 
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
@@ -2474,6 +2477,62 @@ public static class Parser
         CheckConstantRange(mode, 0, 3, name.Line, diagnostics);
 
         statements.Add(new DrawStatement(name.Line, name.Text, x, y, pen, mode));
+        return pos;
+    }
+
+    // ELLIPSE x, y, rayon x, rayon y [, [stylo] [, [remplissage] [, angle]]] (D139) : c'est la place qui compte, et une
+    // place peut rester vide (deux virgules), comme MOVE x, y, , mode : ELLIPSE 160, 100, 50, 20, , , 30.
+    const string EllipseSignature = "ELLIPSE x, y, rayon x (0 à 1000), rayon y (0 à 1000) [, [stylo] [, [remplissage] [, angle]]]";
+
+    static int ParseEllipse(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        pos++;
+
+        var values = new Expression[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (i > 0)
+            {
+                if (tokens[pos].Kind != TokenKind.Comma)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, EllipseSignature));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                pos++;
+            }
+            Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+            if (value is null)
+                return SkipToStatementEnd(tokens, pos);
+            values[i] = value;
+        }
+
+        var options = new Expression?[3];                       // stylo, remplissage, angle
+        for (int i = 0; i < 3 && tokens[pos].Kind == TokenKind.Comma; i++)
+        {
+            pos++;
+            if (tokens[pos].Kind == TokenKind.Comma)
+                continue;                                       // place vide
+            if (IsStatementEnd(tokens[pos]) || IsElse(tokens[pos]))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, EllipseSignature));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            options[i] = ParseExpression(tokens, ref pos, diagnostics);
+            if (options[i] is null)
+                return SkipToStatementEnd(tokens, pos);
+        }
+        if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, EllipseSignature));
+            return SkipToStatementEnd(tokens, pos);
+        }
+
+        CheckConstantRange(values[2], 0, 1000, name.Line, diagnostics);
+        CheckConstantRange(values[3], 0, 1000, name.Line, diagnostics);
+        CheckConstantRange(options[0], 0, 15, name.Line, diagnostics);
+        CheckConstantRange(options[1], 0, 15, name.Line, diagnostics);
+        statements.Add(new EllipseStatement(name.Line, values[0], values[1], values[2], values[3], options[0], options[1], options[2]));
         return pos;
     }
 

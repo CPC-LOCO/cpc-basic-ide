@@ -195,6 +195,13 @@ public sealed record EnvelopeStatement(int SourceLine, bool Tone, Expression Num
 public sealed record DrawStatement(int SourceLine, string Command, Expression X, Expression Y,
                                    Expression? Pen, Expression? Mode) : Statement(SourceLine);
 
+/// <summary>
+/// ELLIPSE x, y, rayon x, rayon y [, [stylo] [, [remplissage] [, angle]]] (D139) : ovale ; rayons de 0 à 1000 comptés
+/// comme le rayon de CIRCLE ; angle en degrés, le côté droit monte quand il est positif. Places vides permises.
+/// </summary>
+public sealed record EllipseStatement(int SourceLine, Expression X, Expression Y, Expression RadiusX, Expression RadiusY,
+                                      Expression? Pen, Expression? Fill, Expression? Angle) : Statement(SourceLine);
+
 /// <summary>END : fin du programme.</summary>
 public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 
@@ -626,6 +633,7 @@ public static class AstWalker
         PrintUsingDynamicStatement d => d.Values.Prepend(d.Format),
         EnvelopeStatement env => env.Sections.SelectMany(x => new[] { x.A, x.B, x.C }).OfType<Expression>().Prepend(env.Number),
         DrawStatement d => new[] { d.X, d.Y, d.Pen, d.Mode }.OfType<Expression>(),
+        EllipseStatement el => new[] { el.X, el.Y, el.RadiusX, el.RadiusY, el.Pen, el.Fill, el.Angle }.OfType<Expression>(),
         OnStatement o => [o.Selector],
         ReadStatement r => r.Targets,
         InputStatement i => i.Targets,

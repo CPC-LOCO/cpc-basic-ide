@@ -264,6 +264,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `BOX` | rectangle : contour et remplissage | Ajout du projet | BOX x1, y1, x2, y2 [, stylo [, remplissage]], repère natif (D048, D051). |
 | `DEBUG` | affiche les variables et leurs valeurs (mise au point) | Ajout du projet | Seulement avec le réglage « Mise au point » (F2) ; sinon ignoré. ESPACE : suite ; S : plus aucun DEBUG (D136). `DEBUG A,B$` : seulement ces variables, dans l'ordre écrit (D137) ; `DEBUG T(I)` : une seule case, avec son vrai numéro (D138). |
 | `CIRCLE` | rond : contour et remplissage | Ajout du projet | CIRCLE x, y, rayon (0 à 1000) [, stylo [, remplissage]], repère natif, rond à l'écran : largeur ×0,5 / ×1 / ×2 selon le MODE (D130). |
+| `ELLIPSE` | ovale droit ou incliné : contour et remplissage | Ajout du projet | ELLIPSE x, y, rayon x, rayon y (0 à 1000) [, stylo [, remplissage [, angle]]], places vides permises (`ELLIPSE 160,100,50,20,,,30`) ; angle en degrés, le côté droit monte quand il est positif ; même largeur que CIRCLE ; deux rayons égaux = CIRCLE (D139). |
 | `BYTE` | variable sur un octet | Ajout du projet | Déclaration obligatoire avant usage. |
 | `EXIT / CONTINUE` | sortie / suite d'une boucle | Ajout du projet |  |
 | `END IF / ENDIF` | fin d'un IF en bloc | Ajout du projet |  |
@@ -274,7 +275,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `RANDOM` | nombre au hasard entre deux bornes | Ajout du projet | RANDOM(min, max). |
 | `PAINT` | colorie la zone de l'encre qui est sous le curseur graphique | Ajout du projet | PAINT encre (D107, D108) : seulement les points de cette encre qui se touchent par les côtés. Idée de l'utilisateur. |
 
-**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : CIRCLE, ELLIPSE, STAR, POLYGON, SPRITE, COLLIDE, SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE.
+**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : STAR, POLYGON, SPRITE, COLLIDE, SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE.
 
 ## Règles pour les prochaines commandes
 

@@ -206,6 +206,8 @@ public sealed class Z80Emitter
     // Textes (lot E, D062)
     public void StoreHlC() => code.Add(0x71);                                                    // LD (HL),C
     public void AddAMemHl() => code.Add(0x86);                                                   // ADD A,(HL)
+    public void AdcAMemHl() => code.Add(0x8E);                                                   // ADC A,(HL) (D139)
+    public void SbcAMemHl() => code.Add(0x9E);                                                   // SBC A,(HL) (D139)
     public void CpMemHl() => code.Add(0xBE);                                                     // CP (HL)
     public void DecD() => code.Add(0x15);                                                        // DEC D (D109)
     public void DecB() => code.Add(0x05);                                                        // DEC B

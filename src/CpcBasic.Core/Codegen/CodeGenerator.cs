@@ -2164,6 +2164,7 @@ public static class CodeGenerator
                 || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
+                || statement is EllipseStatement { RadiusX: not NumberExpression } or EllipseStatement { RadiusY: not NumberExpression }   // D139
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
                 || statement is FileStatement or SaveStatement or LoadStatement or SpeedWriteStatement or RunFileStatement
@@ -3316,6 +3317,52 @@ public static class CodeGenerator
                 case DrawStatement draw:
                     EmitDraw(draw);
                     break;
+
+                case EllipseStatement ellipse:      // D139 : comme CIRCLE (D130), plus le second rayon et l'angle
+                {
+                    EmitExpression(ellipse.X);
+                    emitter.LdMemHl(RuntimeLibrary.EllipseXLabel);
+                    EmitExpression(ellipse.Y);
+                    emitter.LdMemHl(RuntimeLibrary.EllipseYLabel);
+                    foreach ((Expression radius, string label) in new[] { (ellipse.RadiusX, RuntimeLibrary.EllipseRadiusXLabel),
+                                                                          (ellipse.RadiusY, RuntimeLibrary.EllipseRadiusYLabel) })
+                    {
+                        EmitExpression(radius);
+                        emitter.LdMemHl(label);
+                        if (radius is not NumberExpression)     // rayon calculé hors de 0 à 1000 : « Improper argument »
+                        {
+                            required.Add(RuntimeLibrary.ByteCheckName);
+                            emitter.LdDeImm(1001);
+                            emitter.OrA();
+                            emitter.SbcHlDe();
+                            emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
+                        }
+                    }
+                    if (ellipse.Angle is null)               // angle omis : 0 (ovale droit)
+                        emitter.LdHlImm(0);
+                    else
+                        EmitExpression(ellipse.Angle);
+                    emitter.LdMemHl(RuntimeLibrary.EllipseAngleLabel);
+                    if (ellipse.Pen is null)                 // stylo du contour omis : stylo courant du tracé
+                        emitter.CallAddress(GraGetPen);
+                    else
+                    {
+                        EmitExpression(ellipse.Pen);
+                        emitter.LdAL();
+                    }
+                    emitter.LdMemA(RuntimeLibrary.EllipsePenLabel);
+                    if (ellipse.Fill is not null)            // stylo de l'intérieur (pas d'intérieur s'il est omis)
+                    {
+                        EmitExpression(ellipse.Fill);
+                        emitter.LdAL();
+                        emitter.LdMemA(RuntimeLibrary.EllipseFillPenLabel);
+                    }
+                    emitter.LdAImm(ellipse.Fill is null ? 0 : 1);
+                    emitter.LdMemA(RuntimeLibrary.EllipseDoFillLabel);
+                    required.Add(RuntimeLibrary.EllipseName);
+                    emitter.CallLabel(RuntimeLibrary.EllipseLabel);
+                    break;
+                }
 
                 case EndStatement:
                     emitter.JpLabel(EndLabel);

@@ -1222,6 +1222,15 @@ internal sealed class MiniZ80
             // Textes (lot E, D062)
             case 0x71: Memory[HL] = C; break;                          // LD (HL),C
             case 0x86: Add(ReadMemory(HL)); break;                     // ADD A,(HL)
+            case 0x8E: Add(ReadMemory(HL), withCarry: true); break;    // ADC A,(HL) (D139)
+            case 0x9E:                                                 // SBC A,(HL) (D139)
+            {
+                int result = A - ReadMemory(HL) - (CarryFlag ? 1 : 0);
+                CarryFlag = result < 0;
+                A = (byte)result;
+                ZeroFlag = A == 0;
+                break;
+            }
             case 0xBE: Compare(ReadMemory(HL)); break;                 // CP (HL)
             case 0x05: B--; ZeroFlag = B == 0; break;                  // DEC B
             case 0x0C: C++; ZeroFlag = C == 0; break;                  // INC C
