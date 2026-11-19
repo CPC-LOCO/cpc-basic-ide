@@ -26,6 +26,9 @@ public sealed class EditorSettings
     /// <summary>Taille du texte de l'éditeur (en points).</summary>
     public int FontSize { get; set; } = DefaultFontSize;
 
+    /// <summary>Taille du texte de la fenêtre des bibliothèques (D156) : Ctrl et + / Ctrl et - dans la fenêtre.</summary>
+    public int LibraryFontSize { get; set; } = 15;
+
     /// <summary>Vrai si le thème à fort contraste (noir et blanc) est choisi.</summary>
     public bool HighContrast { get; set; }
 
@@ -102,6 +105,7 @@ public sealed class EditorSettings
                 if (settings is not null)
                 {
                     settings.FontSize = Math.Clamp(settings.FontSize, MinFontSize, MaxFontSize);
+                    settings.LibraryFontSize = Math.Clamp(settings.LibraryFontSize, MinFontSize, MaxFontSize);
                     settings.RealByDefaultFiles ??= new();
                     settings.BreakIgnoredFiles ??= new();
                     return settings;

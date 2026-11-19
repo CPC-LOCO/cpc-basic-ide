@@ -1196,6 +1196,18 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Liste fixe de l'éditeur :** STAR en est retirée (elle vient maintenant du catalogue) ; POLYGON aussi (abandonnée, D150).
 - **Fichiers :** `src\CpcIde\BasicColorizer.cs` (LibraryWords), `src\CpcIde\MainWindow.axaml.cs` (UseLibraries).
 
+## D155 : liste des bibliothèques (Maj+F4), étape B4 (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur)
+- **Où :** nouveau menu « Bibliothèques », « Liste des bibliothèques », raccourci **Maj+F4** (à côté de F4, la liste des variables ; F6, F10 et F12 étaient pris ou gênants : F6 passe aux messages, F10 ouvre le menu de Windows, F12 sert aux outils de mise au point d'Avalonia).
+- **Comme F4 :** la liste s'affiche dans le panneau des messages (lisible par un lecteur d'écran) : les deux dossiers (projet, protégé ; le vôtre, Documents\CPC BASIC IDE\bibliotheques, « pas encore créé » s'il n'existe pas), puis pour chaque bibliothèque ses commandes : bonne écriture (« STAR x, y, r1, r2, pointes [, stylo] [, remplissage] [, angle] »), genre, du projet (protégée) ou à vous, auteur, lignes d'aide, et chaque valeur avec ses limites, sa valeur si elle est sautée et son rôle ; à la fin, les fichiers refusés.
+- **Code :** la bonne écriture vient de `LibraryCommandFile.Signature` (Core), utilisée aussi par les messages d'erreur du compilateur.
+- **F1 :** ligne des raccourcis complétée.
+
+## D156 : fenêtre des bibliothèques (19 nov. 2026) (idée de l'utilisateur) ; remplace l'affichage de D155 dans le panneau des messages
+- **Remarque de l'utilisateur :** avec beaucoup de commandes, la liste dans les messages deviendrait illisible ; « une fenêtre détachée avec en haut Graphique-Texte-Bruitage-etc et en dessous les commandes avec une barre défilante à droite ».
+- **Fenêtre (Maj+F4 ou menu Bibliothèques) :** un onglet par bibliothèque ; à gauche, ses commandes (nom et genre, barre de défilement toujours visible) ; à droite, la commande choisie : bonne écriture, genre, protégée ou à vous, auteur, aide, chaque valeur (limites, valeur si sautée, rôle) ; onglet « Fichiers refusés » s'il y en a ; en bas, les deux dossiers et « Fermer (Échap) ». Texte de 15 points au départ (18 au premier essai : « un peu trop grosse ») ; Ctrl et + / Ctrl et - dans la fenêtre pour le changer, taille gardée dans les réglages (LibraryFontSize). Fenêtre à part : l'éditeur reste utilisable ; redemandée, elle est remise à jour et passe devant (onglet gardé).
+- **Essayé (19 nov. 2026) :** « ça marche très bien comme ça ».
+- **Fichier :** `src\CpcIde\LibraryWindow.cs` ; plus tard : boutons « Nouvelle commande », modifier, effacer.
+
 ---
 
 ## Notes de fin de session (modèle)

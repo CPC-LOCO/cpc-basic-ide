@@ -182,6 +182,7 @@ public partial class MainWindow : Window
     void OnTextClick(object? sender, RoutedEventArgs e) => ToggleTextOnDisk();
     void OnVersionClick(object? sender, RoutedEventArgs e) => ToggleCpcVersion();
     void OnVariablesClick(object? sender, RoutedEventArgs e) => ShowVariables();
+    void OnLibrariesClick(object? sender, RoutedEventArgs e) => ShowLibraries();
     void OnDebugClick(object? sender, RoutedEventArgs e) => ToggleDebug();
     void OnPriorityClick(object? sender, RoutedEventArgs e) => TogglePriority();
     void OnWrapClick(object? sender, RoutedEventArgs e)
@@ -220,7 +221,7 @@ public partial class MainWindow : Window
         {
             new MessageItem("Raccourcis clavier :", 0),
             new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   Ctrl+Maj+S : enregistrer sous un autre nom.", 0),
-            new MessageItem("F5 : compiler.   F4 : liste des variables.", 0),
+            new MessageItem("F5 : compiler.   F4 : liste des variables.   Maj+F4 : liste des bibliothèques et de leurs commandes.", 0),
             new MessageItem("Maj+F5 : vérifier sans enregistrer (rien n'est écrit : ni le programme, ni la disquette).", 0),
             new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
             new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
@@ -387,6 +388,11 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             ToggleContrast();
+        }
+        else if (e.Key == Key.F4 && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            ShowLibraries();
         }
         else if (e.Key == Key.F4)
         {
@@ -1022,6 +1028,31 @@ public partial class MainWindow : Window
 
     // Catalogue lu à la dernière compilation (F5, Maj+F5 ou F4)
     LibraryCatalog libraries = LibraryCatalog.Empty;
+
+    // Maj+F4 : fenêtre des bibliothèques (D156, idée de l'utilisateur ; remplace la liste dans les messages de D155) ;
+    // une seule fenêtre : redemandée, elle est remise à jour et passe devant
+    LibraryWindow? libraryWindow;
+
+    void ShowLibraries()
+    {
+        UseLibraries(LibraryFolders.Load());
+        if (libraryWindow is null)
+        {
+            libraryWindow = new LibraryWindow(settings.LibraryFontSize, size =>
+            {
+                settings.LibraryFontSize = size;
+                settings.Save();
+            });
+            libraryWindow.Closed += (_, _) => libraryWindow = null;
+            libraryWindow.Fill(libraries);
+            libraryWindow.Show(this);
+        }
+        else
+        {
+            libraryWindow.Fill(libraries);
+            libraryWindow.Activate();
+        }
+    }
 
     // Nouveau catalogue : gardé pour la compilation, et ses commandes et fonctions colorées dans l'éditeur (D154)
     void UseLibraries(LibraryCatalog catalog)

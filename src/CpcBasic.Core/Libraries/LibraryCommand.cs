@@ -190,6 +190,25 @@ public static class LibraryCommandFile
         return (new LibraryCommand(name, kind.Value, parameters, help, author, library.ToUpperInvariant(), isProtected, text), errors);
     }
 
+    /// <summary>
+    /// La bonne écriture en BASIC, avec les noms du questionnaire et les OPTION entre crochets :
+    /// « STAR x, y [, stylo] », « LUNE(n [, option]) », ou le nom seul (D150, D155).
+    /// </summary>
+    public static string Signature(LibraryCommand command)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (LibraryParameter p in command.Parameters)
+        {
+            string separator = text.Length == 0 ? "" : ", ";
+            string word = p.Name.ToLowerInvariant();
+            text.Append(p.IsOptional ? $" [{separator}{word}]" : separator + word);
+        }
+        string names = text.ToString().Trim();
+        if (command.Kind == LibraryKind.Function)
+            return command.Parameters.Count == 0 ? command.Name : $"{command.Name}({names})";
+        return command.Parameters.Count == 0 ? command.Name : $"{command.Name} {names}";
+    }
+
     /// <summary>Nom du fichier sans dossier ni extension (« STAR.cmd.asm » donne « STAR »).</summary>
     public static string StemOf(string fileName)
     {

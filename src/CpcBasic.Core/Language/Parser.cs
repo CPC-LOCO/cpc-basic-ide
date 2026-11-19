@@ -1284,21 +1284,7 @@ public static class Parser
         return arguments;
     }
 
-    // « STAR x, y [, stylo] » ou « LUNE(n [, option]) », avec les noms du questionnaire
-    static string LibrarySignature(LibraryCommand command)
-    {
-        var text = new System.Text.StringBuilder();
-        foreach (LibraryParameter p in command.Parameters)
-        {
-            string separator = text.Length == 0 ? "" : ", ";
-            string word = p.Name.ToLowerInvariant();
-            text.Append(p.IsOptional ? $" [{separator}{word}]" : separator + word);
-        }
-        string names = text.ToString().Trim();
-        if (command.Kind == LibraryKind.Function)
-            return command.Parameters.Count == 0 ? command.Name : $"{command.Name}({names})";
-        return command.Parameters.Count == 0 ? command.Name : $"{command.Name} {names}";
-    }
+    static string LibrarySignature(LibraryCommand command) => LibraryCommandFile.Signature(command);   // D155
 
     // Le code assembleur des commandes utilisées (et des routines qu'elles appellent) est vérifié ici
     static void CheckLibraries(List<Diagnostic> diagnostics)

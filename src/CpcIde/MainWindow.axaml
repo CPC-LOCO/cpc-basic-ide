@@ -85,6 +85,9 @@
                 <MenuItem Header="_Vérifier sans enregistrer" InputGesture="Shift+F5" Click="OnVerifyClick" />
                 <MenuItem Header="_Liste des variables" InputGesture="F4" Click="OnVariablesClick" />
             </MenuItem>
+            <MenuItem Header="_Bibliothèques">
+                <MenuItem Header="_Liste des bibliothèques" InputGesture="Shift+F4" Click="OnLibrariesClick" />
+            </MenuItem>
             <MenuItem Header="_Options">
                 <!-- D126 : le texte dit la version actuelle, F7 passe de l'une à l'autre -->
                 <MenuItem x:Name="VersionMenu" Header="Version du _CPC : français (AZERTY)" InputGesture="F7"
