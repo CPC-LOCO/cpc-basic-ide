@@ -1098,6 +1098,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Numéro de version :** 0.4.0 dans Directory.Build.props et packaging\build-release.cmd.
 - **packaging\build-release.cmd :** lancé par un double-clic, il partait du dossier packaging\ et échouait aussitôt (fenêtre refermée) ; il se place maintenant lui-même à la racine du dépôt (`cd /d "%~dp0.."`) et attend une touche à la fin. Au deuxième essai, le paquet a été construit, mais la fenêtre s'est encore refermée (cause inconnue) : Claude a calculé la somme de contrôle sur le fichier.
 - **Paquet :** release\CpcBasic-0.4.0-win-x64.zip (environ 75 Mo, 81 exemples, EXCEPTION-LIAISON.md, aucune ROM) ; SHA256 0d3af79aebb4571beef93f7c061fcf55ff7d7015a194d55aeb3c510ca917584e (dans RELEASE-NOTES-0.4.0.md). **Essayé par l'utilisateur :** décompressé hors du projet ; Avast analyse CpcIde.exe puis le laisse passer (fichier non signé, prévu dans LISEZMOI) ; examples\ovales.bas du paquet compilé et lancé dans WinAPE.
+- **Publiée sur GitHub (19 nov. 2026) :** pre-release v0.4.0 « CPC BASIC IDE 0.4.0 (version de test) », commit 9f8811c, description tirée de docs\RELEASE-NOTES-0.4.0.md.
 
 ---
 
