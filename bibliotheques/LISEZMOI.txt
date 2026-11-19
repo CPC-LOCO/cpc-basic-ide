@@ -1,0 +1,8 @@
+Bibliothèques du projet CPC BASIC IDE (D144, D149)
+
+Ce dossier est copié à côté de CpcIde.exe et remplacé à chaque version.
+Un sous-dossier par bibliothèque (GRAPHIQUE...), un fichier par commande, fonction ou routine.
+Les commandes de ce dossier sont protégées.
+
+Vos propres commandes vont dans : Documents\CPC BASIC IDE\bibliotheques
+(un sous-dossier par bibliothèque ; une mise à jour de l'éditeur n'y touche jamais).

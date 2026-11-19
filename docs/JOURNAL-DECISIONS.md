@@ -1152,6 +1152,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Dans le programme compilé :** chaque valeur a sa case de 2 octets ; le programme y range les valeurs puis fait CALL ; plusieurs valeurs passent d'abord par la pile (`SOMME(1, SOMME(4, 5))` ne mélange pas les cases). Seules les commandes utilisées sont ajoutées, avec les routines qu'elles appellent, dans un ordre fixe ; elles sont nommées « BIBLIOTHÈQUE:NOM » dans la liste des modules.
 - **Pas encore :** l'éditeur ne donne pas encore le catalogue au compilateur (étape B4) ; le message de F5 ne nomme pas encore les bibliothèques utilisées.
 
+## D149 : l'éditeur trouve les bibliothèques (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; début de l'étape B4, applique D144 et D148
+- **Bibliothèques du projet :** dossier `bibliotheques` du dépôt, copié à côté de CpcIde.exe (et dans la version publiée) ; remplacé à chaque version ; commandes protégées.
+- **Bibliothèques du programmeur :** `Documents\CPC BASIC IDE\bibliotheques`, jamais touché par une mise à jour (Documents plutôt qu'AppData : facile à trouver).
+- **Quand :** les deux dossiers sont relus à chaque F5, Maj+F5 et F4 : une commande ajoutée sert tout de suite, sans relancer l'éditeur.
+- **Message de F5 :** une ligne « Bibliothèques utilisées : GRAPHIQUE (STAR, POLYGON) » ; les modules du compilateur restent sur leur ligne. Un fichier de commande refusé par le catalogue est signalé (en rouge) à la fin du compte rendu, avec son dossier, sa ligne et l'explication.
+- **Fichiers :** `src\CpcIde\LibraryFolders.cs` (nouveau), `MainWindow.axaml.cs`, `CpcIde.csproj`, `bibliotheques\LISEZMOI.txt`.
+
 ---
 
 ## Notes de fin de session (modèle)

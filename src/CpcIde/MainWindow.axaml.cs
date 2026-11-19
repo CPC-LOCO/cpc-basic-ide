@@ -19,6 +19,7 @@ using Avalonia.Platform.Storage;
 using AvaloniaEdit;
 using CpcBasic.Core;
 using CpcBasic.Core.Editing;
+using CpcBasic.Core.Libraries;
 
 namespace CpcIde;
 
@@ -491,7 +492,8 @@ public partial class MainWindow : Window
     // Entrée sur une ligne : le curseur va à sa première ligne.
     void ShowVariables()
     {
-        var options = new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion);
+        libraries = LibraryFolders.Load();
+        var options = new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, Libraries: libraries);
         IReadOnlyList<VariableLine> variables = VariableList.Build(Editor.Text, options);
         int warnings = variables.Count(v => v.Warning);
         var items = new List<MessageItem>
@@ -579,14 +581,14 @@ public partial class MainWindow : Window
     bool UsesCircleAndEllipse()
     {
         var statements = CpcBasic.Core.Language.BasicAnalyzer.Analyze(Editor.Text,
-            new CompilerOptions(Language: settings.CpcVersion)).Program.Statements;
+            new CompilerOptions(Language: settings.CpcVersion, Libraries: libraries)).Program.Statements;
         return statements.Any(s => s is CpcBasic.Core.Language.ScreenStatement { Command: "CIRCLE" })
                && statements.Any(s => s is CpcBasic.Core.Language.EllipseStatement);
     }
 
     // Nombre de DEBUG du programme (D136), pour le rappeler quand ils sont ignorés
     int CountDebug() => CpcBasic.Core.Language.BasicAnalyzer.Analyze(Editor.Text,
-            new CompilerOptions(Language: settings.CpcVersion)).Program.Statements.OfType<CpcBasic.Core.Language.DebugStatement>().Count();
+            new CompilerOptions(Language: settings.CpcVersion, Libraries: libraries)).Program.Statements.OfType<CpcBasic.Core.Language.DebugStatement>().Count();
 
     // F11 : le texte du programme aussi sur la disquette (NOM.TXT), pour le vrai BASIC ; pour tous les programmes (D101)
     void ToggleTextOnDisk()
@@ -865,6 +867,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        libraries = LibraryFolders.Load();      // bibliothèques relues à chaque compilation (D149)
         CompileResult result;
         try
         {
@@ -878,10 +881,10 @@ public partial class MainWindow : Window
                     return null;
                 return new ProgramSource(File.ReadAllText(file),
                                          new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
-                                                             settings.CpcVersion, settings.DebugMode, settings.PreferSize));
+                                                             settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries));
             }
             result = Compiler.CompileWithLinked(Editor.Text, name,
-                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize), Find);
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -894,6 +897,7 @@ public partial class MainWindow : Window
             // une erreur dans un autre programme (RUN "nom", D087) ne mène pas à une ligne de celui-ci
             var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0, MessageKind.Error)).ToList();
             items.Add(new MessageItem($"{result.Diagnostics.Count} erreur(s). Aucun fichier n'a été créé.", 0));
+            items.AddRange(LibraryProblems());
             ShowMessages(items);
             return;
         }
@@ -928,7 +932,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        string modules = result.Modules.Count == 0 ? "aucun" : string.Join(", ", result.Modules);
+        // « GRAPHIQUE:STAR » : commande de bibliothèque (D148) ; les autres sont les modules du compilateur
+        List<string> ownModules = result.Modules.Where(m => !m.Contains(':')).ToList();
+        string modules = ownModules.Count == 0 ? "aucun" : string.Join(", ", ownModules);
         var done = new List<MessageItem>
         {
             new MessageItem($"Compilation réussie : {dskPath}", 0, MessageKind.Success),
@@ -937,6 +943,11 @@ public partial class MainWindow : Window
                             $"Variables sans signe : {(realByDefault ? "à virgule" : "entières")}. " +
                             $"Touche ESC : {(breakKey ? "comme le CPC" : "ignorée")}.", 0)
         };
+        IEnumerable<string> libraryModules = result.Modules.Where(m => m.Contains(':'));
+        if (libraryModules.Any())              // D149 : bibliothèques utilisées, avec leurs commandes
+            done.Add(new MessageItem("Bibliothèques utilisées : " + string.Join(" ; ", libraryModules
+                .GroupBy(m => m[..m.IndexOf(':')])
+                .Select(g => $"{g.Key} ({string.Join(", ", g.Select(m => m[(m.IndexOf(':') + 1)..]))})")) + ".", 0));
         if (textNote is not null)
             done.Add(new MessageItem(textNote, 0));
         foreach (LinkedProgram linked in result.Linked)   // D087
@@ -954,6 +965,7 @@ public partial class MainWindow : Window
                 : "Priorité vitesse (F3) : CIRCLE garde sa routine rapide (environ 750 octets de plus qu'avec la priorité place).", 0));
         done.Add(new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0));
         done.Add(new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0));
+        done.AddRange(LibraryProblems());
         ShowMessages(done);
     }
 
@@ -965,6 +977,7 @@ public partial class MainWindow : Window
         if (name.Length is 0 or > 8)
             name = "VERIF";
         string? folder = currentPath is null ? null : Path.GetDirectoryName(currentPath);
+        libraries = LibraryFolders.Load();      // D149
         CompileResult result;
         try
         {
@@ -977,10 +990,10 @@ public partial class MainWindow : Window
                 return file is null ? null
                     : new ProgramSource(File.ReadAllText(file),
                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
-                                                            settings.CpcVersion, settings.DebugMode, settings.PreferSize));
+                                                            settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries));
             }
             result = Compiler.CompileWithLinked(Editor.Text, name,
-                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize), Find);
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -992,6 +1005,7 @@ public partial class MainWindow : Window
         {
             var items = result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0, MessageKind.Error)).ToList();
             items.Add(new MessageItem($"{result.Diagnostics.Count} erreur(s). Rien n'a été enregistré.", 0));
+            items.AddRange(LibraryProblems());
             ShowMessages(items);
             return;
         }
@@ -1002,6 +1016,15 @@ public partial class MainWindow : Window
                                      : "F5 pour créer la disquette.", 0)
         });
     }
+
+    // ---------- Bibliothèques (D149) ----------
+
+    // Catalogue lu à la dernière compilation (F5, Maj+F5 ou F4)
+    LibraryCatalog libraries = LibraryCatalog.Empty;
+
+    // Fichiers de commande refusés par le catalogue : signalés après le compte rendu, pour pouvoir les corriger
+    IEnumerable<MessageItem> LibraryProblems() =>
+        libraries.Errors.Select(e => new MessageItem($"Bibliothèque : fichier refusé, {e}", 0, MessageKind.Error));
 
     // ---------- Panneau de messages ----------
 

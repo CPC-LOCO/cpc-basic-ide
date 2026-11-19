@@ -18,6 +18,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Bibliothèques du projet (D149) : copiées à côté de CpcIde.exe, remplacées à chaque version -->
+  <ItemGroup>
+    <None Include="..\..\bibliotheques\**\*" LinkBase="bibliotheques" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\CpcBasic.Core\CpcBasic.Core.csproj" />
   </ItemGroup>
