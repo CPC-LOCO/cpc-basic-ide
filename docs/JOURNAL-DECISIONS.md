@@ -1183,6 +1183,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Exemple :** examples\etoiles.bas, nouvel écran « ETOILES REMPLIES ».
 - **Essayé dans WinAPE (19 nov. 2026) :** quatre étoiles remplies (5 et 8 pointes, hexagone, 4 pointes tournée de 45 degrés) : intérieur et contour justes, sans trou ; « le remplissage est un peu lent, sinon c'est super cette instruction » : accélération à faire.
 
+## D153 : intérieur de STAR plus rapide ; 16 pointes au plus (19 nov. 2026) (choix 2 de l'utilisateur) ; remplace la méthode et la limite de D152
+- **Demande de l'utilisateur :** « le remplissage est un peu lent » (D152). Choix proposés : rapide avec 32 pointes (environ 600 octets de plus), rapide avec 16 pointes (presque rien de plus), ne rien changer ; **choix 2**.
+- **Méthode :** chaque bord est noté une fois (13 octets : y1 et y2 gardés entre 0 et 200, x, reste, Q, R, y2 - y1, signe) avec de combien il se décale d'une ligne à la suivante (Q + R / (y2 - y1), une seule division par bord) ; ligne par ligne, chaque bord qui croise la ligne donne sa clé puis avance par des additions (plus de multiplication ni de division par ligne) ; comparaisons sur un octet. Un bord qui commence au-dessus de l'écran est avancé d'un coup jusqu'à la ligne 0. Les sommets ne sont plus gardés : ils sont recalculés pour le contour (environ 15 000 instructions).
+- **Gain :** étoile à 5 pointes de 160 lignes avec intérieur : environ 96 000 instructions au lieu de 330 000 (3,4 fois moins) ; le tracé des lignes par le firmware n'a pas changé (il compte maintenant pour une bonne part du temps : une écriture directe dans l'écran serait l'étape suivante, si besoin).
+- **Place :** listes de 416 (bords) et 64 octets (croisements) au lieu de 3 × 128.
+- **Vérification :** test_star2.py : 312 étoiles toujours identiques à la règle exacte ; MiniZ80 : LD C,(IX+d), LD (IX+d),L, LD (IX+d),H, CP (IX+d), ADD IX,DE ajoutés.
+- **Essayé dans WinAPE (19 nov. 2026) :** examples\etoiles.bas, écran « ETOILES REMPLIES » : « c'est bien plus rapide ! Super ». 1835 tests réussis.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -1295,6 +1295,11 @@ internal sealed class MiniZ80
                     case 0x66: H = Memory[At()]; break;                // LD H,(IX+d)
                     case 0x5E: E = Memory[At()]; break;                // LD E,(IX+d)
                     case 0x56: D = Memory[At()]; break;                // LD D,(IX+d)
+                    case 0x4E: C = Memory[At()]; break;                // LD C,(IX+d) (STAR, D153)
+                    case 0x75: Memory[At()] = L; break;                // LD (IX+d),L (STAR, D153)
+                    case 0x74: Memory[At()] = H; break;                // LD (IX+d),H (STAR, D153)
+                    case 0xBE: Compare(Memory[At()]); break;           // CP (IX+d) (STAR, D153)
+                    case 0x19: IX = (ushort)(IX + DE); break;          // ADD IX,DE (STAR, D153)
                     default:
                         throw new NotSupportedException($"Instruction &DD &{next:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
                 }

@@ -56,7 +56,7 @@ public class StarTests
         Assert.Equal("GRAPHIQUE", star.Library);
         Assert.True(star.Protected);
         Assert.Equal(new[] { "X", "Y", "R1", "R2", "POINTES", "STYLO", "REMPLISSAGE", "ANGLE" }, star.Parameters.Select(p => p.Name));
-        Assert.Equal(32, star.Parameters[4].Max);                // 32 pointes au plus (D152)
+        Assert.Equal(16, star.Parameters[4].Max);                // 16 pointes au plus (D153)
         Assert.Equal(3, star.Parameters.Count(p => p.IsOptional));
     }
 
