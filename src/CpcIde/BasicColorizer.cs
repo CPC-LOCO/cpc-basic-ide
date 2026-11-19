@@ -64,11 +64,17 @@ public class BasicColorizer : DocumentColorizingTransformer
 
     static readonly HashSet<string> NewCommands = new(StringComparer.OrdinalIgnoreCase)
     {
-        "CIRCLE", "ELLIPSE", "STAR", "PAINT", "BOX", "POLYGON", "DEBUG",
+        "CIRCLE", "ELLIPSE", "PAINT", "BOX", "DEBUG",
         "SPRITE", "COLLIDE", "SCROLL",
         "SELECT", "CASE", "BYTE", "EXIT", "CONTINUE", "ENDIF", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "ISIN", "ICOS", "DO", "LOOP", "REPEAT", "UNTIL",
         "VROOM", "BOOM", "SHOT", "FALL", "WAVE"
     };
+
+    /// <summary>
+    /// Commandes et fonctions des bibliothèques (D154), lues dans le catalogue : colorées comme les nouvelles commandes.
+    /// Les routines n'y sont pas (elles ne servent qu'en assembleur).
+    /// </summary>
+    public HashSet<string> LibraryWords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     protected override void ColorizeLine(DocumentLine line)
     {
@@ -135,7 +141,7 @@ public class BasicColorizer : DocumentColorizingTransformer
                     return;
                 }
 
-                if (NewCommands.Contains(word))
+                if (NewCommands.Contains(word) || LibraryWords.Contains(word))
                     Paint(offset + start, offset + i, colors.NewCommand);
                 else if (Classic.Contains(word))
                     Paint(offset + start, offset + i, colors.Keyword);

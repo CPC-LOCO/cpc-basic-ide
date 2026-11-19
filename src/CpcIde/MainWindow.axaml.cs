@@ -87,6 +87,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         Editor.TextArea.TextView.LineTransformers.Add(colorizer);
+        UseLibraries(LibraryFolders.Load());    // commandes des bibliothèques colorées dès l'ouverture (D154)
 
         // Messages (D113) : une longue phrase passe à la ligne au lieu d'être coupée au bord du panneau
         // Une icône (D114) devant les erreurs (✗ rouge) et les réussites (✓ vert)
@@ -492,7 +493,7 @@ public partial class MainWindow : Window
     // Entrée sur une ligne : le curseur va à sa première ligne.
     void ShowVariables()
     {
-        libraries = LibraryFolders.Load();
+        UseLibraries(LibraryFolders.Load());
         var options = new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, Libraries: libraries);
         IReadOnlyList<VariableLine> variables = VariableList.Build(Editor.Text, options);
         int warnings = variables.Count(v => v.Warning);
@@ -867,7 +868,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        libraries = LibraryFolders.Load();      // bibliothèques relues à chaque compilation (D149)
+        UseLibraries(LibraryFolders.Load());      // bibliothèques relues à chaque compilation (D149)
         CompileResult result;
         try
         {
@@ -977,7 +978,7 @@ public partial class MainWindow : Window
         if (name.Length is 0 or > 8)
             name = "VERIF";
         string? folder = currentPath is null ? null : Path.GetDirectoryName(currentPath);
-        libraries = LibraryFolders.Load();      // D149
+        UseLibraries(LibraryFolders.Load());      // D149
         CompileResult result;
         try
         {
@@ -1021,6 +1022,15 @@ public partial class MainWindow : Window
 
     // Catalogue lu à la dernière compilation (F5, Maj+F5 ou F4)
     LibraryCatalog libraries = LibraryCatalog.Empty;
+
+    // Nouveau catalogue : gardé pour la compilation, et ses commandes et fonctions colorées dans l'éditeur (D154)
+    void UseLibraries(LibraryCatalog catalog)
+    {
+        libraries = catalog;
+        colorizer.LibraryWords = new HashSet<string>(
+            catalog.All.Where(c => c.Kind != LibraryKind.Routine).Select(c => c.Name), StringComparer.OrdinalIgnoreCase);
+        Editor.TextArea.TextView.Redraw();
+    }
 
     // Fichiers de commande refusés par le catalogue : signalés après le compte rendu, pour pouvoir les corriger
     IEnumerable<MessageItem> LibraryProblems() =>

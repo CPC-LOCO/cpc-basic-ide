@@ -1191,6 +1191,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérification :** test_star2.py : 312 étoiles toujours identiques à la règle exacte ; MiniZ80 : LD C,(IX+d), LD (IX+d),L, LD (IX+d),H, CP (IX+d), ADD IX,DE ajoutés.
 - **Essayé dans WinAPE (19 nov. 2026) :** examples\etoiles.bas, écran « ETOILES REMPLIES » : « c'est bien plus rapide ! Super ». 1835 tests réussis.
 
+## D154 : l'éditeur colore les commandes des bibliothèques, étape B4 (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur)
+- **Ce qui change :** les commandes et les fonctions du catalogue (pas les routines, qui ne servent qu'en assembleur) prennent la couleur des nouvelles commandes du projet ; catalogue lu à l'ouverture de l'éditeur, puis relu à chaque F5, Maj+F5 et F4 (une commande ajoutée est colorée dès la compilation suivante).
+- **Liste fixe de l'éditeur :** STAR en est retirée (elle vient maintenant du catalogue) ; POLYGON aussi (abandonnée, D150).
+- **Fichiers :** `src\CpcIde\BasicColorizer.cs` (LibraryWords), `src\CpcIde\MainWindow.axaml.cs` (UseLibraries).
+
 ---
 
 ## Notes de fin de session (modèle)
