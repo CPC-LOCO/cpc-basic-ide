@@ -77,6 +77,9 @@ public enum DiagnosticCode
     UserFunctionRecursive,   // FNA s'appelle elle-même (directement ou par une autre FN)
     UserFunctionNeedsReal,   // une virgule serait perdue : nombre à virgule donné à un entier (conseil : le signe !)
     ExpectedEraseName,       // lot K8 (D096) : ERASE sans nom de tableau
+    ExpectedDebugName,       // D137 : DEBUG suivi d'autre chose que des noms de variables
+    DebugUnknownVariable,    // D137 : DEBUG X, mais X n'est utilisée nulle part
+    DebugArrayName,          // D137 : DEBUG T, T est un tableau (DEBUG T() viendra peut-être)
     DecFormat                // lot L2 (D103) : DEC$ avec un format qui n'est pas un seul emplacement de nombre
 }
 
@@ -239,6 +242,12 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"DEC$ : le format « {Argument} » doit être un seul emplacement de nombre, sans texte autour, par exemple DEC$(X, \"###.##\"). Le vrai BASIC répondrait « Improper argument ».",
         DiagnosticCode.ExpectedEraseName =>
             $"ERASE attend des noms de tableaux séparés par des virgules, sans parenthèses, par exemple ERASE T, N$.{Why}",
+        DiagnosticCode.ExpectedDebugName =>
+            $"DEBUG s'écrit seul (toutes les variables), ou suivi de noms de variables séparés par des virgules, par exemple DEBUG SCORE, NOM$.{Why}",
+        DiagnosticCode.DebugUnknownVariable =>
+            $"DEBUG : la variable {Argument} n'est utilisée nulle part dans le programme. Vérifiez son nom et son signe ($, % ou !).",
+        DiagnosticCode.DebugArrayName =>
+            $"DEBUG : {Argument} est un tableau. DEBUG ne montre pas encore les cases d'un tableau ; DEBUG seul donne son nombre de cases.",
         DiagnosticCode.UserFunctionName =>
             $"{(Context.Length == 0 ? "FN" : Context)} attend le nom de la fonction, par exemple FNDOUBLE(3) ou DEF FNDOUBLE(X)=X*2.{Why}",
         DiagnosticCode.UserFunctionParameter =>

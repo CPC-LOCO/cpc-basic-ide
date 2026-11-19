@@ -3334,13 +3334,13 @@ public static class CodeGenerator
                     emitter.JrNzLabel(skip);
                     emitter.LdHlImm(program.LineTable.Count > 0 ? basicLine : statement.SourceLine);
                     emitter.CallLabel(RuntimeLibrary.DebugTitleLabel);
-                    emitter.CallLabel("dbg_body");
+                    emitter.CallLabel(((DebugStatement)statement).BodyLabel);
                     emitter.Label(skip);
                     break;
                 }
 
-                case DebugBodyStatement:
-                    emitter.Label("dbg_body");
+                case DebugBodyStatement body:
+                    emitter.Label(body.Label);
                     break;
 
                 case DebugPageStatement:                            // écran plein : ESPACE ou S ; S : retour tout de suite
@@ -3637,71 +3637,45 @@ public static class CodeGenerator
     // une fin de programme (on n'y entre que par CALL) : pour chaque variable, par ordre alphabétique, un arrêt si l'écran
     // est plein, puis « NOM= valeur » avec les PRINT habituels (nombres, nombres à virgule, textes entre guillemets) ;
     // pour un tableau, son nombre de cases (DIM écrit en nombres) ou « tableau ».
+    // DEBUG A,B$ (D137) : une routine de plus par liste de noms différente, avec seulement ces variables, dans l'ordre écrit.
     static BasicProgram ExpandDebug(BasicProgram program, CompilerOptions options)
     {
-        if (!options.Debug || !program.Statements.Any(s => s is DebugStatement))
+        List<DebugStatement> debugs = program.Statements.OfType<DebugStatement>().ToList();
+        if (!options.Debug || debugs.Count == 0)
             return program;
 
-        var hidden = new HashSet<string>(program.Statements.OfType<DefFnStatement>().SelectMany(d => d.Function.Parameters));
-        var names = new HashSet<string>();
-        var arrays = new Dictionary<string, string?>();
-        foreach (Statement s in program.Statements)
-        {
-            foreach (Expression e in AstWalker.All(s))
-            {
-                if (e is VariableExpression v && !hidden.Contains(v.Name))
-                    names.Add(v.Name);
-                else if (e is ArrayElementExpression a)
-                    arrays.TryAdd(a.Name, null);
-            }
-            switch (s)
-            {
-                case AssignStatement assign:
-                    names.Add(assign.Variable);
-                    break;
-                case ForStatement loop:
-                    names.Add(loop.Variable);
-                    break;
-                case DeclareStatement declare:
-                    foreach (string name in declare.Names)
-                        names.Add(name);
-                    break;
-                case ArrayAssignStatement array:
-                    arrays.TryAdd(array.Name, null);
-                    break;
-                case DimStatement dim:
-                    foreach (ArrayDeclaration array in dim.Arrays)
-                    {
-                        long cases = 1;
-                        foreach (Expression size in array.Sizes)
-                            cases = size is NumberExpression n ? cases * (n.Value + 1) : -1;
-                        string text = array.Sizes.All(x => x is NumberExpression) ? $"{cases} cases" : "tableau";
-                        if (!arrays.TryGetValue(array.Name, out string? known) || known is null)
-                            arrays[array.Name] = text;
-                    }
-                    break;
-            }
-        }
-
-        var all = names.Select(n => (Key: n, Array: false)).Concat(arrays.Keys.Select(n => (Key: n + "()", Array: true)))
-                       .OrderBy(x => x.Key, StringComparer.Ordinal);
+        (HashSet<string> names, Dictionary<string, string?> arrays) = DebugVariables.Collect(program.Statements);
         var statements = program.Statements.ToList();
         statements.Add(new EndStatement(0));
-        statements.Add(new DebugBodyStatement());
-        foreach ((string key, bool array) in all)
+
+        void AddBody(string label, IEnumerable<(string Key, bool Array)> list)
         {
-            statements.Add(new DebugPageStatement());
-            if (array)
+            statements.Add(new DebugBodyStatement(label));
+            foreach ((string key, bool array) in list)
             {
-                statements.Add(new PrintStatement(0, $"{key} : {arrays[key[..^2]] ?? "tableau"}  ", false));
-                continue;
+                statements.Add(new DebugPageStatement());
+                if (array)
+                {
+                    statements.Add(new PrintStatement(0, $"{key} : {arrays[key[..^2]] ?? "tableau"}  ", false));
+                    continue;
+                }
+                bool text = VariableNames.IsString(key);
+                statements.Add(new PrintStatement(0, text ? $"{key}=\"" : $"{key}=", false));
+                statements.Add(new PrintValueStatement(0, new VariableExpression(key), false));
+                statements.Add(new PrintStatement(0, text ? "\"  " : " ", false));
             }
-            bool text = VariableNames.IsString(key);
-            statements.Add(new PrintStatement(0, text ? $"{key}=\"" : $"{key}=", false));
-            statements.Add(new PrintValueStatement(0, new VariableExpression(key), false));
-            statements.Add(new PrintStatement(0, text ? "\"  " : " ", false));
+            statements.Add(new DebugEndStatement());
         }
-        statements.Add(new DebugEndStatement());
+
+        if (debugs.Any(d => d.Names is null))
+            AddBody("dbg_body", names.Select(n => (Key: n, Array: false))
+                                     .Concat(arrays.Keys.Select(n => (Key: n + "()", Array: true)))
+                                     .OrderBy(x => x.Key, StringComparer.Ordinal));
+        var done = new HashSet<string>();
+        foreach (DebugStatement debug in debugs.Where(d => d.Names is not null))
+            if (done.Add(debug.BodyLabel))
+                AddBody(debug.BodyLabel, debug.Names!.Select(n => (Key: n, Array: false)));
+
         return program with { Statements = statements };
     }
 

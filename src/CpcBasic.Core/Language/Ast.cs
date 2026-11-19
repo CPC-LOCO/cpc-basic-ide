@@ -201,17 +201,74 @@ public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 /// <summary>
 /// DEBUG (D136) : avec le réglage « Mise au point » (F2), affiche les variables et leurs valeurs, attend ESPACE (suite)
 /// ou S (stop : plus aucun DEBUG jusqu'à la fin) ; sans le réglage, ne fait rien et n'ajoute rien.
+/// Names (D137) : DEBUG A,B$ ne montre que ces variables, dans l'ordre écrit ; null : toutes, par ordre alphabétique.
 /// </summary>
-public sealed record DebugStatement(int SourceLine) : Statement(SourceLine);
+public sealed record DebugStatement(int SourceLine, IReadOnlyList<string>? Names = null) : Statement(SourceLine)
+{
+    /// <summary>Étiquette de la routine d'affichage : une par liste de noms différente (D137).</summary>
+    public string BodyLabel => Names is null ? "dbg_body" : "dbg_body:" + string.Join(",", Names);
+}
 
-/// <summary>Début de la routine d'affichage de DEBUG, ajoutée à la fin du programme par le générateur (D136).</summary>
-public sealed record DebugBodyStatement() : Statement(0);
+/// <summary>Début d'une routine d'affichage de DEBUG, ajoutée à la fin du programme par le générateur (D136, D137).</summary>
+public sealed record DebugBodyStatement(string Label = "dbg_body") : Statement(0);
 
 /// <summary>Avant chaque variable affichée par DEBUG : arrêt quand l'écran est plein (D136).</summary>
 public sealed record DebugPageStatement() : Statement(0);
 
 /// <summary>Fin de la routine de DEBUG : dernière attente de ESPACE ou S, puis retour (D136).</summary>
 public sealed record DebugEndStatement() : Statement(0);
+
+/// <summary>
+/// Variables que DEBUG peut montrer (D136, D137) : variables simples écrites ou lues, sauf les valeurs cachées des
+/// fonctions DEF FN ; tableaux, avec leur nombre de cases quand DIM est écrit en nombres (sinon null).
+/// </summary>
+public static class DebugVariables
+{
+    public static (HashSet<string> Names, Dictionary<string, string?> Arrays) Collect(IReadOnlyList<Statement> statements)
+    {
+        var hidden = new HashSet<string>(statements.OfType<DefFnStatement>().SelectMany(d => d.Function.Parameters));
+        var names = new HashSet<string>();
+        var arrays = new Dictionary<string, string?>();
+        foreach (Statement s in statements)
+        {
+            foreach (Expression e in AstWalker.All(s))
+            {
+                if (e is VariableExpression v && !hidden.Contains(v.Name))
+                    names.Add(v.Name);
+                else if (e is ArrayElementExpression a)
+                    arrays.TryAdd(a.Name, null);
+            }
+            switch (s)
+            {
+                case AssignStatement assign:
+                    names.Add(assign.Variable);
+                    break;
+                case ForStatement loop:
+                    names.Add(loop.Variable);
+                    break;
+                case DeclareStatement declare:
+                    foreach (string name in declare.Names)
+                        names.Add(name);
+                    break;
+                case ArrayAssignStatement array:
+                    arrays.TryAdd(array.Name, null);
+                    break;
+                case DimStatement dim:
+                    foreach (ArrayDeclaration array in dim.Arrays)
+                    {
+                        long cases = 1;
+                        foreach (Expression size in array.Sizes)
+                            cases = size is NumberExpression n ? cases * (n.Value + 1) : -1;
+                        string text = array.Sizes.All(x => x is NumberExpression) ? $"{cases} cases" : "tableau";
+                        if (!arrays.TryGetValue(array.Name, out string? known) || known is null)
+                            arrays[array.Name] = text;
+                    }
+                    break;
+            }
+        }
+        return (names, arrays);
+    }
+}
 
 /// <summary>Une expression entière. Son résultat est toujours calculé sur 16 bits.</summary>
 public abstract record Expression;

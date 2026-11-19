@@ -1032,6 +1032,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé dans WinAPE (18 nov. 2026) :** examples\debug.bas : deux arrêts avec les bonnes valeurs (I= 1, SCORE= 10 puis I= 2, SCORE= 20), S arrête les suivants et efface l'invite.
 - **Plus tard, peut-être :** `DEBUG T()` pour voir un tableau en entier, `DEBUG A,B$` pour quelques variables.
 
+## D137 : DEBUG A,B$ : seulement quelques variables (19 nov. 2026) (validé par l'utilisateur) ; suite de D136
+- **Choix de l'utilisateur :** `DEBUG A,B$` en premier (avant `DEBUG T()` et l'ovale incliné) ; les variables sont montrées **dans l'ordre écrit** (choix 1 : on met la plus importante en premier), alors que `DEBUG` seul garde l'ordre alphabétique.
+- **Écriture :** `DEBUG` seul, ou suivi de noms de variables simples séparés par des virgules. Refusés à la compilation : un nom utilisé nulle part dans le programme (« vérifiez son nom et son signe »), un nom de tableau, avec ou sans parenthèses (DEBUG seul donne son nombre de cases), une virgule en trop ou un nom manquant. Les noms suivent DEFINT, DEFSTR, DEFREAL et F8 (DEBUG N après DEFSTR N montre N$).
+- **Même fonctionnement que D136 :** titre « DEBUG ligne N », arrêts ESPACE et S (S arrête aussi les DEBUG seuls), rien d'ajouté sans le réglage F2.
+- **Réalisation :** DebugStatement reçoit la liste des noms ; la recherche des variables est mise en commun (DebugVariables.Collect, dans Ast.cs) entre la vérification du parser (CheckDebugNames) et le générateur ; une routine d'affichage par liste de noms différente (étiquette dbg_body:A,B$), la même liste écrite deux fois ne donne qu'une routine.
+- **Tests :** 14 de plus dans DebugTests.cs (1593 tests réussis).
+- **Essayé dans WinAPE (19 nov. 2026) :** examples\debugvar.bas : `DEBUG I,SCORE,VIES` deux fois puis `DEBUG NOM$,X!`, écrans conformes à ceux annoncés.
+- **Plus tard, peut-être :** `DEBUG T()`.
+
 ---
 
 ## Notes de fin de session (modèle)

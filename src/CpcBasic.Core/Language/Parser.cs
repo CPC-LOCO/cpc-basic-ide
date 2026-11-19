@@ -226,6 +226,7 @@ public static class Parser
         userFunctions = null;
         CheckDeclarations(statements, diagnostics);
         CheckArrays(statements, diagnostics);
+        CheckDebugNames(statements, diagnostics);
         CheckBlocks(statements, diagnostics);
         CheckLineTargets(statements, lines, diagnostics);
         HashSet<Statement> starts = statementStarts!;
@@ -1088,14 +1089,38 @@ public static class Parser
                 statements.Add(new ClearInputStatement(t.Line));
                 return pos + 2;
 
-            case "DEBUG":                               // D136 : seul pour l'instant (DEBUG T() viendra peut-être)
-                if (!IsStatementEnd(tokens[pos + 1]) && !IsElse(tokens[pos + 1]))
+            case "DEBUG":                               // D136 : DEBUG seul ; D137 : DEBUG A,B$ (DEBUG T() viendra peut-être)
+            {
+                int line = t.Line;
+                pos++;
+                if (IsStatementEnd(tokens[pos]) || IsElse(tokens[pos]))
                 {
-                    diagnostics.Add(new Diagnostic(DiagnosticCode.UnexpectedToken, t.Line, tokens[pos + 1].Text));
-                    return SkipToStatementEnd(tokens, pos + 1);
+                    statements.Add(new DebugStatement(line));
+                    return pos;
                 }
-                statements.Add(new DebugStatement(t.Line));
-                return pos + 1;
+                var names = new List<string>();
+                while (true)
+                {
+                    if (!IsUserName(tokens[pos]) || tokens[pos + 1].Kind == TokenKind.LeftParen)
+                    {
+                        Token bad = IsUserName(tokens[pos]) ? tokens[pos + 1] : tokens[pos];
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDebugName, line, IsLineEnd(bad) ? "" : bad.Text));
+                        return SkipToStatementEnd(tokens, pos);
+                    }
+                    names.Add(tokens[pos].Text);
+                    pos++;
+                    if (tokens[pos].Kind != TokenKind.Comma)
+                        break;
+                    pos++;
+                }
+                if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDebugName, line, tokens[pos].Text));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new DebugStatement(line, names));
+                return pos;
+            }
 
             case "CLEAR":                               // lot K3 (D090)
                 statements.Add(new ClearStatement(t.Line));
@@ -1681,6 +1706,23 @@ public static class Parser
 
     // Un même tableau garde toujours le même nombre de numéros de case (DIM compris), et un nom déclaré BYTE
     // ne peut pas encore être un tableau (les tableaux d'octets viendront plus tard).
+    // DEBUG A,B$ (D137) : chaque nom doit être une variable simple utilisée ailleurs dans le programme
+    static void CheckDebugNames(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        if (!statements.Any(s => s is DebugStatement { Names: not null }))
+            return;
+        (HashSet<string> names, Dictionary<string, string?> arrays) = DebugVariables.Collect(statements);
+        foreach (DebugStatement debug in statements.OfType<DebugStatement>())
+            foreach (string name in debug.Names ?? [])
+            {
+                if (names.Contains(name))
+                    continue;
+                diagnostics.Add(new Diagnostic(arrays.ContainsKey(name) ? DiagnosticCode.DebugArrayName
+                                                                         : DiagnosticCode.DebugUnknownVariable,
+                                               debug.SourceLine, name));
+            }
+    }
+
     static void CheckArrays(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
     {
         var bytes = statements.OfType<DeclareStatement>().SelectMany(d => d.Names).ToHashSet();
