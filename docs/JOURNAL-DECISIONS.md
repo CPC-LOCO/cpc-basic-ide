@@ -1143,6 +1143,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Complément à D146 :** une COMMANDE ou une FONCTION ne peut pas contenir _ (le BASIC ne l'accepte pas dans un nom), ni commencer par FN (DEF FN), ni être déjà un mot du BASIC (PLOT...) ; une ROUTINE peut contenir _ (`MA_ROUTINE_PLOT`).
 - **Pas encore :** l'emplacement des deux dossiers sur le disque (il sera choisi avec l'éditeur, étape B4).
 
+## D148 : le compilateur utilise les bibliothèques, étape B2 (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; applique D144, D146 et D147
+- **Fichiers :** `src\CpcBasic.Core\Libraries\LibraryLinker.cs` (nouveau) ; Parser, Ast, Diagnostic, BasicAnalyzer, CompilerOptions (réglage `Libraries`, le catalogue) et CodeGenerator ; tests dans `tests\CpcBasic.Tests\LibraryCompileTests.cs`.
+- **Commande :** un mot en début d'instruction qui n'est pas un mot du BASIC est cherché au catalogue avant l'erreur « commande inconnue » ; `STAR 100,50,20` donne toutes les valeurs dans l'ordre du questionnaire ; `STAR = 5` reste une variable.
+- **Fonction :** `LUNE(3)` dans un calcul ; une fonction sans valeur s'écrit sans parenthèses, comme TIME ; elle donne un entier (HL).
+- **Vérifié à la compilation :** le nombre de valeurs (le message donne la bonne écriture, par exemple « STAR x, y, rayon ») ; un nombre écrit hors des limites du questionnaire ; un tableau qui porte le nom d'une fonction ; le code assembleur de chaque commande utilisée et des routines qu'elle appelle (l'erreur est donnée à la ligne BASIC qui utilise la commande, avec la ligne du fichier). Une commande fautive que le programme n'utilise pas ne gêne pas.
+- **Pas vérifié pendant que le programme tourne :** une valeur calculée hors des limites (la routine reçoit la valeur telle quelle).
+- **Dans le programme compilé :** chaque valeur a sa case de 2 octets ; le programme y range les valeurs puis fait CALL ; plusieurs valeurs passent d'abord par la pile (`SOMME(1, SOMME(4, 5))` ne mélange pas les cases). Seules les commandes utilisées sont ajoutées, avec les routines qu'elles appellent, dans un ordre fixe ; elles sont nommées « BIBLIOTHÈQUE:NOM » dans la liste des modules.
+- **Pas encore :** l'éditeur ne donne pas encore le catalogue au compilateur (étape B4) ; le message de F5 ne nomme pas encore les bibliothèques utilisées.
+
 ---
 
 ## Notes de fin de session (modèle)

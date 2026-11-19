@@ -4,6 +4,7 @@
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
 using CpcBasic.Core.Language;
+using CpcBasic.Core.Libraries;
 
 namespace CpcBasic.Core.Codegen;
 
@@ -65,6 +66,8 @@ public static class CodeGenerator
         bool circleViaEllipse = options.PreferSize && program.Statements.Any(s => s is EllipseStatement);
         var emitter = new Z80Emitter(origin);
         var required = new HashSet<string>();
+        LibraryCatalog libraryCatalog = options.Libraries ?? LibraryCatalog.Empty;   // bibliothèques (D148)
+        var libraryUsed = new HashSet<string>(StringComparer.Ordinal);
         var strings = new List<byte[]>();
         var variables = new Dictionary<string, VariableSlot>();
         var slots = new List<VariableSlot>();   // dans l'ordre de première utilisation
@@ -783,6 +786,33 @@ public static class CodeGenerator
         }
 
         // Calcule l'expression : le résultat est dans HL
+        // Commande ou fonction de bibliothèque (D148) : chaque valeur va dans sa case, puis appel ; une fonction rend HL.
+        // Plusieurs valeurs passent d'abord par la pile : LUNE(A, LUNE(B, C)) ne mélange pas les cases.
+        void EmitLibraryCall(string name, IReadOnlyList<Expression> arguments)
+        {
+            LibraryCommand command = libraryCatalog.Find(name)!;
+            libraryUsed.Add(command.Name);
+            if (arguments.Count == 1)
+            {
+                EmitExpression(arguments[0]);
+                emitter.LdMemHl(LibraryLinker.CellLabel(command.Name, command.Parameters[0].Name));
+            }
+            else if (arguments.Count > 1)
+            {
+                foreach (Expression argument in arguments)
+                {
+                    EmitExpression(argument);
+                    emitter.PushHl();
+                }
+                for (int i = arguments.Count - 1; i >= 0; i--)
+                {
+                    emitter.PopHl();
+                    emitter.LdMemHl(LibraryLinker.CellLabel(command.Name, command.Parameters[i].Name));
+                }
+            }
+            emitter.CallLabel(LibraryLinker.EntryLabel(command.Name));
+        }
+
         void EmitExpression(Expression expression)
         {
             if (expression is CallExpression { Function: "TIME!" })
@@ -1196,6 +1226,10 @@ public static class CodeGenerator
                 case UserFunctionExpression user:                   // FNDOUBLE(...) (D095)
                     EmitUserArguments(user, realFree);
                     EmitExpression(user.Function.Body!);
+                    break;
+
+                case LibraryCallExpression library:                 // fonction de bibliothèque (D148)
+                    EmitLibraryCall(library.Name, library.Arguments);
                     break;
 
                 default:
@@ -3335,6 +3369,10 @@ public static class CodeGenerator
                     EmitDraw(draw);
                     break;
 
+                case LibraryCallStatement library:  // commande de bibliothèque (D148)
+                    EmitLibraryCall(library.Name, library.Arguments);
+                    break;
+
                 case EllipseStatement ellipse:      // D139 : comme CIRCLE (D130), plus le second rayon et l'angle
                 {
                     EmitExpression(ellipse.X);
@@ -3492,6 +3530,10 @@ public static class CodeGenerator
         foreach (RuntimeModule module in modules)
             module.Emit(emitter);
 
+        // Commandes des bibliothèques utilisées, avec les routines qu'elles appellent (D148)
+        IReadOnlyList<LibraryCommand> libraryCommands = LibraryLinker.Collect(libraryCatalog, libraryUsed).Commands;
+        LibraryLinker.Emit(emitter, libraryCatalog, libraryCommands);
+
         // Textes, terminés par un octet 0
         for (int i = 0; i < strings.Count; i++)
         {
@@ -3634,7 +3676,9 @@ public static class CodeGenerator
         foreach ((string name, (string label, int _)) in arrays)
             AddAddress(name + "()", label);
 
-        return new GeneratedProgram(emitter.ToBytes(), modules.Select(m => m.Name).ToList(), memoryLimit, memoryLine, addresses);
+        List<string> moduleNames = modules.Select(m => m.Name)
+            .Concat(libraryCommands.Select(c => $"{c.Library}:{c.Name}")).ToList();   // « GRAPHIQUE:STAR » (D148)
+        return new GeneratedProgram(emitter.ToBytes(), moduleNames, memoryLimit, memoryLine, addresses);
     }
 
     // Routines du firmware appelées par les commandes d'écran (décision D046)

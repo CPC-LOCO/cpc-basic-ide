@@ -82,7 +82,9 @@ public enum DiagnosticCode
     DebugArrayName,          // D137 : DEBUG T, T est un tableau (D138 : il faut le numéro de la case)
     DebugNotArray,           // D138 : DEBUG X(3), mais X n'est pas un tableau
     DebugIndexTooBig,        // D138 : DEBUG T(26) avec DIM T(10)
-    DecFormat                // lot L2 (D103) : DEC$ avec un format qui n'est pas un seul emplacement de nombre
+    DecFormat,               // lot L2 (D103) : DEC$ avec un format qui n'est pas un seul emplacement de nombre
+    LibraryArrayName,        // D148 : tableau qui porte le nom d'une fonction de bibliothèque
+    LibraryCode              // D148 : faute dans le code assembleur d'une commande de bibliothèque utilisée
 }
 
 /// <summary>
@@ -272,6 +274,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
               $"Dans l'instruction DEF FN, écrivez le nom avec le signe « ! » : DEF FN{Argument.Split('|')[0]}!(...)=..., et appelez FN{Argument.Split('|')[0]}!.",
         DiagnosticCode.SaveProgram =>
             "SAVE sans « ,B » enregistrerait le programme BASIC, qui n'existe plus une fois compilé. Pour une zone de mémoire : SAVE \"nom\",B,début,longueur (exemple : SAVE \"ECRAN\",B,&C000,&4000).",
+        DiagnosticCode.LibraryArrayName => Argument.Split('|') is [string n, string lib]
+            ? $"le nom {n} est déjà une fonction de la bibliothèque {lib} : choisissez un autre nom pour le tableau."
+            : Argument,
+        DiagnosticCode.LibraryCode => $"code assembleur de {Argument}",
         _ => $"problème inconnu ({Code})."
     };
 

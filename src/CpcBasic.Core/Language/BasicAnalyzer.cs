@@ -22,7 +22,7 @@ public static class BasicAnalyzer
         // D133 : un caractère est un code de la ROM choisie, partout (ài = @i et ùDISC = |DISC sur le CPC français)
         source = CharacterSet.ToKeyboardCodes(source, options.Language);
         List<Token> tokens = Lexer.Tokenize(source, diagnostics);
-        BasicProgram program = Parser.Parse(tokens, diagnostics, options.RealByDefault);   // réglage F8 (D068)
+        BasicProgram program = Parser.Parse(tokens, diagnostics, options.RealByDefault, options.Libraries);   // F8 (D068), bibliothèques (D148)
         CheckCharacters(tokens, diagnostics, options.Language);
         return new AnalysisResult(program, diagnostics);
     }

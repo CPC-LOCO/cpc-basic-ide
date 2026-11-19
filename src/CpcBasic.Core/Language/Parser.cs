@@ -3,6 +3,8 @@
 // selon les termes de la licence publique générale GNU, version 3.
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
+using CpcBasic.Core.Libraries;
+
 namespace CpcBasic.Core.Language;
 
 /// <summary>
@@ -212,9 +214,13 @@ public static class Parser
     };
 
     /// <param name="realByDefault">Réglage « Sans signe : à virgule » (F8, D066) : A est alors A!.</param>
-    public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics, bool realByDefault = false)
+    /// <param name="catalog">Catalogue des bibliothèques (D148) : un mot inconnu y est cherché ; null : aucune bibliothèque.</param>
+    public static BasicProgram Parse(IReadOnlyList<Token> tokens, List<Diagnostic> diagnostics, bool realByDefault = false,
+                                     LibraryCatalog? catalog = null)
     {
         realDivision = realByDefault;
+        libraries = catalog;
+        libraryUses = new Dictionary<string, int>(StringComparer.Ordinal);
         tokens = ApplyDefaultTypes(tokens, realByDefault);
         var statements = new List<Statement>();
         statementStarts = new HashSet<Statement>(ReferenceEqualityComparer.Instance);
@@ -232,6 +238,9 @@ public static class Parser
         CheckDebugNames(statements, diagnostics);
         CheckBlocks(statements, diagnostics);
         CheckLineTargets(statements, lines, diagnostics);
+        CheckLibraries(diagnostics);
+        libraries = null;
+        libraryUses = null;
         HashSet<Statement> starts = statementStarts!;
         statementStarts = null;
         return new BasicProgram(statements, lines, starts);
@@ -240,6 +249,10 @@ public static class Parser
     // Fonctions du programmeur (DEF FN, lot K7, D095) : une fiche par nom, créée au premier appel ou à DEF FN.
     // fnRename : pendant la lecture du calcul de DEF FN, les valeurs de la fonction prennent leur nom caché.
     [ThreadStatic] static Dictionary<string, UserFunction>? userFunctions;
+
+    // Bibliothèques (D148) : le catalogue, et chaque commande utilisée avec la ligne de sa première utilisation
+    [ThreadStatic] static LibraryCatalog? libraries;
+    [ThreadStatic] static Dictionary<string, int>? libraryUses;
     [ThreadStatic] static Dictionary<string, string>? fnRename;
 
     static UserFunction GetUserFunction(string name)
@@ -1143,12 +1156,126 @@ public static class Parser
                 return ParseAssignment(tokens, pos + 1, t.Line, statements, diagnostics);
 
             default:
+                // Commande d'une bibliothèque (D144, D148), cherchée avant de dire que le mot est inconnu ; STAR = 5 reste une variable
+                if (tokens[pos + 1].Kind != TokenKind.Equals && libraries?.Find(t.Text) is { Kind: LibraryKind.Command } libraryCommand)
+                    return ParseLibraryCommand(tokens, pos, libraryCommand, statements, diagnostics);
+
                 // Un mot suivi de « = » est une affectation sans LET ; suivi de « ( », c'est une case de tableau : A(3) = 5 (D058)
                 if (tokens[pos + 1].Kind is TokenKind.Equals or TokenKind.LeftParen)
                     return ParseAssignment(tokens, pos, t.Line, statements, diagnostics);
 
                 diagnostics.Add(new Diagnostic(DiagnosticCode.UnknownCommand, t.Line, t.Text));
                 return SkipToStatementEnd(tokens, pos);
+        }
+    }
+
+    // ----- Bibliothèques (D144, D148) -----
+
+    // STAR x, y, rayon : toutes les valeurs, dans l'ordre du questionnaire
+    static int ParseLibraryCommand(IReadOnlyList<Token> tokens, int pos, LibraryCommand command, List<Statement> statements,
+                                   List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        pos++;
+        var arguments = new List<Expression>();
+        if (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos]))
+        {
+            while (true)
+            {
+                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                if (value is null)
+                    return SkipToStatementEnd(tokens, pos);
+                arguments.Add(value);
+                if (tokens[pos].Kind != TokenKind.Comma)
+                    break;
+                pos++;
+            }
+        }
+        if (arguments.Count != command.Parameters.Count || (!IsStatementEnd(tokens[pos]) && !IsElse(tokens[pos])))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, LibrarySignature(command)));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        CheckLibraryArguments(command, arguments, name.Line, diagnostics);
+        statements.Add(new LibraryCallStatement(name.Line, command.Name, arguments));
+        return pos;
+    }
+
+    // LUNE(n) ; une fonction sans valeur s'écrit sans parenthèses, comme TIME
+    static Expression? ParseLibraryFunction(IReadOnlyList<Token> tokens, ref int pos, LibraryCommand function,
+                                            List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        pos++;
+        var arguments = new List<Expression>();
+        if (function.Parameters.Count > 0)
+        {
+            if (tokens[pos].Kind != TokenKind.LeftParen)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedOpenParenthesis, name.Line, LibrarySignature(function)));
+                return null;
+            }
+            pos++;
+            while (true)
+            {
+                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                if (value is null)
+                    return null;
+                arguments.Add(value);
+                if (tokens[pos].Kind != TokenKind.Comma)
+                    break;
+                pos++;
+            }
+            if (tokens[pos].Kind != TokenKind.RightParen)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedClosingParenthesis, name.Line));
+                return null;
+            }
+            pos++;
+            if (arguments.Count != function.Parameters.Count)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, LibrarySignature(function)));
+                return null;
+            }
+        }
+        CheckLibraryArguments(function, arguments, name.Line, diagnostics);
+        return new LibraryCallExpression(function.Name, arguments);
+    }
+
+    // « STAR x, y, rayon » ou « LUNE(n) », avec les noms du questionnaire
+    static string LibrarySignature(LibraryCommand command)
+    {
+        string names = string.Join(", ", command.Parameters.Select(p => p.Name.ToLowerInvariant()));
+        if (command.Kind == LibraryKind.Function)
+            return command.Parameters.Count == 0 ? command.Name : $"{command.Name}({names})";
+        return command.Parameters.Count == 0 ? command.Name : $"{command.Name} {names}";
+    }
+
+    // Un nombre écrit hors des limites du questionnaire : erreur dès la compilation ; note la première utilisation
+    static void CheckLibraryArguments(LibraryCommand command, List<Expression> arguments, int line, List<Diagnostic> diagnostics)
+    {
+        for (int i = 0; i < arguments.Count; i++)
+        {
+            LibraryParameter parameter = command.Parameters[i];
+            int before = diagnostics.Count;
+            CheckConstantRange(arguments[i], parameter.Min, parameter.Max, line, diagnostics);
+            if (diagnostics.Count > before)
+                diagnostics[^1] = diagnostics[^1] with { Context = $"{command.Name}, valeur {parameter.Name.ToLowerInvariant()}" };
+        }
+        libraryUses?.TryAdd(command.Name, line);
+    }
+
+    // Le code assembleur des commandes utilisées (et des routines qu'elles appellent) est vérifié ici
+    static void CheckLibraries(List<Diagnostic> diagnostics)
+    {
+        if (libraries is null || libraryUses is null || libraryUses.Count == 0)
+            return;
+        var (_, errors) = LibraryLinker.Collect(libraries, libraryUses.Keys);
+        int firstUse = libraryUses.Values.Min();
+        foreach (LibraryCodeError error in errors)
+        {
+            int line = libraryUses.TryGetValue(error.Command, out int used) ? used : firstUse;
+            diagnostics.Add(new Diagnostic(DiagnosticCode.LibraryCode, line, error.ToString()));
         }
     }
 
@@ -1629,6 +1756,11 @@ public static class Parser
     // Un nom de tableau ne peut pas être un mot du Locomotive BASIC
     static bool CheckArrayName(Token name, List<Diagnostic> diagnostics)
     {
+        if (libraries?.Find(name.Text) is { Kind: LibraryKind.Function } function)     // D144 : nom déjà pris par une fonction
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.LibraryArrayName, name.Line, $"{name.Text}|{function.Library}"));
+            return false;
+        }
         if (LocomotiveWords.Contains(name.Text))
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.NotYetAvailable, name.Line, name.Text));
@@ -3974,6 +4106,8 @@ public static class Parser
                         diagnostics.Add(new Diagnostic(DiagnosticCode.DecFormat, t.Line, format.Text));
                     return called;
                 }
+                if (libraries?.Find(t.Text) is { Kind: LibraryKind.Function } libraryFunction)
+                    return ParseLibraryFunction(tokens, ref pos, libraryFunction, diagnostics);   // D148
                 if (Commands.Contains(t.Text))
                 {
                     diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedExpression, t.Line, t.Text));

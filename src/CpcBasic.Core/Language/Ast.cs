@@ -565,6 +565,12 @@ public sealed record ArrayAssignStatement(int SourceLine, string Name, IReadOnly
     : Statement(SourceLine);
 
 /// <summary>Parcourt les expressions d'une instruction (pour les vérifications sur les tableaux, D058).</summary>
+/// <summary>Commande d'une bibliothèque (D148) : STAR 100, 50, 20. Name : son nom au catalogue ; les valeurs dans l'ordre.</summary>
+public sealed record LibraryCallStatement(int SourceLine, string Name, IReadOnlyList<Expression> Arguments) : Statement(SourceLine);
+
+/// <summary>Fonction d'une bibliothèque (D148) : LUNE(3). Elle donne un entier (rendu dans HL par sa routine).</summary>
+public sealed record LibraryCallExpression(string Name, IReadOnlyList<Expression> Arguments) : Expression;
+
 public static class AstWalker
 {
     /// <summary>L'expression et toutes celles qu'elle contient.</summary>
@@ -583,6 +589,7 @@ public static class AstWalker
             UserFunctionExpression { Function: { Ready: true, Body: not null } } user =>
                 user.Arguments.Append(user.Function.Body),   // le calcul de FN est recopié à l'appel (D095)
             UserFunctionExpression user => user.Arguments,
+            LibraryCallExpression library => library.Arguments,
             _ => []
         };
         foreach (Expression child in inner)
@@ -639,6 +646,7 @@ public static class AstWalker
         InputStatement i => i.Targets,
         LineInputStatement l => [l.Target],
         MidAssignStatement m => new[] { m.Target, m.Start, m.Length, m.Value }.OfType<Expression>(),
+        LibraryCallStatement lc => lc.Arguments,
         _ => []
     };
 

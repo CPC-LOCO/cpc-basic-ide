@@ -3,6 +3,8 @@
 // selon les termes de la licence publique générale GNU, version 3.
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
+using CpcBasic.Core.Libraries;
+
 namespace CpcBasic.Core;
 
 /// <summary>Machine pour laquelle le programme est compilé (D066).</summary>
@@ -26,10 +28,11 @@ public enum TargetMachine
 /// PreferSize : réglage « Priorité : place » (F3, D141) : quand deux commandes peuvent partager une routine au prix de la
 /// vitesse, on partage (le dessin reste exactement le même) ; sinon (par défaut) chaque commande garde sa routine rapide.
 /// Aujourd'hui : CIRCLE passe par ELLIPSE quand le programme contient les deux.
+/// Libraries : catalogue des bibliothèques (D148) ; null : aucune bibliothèque.
 /// </summary>
 public sealed record CompilerOptions(TargetMachine Target = TargetMachine.AllCpc, bool RealByDefault = false,
                                      bool BreakKey = false, CpcLanguage Language = CpcLanguage.French, bool Debug = false,
-                                     bool PreferSize = false)
+                                     bool PreferSize = false, LibraryCatalog? Libraries = null)
 {
     /// <summary>Les réglages par défaut : tous les CPC, variables sans signe entières.</summary>
     public static CompilerOptions Default { get; } = new();
