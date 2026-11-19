@@ -131,6 +131,8 @@ internal sealed class MiniZ80
 
     // Graphisme (D091) : curseur graphique, points tracés (couleur), réglages SPEED INK / SPEED KEY
     public short GraphicsX, GraphicsY;
+    /// <summary>Traits tracés par GRA LINE ABSOLUTE : départ, arrivée, stylo (STAR, D151).</summary>
+    public readonly List<(short X1, short Y1, short X2, short Y2, byte Pen)> Lines = new();
     public byte GraphicsPen = 1;
 
     /// <summary>Encre de GRAPHICS PAPER (GRA SET PAPER, D110).</summary>
@@ -698,6 +700,14 @@ internal sealed class MiniZ80
             case 0x35: Memory[HL]--; ZeroFlag = Memory[HL] == 0; break;            // DEC (HL) (D068)
             case 0xAE: A ^= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // XOR (HL) (D068)
             case 0xF6: A |= Fetch(); ZeroFlag = A == 0; CarryFlag = false; break;          // OR n (D068)
+            case 0x1F:                                                 // RRA (STAR, D151)
+            {
+                bool low = (A & 0x01) != 0;
+                A = (byte)((A >> 1) | (CarryFlag ? 0x80 : 0));
+                CarryFlag = low;
+                break;
+            }
+            case 0x2C: L++; ZeroFlag = L == 0; break;                  // INC L (STAR, D151)
             case 0x17:                                                 // RLA
             {
                 bool carryOut = (A & 0x80) != 0;
@@ -813,6 +823,8 @@ internal sealed class MiniZ80
                             short fromX = GraphicsX, fromY = GraphicsY;
                             GraphicsX = (short)((relative ? GraphicsX : 0) + (short)DE);
                             GraphicsY = (short)((relative ? GraphicsY : 0) + (short)HL);
+                            if (address == 0xBBF6)
+                                Lines.Add((fromX, fromY, GraphicsX, GraphicsY, GraphicsPen));
                             if (address is 0xBBF6 or 0xBBF9 && (Memory[0xBDE9] != 0xFC || Memory[0xBDEA] != 0xBD))
                             {
                                 // SCR WRITE détourné (MASK, D110) : chaque point de la ligne passe par &BDE8, comme le firmware
@@ -1312,6 +1324,7 @@ internal sealed class MiniZ80
                 ZeroFlag = E == 0;
                 break;
             case 0x1D: L = Rl_Right(L); break;                         // RR L
+            case 0x1C: H = Rl_Right(H); break;                         // RR H (STAR, D151)
             case 0x3C: CarryFlag = (H & 0x01) != 0; H = (byte)(H >> 1); ZeroFlag = H == 0; break;   // SRL H
             // Nombres à virgule (lot F1b, D068) : décalages d'un octet en mémoire
             case 0x26:                                                 // SLA (HL)
@@ -1332,6 +1345,7 @@ internal sealed class MiniZ80
             case 0x48: ZeroFlag = (B & 0x02) == 0; break;              // BIT 1,B
             case 0x7A: ZeroFlag = (D & 0x80) == 0; break;              // BIT 7,D
             case 0x7C: ZeroFlag = (H & 0x80) == 0; break;              // BIT 7,H
+            case 0x7F: ZeroFlag = (A & 0x80) == 0; break;              // BIT 7,A (STAR, D151)
             default:
                 throw new NotSupportedException($"Instruction &CB{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
         }

@@ -1166,6 +1166,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Message d'erreur :** la bonne écriture montre les OPTION entre crochets : « STAR x, y, r1, r2, pointes [, stylo] [, remplissage] [, angle] ».
 - **STAR (décision de l'utilisateur) :** une seule commande pour les étoiles avec le nombre de pointes voulu ; les polygones s'obtiennent avec un rayon interne assez grand ; pas de commande POLYGON. Forme : `STAR x, y, rayon interne, rayon externe, pointes [, stylo] [, remplissage] [, angle]` ; nom STAR gardé (« simple à retenir »). Le contour d'abord, le remplissage ensuite.
 
+## D151 : STAR, première commande de la bibliothèque GRAPHIQUE (contour) (19 nov. 2026) (forme décidée par l'utilisateur, D150 ; réalisation choisie par l'assistant)
+- **Fichier :** `bibliotheques\GRAPHIQUE\STAR.cmd.asm` (commande protégée du projet), écrit en assembleur style WinAPE et lu par le catalogue comme celles des programmeurs.
+- **Écriture :** `STAR x, y, rayon interne, rayon externe, pointes [, stylo] [, remplissage] [, angle]` ; repère natif et largeur de CIRCLE (vrai moniteur, ×69/64 en MODE 1, D140) ; rayons de 0 à 1000 lignes ; 2 à 100 pointes ; angle en degrés, n'importe quel entier : 0 = une pointe en haut, positif = l'étoile tourne vers la gauche (même sens qu'ELLIPSE) ; stylo sauté : stylo du tracé ; **remplissage : accepté mais pas encore dessiné** (étape suivante).
+- **Méthode :** sommet k (0 à 2 × pointes - 1) au rayon externe si k est pair, interne sinon ; angle en centièmes de degré = 9000 + 100 × angle + k × 18000 / pointes (le reste de la division est gardé : pas d'erreur qui s'ajoute) ; sinus par une table de 0 à 90 degrés × 16384 (la même que le compilateur) et les centièmes entre deux degrés ; écarts arrondis. Traits tracés par le firmware (GRA LINE ABSOLUTE) avec l'origine remise un moment en 0,0 ; stylo, origine et position du tracé remis comme avant. Valeur calculée hors limites (pointes, rayons) : rien n'est dessiné.
+- **Première façon essayée :** angle en dixièmes de degré : jusqu'à 3,9 points d'écart pour les très grandes étoiles en MODE 2 ; en centièmes : moins d'un point partout.
+- **Vérification :** `essais\star\sim.py` exécute le texte assembleur (indicateurs C et Z, firmware imité) ; `essais\star\test_star.py` : 407 étoiles (3 MODES, angles, rayons et pointes au hasard) à moins de 0,92 point du calcul exact, étoile refermée, stylo, origine et position remis, valeurs hors limites. Environ 15 000 instructions pour une étoile à 5 pointes.
+- **Tests C# :** `tests\CpcBasic.Tests\StarTests.cs` (12 tests : traits identiques au simulateur Python dans les 3 MODES, écart au calcul exact, valeurs hors limites, messages). MiniZ80 : RRA, INC L, RR H, BIT 7,A ajoutés, et la liste des traits tracés (Lines).
+
 ---
 
 ## Notes de fin de session (modèle)
