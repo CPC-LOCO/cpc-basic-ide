@@ -201,12 +201,15 @@ public sealed record EndStatement(int SourceLine) : Statement(SourceLine);
 /// <summary>
 /// DEBUG (D136) : avec le réglage « Mise au point » (F2), affiche les variables et leurs valeurs, attend ESPACE (suite)
 /// ou S (stop : plus aucun DEBUG jusqu'à la fin) ; sans le réglage, ne fait rien et n'ajoute rien.
-/// Names (D137) : DEBUG A,B$ ne montre que ces variables, dans l'ordre écrit ; null : toutes, par ordre alphabétique.
+/// Items (D137, D138) : DEBUG A,B$,T(3) ne montre que ces variables et ces cases de tableau, dans l'ordre écrit
+/// (VariableExpression ou ArrayElementExpression) ; null : toutes les variables, par ordre alphabétique.
+/// Key : la liste telle qu'écrite, pour ne faire qu'une routine par liste différente.
+/// Ces expressions ne sont pas parcourues par AstWalker : sans le réglage F2, DEBUG ne compte pour rien.
 /// </summary>
-public sealed record DebugStatement(int SourceLine, IReadOnlyList<string>? Names = null) : Statement(SourceLine)
+public sealed record DebugStatement(int SourceLine, IReadOnlyList<Expression>? Items = null, string Key = "") : Statement(SourceLine)
 {
-    /// <summary>Étiquette de la routine d'affichage : une par liste de noms différente (D137).</summary>
-    public string BodyLabel => Names is null ? "dbg_body" : "dbg_body:" + string.Join(",", Names);
+    /// <summary>Étiquette de la routine d'affichage : une par liste différente (D137).</summary>
+    public string BodyLabel => Items is null ? "dbg_body" : "dbg_body:" + Key;
 }
 
 /// <summary>Début d'une routine d'affichage de DEBUG, ajoutée à la fin du programme par le générateur (D136, D137).</summary>

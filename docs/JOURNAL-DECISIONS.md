@@ -1039,7 +1039,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Réalisation :** DebugStatement reçoit la liste des noms ; la recherche des variables est mise en commun (DebugVariables.Collect, dans Ast.cs) entre la vérification du parser (CheckDebugNames) et le générateur ; une routine d'affichage par liste de noms différente (étiquette dbg_body:A,B$), la même liste écrite deux fois ne donne qu'une routine.
 - **Tests :** 14 de plus dans DebugTests.cs (1593 tests réussis).
 - **Essayé dans WinAPE (19 nov. 2026) :** examples\debugvar.bas : `DEBUG I,SCORE,VIES` deux fois puis `DEBUG NOM$,X!`, écrans conformes à ceux annoncés.
-- **Plus tard, peut-être :** `DEBUG T()`.
+- **Plus tard, peut-être :** `DEBUG T()` (remplacé par D138).
+
+## D138 : DEBUG T(3) : une seule case de tableau (19 nov. 2026) (validé par l'utilisateur) ; suite de D137
+- **Idée de l'utilisateur (à la place de `DEBUG T()`, le tableau entier) :** `DEBUG T(26)` ne montre que cette case, `DEBUG T(26,2)` aussi, car un tableau peut avoir beaucoup de cases. `DEBUG T()` (tout le tableau) n'est plus prévu ; à reprendre seulement en cas de besoin.
+- **Numéro calculé accepté :** `DEBUG T(I)` ; affichage avec **le vrai numéro de la case** (choix 2 de l'utilisateur) : `T(3)= 25`, sans espace dans les parenthèses ; `M(1,2)= 7` ; tableau de textes : `N$(2)="CPC"`. Mélange possible avec les variables, dans l'ordre écrit : `DEBUG I,T(I),M(I,I)`.
+- **Refusés à la compilation :** case qui n'existe pas quand DIM et le numéro sont écrits en nombres (`DEBUG T(11)` avec `DIM T(10)` : « le tableau va de 0 à 10 ») ; mauvais nombre de numéros ; `DEBUG X(3)` quand X n'est pas un tableau ; variable du numéro utilisée nulle part ; `DEBUG T()`. Avec un DIM calculé, un numéro trop grand donne « Subscript out of range » pendant l'exécution, comme toute lecture.
+- **Réalisation :** DebugStatement garde des expressions (variables ou cases) et la liste telle qu'écrite (clé de la routine) ; ces expressions ne sont pas parcourues par AstWalker, pour que DEBUG ne compte pour rien sans le réglage F2 ; vérifications dans CheckDebugNames ; le numéro est affiché avec STR$ sans l'espace du début (comme WRITE).
+- **Tests :** 13 de plus dans DebugTests.cs (1606 tests réussis).
+- **Essayé dans WinAPE (19 nov. 2026) :** examples\debugtab.bas : `DEBUG I,T(I),M(I,I)` trois fois puis `DEBUG T(0),T(10)`, écrans conformes.
 
 ---
 

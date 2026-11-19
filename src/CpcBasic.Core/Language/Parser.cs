@@ -1089,7 +1089,7 @@ public static class Parser
                 statements.Add(new ClearInputStatement(t.Line));
                 return pos + 2;
 
-            case "DEBUG":                               // D136 : DEBUG seul ; D137 : DEBUG A,B$ (DEBUG T() viendra peut-être)
+            case "DEBUG":                               // D136 : DEBUG seul ; D137 : DEBUG A,B$ ; D138 : DEBUG T(3), T(I,2)
             {
                 int line = t.Line;
                 pos++;
@@ -1098,17 +1098,21 @@ public static class Parser
                     statements.Add(new DebugStatement(line));
                     return pos;
                 }
-                var names = new List<string>();
+                int first = pos;
+                var items = new List<Expression>();
                 while (true)
                 {
-                    if (!IsUserName(tokens[pos]) || tokens[pos + 1].Kind == TokenKind.LeftParen)
+                    if (!IsUserName(tokens[pos])
+                        || (tokens[pos + 1].Kind == TokenKind.LeftParen && tokens[pos + 2].Kind == TokenKind.RightParen))
                     {
                         Token bad = IsUserName(tokens[pos]) ? tokens[pos + 1] : tokens[pos];
                         diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDebugName, line, IsLineEnd(bad) ? "" : bad.Text));
                         return SkipToStatementEnd(tokens, pos);
                     }
-                    names.Add(tokens[pos].Text);
-                    pos++;
+                    Expression? item = ParseAnyExpression(tokens, ref pos, diagnostics);
+                    if (item is null)
+                        return SkipToStatementEnd(tokens, pos);
+                    items.Add(item);
                     if (tokens[pos].Kind != TokenKind.Comma)
                         break;
                     pos++;
@@ -1118,7 +1122,10 @@ public static class Parser
                     diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDebugName, line, tokens[pos].Text));
                     return SkipToStatementEnd(tokens, pos);
                 }
-                statements.Add(new DebugStatement(line, names));
+                var key = new System.Text.StringBuilder();
+                for (int k = first; k < pos; k++)
+                    key.Append(tokens[k].Text);
+                statements.Add(new DebugStatement(line, items, key.ToString()));
                 return pos;
             }
 
@@ -1706,20 +1713,67 @@ public static class Parser
 
     // Un même tableau garde toujours le même nombre de numéros de case (DIM compris), et un nom déclaré BYTE
     // ne peut pas encore être un tableau (les tableaux d'octets viendront plus tard).
-    // DEBUG A,B$ (D137) : chaque nom doit être une variable simple utilisée ailleurs dans le programme
+    // DEBUG A,B$ (D137) et DEBUG T(3) (D138) : chaque variable doit être utilisée ailleurs dans le programme, chaque
+    // tableau aussi, avec le bon nombre de numéros ; un numéro écrit en nombre doit exister quand DIM est écrit en nombres.
     static void CheckDebugNames(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
     {
-        if (!statements.Any(s => s is DebugStatement { Names: not null }))
+        if (!statements.Any(s => s is DebugStatement { Items: not null }))
             return;
         (HashSet<string> names, Dictionary<string, string?> arrays) = DebugVariables.Collect(statements);
+
+        var counts = new Dictionary<string, int>();                 // nombre de numéros de chaque tableau
+        var sizes = new Dictionary<string, IReadOnlyList<int>>();   // DIM écrit en nombres
+        foreach (Statement s in statements)
+        {
+            if (s is DimStatement dim)
+                foreach (ArrayDeclaration array in dim.Arrays)
+                {
+                    counts.TryAdd(array.Name, array.Sizes.Count);
+                    if (array.Sizes.All(x => x is NumberExpression))
+                        sizes.TryAdd(array.Name, array.Sizes.Select(x => ((NumberExpression)x).Value).ToList());
+                }
+            if (s is ArrayAssignStatement assign)
+                counts.TryAdd(assign.Name, assign.Indexes.Count);
+            foreach (Expression e in AstWalker.All(s))
+                if (e is ArrayElementExpression a)
+                    counts.TryAdd(a.Name, a.Indexes.Count);
+        }
+
         foreach (DebugStatement debug in statements.OfType<DebugStatement>())
-            foreach (string name in debug.Names ?? [])
+            foreach (Expression item in debug.Items ?? [])
             {
-                if (names.Contains(name))
+                int line = debug.SourceLine;
+                if (item is VariableExpression v)
+                {
+                    if (!names.Contains(v.Name))
+                        diagnostics.Add(new Diagnostic(arrays.ContainsKey(v.Name) ? DiagnosticCode.DebugArrayName
+                                                                                   : DiagnosticCode.DebugUnknownVariable, line, v.Name));
                     continue;
-                diagnostics.Add(new Diagnostic(arrays.ContainsKey(name) ? DiagnosticCode.DebugArrayName
-                                                                         : DiagnosticCode.DebugUnknownVariable,
-                                               debug.SourceLine, name));
+                }
+                if (item is not ArrayElementExpression element)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ExpectedDebugName, line));
+                    continue;
+                }
+                if (!arrays.ContainsKey(element.Name))
+                {
+                    diagnostics.Add(new Diagnostic(names.Contains(element.Name) ? DiagnosticCode.DebugNotArray
+                                                                                : DiagnosticCode.DebugUnknownVariable, line, element.Name));
+                    continue;
+                }
+                if (counts.TryGetValue(element.Name, out int count) && count != element.Indexes.Count)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ArrayDimensionMismatch, line,
+                                                   $"{element.Name}|{element.Indexes.Count}|{count}"));
+                    continue;
+                }
+                if (sizes.TryGetValue(element.Name, out IReadOnlyList<int>? max))
+                    for (int k = 0; k < element.Indexes.Count; k++)
+                        if (element.Indexes[k] is NumberExpression n && (n.Value < 0 || n.Value > max[k]))
+                            diagnostics.Add(new Diagnostic(DiagnosticCode.DebugIndexTooBig, line, $"{n.Value}|{max[k]}"));
+                foreach (Expression inner in element.Indexes.SelectMany(AstWalker.Flatten))
+                    if (inner is VariableExpression iv && !names.Contains(iv.Name))
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.DebugUnknownVariable, line, iv.Name));
             }
     }
 

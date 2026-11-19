@@ -214,4 +214,60 @@ public class DebugTests
         Assert.Single(Regex.Matches(output, "DEBUG ligne"));
         Assert.EndsWith("FIN\r\n", output);
     }
+
+    // ---- DEBUG T(3), T(I), M(1,2) (D138) : une seule case, avec son vrai numéro ----
+
+    [Theory]
+    [InlineData("10 DIM T(10):T(3)=25:I=3:DEBUG T(3),T(I)")]
+    [InlineData("10 DIM M(4,4):M(1,2)=7:DEBUG M(1,2),M(1,02)")]
+    [InlineData("10 DIM N$(3):N$(1)=\"A\":A=1:DEBUG A,N$(1)")]
+    [InlineData("10 N=5:DIM T(N):T(1)=1:DEBUG T(20)")]          // DIM calculé : vérifié pendant l'exécution
+    public void Cases_de_tableau_acceptees(string source)
+    {
+        Assert.Empty(BasicAnalyzer.Analyze(source).Diagnostics);
+    }
+
+    [Theory]
+    [InlineData("10 DIM T(10):T(1)=1:DEBUG T(11)", DiagnosticCode.DebugIndexTooBig)]
+    [InlineData("10 DIM M(4,4):M(1,1)=1:DEBUG M(1,5)", DiagnosticCode.DebugIndexTooBig)]
+    [InlineData("10 X=1:DEBUG X(3)", DiagnosticCode.DebugNotArray)]
+    [InlineData("10 DIM T(10):T(1)=1:DEBUG T(1,2)", DiagnosticCode.ArrayDimensionMismatch)]
+    [InlineData("10 DIM T(10):T(1)=1:DEBUG T(J)", DiagnosticCode.DebugUnknownVariable)]
+    [InlineData("10 A=1:DEBUG U(1)", DiagnosticCode.DebugUnknownVariable)]
+    public void Cases_de_tableau_refusees(string source, DiagnosticCode code)
+    {
+        Assert.Equal(code, Assert.Single(BasicAnalyzer.Analyze(source).Diagnostics).Code);
+    }
+
+    [Fact]
+    public void Sans_mise_au_point_DEBUG_d_une_case_n_ajoute_rien()
+    {
+        byte[] with = CodeGenerator.Generate(BasicAnalyzer.Analyze("10 DIM T(5):I=2:T(I)=1:DEBUG T(I):PRINT T(I)").Program, 0x4000).Code;
+        byte[] without = CodeGenerator.Generate(BasicAnalyzer.Analyze("10 DIM T(5):I=2:T(I)=1:PRINT T(I)").Program, 0x4000).Code;
+
+        Assert.Equal(without, with);
+    }
+
+    [Fact]
+    public void DEBUG_d_une_case_montre_son_vrai_numero()
+    {
+        string output = Run("10 DIM T(10):I=3:T(I)=25\n20 DEBUG T(I),T(0),I\n30 PRINT \"FIN\"", " ");
+
+        Assert.Contains("T(3)= 25 ", output);
+        Assert.Contains("T(0)= 0 ", output);
+        Assert.Contains("I= 3 ", output);
+        Assert.True(output.IndexOf("T(3)=") < output.IndexOf("T(0)=") && output.IndexOf("T(0)=") < output.IndexOf("I= 3"));
+        Assert.DoesNotContain("cases", output);
+        Assert.EndsWith("FIN\r\n", output);
+    }
+
+    [Fact]
+    public void DEBUG_d_une_case_a_deux_numeros_et_d_un_tableau_de_textes()
+    {
+        string output = Run("10 DIM M(4,4):M(1,2)=7:DIM N$(3):N$(2)=\"CPC\"\n20 DEBUG M(1,2),N$(2)\n30 PRINT \"FIN\"", " ");
+
+        Assert.Contains("M(1,2)= 7 ", output);
+        Assert.Contains("N$(2)=\"CPC\"", output);
+        Assert.EndsWith("FIN\r\n", output);
+    }
 }

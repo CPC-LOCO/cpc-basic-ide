@@ -79,7 +79,9 @@ public enum DiagnosticCode
     ExpectedEraseName,       // lot K8 (D096) : ERASE sans nom de tableau
     ExpectedDebugName,       // D137 : DEBUG suivi d'autre chose que des noms de variables
     DebugUnknownVariable,    // D137 : DEBUG X, mais X n'est utilisée nulle part
-    DebugArrayName,          // D137 : DEBUG T, T est un tableau (DEBUG T() viendra peut-être)
+    DebugArrayName,          // D137 : DEBUG T, T est un tableau (D138 : il faut le numéro de la case)
+    DebugNotArray,           // D138 : DEBUG X(3), mais X n'est pas un tableau
+    DebugIndexTooBig,        // D138 : DEBUG T(26) avec DIM T(10)
     DecFormat                // lot L2 (D103) : DEC$ avec un format qui n'est pas un seul emplacement de nombre
 }
 
@@ -243,11 +245,16 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
         DiagnosticCode.ExpectedEraseName =>
             $"ERASE attend des noms de tableaux séparés par des virgules, sans parenthèses, par exemple ERASE T, N$.{Why}",
         DiagnosticCode.ExpectedDebugName =>
-            $"DEBUG s'écrit seul (toutes les variables), ou suivi de noms de variables séparés par des virgules, par exemple DEBUG SCORE, NOM$.{Why}",
+            $"DEBUG s'écrit seul (toutes les variables), ou suivi de noms de variables ou de cases de tableaux séparés par des virgules, par exemple DEBUG SCORE, NOM$, T(3).{Why}",
         DiagnosticCode.DebugUnknownVariable =>
             $"DEBUG : la variable {Argument} n'est utilisée nulle part dans le programme. Vérifiez son nom et son signe ($, % ou !).",
         DiagnosticCode.DebugArrayName =>
-            $"DEBUG : {Argument} est un tableau. DEBUG ne montre pas encore les cases d'un tableau ; DEBUG seul donne son nombre de cases.",
+            $"DEBUG : {Argument} est un tableau. Écrivez le numéro de la case à montrer, par exemple DEBUG {Argument}(3) ; DEBUG seul donne son nombre de cases.",
+        DiagnosticCode.DebugNotArray =>
+            $"DEBUG : {Argument} n'est pas un tableau (aucun DIM {Argument}(...) ni case {Argument}(...) dans le programme). Pour la variable, écrivez DEBUG {Argument}.",
+        DiagnosticCode.DebugIndexTooBig => Argument.Split('|') is [string n, string max]
+            ? $"DEBUG : la case {n} n'existe pas : le tableau va de 0 à {max} (le vrai BASIC répondrait « Subscript out of range »)."
+            : Argument,
         DiagnosticCode.UserFunctionName =>
             $"{(Context.Length == 0 ? "FN" : Context)} attend le nom de la fonction, par exemple FNDOUBLE(3) ou DEF FNDOUBLE(X)=X*2.{Why}",
         DiagnosticCode.UserFunctionParameter =>

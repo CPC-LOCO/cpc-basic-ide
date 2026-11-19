@@ -3637,7 +3637,8 @@ public static class CodeGenerator
     // une fin de programme (on n'y entre que par CALL) : pour chaque variable, par ordre alphabétique, un arrêt si l'écran
     // est plein, puis « NOM= valeur » avec les PRINT habituels (nombres, nombres à virgule, textes entre guillemets) ;
     // pour un tableau, son nombre de cases (DIM écrit en nombres) ou « tableau ».
-    // DEBUG A,B$ (D137) : une routine de plus par liste de noms différente, avec seulement ces variables, dans l'ordre écrit.
+    // DEBUG A,B$ (D137) : une routine de plus par liste différente, avec seulement ces variables, dans l'ordre écrit ;
+    // DEBUG T(I) (D138) : la case avec son vrai numéro, « T(3)= 25 ».
     static BasicProgram ExpandDebug(BasicProgram program, CompilerOptions options)
     {
         List<DebugStatement> debugs = program.Statements.OfType<DebugStatement>().ToList();
@@ -3667,14 +3668,39 @@ public static class CodeGenerator
             statements.Add(new DebugEndStatement());
         }
 
-        if (debugs.Any(d => d.Names is null))
+        if (debugs.Any(d => d.Items is null))
             AddBody("dbg_body", names.Select(n => (Key: n, Array: false))
                                      .Concat(arrays.Keys.Select(n => (Key: n + "()", Array: true)))
                                      .OrderBy(x => x.Key, StringComparer.Ordinal));
         var done = new HashSet<string>();
-        foreach (DebugStatement debug in debugs.Where(d => d.Names is not null))
-            if (done.Add(debug.BodyLabel))
-                AddBody(debug.BodyLabel, debug.Names!.Select(n => (Key: n, Array: false)));
+        foreach (DebugStatement debug in debugs.Where(d => d.Items is not null))
+        {
+            if (!done.Add(debug.BodyLabel))
+                continue;
+            statements.Add(new DebugBodyStatement(debug.BodyLabel));
+            foreach (Expression item in debug.Items!)
+            {
+                statements.Add(new DebugPageStatement());
+                bool text = Types.IsString(item);
+                if (item is ArrayElementExpression element)
+                {
+                    statements.Add(new PrintStatement(0, element.Name + "(", false));
+                    for (int k = 0; k < element.Indexes.Count; k++)
+                    {
+                        if (k > 0)
+                            statements.Add(new PrintStatement(0, ",", false));
+                        statements.Add(new PrintValueStatement(0, new CallExpression("STR$", [element.Indexes[k]]), false,
+                                                               NoLeadingSpace: true));
+                    }
+                    statements.Add(new PrintStatement(0, text ? ")=\"" : ")=", false));
+                }
+                else
+                    statements.Add(new PrintStatement(0, $"{((VariableExpression)item).Name}=" + (text ? "\"" : ""), false));
+                statements.Add(new PrintValueStatement(0, item, false));
+                statements.Add(new PrintStatement(0, text ? "\"  " : " ", false));
+            }
+            statements.Add(new DebugEndStatement());
+        }
 
         return program with { Statements = statements };
     }
