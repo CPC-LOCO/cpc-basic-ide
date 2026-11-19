@@ -1127,6 +1127,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Z80Emitter :** deux ajouts pour écrire « étiquette + décalage » : `AbsoluteWord` et `RelativeByte`.
 - **Pas encore :** écart entre deux étiquettes (`FIN-DEBUT`), instructions non documentées (IXH, IXL...), EQU qui utilise $.
 
+## D146 : fichier d'une commande de bibliothèque, étape B2 (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; applique D144
+- **Fichier :** `src\CpcBasic.Core\Libraries\LibraryCommand.cs` ; tests dans `tests\CpcBasic.Tests\LibraryCommandTests.cs`.
+- **Forme du fichier :** en tête, les réponses du questionnaire sur des lignes « ;@ », puis le code assembleur. Pour un assembleur, les lignes « ;@ » sont des commentaires : le même fichier peut être essayé dans WinAPE.
+- **Lignes de tête :** `;@NOM` (obligatoire, pareil que le nom du fichier) ; `;@GENRE COMMANDE`, `FONCTION` ou `ROUTINE` (obligatoire) ; `;@VALEUR nom, plus petite, plus grande, rôle` (une ligne par valeur, dans l'ordre où on les écrit en BASIC, 16 au plus) ; `;@AIDE` (une ou plusieurs lignes) ; `;@AUTEUR`.
+- **Noms :** lettres sans accent, chiffres et _, une lettre au début, 16 caractères au plus ; pas un nom de registre ou de condition du Z80 (A, HL, NZ...) ; une valeur ne s'appelle pas comme la commande.
+- **Routine :** pas de VALEUR, elle reçoit ses valeurs dans les registres (l'AIDE le dit).
+- **Extension :** provisoire `.cmd.asm`, à choisir par l'utilisateur (D144) ; elle est écrite à un seul endroit (`LibraryCommandFile.Extension`).
+
 ---
 
 ## Notes de fin de session (modèle)
