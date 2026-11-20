@@ -14,7 +14,10 @@ using Xunit;
 
 namespace CpcBasic.Tests;
 
-/// <summary>D170 : TYPO, bibliothèque TEXTE (d'après la RSX TYPO de l'utilisateur, 2020).</summary>
+/// <summary>
+/// Bibliothèque TEXTE (D170 à D173) : TYPO (écriture directe dans l'écran, d'après la RSX TYPO de l'utilisateur, 2020)
+/// et DEFTYPO.
+/// </summary>
 public class TypoTests
 {
     const int Origin = 0x4000;
@@ -47,7 +50,21 @@ public class TypoTests
         return cpu;
     }
 
-    static string Hex(byte[] rows) => string.Join(" ", rows.Select(b => b.ToString("X2")));
+    static (int, int) Position(MiniZ80 cpu) => (cpu.GraphicsX, cpu.GraphicsY);
+
+    // « AB » : A = EE EA EA, B = CE AC AE ; chaque ligne prend la moitié gauche de A et la moitié droite de B
+    static readonly byte[] AB = [0x00, 0xEC, 0xEE, 0xEA, 0xAC, 0xEA, 0xAE, 0x00];
+
+    // les points d'un caractère, coin en haut à gauche au point x, y de l'écran
+    // (points du firmware : x de 0 à 159 / 319 / 639 selon le MODE, y de 0 à 199 depuis le bas)
+    static void AssertChar(MiniZ80 cpu, int x, int y, byte[] rows, byte pen = 1, byte paper = 0)
+    {
+        int unit = cpu.ScreenMode switch { 0 => 4, 1 => 2, _ => 1 };   // GetPixel prend les coordonnées du BASIC
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                Assert.True(cpu.GetPixel((x + c) * unit, (y - r) * 2) == ((rows[r] & (0x80 >> c)) != 0 ? pen : paper),
+                            $"MODE {cpu.ScreenMode}, ligne {r}, point {c}");
+    }
 
     [Fact]
     public void TYPO_est_au_catalogue_sans_erreur()
@@ -58,71 +75,102 @@ public class TypoTests
         Assert.Equal("TYPO message$ [, x] [, y]", LibraryCommandFile.Signature(typo));
         Assert.Equal(LibraryKind.Routine, Catalog.Find("TYPO_FONTE")!.Kind);
         Assert.Equal(LibraryKind.Routine, Catalog.Find("TYPO_ADRESSE")!.Kind);
+        Assert.Null(Catalog.Find("TYPOVITE"));                   // renommée TYPO (D173)
     }
 
-    [Fact]
-    public void Deux_petits_caracteres_font_un_caractere()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Deux_petits_caracteres_font_un_caractere_dans_les_3_MODE(byte mode)
     {
-        // A = EE EA EA, B = CE AC AE : chaque ligne prend la moitié gauche de A et la moitié droite de B
-        MiniZ80 cpu = Run("10 TYPO \"AB\"");
+        MiniZ80 cpu = Run("10 TYPO \"AB\", 0, 399", c => c.ScreenMode = mode);
 
-        Assert.Equal("00 EC EE EA AC EA AE 00", Hex(Assert.Single(cpu.GraphicChars)));
+        AssertChar(cpu, 0, 199, AB);
     }
 
     [Fact]
     public void Un_nombre_impair_finit_par_un_espace()
     {
-        MiniZ80 cpu = Run("10 A$ = \"ABA\" : TYPO A$");
+        MiniZ80 cpu = Run("10 A$ = \"ABA\" : TYPO A$, 0, 399");
 
-        Assert.Equal(2, cpu.GraphicChars.Count);
-        Assert.Equal("00 E0 E0 E0 A0 E0 A0 00", Hex(cpu.GraphicChars[1]));
+        AssertChar(cpu, 0, 199, AB);
+        AssertChar(cpu, 8, 199, [0x00, 0xE0, 0xE0, 0xE0, 0xA0, 0xE0, 0xA0, 0x00]);
     }
 
     [Fact]
     public void Un_caractere_inconnu_devient_un_espace()
     {
-        MiniZ80 cpu = Run("10 TYPO CHR$(126) + CHR$(10)");
+        MiniZ80 cpu = Run("10 GRAPHICS PEN 1 : GRAPHICS PAPER 2 : TYPO CHR$(126) + CHR$(10), 0, 399");
 
-        Assert.Equal("00 00 00 00 00 00 00 00", Hex(Assert.Single(cpu.GraphicChars)));
+        AssertChar(cpu, 0, 199, new byte[8], pen: 1, paper: 2);
     }
 
     [Fact]
-    public void Le_dessin_de_255_est_remis_comme_avant()
+    public void TYPO_prend_le_stylo_et_le_fond_du_trace()
     {
-        MiniZ80 cpu = Run("10 TYPO \"BONJOUR\"", c =>
+        MiniZ80 cpu = Run("10 GRAPHICS PEN 3 : GRAPHICS PAPER 2 : TYPO \"AB\", 0, 399");
+
+        AssertChar(cpu, 0, 199, AB, pen: 3, paper: 2);
+    }
+
+    [Fact]
+    public void TYPO_arrondit_x_au_debut_d_un_octet_et_avance_le_curseur()
+    {
+        MiniZ80 cpu = Run("10 TYPO \"ABAB\", 100, 201");          // MODE 1 : x 100 -> point 50 -> octet du point 48
+
+        AssertChar(cpu, 48, 100, AB);                            // le caractère passe d'un rang de l'écran au suivant
+        AssertChar(cpu, 56, 100, AB);
+        Assert.Equal((132, 201), Position(cpu));                 // deux caractères de 16 : 100 + 32
+    }
+
+    [Fact]
+    public void Sans_position_au_curseur_et_avec_en_x_y()
+    {
+        Assert.Equal((16, 0), Position(Run("10 TYPO \"AB\"")));          // trop bas pour être écrit : le curseur avance
+        Assert.Equal((116, 200), Position(Run("10 TYPO \"AB\", 100, 200")));
+        Assert.Equal((116, 0), Position(Run("10 TYPO \"AB\", 100")));
+        Assert.Equal((16, 300), Position(Run("10 TYPO \"AB\", , 300")));
+    }
+
+    [Fact]
+    public void TYPO_n_ecrit_pas_hors_de_l_ecran()
+    {
+        MiniZ80 cpu = Run("10 TYPO \"ABAB\", 600, 10");           // trop bas, et le 2e trop à droite
+
+        Assert.All(cpu.Memory[0xC000..0x10000], b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void Un_texte_vide_n_ecrit_rien()
+    {
+        MiniZ80 cpu = Run("10 TYPO \"\", 100, 200");
+
+        Assert.All(cpu.Memory[0xC000..0x10000], b => Assert.Equal(0, b));
+        Assert.Equal((100, 200), Position(cpu));
+    }
+
+    [Fact]
+    public void TYPO_ne_touche_pas_au_caractere_255()
+    {
+        MiniZ80 cpu = Run("10 TYPO \"BONJOUR\", 0, 399", c =>
         {
             for (int i = 0; i < 8; i++)
                 c.Memory[Matrix255 + i] = (byte)(0x11 * (i + 1));
         });
 
-        Assert.Equal(4, cpu.GraphicChars.Count);
-        Assert.Equal("11 22 33 44 55 66 77 88", Hex(cpu.Memory[Matrix255..(Matrix255 + 8)]));
+        Assert.Equal("11 22 33 44 55 66 77 88", string.Join(" ", cpu.Memory[Matrix255..(Matrix255 + 8)].Select(b => b.ToString("X2"))));
+        Assert.Empty(cpu.GraphicChars);                         // sans GRA WR CHAR
+        Assert.Equal(0, cpu.MatrixReads);
     }
 
     [Fact]
-    public void Sans_position_le_curseur_ne_bouge_pas_et_avec_il_y_va()
+    public void La_place_de_TYPO_se_mesure()
     {
-        Assert.Equal((0, 0), Position(Run("10 TYPO \"AB\"")));
-        Assert.Equal((100, 200), Position(Run("10 TYPO \"AB\", 100, 200")));
-        Assert.Equal((100, 0), Position(Run("10 TYPO \"AB\", 100")));
-        Assert.Equal((0, 300), Position(Run("10 TYPO \"AB\", , 300")));
-    }
+        var typo = LibraryLinker.Size(Catalog, "TYPO")!.Value;
 
-    static (int, int) Position(MiniZ80 cpu) => (cpu.GraphicsX, cpu.GraphicsY);
-
-    [Fact]
-    public void Un_texte_vide_n_ecrit_rien()
-    {
-        Assert.Empty(Run("10 TYPO \"\"").GraphicChars);
-    }
-
-    [Fact]
-    public void Si_255_n_est_pas_redessinable_TYPO_lui_donne_une_table()
-    {
-        MiniZ80 cpu = Run("10 TYPO \"AB\"", c => c.FirstUserChar = 256);
-
-        Assert.Contains(cpu.MatrixTables, t => t.First == 255);
-        Assert.Single(cpu.GraphicChars);
+        Assert.Equal(new[] { "TYPO_ADRESSE", "TYPO_FONTE" }, typo.Called);
+        Assert.True(typo.Total - typo.Own >= 279);                // la fonte : 93 x 3 octets
     }
 
     // ---------- DEFTYPO (D171) ----------
@@ -136,16 +184,18 @@ public class TypoTests
     [Fact]
     public void DEFTYPO_redessine_un_petit_caractere()
     {
-        MiniZ80 cpu = Run("10 DEFTYPO \"A\", &12, &34, &56\n20 TYPO \"AA\"");
+        MiniZ80 cpu = Run("10 DEFTYPO \"A\", &12, &34, &56\n20 TYPO \"AA\", 0, 399");
 
-        Assert.Equal("00 11 22 33 44 55 66 00", Hex(Assert.Single(cpu.GraphicChars)));
+        AssertChar(cpu, 0, 199, [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x00]);
     }
 
     [Theory]
-    [InlineData("10 DEFTYPO \"~\", &FF, &FF, &FF\n20 TYPO \"  \"")]     // pas dans la fonte : l'espace ne change pas
-    [InlineData("10 DEFTYPO \"\", &FF, &FF, &FF\n20 TYPO \"  \"")]      // texte vide : rien
-    public void DEFTYPO_ignore_ce_qui_n_est_pas_dans_la_fonte(string source)
+    [InlineData("10 DEFTYPO \"~\", &FF, &FF, &FF")]               // pas dans la fonte : l'espace ne change pas
+    [InlineData("10 DEFTYPO \"\", &FF, &FF, &FF")]                // texte vide : rien
+    public void DEFTYPO_ignore_ce_qui_n_est_pas_dans_la_fonte(string first)
     {
-        Assert.Equal("00 00 00 00 00 00 00 00", Hex(Assert.Single(Run(source).GraphicChars)));
+        MiniZ80 cpu = Run(first + "\n20 GRAPHICS PEN 1 : GRAPHICS PAPER 2 : TYPO \"  \", 0, 399");
+
+        AssertChar(cpu, 0, 199, new byte[8], pen: 1, paper: 2);
     }
 }

@@ -67,6 +67,31 @@ public static class LibraryLinker
         return (found.Values.OrderBy(c => c.Name, StringComparer.Ordinal).ToList(), errors);
     }
 
+    /// <summary>
+    /// Place prise dans un programme (D172) : la commande seule (ses cases et son code), et avec toutes les routines
+    /// qu'elle appelle. Null si elle n'est pas au catalogue ou si son code a une faute.
+    /// </summary>
+    public static (int Own, int Total, IReadOnlyList<string> Called)? Size(LibraryCatalog catalog, string name)
+    {
+        LibraryCommand? command = catalog.Find(name);
+        if (command is null)
+            return null;
+        var (commands, errors) = Collect(catalog, [command.Name]);
+        if (errors.Count > 0)
+            return null;
+        int own = 0, total = 0;
+        foreach (LibraryCommand c in commands)
+        {
+            var emitter = new Z80Emitter(0);
+            emitter.Reserve(2 * c.Parameters.Count);
+            Assemble(emitter, c, catalog, null);
+            total += emitter.Size;
+            if (c.Name == command.Name)
+                own = emitter.Size;
+        }
+        return (own, total, commands.Where(c => c.Name != command.Name).Select(c => c.Name).ToList());
+    }
+
     /// <summary>Écrit les commandes dans le programme : cases des valeurs, puis le code.</summary>
     public static void Emit(Z80Emitter emitter, LibraryCatalog catalog, IEnumerable<LibraryCommand> commands)
     {

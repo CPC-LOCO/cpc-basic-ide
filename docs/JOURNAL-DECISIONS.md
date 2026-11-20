@@ -1321,6 +1321,20 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérifié par l'utilisateur dans WinAPE :** `typo.bas`, ligne 145, trois cœurs à la place de ###.
 - **Tests :** `TypoTests` (+4). La bibliothèque TEXTE (TYPO, DEFTYPO) est terminée.
 
+## D172 : TYPOVITE, écriture directe dans l'écran, et place des commandes dans la fenêtre des bibliothèques (20 nov. 2026) (demande de l'utilisateur : plus rapide, avec mesure de la vitesse et de la place avant de remplacer TYPO)
+- **Place :** `LibraryLinker.Size` : la commande seule (cases et code) et avec les routines qu'elle appelle ; montrée dans la fenêtre des bibliothèques (« Place dans un programme : … octets »).
+- **Principe :** sans GRA WR CHAR ni caractère 255 : les 8 lignes sont faites dans 8 octets à elle, puis écrites dans l'écran : 4 octets par ligne en MODE 0, 2 en MODE 1, 1 en MODE 2 ; octet = fond XOR ((stylo XOR fond) AND masque). Le firmware ne sert plus qu'à se repérer (curseur, origine, MODE, couleurs, adresse du premier caractère).
+- **Première version (gardée : `essais\TYPOVITE-v1.cmd.asm.txt`) :** SCR NEXT LINE à chaque ligne et un aiguillage par ligne : 480 octets, 2 fois plus rapide seulement en MODE 1 (501 contre 1046 trois-centièmes de seconde, 20 lignes de 63 caractères).
+- **Version optimisée :** ligne suivante et octet suivant calculés ici (écran de 16 Ko en &C000, 8 blocs de 2 Ko qui tournent sur eux-mêmes : le défilement est suivi), une routine par MODE choisie une fois, couleurs écrites dans le code (AND / XOR) : 613 octets (911 avec la fonte et TYPO_ADRESSE ; TYPO par le firmware : 229 et 527).
+- **Mesures de l'utilisateur dans WinAPE** (`essais\typocomp\typocomp.bas`, 20 lignes de 40 caractères, en trois-centièmes de seconde) : MODE 0 : 672 contre 258 (2,6 fois plus vite) ; MODE 1 : 656 contre 148 (4,4) ; MODE 2 : 649 contre 101 (6,4).
+- **Différences acceptées :** x arrondi vers la gauche à un multiple de 8 ; fenêtre graphique et mode de GRAPHICS PEN pas suivis ; caractère hors de l'écran pas écrit ; écran en &C000.
+- **MiniZ80 :** LD (nn),BC, EX (SP),HL, RLC C, XOR C ; et toutes les instructions LD r,r' et calculs A,r décodées d'après le numéro du registre (51 manquaient).
+- **Remarque de l'essai :** `ROUND(T1/T2,1)` a affiché 2 au lieu de 2.1 : la division de deux variables entières reste entière ici, alors que le Locomotive donne un nombre à virgule. À vérifier (IDEES).
+
+## D173 : TYPOVITE devient TYPO (20 nov. 2026) (choix de l'utilisateur : « y a pas photo »)
+- L'ancien TYPO (par GRA WR CHAR et le caractère 255, D170) est retiré, gardé dans `essais\TYPO-v1-firmware.cmd.asm.txt` ; TYPOVITE prend le nom TYPO : même écriture, `TYPO texte [, x, y]`, mêmes couleurs, même fonte, DEFTYPO inchangé.
+- **Tests :** `TypoTests` réécrits sur les points de l'écran (16).
+
 ---
 
 ## Notes de fin de session (modèle)

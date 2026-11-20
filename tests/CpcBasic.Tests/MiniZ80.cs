@@ -1225,6 +1225,16 @@ internal sealed class MiniZ80
             case 0x2B: HL = (ushort)(HL - 1); break;                   // DEC HL
             case 0x1A: A = ReadMemory(DE); break;                      // LD A,(DE)
             case 0x0A: A = ReadMemory(BC); break;                      // LD A,(BC) (TYPO, D170)
+            case 0xA9: A ^= C; ZeroFlag = A == 0; CarryFlag = false; break;   // XOR C (TYPOVITE, D172)
+            case 0xE3:                                                 // EX (SP),HL (TYPOVITE, D172)
+            {
+                byte low = Memory[sp], high = Memory[(ushort)(sp + 1)];
+                Memory[sp] = L;
+                Memory[(ushort)(sp + 1)] = H;
+                L = low;
+                H = high;
+                break;
+            }
             case 0x50: D = B; break;                                   // LD D,B (TYPO, D170)
             case 0x59: E = C; break;                                   // LD E,C (TYPO, D170)
             case 0x03: BC = (ushort)(BC + 1); break;                   // INC BC (TYPO, D170)
@@ -1320,8 +1330,62 @@ internal sealed class MiniZ80
                 break;
             }
 
+            // LD r,r' et calculs A,r qui n'ont pas encore leur ligne ci-dessus (D172) : décodés d'après le numéro du registre
+            case >= 0x40 and <= 0xBF when op != 0x76:
+                RegisterGroup(op);
+                break;
+
             default:
                 throw new NotSupportedException($"Instruction &{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
+        }
+    }
+
+    // registres numérotés comme dans le code du Z80 : B, C, D, E, H, L, (HL), A
+    byte GetRegister(int index) => index switch
+    {
+        0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => ReadMemory(HL), _ => A
+    };
+
+    void SetRegister(int index, byte value)
+    {
+        switch (index)
+        {
+            case 0: B = value; break;
+            case 1: C = value; break;
+            case 2: D = value; break;
+            case 3: E = value; break;
+            case 4: H = value; break;
+            case 5: L = value; break;
+            case 6: Memory[HL] = value; break;
+            default: A = value; break;
+        }
+    }
+
+    void RegisterGroup(int op)
+    {
+        byte value = GetRegister(op & 7);
+        if (op < 0x80)
+        {
+            SetRegister((op >> 3) & 7, value);                  // LD r,r'
+            return;
+        }
+        switch ((op >> 3) & 7)
+        {
+            case 0: Add(value); break;
+            case 1: Add(value, withCarry: true); break;
+            case 2: Sub(value); break;
+            case 3:
+            {
+                int result = A - value - (CarryFlag ? 1 : 0);
+                CarryFlag = result < 0;
+                A = (byte)result;
+                ZeroFlag = A == 0;
+                break;
+            }
+            case 4: And(value); break;
+            case 5: A ^= value; ZeroFlag = A == 0; CarryFlag = false; break;
+            case 6: A |= value; ZeroFlag = A == 0; CarryFlag = false; break;
+            default: Compare(value); break;
         }
     }
 
@@ -1343,6 +1407,11 @@ internal sealed class MiniZ80
                 ZeroFlag = E == 0;
                 break;
             case 0x1D: L = Rl_Right(L); break;                         // RR L
+            case 0x01:                                                 // RLC C (TYPOVITE, D172)
+                CarryFlag = (C & 0x80) != 0;
+                C = (byte)((C << 1) | (C >> 7));
+                ZeroFlag = C == 0;
+                break;
             case 0x1C: H = Rl_Right(H); break;                         // RR H (STAR, D151)
             case 0x2C:                                                 // SRA H (STAR, D152)
                 CarryFlag = (H & 0x01) != 0;
@@ -1442,6 +1511,13 @@ internal sealed class MiniZ80
                 OverflowFlag = signed is < -32768 or > 32767;
                 HL = (ushort)result;
                 ZeroFlag = HL == 0;
+                break;
+            }
+            case 0x43:                                                 // LD (nn),BC (TYPOVITE, D172)
+            {
+                int at = Fetch16();
+                Memory[at] = C;
+                Memory[(at + 1) & 0xFFFF] = B;
                 break;
             }
             case 0x53:                                                 // LD (nn),DE (D062)

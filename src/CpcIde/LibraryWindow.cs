@@ -245,14 +245,14 @@ public sealed class LibraryWindow : Window
         list.SelectionChanged += (_, _) =>
         {
             if (list.SelectedIndex >= 0)
-                details.Text = Describe(commands[list.SelectedIndex]);
+                details.Text = Describe(commands[list.SelectedIndex], shown);
             RefreshSelected();
         };
         current = () => list.SelectedIndex >= 0 && list.SelectedIndex < commands.Count ? commands[list.SelectedIndex] : null;
         int first = Math.Max(0, commands.ToList().FindIndex(c => c.Name == selectName));
         list.SelectedIndex = commands.Count > 0 ? first : -1;
         if (commands.Count > 0)
-            details.Text = Describe(commands[first]);
+            details.Text = Describe(commands[first], shown);
 
         var page = new Grid { ColumnDefinitions = new ColumnDefinitions("320,*"), Margin = new Thickness(0, 8, 0, 0) };
         page.Children.Add(list);
@@ -270,7 +270,7 @@ public sealed class LibraryWindow : Window
     };
 
     // Ce qu'on sait d'une commande : bonne écriture, à qui elle est, aide, valeurs
-    static string Describe(LibraryCommand c)
+    static string Describe(LibraryCommand c, LibraryCatalog? catalog)
     {
         var lines = new List<string>
         {
@@ -290,6 +290,14 @@ public sealed class LibraryWindow : Window
         {
             lines.Add("");
             lines.AddRange(c.Help.Split('\n'));
+        }
+        // place prise dans un programme (demande de l'utilisateur, D172)
+        if (catalog is not null && LibraryLinker.Size(catalog, c.Name) is (int own, int total, IReadOnlyList<string> called))
+        {
+            lines.Add("");
+            lines.Add(called.Count == 0
+                ? $"Place dans un programme : {own} octets."
+                : $"Place dans un programme : {total} octets, avec {string.Join(", ", called)} ({own} pour {c.Name} seule).");
         }
         if (c.Parameters.Count > 0)
         {
