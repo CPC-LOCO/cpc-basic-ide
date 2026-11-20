@@ -99,6 +99,10 @@ Reglages (menu Options) :
   - Un programme compile ne revient pas au BASIC : a la fin, il attend
     une touche, puis la machine redemarre.
 
+Sans chargeur BASIC : menu Options, decochez "Chargeur BASIC sur la
+disquette (NOM.BAS)". F5 ne met alors que NOM.BIN ; RUN"NOM" le lance
+directement (les fichiers et RUN"nom" marchent comme avant).
+
 Memoire pour vous : de &0400 a &2FFF (11 Ko), le compilateur ne met
 jamais rien, ni aujourd'hui ni dans les versions suivantes. Vous pouvez y
 ranger des POKE, des donnees (LOAD"DONNEES",&1000) ou des routines en

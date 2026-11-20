@@ -2076,6 +2076,21 @@ public static class CodeGenerator
             required.Add(usesReals ? RuntimeLibrary.DataRealName : RuntimeLibrary.DataNoRealName);
         }
 
+        // Sans chargeur BASIC (D168) : lancé par RUN"NOM" (fichier binaire), le CPC a tout remis à zéro et la disquette n'est
+        // plus branchée (OPENOUT demanderait la cassette). Si l'entrée CAS IN OPEN (&BC77) est encore celle du firmware
+        // (RST 1, &CF), on rebranche les ROM d'extension comme le fait le BASIC : KL ROM WALK, mémoire de &0040 à &ABFF
+        // (AMSDOS prend le haut, HIMEM redevient &A67B). Déjà branchée (programme lancé par RUN "nom") : rien.
+        if (!options.WithLoader)
+        {
+            emitter.Bytes(0x3A, 0x77, 0xBC);                        // LD A,(&BC77)
+            emitter.CpImm(0xCF);
+            emitter.JrNzLabel("prog_roms_ok");
+            emitter.LdDeImm(0x0040);
+            emitter.LdHlImm(0xABFF);
+            emitter.CallAddress(0xBCCB);                            // KL ROM WALK
+            emitter.Label("prog_roms_ok");
+        }
+
         // RUN (D090) : la pile du départ est gardée ; RUN la remet et recommence ici
         bool usesRun = program.Statements.Any(st => st is RestartStatement);
         bool usesClear = usesRun || program.Statements.Any(st => st is ClearStatement);

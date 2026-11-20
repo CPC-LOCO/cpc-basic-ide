@@ -1291,6 +1291,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Gardien :** `tests\CpcBasic.Tests\ProgrammerZoneTests.cs` : les adresses du compilateur restent au-dessus de la zone, et des programmes qui tournent (textes, tableaux, GOSUB) laissent intact un motif écrit dans la zone. Si un de ces tests échoue un jour, c'est le compilateur qu'il faut changer.
 - **Écrit pour l'utilisateur :** `packaging\LISEZMOI.txt`, point 5.
 
+## D168 : programme BASIC compilé sans chargeur BASIC (20 nov. 2026) (idée de l'utilisateur ; façon de faire choisie par l'assistant) ; suite de D166
+- **Constat :** un programme compilé ne revient jamais au BASIC (fin : une touche, puis redémarrage). `RUN"CERCLES.BIN"` marche tel quel. Mais `RUN"FICHIERS.BIN"` demande la cassette (« Press REC and PLAY ») : lancé ainsi, le firmware est remis à zéro et la disquette (AMSDOS) n'est plus branchée. Essais de l'utilisateur dans WinAPE.
+- **Correctif :** réglage `CompilerOptions.WithLoader` (vrai par défaut). Faux : au départ, si l'entrée CAS IN OPEN (&BC77) est encore celle du firmware (&CF, RST 1), le programme appelle KL ROM WALK (&BCCB) avec DE = &0040 et HL = &ABFF, comme le BASIC (AMSDOS reprend le haut, HIMEM &A67B). Déjà branchée (lancé par RUN "nom") : rien. 16 octets de plus, seulement sans chargeur.
+- **Disquette :** sans chargeur, NOM.BIN seul (aussi pour les programmes lancés par RUN "nom" et compilés avec lui) ; RUN"NOM" le trouve (AMSDOS essaie NOM, NOM.BAS, puis NOM.BIN).
+- **Éditeur :** menu Options, « Chargeur BASIC sur la disquette (NOM.BAS) », coché au départ, commun à tous les programmes (`EditorSettings.WithLoader`).
+- **Vérifié par l'utilisateur dans WinAPE :** CERCLES, FICHIERS (écriture et lecture d'un fichier), PARTIE1 puis PARTIE2 (RUN "nom" et fichier SCORE) : tout marche sans chargeur.
+- **Tests :** `NoLoaderTests` (5).
+
 ---
 
 ## Notes de fin de session (modèle)

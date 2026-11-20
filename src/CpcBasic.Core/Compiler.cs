@@ -58,7 +58,7 @@ public static class Compiler
         waiting.Enqueue((mainName, source, options ?? CompilerOptions.Default, true));
         var seen = new HashSet<string>(StringComparer.Ordinal) { mainName };
         var diagnostics = new List<Diagnostic>();
-        var compiled = new List<(string Name, byte[] Code)>();
+        var compiled = new List<(string Name, byte[] Code, bool WithLoader)>();
         var missing = new List<string>();
         int mainSize = 0;
         IReadOnlyList<string> mainModules = [];
@@ -78,7 +78,7 @@ public static class Compiler
                 diagnostics.AddRange(main ? errors : errors.Select(d => d with { File = $"{name}.BAS" }));
                 continue;
             }
-            compiled.Add((name, code!));
+            compiled.Add((name, code!, settings.WithLoader));
 
             foreach (string next in LaunchedPrograms(program!))
             {
@@ -96,10 +96,13 @@ public static class Compiler
             return new CompileResult(diagnostics, null, mainSize, mainModules) { Missing = missing };
 
         var disk = new DiskImage();
-        foreach ((string name, byte[] code) in compiled)
+        foreach ((string name, byte[] code, bool withLoader) in compiled)
         {
-            byte[] loader = BasicLoader.Build($"{name}.BIN", LoadAddress - 1, LoadAddress);
-            disk.AddFile(name, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
+            if (withLoader)   // sans chargeur (D168) : NOM.BIN seul, RUN"NOM" le trouve
+            {
+                byte[] loader = BasicLoader.Build($"{name}.BIN", LoadAddress - 1, LoadAddress);
+                disk.AddFile(name, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
+            }
             disk.AddFile(name, "BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
         }
         return new CompileResult([], disk, mainSize, mainModules)

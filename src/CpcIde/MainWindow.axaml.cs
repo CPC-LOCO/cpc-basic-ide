@@ -680,6 +680,17 @@ public partial class MainWindow : Window
             : "Mise au point : non. Les DEBUG du programme sont ignorés : le programme garde sa taille normale.");
     }
 
+    // Chargeur BASIC (D168) : NOM.BAS et NOM.BIN, ou NOM.BIN seul ; RUN"NOM" dans les deux cas ; pour tous les programmes
+    void OnLoaderClick(object? sender, RoutedEventArgs e)
+    {
+        settings.WithLoader = !settings.WithLoader;
+        settings.Save();
+        UpdateOptionButtons();
+        ShowMessage(settings.WithLoader
+            ? "Chargeur BASIC : oui. F5 met NOM.BAS (qui charge le programme) et NOM.BIN sur la disquette ; RUN\"NOM\" le lance."
+            : "Chargeur BASIC : non. F5 ne met que NOM.BIN ; RUN\"NOM\" le lance directement (le programme rebranche lui-même la disquette).");
+    }
+
     // F3 : priorité vitesse ou place (D141) ; ne change jamais le dessin ; pour tous les programmes
     void TogglePriority()
     {
@@ -720,6 +731,7 @@ public partial class MainWindow : Window
         // Menu Options (D112) : coché quand le réglage est actif
         TextMenu.IsChecked = settings.TextOnDisk;
         DebugMenu.IsChecked = settings.DebugMode;
+        LoaderMenu.IsChecked = settings.WithLoader;
         PriorityMenu.Header = settings.PreferSize ? "_Priorité : place" : "_Priorité : vitesse";
         VersionMenu.Header = settings.CpcVersion == CpcLanguage.French
             ? "Version du _CPC : français (AZERTY)"
@@ -995,10 +1007,12 @@ public partial class MainWindow : Window
                     return null;
                 return new ProgramSource(File.ReadAllText(file),
                                          new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
-                                                             settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries));
+                                                             settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries,
+                                                             settings.WithLoader));
             }
             result = Compiler.CompileWithLinked(Editor.Text, name,
-                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries), Find);
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries,
+                                                                    settings.WithLoader), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -1104,10 +1118,12 @@ public partial class MainWindow : Window
                 return file is null ? null
                     : new ProgramSource(File.ReadAllText(file),
                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
-                                                            settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries));
+                                                            settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries,
+                                                             settings.WithLoader));
             }
             result = Compiler.CompileWithLinked(Editor.Text, name,
-                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries), Find);
+                                                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries,
+                                                                    settings.WithLoader), Find);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {

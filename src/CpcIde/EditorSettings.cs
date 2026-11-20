@@ -67,6 +67,12 @@ public sealed class EditorSettings
     /// </summary>
     public bool PreferSize { get; set; }
 
+    /// <summary>
+    /// Chargeur BASIC (D168) : vrai (par défaut) : la disquette a NOM.BAS et NOM.BIN ; faux : NOM.BIN seul, lancé
+    /// directement par RUN"NOM". Réglage commun à tous les programmes.
+    /// </summary>
+    public bool WithLoader { get; set; } = true;
+
     // Une ligne trop longue continue sur la ligne suivante de l'écran, comme sur le CPC (D113)
     public bool WordWrap { get; set; } = true;
 

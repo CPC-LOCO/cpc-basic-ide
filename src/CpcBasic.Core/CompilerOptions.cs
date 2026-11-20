@@ -29,10 +29,13 @@ public enum TargetMachine
 /// vitesse, on partage (le dessin reste exactement le même) ; sinon (par défaut) chaque commande garde sa routine rapide.
 /// Aujourd'hui : CIRCLE passe par ELLIPSE quand le programme contient les deux.
 /// Libraries : catalogue des bibliothèques (D148) ; null : aucune bibliothèque.
+/// WithLoader : vrai (par défaut) : NOM.BAS charge NOM.BIN. Faux (D168) : NOM.BIN seul, lancé directement par RUN"NOM" ;
+/// le firmware a été remis à zéro, le programme rebranche donc lui-même la disquette (AMSDOS) au départ.
 /// </summary>
 public sealed record CompilerOptions(TargetMachine Target = TargetMachine.AllCpc, bool RealByDefault = false,
                                      bool BreakKey = false, CpcLanguage Language = CpcLanguage.French, bool Debug = false,
-                                     bool PreferSize = false, LibraryCatalog? Libraries = null)
+                                     bool PreferSize = false, LibraryCatalog? Libraries = null,
+                                     bool WithLoader = true)
 {
     /// <summary>Les réglages par défaut : tous les CPC, variables sans signe entières.</summary>
     public static CompilerOptions Default { get; } = new();
