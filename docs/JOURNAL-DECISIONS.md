@@ -1241,6 +1241,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Core :** `LibraryCommandFile.SplitHeader` (fiche et code séparés), utilisé aussi par l'éditeur d'assembleur ; 1 test de plus.
 - **Essayé (20 nov. 2026) :** STAR grisée ; fiche de LUNE modifiée, code gardé ; ESSAI effacée : « tout marche comme tu l'as prévu ! C'est parfait ».
 
+## D161 : répertoire de distribution, étape B5 (20 nov. 2026) (idée de l'utilisateur, D144 ; façon de faire choisie par l'assistant)
+- **Où :** menu Fichier, « Préparer un dossier à distribuer... » ; le programme est d'abord enregistré, puis on choisit un dossier (pas celui du programme).
+- **Ce qui est déposé :** le texte du programme (.BAS, copié tel quel) et celui des programmes qu'il lance par RUN "nom" trouvés dans son dossier (comme F5) ; les commandes, fonctions et routines **du programmeur** qu'ils utilisent, avec les routines qu'elles appellent, rangées comme chez soi (`bibliotheques\BIBLIOTHÈQUE\NOM.cmd.asm`) ; un LISEZMOI.txt (comment compiler, où copier le dossier bibliotheques : Documents\CPC BASIC IDE\bibliotheques, la liste des commandes données, et les commandes du projet utilisées). Les commandes du projet ne sont pas copiées (tout le monde les a).
+- **Compte rendu :** dans le panneau des messages : le dossier, les fichiers déposés, les commandes du projet utilisées, les RUN "nom" introuvables (en rouge).
+- **Core :** `Distribution.Plan` (src\CpcBasic.Core\Libraries\Distribution.cs) ; tests : DistributionTests.cs (3).
+- **Essayé (20 nov. 2026) :** essais\lunejeu.bas (LUNE et STAR) déposé dans essais\distrib : lunejeu.bas, LISEZMOI.txt, bibliotheques\ESSAI\LUNE.cmd.asm ; STAR signalée, pas copiée : « c'est tout comme tu le dis ». 1842 tests réussis.
+- **Étapes B1 à B5 de D144 : toutes faites.** Reste : choisir l'extension des fichiers de commande (provisoire .cmd.asm), d'autres bibliothèques du projet.
+
 ---
 
 ## Notes de fin de session (modèle)

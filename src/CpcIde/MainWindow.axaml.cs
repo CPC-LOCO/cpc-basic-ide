@@ -172,6 +172,96 @@ public partial class MainWindow : Window
     async void OnOpenClick(object? sender, RoutedEventArgs e) => await OpenFileAsync();
     async void OnSaveClick(object? sender, RoutedEventArgs e) => await SaveAsync();
     async void OnSaveAsClick(object? sender, RoutedEventArgs e) => await SaveAsAsync();
+    async void OnDistributeClick(object? sender, RoutedEventArgs e) => await DistributeAsync();
+
+    // Répertoire de distribution (idée de l'utilisateur, D144, D161) : le programme, ceux qu'il lance par RUN "nom",
+    // et les commandes ajoutées qu'ils utilisent (avec leurs routines), rangées comme chez soi, plus un LISEZMOI.txt
+    async Task DistributeAsync()
+    {
+        if (!await SaveAsync())
+            return;
+        string path = currentPath!;
+        string programFolder = Path.GetDirectoryName(path) ?? ".";
+        string name = Path.GetFileNameWithoutExtension(path).ToUpperInvariant();
+        UseLibraries(LibraryFolders.Load());
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = $"Dossier où déposer {name} et ses commandes ajoutées",
+            AllowMultiple = false
+        });
+        string? target = folders.Count == 0 ? null : folders[0].TryGetLocalPath();
+        if (target is null)
+            return;
+        if (Path.GetFullPath(target).TrimEnd('\\', '/').Equals(Path.GetFullPath(programFolder).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+        {
+            ShowError("Choisissez un autre dossier que celui du programme (par exemple un dossier vide nommé comme le jeu).");
+            return;
+        }
+
+        string? FileOf(string program) => Directory.EnumerateFiles(programFolder, "*.bas")
+            .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(program, StringComparison.OrdinalIgnoreCase));
+        ProgramSource? Find(string program) => FileOf(program) is string file
+            ? new ProgramSource(File.ReadAllText(file), new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file),
+                                !settings.IsBreakIgnored(file), settings.CpcVersion, Libraries: libraries))
+            : null;
+
+        DistributionPlan plan;
+        var copied = new List<string>();
+        try
+        {
+            plan = Distribution.Plan(name, File.ReadAllText(path),
+                                     new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, Libraries: libraries), Find);
+            foreach (string program in plan.Programs)
+            {
+                string from = program == name ? path : FileOf(program)!;
+                File.Copy(from, Path.Combine(target, Path.GetFileName(from)), overwrite: true);
+                copied.Add(Path.GetFileName(from));
+            }
+            foreach (LibraryCommand command in plan.Commands.Where(c => c.FilePath is not null))
+            {
+                string folder = Path.Combine(target, "bibliotheques", command.Library);
+                Directory.CreateDirectory(folder);
+                File.Copy(command.FilePath!, Path.Combine(folder, Path.GetFileName(command.FilePath!)), overwrite: true);
+                copied.Add(Path.Combine("bibliotheques", command.Library, Path.GetFileName(command.FilePath!)));
+            }
+            var readme = new System.Text.StringBuilder();
+            readme.AppendLine($"{name} : programme pour CPC BASIC IDE (https://github.com/CPC-LOCO/cpc-basic-ide).");
+            readme.AppendLine();
+            readme.AppendLine($"Pour le compiler : ouvrez {Path.GetFileName(path)} dans CPC BASIC IDE et appuyez sur F5.");
+            if (plan.Commands.Count > 0)
+            {
+                readme.AppendLine();
+                readme.AppendLine("Il utilise des commandes ajoutées. Avant de compiler, copiez le contenu du dossier « bibliotheques »");
+                readme.AppendLine("d'ici dans votre dossier : Documents\\CPC BASIC IDE\\bibliotheques");
+                readme.AppendLine("(gardez les sous-dossiers : un par bibliothèque). Commandes données :");
+                foreach (LibraryCommand command in plan.Commands)
+                    readme.AppendLine($"   {command.Library} : {LibraryCommandFile.Signature(command)}");
+            }
+            if (plan.ProjectCommands.Count > 0)
+                readme.AppendLine($"Il utilise aussi des commandes livrées avec l'éditeur : {string.Join(", ", plan.ProjectCommands.Select(c => c.Name))}.");
+            File.WriteAllText(Path.Combine(target, "LISEZMOI.txt"), readme.ToString());
+            copied.Add("LISEZMOI.txt");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowError($"Le dossier n'a pas pu être préparé : {ex.Message}");
+            return;
+        }
+
+        var items = new List<MessageItem>
+        {
+            new($"Dossier à distribuer prêt : {target}", 0, MessageKind.Success),
+            new($"{copied.Count} fichier(s) : {string.Join(", ", copied)}.", 0)
+        };
+        if (plan.Commands.Count == 0)
+            items.Add(new MessageItem("Aucune commande ajoutée à donner avec ce programme.", 0));
+        if (plan.ProjectCommands.Count > 0)
+            items.Add(new MessageItem($"Commandes du projet utilisées (pas copiées, tout le monde les a) : {string.Join(", ", plan.ProjectCommands.Select(c => c.Name))}.", 0));
+        foreach (string absent in plan.Missing)
+            items.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier du programme ; il n'est pas dans le dossier à distribuer.", 0, MessageKind.Error));
+        ShowMessages(items);
+    }
     async void OnCompileClick(object? sender, RoutedEventArgs e) => await CompileAsync();
     void OnVerifyClick(object? sender, RoutedEventArgs e) => Verify();
     void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
