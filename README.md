@@ -4,7 +4,7 @@ Un éditeur coloré et un compilateur pour un **BASIC évolué**, dérivé du Lo
 
 Pensé pour celles et ceux qui veulent créer des jeux sans bien connaître la programmation, avec une bible d'instructions illustrée d'exemples réels.
 
-> **État du projet : version de test 0.4.0.** Presque tout le Locomotive BASIC est compilé en langage machine (l'inventaire est terminé : voir [`docs/COMPATIBILITE-LOCOMOTIVE.md`](docs/COMPATIBILITE-LOCOMOTIVE.md)), avec des commandes en plus (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG...). Sorties cassette et cartouche GX4000, sprites : pas encore. Téléchargement : onglet **Releases** ; aide pour les testeurs : [`.github/TESTEURS.md`](.github/TESTEURS.md).
+> **État du projet : version de test 0.5.0.** Presque tout le Locomotive BASIC est compilé en langage machine (l'inventaire est terminé : voir [`docs/COMPATIBILITE-LOCOMOTIVE.md`](docs/COMPATIBILITE-LOCOMOTIVE.md)), avec des commandes en plus (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG, STAR...) et des **bibliothèques de commandes** que chacun peut écrire en assembleur Z80 (Maj+F4). Sorties cassette et cartouche GX4000, sprites : pas encore. Téléchargement : onglet **Releases** ; aide pour les testeurs : [`.github/TESTEURS.md`](.github/TESTEURS.md).
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -89,4 +89,4 @@ Le code de l'éditeur et du compilateur est publié sous licence **GNU GPL v3**.
 
 An editor and compiler for an enhanced BASIC dialect derived from Locomotive BASIC, aimed at making Amstrad CPC games: `.dsk` disk images today, tape files and GX4000 cartridges planned. Designed for beginners, with a documented command reference.
 
-**Status:** test version 0.4.0. Almost all of Locomotive BASIC is compiled to machine code (the inventory is complete), plus extra commands (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG...). Compiled programs run on the 464, 664 and 6128. Tape and GX4000 cartridge output, sprites: not yet. The documentation is currently in French. Feedback from the CPC community is very welcome through the repository's Issues tab. Licensed under GPL v3; the games you create belong to you (runtime library exception, see `docs/RUNTIME-EXCEPTION.md`).
+**Status:** test version 0.5.0. Almost all of Locomotive BASIC is compiled to machine code (the inventory is complete), plus extra commands (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG, STAR...) and user command libraries written in Z80 assembly (Shift+F4). Compiled programs run on the 464, 664 and 6128. Tape and GX4000 cartridge output, sprites: not yet. The documentation is currently in French. Feedback from the CPC community is very welcome through the repository's Issues tab. Licensed under GPL v3; the games you create belong to you (runtime library exception, see `docs/RUNTIME-EXCEPTION.md`).

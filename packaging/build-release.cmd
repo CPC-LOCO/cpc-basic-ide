@@ -4,7 +4,7 @@ rem Double-clic possible : le script se place lui-meme a la racine du depot (D14
 setlocal
 cd /d "%~dp0.."
 
-set VERSION=0.4.0
+set VERSION=0.5.0
 set NAME=CpcBasic-%VERSION%-win-x64
 set OUT=release\%NAME%
 

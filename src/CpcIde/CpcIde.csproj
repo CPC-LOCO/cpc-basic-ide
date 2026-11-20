@@ -20,7 +20,7 @@
 
   <!-- Bibliothèques du projet (D149) : copiées à côté de CpcIde.exe, remplacées à chaque version -->
   <ItemGroup>
-    <None Include="..\..\bibliotheques\**\*" LinkBase="bibliotheques" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\bibliotheques\**\*" LinkBase="bibliotheques" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-CPC BASIC IDE - version 0.3.0 (version de test)
+CPC BASIC IDE - version 0.5.0 (version de test)
 ================================================
 
 Un editeur colore et un compilateur pour un BASIC evolue, derive du
@@ -21,11 +21,13 @@ Aucune installation n'est necessaire, et il n'est pas utile d'installer .NET.
 ------------
 Barre de menus (touche Alt, puis la lettre soulignee) :
   Fichier   Ouvrir (Ctrl+O), Enregistrer (Ctrl+S),
-            Enregistrer sous (Ctrl+Maj+S), Quitter
+            Enregistrer sous (Ctrl+Maj+S), Preparer un dossier a
+            distribuer, Quitter
   Edition   Annuler (Ctrl+Z), Retablir (Ctrl+Y), Couper, Copier, Coller,
             Tout selectionner
   Compiler  Compiler le programme (F5), Verifier sans enregistrer
             (Maj+F5), Liste des variables (F4)
+  Bibliotheques  Liste des bibliotheques (Maj+F4)
   Options   reglages F8, F9, F11, lignes longues, contraste eleve (Ctrl+H),
             taille du texte (Ctrl et +, Ctrl et -, Ctrl et 0)
   Aide      Raccourcis clavier (F1), A propos
@@ -94,18 +96,45 @@ Reglages (menu Options) :
     un nombre a virgule, comme le CPC.
   - CHAIN et MERGE sont refuses : utilisez RUN "nom" (et un fichier pour
     garder des valeurs).
-  - Les lettres accentuees s'affichent sous la forme "?".
   - Un programme compile ne revient pas au BASIC : a la fin, il attend
     une touche, puis la machine redemarre.
 
 Ajouts du projet : BYTE, DO ... LOOP, REPEAT ... UNTIL, EXIT, CONTINUE,
 IF ... END IF sur plusieurs lignes, BOX, PAINT, CLAMP, RANDOM, HIBYTE,
-LOBYTE.
+LOBYTE, CIRCLE, ELLIPSE, ISIN, ICOS, DEBUG, et STAR (bibliotheque
+GRAPHIQUE, voir le point 6).
 
 Pas encore disponible : sortie cassette, cartouche GX4000, sprites.
 
 
-6. ANTIVIRUS ET WINDOWS
+6. BIBLIOTHEQUES DE COMMANDES (nouveau dans la 0.5.0)
+-----------------------------------------------------
+Vous pouvez ajouter vos propres commandes et fonctions au BASIC, ecrites
+en assembleur Z80 (comme pour l'assembleur de WinAPE), rangees dans des
+bibliotheques. Le compilateur n'ajoute a un programme que celles qu'il
+utilise.
+- Maj+F4 (menu Bibliotheques) : un onglet par bibliotheque ; a gauche ses
+  commandes, a droite leur ecriture, leur aide et leurs valeurs.
+  Ctrl et + / Ctrl et - : taille du texte de cette fenetre.
+- "Nouvelle commande..." : un questionnaire (nom, commande / fonction /
+  routine, bibliotheque, aide, valeurs avec leurs limites, valeurs
+  facultatives) ; le cadre rouge montre comment la commande s'ecrira.
+- "Modifier le code..." : l'editeur d'assembleur (F5 verifie, Ctrl+S
+  enregistre). "Voir le code..." pour les commandes livrees avec
+  l'editeur (protegees). "Modifier la fiche...", "Effacer".
+- Vos commandes sont dans Documents\CPC BASIC IDE\bibliotheques ; une
+  mise a jour de l'editeur n'y touche jamais.
+- Fichier, "Preparer un dossier a distribuer..." : depose le programme
+  et vos commandes qu'il utilise, avec un LISEZMOI, pour le donner a
+  quelqu'un qui pourra le compiler a son tour.
+Premiere commande livree : STAR (bibliotheque GRAPHIQUE)
+  STAR x, y, rayon interne, rayon externe, pointes [, stylo]
+       [, remplissage] [, angle]
+Etoiles de 2 a 16 pointes, pleines ou vides ; avec un rayon interne
+assez grand, un polygone (exemple : etoiles.bas).
+
+
+7. ANTIVIRUS ET WINDOWS
 -----------------------
 Le programme n'est pas signe numeriquement. Windows (SmartScreen) ou votre
 antivirus peut le signaler, ou bloquer son demarrage : c'est une fausse
@@ -116,13 +145,13 @@ alerte frequente pour les programmes libres non signes.
 - Si votre antivirus bloque le programme, ajoutez le dossier aux exclusions.
 
 
-7. VOS RETOURS
+8. VOS RETOURS
 --------------
 Tests, problemes, idees, conseils sur le Z80 et le firmware du CPC :
 ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
 
 
-8. LICENCE
+9. LICENCE
 ----------
 Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
 Les routines Z80 copiees dans vos programmes sont sous GPL v3 avec une

@@ -1249,6 +1249,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé (20 nov. 2026) :** essais\lunejeu.bas (LUNE et STAR) déposé dans essais\distrib : lunejeu.bas, LISEZMOI.txt, bibliotheques\ESSAI\LUNE.cmd.asm ; STAR signalée, pas copiée : « c'est tout comme tu le dis ». 1842 tests réussis.
 - **Étapes B1 à B5 de D144 : toutes faites.** Reste : choisir l'extension des fichiers de commande (provisoire .cmd.asm), d'autres bibliothèques du projet.
 
+## D162 : préparation de la version 0.5.0 (20 nov. 2026) (demandée par l'utilisateur)
+- **Contenu :** bibliothèques de commandes (D144 à D161) et STAR ; notes dans `docs\RELEASE-NOTES-0.5.0.md`.
+- **Fichiers :** version 0.5.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (titre resté à 0.3.0 corrigé ; ligne périmée sur les lettres accentuées retirée ; menus Bibliothèques et dossier à distribuer ; nouveau point 6 « Bibliothèques de commandes » ; ajouts du projet complétés) ; README et TESTEURS.md ; le dossier `bibliotheques` est aussi copié dans le paquet publié (CopyToPublishDirectory).
+- **D016 :** aucune ROM dans le paquet (exemples .bas, documents, bibliothèque GRAPHIQUE seulement).
+- **Idée notée pour après (IDEES.md) :** « Assembleur seul » (question de l'utilisateur).
+- **Paquet construit (20 nov. 2026) :** `release\CpcBasic-0.5.0-win-x64.zip`, SHA256 7560edacc72a78fd07117dea2b0b48e632d8e20102fc961b0b34c2084a0cd7b6 (même somme chez l'utilisateur et ici) ; contenu vérifié (bibliotheques\GRAPHIQUE\STAR.cmd.asm, exemples dont etoiles.bas, pas de ROM) ; essayé par l'utilisateur : etoiles.bas compilé depuis le paquet, « Bibliothèques utilisées : GRAPHIQUE (STAR) », 5543 octets.
+
 ---
 
 ## Notes de fin de session (modèle)
