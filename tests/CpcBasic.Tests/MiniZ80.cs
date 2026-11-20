@@ -121,6 +121,9 @@ internal sealed class MiniZ80
     public readonly List<bool> Tags = new();
     public int MatrixReads;
 
+    /// <summary>Dessins écrits par GRA WR CHAR (&amp;BBFC), dans l'ordre (TYPO, D170).</summary>
+    public readonly List<byte[]> GraphicChars = new();
+
     // Minuteries (lot I1, D079) : routine branchée par KL INIT EVENT puis KL ADD TICKER, appelée tous les TickSteps pas
     public ushort EventRoutine, TickRoutine;
     public int TickSteps = 300, Ticks;
@@ -1069,7 +1072,12 @@ internal sealed class MiniZ80
                 else if (address == 0xBBA5)
                 {
                     HL = (ushort)(0x3800 + A * 8);                     // TXT GET MATRIX : dessin (mémoire vide ici)
+                    CarryFlag = A >= FirstUserChar;                    // retenue : caractère redessinable (D170)
                     MatrixReads++;
+                }
+                else if (address == 0xBBFC)
+                {
+                    GraphicChars.Add(Memory[(0x3800 + A * 8)..(0x3800 + A * 8 + 8)]);   // GRA WR CHAR : le dessin écrit (D170)
                 }
                 else if (address == 0xBBAB)
                 {
@@ -1216,6 +1224,12 @@ internal sealed class MiniZ80
             case 0x0B: BC = (ushort)(BC - 1); break;                   // DEC BC
             case 0x2B: HL = (ushort)(HL - 1); break;                   // DEC HL
             case 0x1A: A = ReadMemory(DE); break;                      // LD A,(DE)
+            case 0x0A: A = ReadMemory(BC); break;                      // LD A,(BC) (TYPO, D170)
+            case 0x50: D = B; break;                                   // LD D,B (TYPO, D170)
+            case 0x59: E = C; break;                                   // LD E,C (TYPO, D170)
+            case 0x03: BC = (ushort)(BC + 1); break;                   // INC BC (TYPO, D170)
+            case 0x0F: CarryFlag = (A & 0x01) != 0; A = (byte)((A >> 1) | (A << 7)); break;   // RRCA (TYPO, D170)
+            case 0x07: CarryFlag = (A & 0x80) != 0; A = (byte)((A << 1) | (A >> 7)); break;   // RLCA (TYPO, D170)
             case 0x36: Memory[HL] = Fetch(); break;                    // LD (HL),n
             case 0x72: Memory[HL] = D; break;                          // LD (HL),D
             case 0x73: Memory[HL] = E; break;                          // LD (HL),E
@@ -1354,6 +1368,7 @@ internal sealed class MiniZ80
             case 0x43: ZeroFlag = (E & 0x01) == 0; break;              // BIT 0,E (D060)
             case 0x48: ZeroFlag = (B & 0x02) == 0; break;              // BIT 1,B
             case 0x7A: ZeroFlag = (D & 0x80) == 0; break;              // BIT 7,D
+            case 0x78: ZeroFlag = (B & 0x80) == 0; break;              // BIT 7,B (TYPO, D170)
             case 0x7C: ZeroFlag = (H & 0x80) == 0; break;              // BIT 7,H
             case 0x7F: ZeroFlag = (A & 0x80) == 0; break;              // BIT 7,A (STAR, D151)
             default:

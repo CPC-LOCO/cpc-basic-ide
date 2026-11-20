@@ -144,6 +144,11 @@ Premiere commande livree : STAR (bibliotheque GRAPHIQUE)
        [, remplissage] [, angle]
 Etoiles de 2 a 16 pointes, pleines ou vides ; avec un rayon interne
 assez grand, un polygone (exemple : etoiles.bas).
+Bibliotheque TEXTE : TYPO texte [, x, y]
+Ecrit en petits caracteres de 4 points sur 8 (fonte de RetroPoke) :
+40 colonnes en MODE 0, 80 en MODE 1, 160 en MODE 2, au curseur
+graphique ou en x, y ; couleurs : GRAPHICS PEN et GRAPHICS PAPER
+(exemple : typo.bas).
 
 
 7. ANTIVIRUS ET WINDOWS

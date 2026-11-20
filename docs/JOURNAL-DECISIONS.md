@@ -1307,6 +1307,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Éditeur :** case « texte » sur chaque valeur du questionnaire ; fenêtre des bibliothèques : « un texte ».
 - **Tests :** `LibraryTextTests` (14).
 
+## D170 : TYPO, première commande de la bibliothèque TEXTE (20 nov. 2026) (idée et fonte de l'utilisateur, RSX TYPO de 2020 ; forme choisie par l'utilisateur : `TYPO texte [, x, y]`)
+- **Fichiers :** `bibliotheques\TEXTE\TYPO.cmd.asm` (commande), `TYPO_ADRESSE.cmd.asm` (routine : A = code -> HL = ses 3 octets), `TYPO_FONTE.cmd.asm` (routine qui n'est que des données : les 93 petits caractères de l'utilisateur, recopiés à l'identique).
+- **Principe gardé :** deux petits caractères de 4×8 (3 octets, 6 lignes) forment le caractère 255 (poids fort du 1er, poids faible du 2e ; lignes 1 et 8 vides), écrit par GRA WR CHAR au curseur graphique : les 3 MODE, tous les CPC ; un nombre impair finit par un espace ; un caractère inconnu devient un espace.
+- **Changements :** adresse calculée (table + 3 × numéro) au lieu d'une boucle ; plus d'IX / IY ; le dessin de 255 est gardé puis remis ; si 255 n'est pas redessinable (programme sans chargeur), TYPO lui donne une petite table (TXT SET M TABLE) ; x et y facultatifs, chacun (sautée : celle du curseur graphique) ; couleurs par GRAPHICS PEN / PAPER (`|ENCRE` n'est plus utile).
+- **Vérifié par l'utilisateur dans WinAPE :** `examples\typo.bas`, MODE 1 (80 colonnes, trois couleurs, à é ù, A$, suite au curseur, STR$), MODE 0 (40 colonnes, 15 couleurs ; l'encre 14 clignote, d'où une ligne parfois invisible), MODE 2 (160 colonnes).
+- **Tests :** `TypoTests` (8) ; MiniZ80 : GRA WR CHAR, retenue de TXT GET MATRIX, LD A,(BC), INC BC, RRCA, RLCA, BIT 7,B, LD D,B, LD E,C.
+- **Reste :** DEFTYPO (forme choisie par l'utilisateur : `DEFTYPO "x", xx, xx, xx`).
+
 ---
 
 ## Notes de fin de session (modèle)
