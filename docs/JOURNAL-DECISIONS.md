@@ -1315,6 +1315,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** `TypoTests` (8) ; MiniZ80 : GRA WR CHAR, retenue de TXT GET MATRIX, LD A,(BC), INC BC, RRCA, RLCA, BIT 7,B, LD D,B, LD E,C.
 - **Reste :** DEFTYPO (forme choisie par l'utilisateur : `DEFTYPO "x", xx, xx, xx`).
 
+## D171 : DEFTYPO (20 nov. 2026) (idée de l'utilisateur, RSX DEFTYPO de 2020 ; forme choisie par l'utilisateur : `DEFTYPO "x", xx, xx, xx`, comme SYMBOL)
+- **Fichier :** `bibliotheques\TEXTE\DEFTYPO.cmd.asm` : TEXTE CARACTERE (le premier caractère compte), VALEUR L1, L2, L3 (0 à 255) ; les 3 octets remplacent ceux du caractère dans TYPO_FONTE (par TYPO_ADRESSE), jusqu'à la fin du programme.
+- **Différence avec la RSX :** plus de texte hexadécimal à décoder ("x=F99F66") ; un caractère hors de la fonte (avant l'espace, après ù) ou un texte vide est ignoré (sinon TYPO_ADRESSE aurait redessiné l'espace).
+- **Vérifié par l'utilisateur dans WinAPE :** `typo.bas`, ligne 145, trois cœurs à la place de ###.
+- **Tests :** `TypoTests` (+4). La bibliothèque TEXTE (TYPO, DEFTYPO) est terminée.
+
 ---
 
 ## Notes de fin de session (modèle)

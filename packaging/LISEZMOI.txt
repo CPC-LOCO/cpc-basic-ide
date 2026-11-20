@@ -149,6 +149,8 @@ Ecrit en petits caracteres de 4 points sur 8 (fonte de RetroPoke) :
 40 colonnes en MODE 0, 80 en MODE 1, 160 en MODE 2, au curseur
 graphique ou en x, y ; couleurs : GRAPHICS PEN et GRAPHICS PAPER
 (exemple : typo.bas).
+DEFTYPO "x", l1, l2, l3 redessine un petit caractere, comme SYMBOL
+(3 nombres de 0 a 255, deux lignes de 4 points chacun).
 
 
 7. ANTIVIRUS ET WINDOWS

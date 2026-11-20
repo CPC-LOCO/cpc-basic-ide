@@ -124,4 +124,28 @@ public class TypoTests
         Assert.Contains(cpu.MatrixTables, t => t.First == 255);
         Assert.Single(cpu.GraphicChars);
     }
+
+    // ---------- DEFTYPO (D171) ----------
+
+    [Fact]
+    public void DEFTYPO_est_au_catalogue()
+    {
+        Assert.Equal("DEFTYPO caractere$, l1, l2, l3", LibraryCommandFile.Signature(Catalog.Find("DEFTYPO")!));
+    }
+
+    [Fact]
+    public void DEFTYPO_redessine_un_petit_caractere()
+    {
+        MiniZ80 cpu = Run("10 DEFTYPO \"A\", &12, &34, &56\n20 TYPO \"AA\"");
+
+        Assert.Equal("00 11 22 33 44 55 66 00", Hex(Assert.Single(cpu.GraphicChars)));
+    }
+
+    [Theory]
+    [InlineData("10 DEFTYPO \"~\", &FF, &FF, &FF\n20 TYPO \"  \"")]     // pas dans la fonte : l'espace ne change pas
+    [InlineData("10 DEFTYPO \"\", &FF, &FF, &FF\n20 TYPO \"  \"")]      // texte vide : rien
+    public void DEFTYPO_ignore_ce_qui_n_est_pas_dans_la_fonte(string source)
+    {
+        Assert.Equal("00 00 00 00 00 00 00 00", Hex(Assert.Single(Run(source).GraphicChars)));
+    }
 }
