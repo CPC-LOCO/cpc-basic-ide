@@ -1284,6 +1284,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Cœur :** `AsmProgram.ToDisk(program, name, withLoader = true)` ; un test de plus.
 - **Vérifié par l'utilisateur dans WinAPE :** case décochée, la disquette n'a que BONJOUR2.BIN et `RUN"BONJOUR2"` le lance. (Si la disquette est ouverte dans l'émulateur, l'écriture est refusée avec un message clair : fermer, puis recompiler.)
 
+## D167 : la zone du programmeur, &0400 à &2FFF (20 nov. 2026) (idée de l'utilisateur ; adresses proposées par l'assistant, acceptées par l'utilisateur)
+- **Règle, pour toujours :** dans un programme BASIC compilé, le compilateur ne met jamais rien de &0400 à &2FFF (11 Ko), ni aujourd'hui ni plus tard. Le programmeur y range des POKE, des données (LOAD"DONNEES",&1000) ou des routines en assembleur.
+- **&3000 à &3FFF (4 Ko) :** libre aussi, sauf si le programme utilise les fichiers (zones du firmware en &3000 et &3800, D084) ou RUN"nom" (petit chargeur en &3800, D086).
+- **&0000 à &03FF :** réservé (système du CPC ; le petit chargeur BASIC en &0170, qui doit encore exister quand le programme revient au BASIC).
+- **Gardien :** `tests\CpcBasic.Tests\ProgrammerZoneTests.cs` : les adresses du compilateur restent au-dessus de la zone, et des programmes qui tournent (textes, tableaux, GOSUB) laissent intact un motif écrit dans la zone. Si un de ces tests échoue un jour, c'est le compilateur qu'il faut changer.
+- **Écrit pour l'utilisateur :** `packaging\LISEZMOI.txt`, point 5.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D166 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D167 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -106,6 +106,7 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 - Chaîne du compilateur : `Lexer` (mots et symboles) -> `Parser` (instructions, expressions, vérifications) -> `CodeGenerator` (octets Z80 avec `Z80Emitter`) -> `Compiler` (enchaîne tout, vérifie la limite de `MEMORY`, écrit la disquette).
 - Les modules Z80 sont écrits en C# dans `RuntimeLibrary.cs` ; chacun déclare ses dépendances, seuls les modules utilisés sont liés (liaison sélective). Modules actuels : PrintString, PrintInt, Input, Mul16, Div16, Abs16, Sgn16, Min16, Max16, Rand16, Randomize, RandomRange, Pixel, Box, Array (D058), RunError et Data (D059).
 - Tableaux (D058) : un descripteur par tableau à la fin du binaire (adresse des cases, puis nombre de cases par dimension) ; les cases sont prises au lancement après le programme (`rt_heap_start`), jusqu'à &A67B ou MEMORY. Erreurs à l'exécution : module commun `RunError` (texte du Locomotive + « in » + numéro de ligne rangé dans `rt_err_line`), puis attente d'une touche et redémarrage (D059). `AstWalker` (dans `Ast.cs`) parcourt les expressions d'une instruction.
+- **Zone du programmeur (D167) :** de &0400 à &2FFF, le compilateur ne met jamais rien (test `ProgrammerZoneTests`) ; &3000 à &3FFF libre sauf fichiers et RUN"nom".
 - Le programme compilé commence en &4000. Expressions sur 16 bits, résultat dans `HL`. Variables réservées à la fin du binaire. Les octets (`BYTE`) sont étendus à 16 bits en lecture. Fonctions : `NOM(valeurs)` (table `Functions` du parser) ; `TIME` sans parenthèses.
 - Nombres entiers de -32768 à 32767 ; une adresse écrite seule (POKE, PEEK, CALL, MEMORY…) peut aller jusqu'à 65535. Un nombre écrit plus grand, ou avec virgule ou exposant, est un nombre à virgule (D068).
 - Nombres à virgule (D068 à D070) : 5 octets du Locomotive (`LocoReal.cs`). Calculs par la ROM à travers une table de sauts `rt_fm_...` (`FirmwareMaths`, adresses 464 et 664/6128 ; « Tous les CPC » : KL PROBE ROM au départ). Un calcul se fait dans des cases `ftmp_k` (`EmitRealInto`, `realFree`). Modules dans `RealRuntime.cs` : RealOps (conversions, opérations, Overflow), RealPrint (affichage exact, aiguillage `rt_fp_out` pour STR$), RealParse (INPUT A!, VAL), RealRnd, DataReal. Piège connu : REAL INT / REAL FIX de la ROM rendent un entier de 4 octets (D069).

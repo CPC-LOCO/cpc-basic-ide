@@ -99,6 +99,12 @@ Reglages (menu Options) :
   - Un programme compile ne revient pas au BASIC : a la fin, il attend
     une touche, puis la machine redemarre.
 
+Memoire pour vous : de &0400 a &2FFF (11 Ko), le compilateur ne met
+jamais rien, ni aujourd'hui ni dans les versions suivantes. Vous pouvez y
+ranger des POKE, des donnees (LOAD"DONNEES",&1000) ou des routines en
+assembleur. De &3000 a &3FFF : libre aussi, sauf si le programme utilise
+les fichiers (OPENIN, OPENOUT) ou RUN"nom". Sous &0400 : reserve au CPC.
+
 Ajouts du projet : BYTE, DO ... LOOP, REPEAT ... UNTIL, EXIT, CONTINUE,
 IF ... END IF sur plusieurs lignes, BOX, PAINT, CLAMP, RANDOM, HIBYTE,
 LOBYTE, CIRCLE, ELLIPSE, ISIN, ICOS, DEBUG, et STAR (bibliotheque
