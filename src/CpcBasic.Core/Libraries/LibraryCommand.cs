@@ -41,7 +41,11 @@ public sealed record LibraryCommand(
     string Author,
     string Library,
     bool Protected,
-    string Code);
+    string Code)
+{
+    /// <summary>Fichier d'où vient la commande (null si elle n'a pas été lue sur le disque) : pour l'éditeur d'assembleur (D159).</summary>
+    public string? FilePath { get; init; }
+}
 
 /// <summary>
 /// Lecture d'un fichier de commande (D146). Le fichier commence par les réponses du questionnaire, sur des lignes « ;@ »

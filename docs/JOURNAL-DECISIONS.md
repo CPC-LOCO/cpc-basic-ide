@@ -1222,6 +1222,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Titres gris (idée 2) :** au-dessus des cases de chaque valeur : « nom (ex : X, STYLO) », « de », « à », « si sautée », « rôle (ex : couleur du contour) ».
 - **Le -1 (question 3) :** expliqué en clair sous le titre des valeurs : une valeur facultative peut être sautée en BASIC, sa case reçoit alors le nombre « si sautée » ; hors des limites (-1), il dit à la routine que la valeur a été sautée (STAR prend alors le stylo du moment) ; dans les limites (0), c'est une valeur par défaut. Le nom d'une valeur : lettres sans accent, chiffres et _, sans espace (c'est aussi le nom de sa case en assembleur).
 
+## D159 : éditeur d'assembleur des commandes (20 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; suite de D157
+- **Où :** bouton « Modifier le code... » de la fenêtre des bibliothèques, pour la commande choisie ; « Voir le code... » pour une commande du projet (protégée : lecture seule, on peut seulement vérifier ; utile pour apprendre en regardant STAR). Une fenêtre à part par commande (on peut en ouvrir plusieurs).
+- **Ce qu'on y écrit :** seulement le code ; la fiche (lignes « ;@ » du haut du fichier) est gardée telle quelle et rappelée en haut : écriture en BASIC, cases des valeurs (« par exemple LD HL,(X) »), ce que doit faire le code (RET ; résultat d'une fonction dans HL ; registres d'une routine). Même papier bleu et même police que l'éditeur BASIC ; couleurs : étiquette rose, instruction bleu clair, nombres blancs, textes verts, commentaires gris (AsmColorizer).
+- **Vérifier (F5) :** la fiche relue puis le code assemblé comme par le compilateur (valeurs, la commande elle-même et les commandes et routines du catalogue reconnues), sauts courts trop longs compris ; liste des fautes avec la ligne du code (Entrée ou double clic : aller à la ligne) ; sans faute : taille du code en octets, cases des valeurs en plus, routines appelées.
+- **Enregistrer (Ctrl+S) :** écrit le fichier (fiche + code, UTF-8 sans BOM), relit les bibliothèques (fenêtre et couleurs de l'éditeur à jour) et vérifie ; une étoile dans le titre tant que ce n'est pas enregistré ; Fermer (Échap) avec des changements : la question habituelle (enregistrer, ne pas enregistrer, annuler).
+- **Core :** chaque commande garde le chemin de son fichier (`LibraryCommand.FilePath`, `CatalogSource.Path`).
+- **Essayé (20 nov. 2026) :** STAR vue et vérifiée (« Aucune faute. Code : 2174 octets, plus 16 pour les cases des valeurs ») ; LUNE : faute ENCRES trouvée à la ligne 4 ; « c'est titanesque ! ». Petite faute corrigée ensuite : « Appelle aussi : . » écrit quand le code n'appelle aucune routine.
+- **Taille réelle de STAR (mesurée ici) :** 2174 octets avec l'intérieur (dont 480 de listes et 184 de table des sinus) ; les estimations données plus tôt (environ 600 octets pour le contour seul, « presque rien de plus » pour D153) étaient trop basses : la partie intérieur (D152, D153) pèse à elle seule plus de 1000 octets.
+- **Pas encore :** « Modifier la fiche » et « Effacer ».
+
 ---
 
 ## Notes de fin de session (modèle)

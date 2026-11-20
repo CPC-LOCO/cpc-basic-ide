@@ -29,12 +29,17 @@ public sealed class LibraryWindow : Window
     readonly Button close;
     readonly Action<int> remember;
     readonly Func<LibraryCatalog> reload;
+    readonly int codeSize;
+    readonly Button code;
     LibraryCatalog? shown;
+    LibraryCommand? selected;              // commande choisie dans l'onglet ouvert (D159)
 
     /// <param name="size">Taille du texte (réglage de l'éditeur) ; <paramref name="remember"/> garde la nouvelle taille.</param>
     /// <param name="reload">Relit les bibliothèques (après une nouvelle commande) et rend le catalogue.</param>
-    public LibraryWindow(int size, Action<int> remember, Func<LibraryCatalog> reload)
+    /// <param name="codeSize">Taille du texte de l'éditeur (pour l'éditeur d'assembleur).</param>
+    public LibraryWindow(int size, Action<int> remember, Func<LibraryCatalog> reload, int codeSize)
     {
+        this.codeSize = codeSize;
         TextSize = size;
         this.remember = remember;
         this.reload = reload;
@@ -67,11 +72,24 @@ public sealed class LibraryWindow : Window
             Margin = new Thickness(0, 0, 8, 0)
         };
         newCommand.Click += async (_, _) => await CreateCommandAsync();
-        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) };
+        code = new Button
+        {
+            Content = "Modifier le code...",
+            FontSize = TextSize,
+            MinHeight = 44,
+            Padding = new Thickness(16, 6),
+            Margin = new Thickness(0, 0, 8, 0),
+            IsEnabled = false
+        };
+        code.Click += (_, _) => OpenCode();
+        tabs.SelectionChanged += (_, _) => RefreshSelected();
+        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) };
         bottom.Children.Add(folders);
-        Grid.SetColumn(newCommand, 1);
+        Grid.SetColumn(code, 1);
+        bottom.Children.Add(code);
+        Grid.SetColumn(newCommand, 2);
         bottom.Children.Add(newCommand);
-        Grid.SetColumn(close, 2);
+        Grid.SetColumn(close, 3);
         bottom.Children.Add(close);
 
         var root = new DockPanel { Margin = new Thickness(16) };
@@ -93,7 +111,7 @@ public sealed class LibraryWindow : Window
                 int next = Math.Clamp((int)TextSize + (e.Key is Key.OemPlus or Key.Add ? 1 : -1), EditorSettings.MinFontSize, 30);
                 TextSize = next;
                 this.remember(next);
-                tabs.FontSize = close.FontSize = newCommand.FontSize = next;
+                tabs.FontSize = close.FontSize = newCommand.FontSize = code.FontSize = next;
                 folders.FontSize = next - 2;
                 if (shown is not null)
                     Fill(shown);
@@ -103,6 +121,25 @@ public sealed class LibraryWindow : Window
 
     readonly TextBlock folders;
     readonly Button newCommand;
+
+    // La commande choisie dans l'onglet ouvert ; le bouton du code dit « Voir » pour une commande protégée (D159)
+    void RefreshSelected()
+    {
+        selected = ((tabs.SelectedItem as TabItem)?.Tag as Func<LibraryCommand?>)?.Invoke();
+        code.IsEnabled = selected?.FilePath is not null;
+        code.Content = selected?.Protected == true ? "Voir le code..." : "Modifier le code...";
+    }
+
+    // « Modifier le code... » (D159) : éditeur d'assembleur, à côté (on peut en ouvrir plusieurs)
+    void OpenCode()
+    {
+        if (selected is null || shown is null)
+            return;
+        LibraryCommand command = selected;
+        var editor = new AsmEditorWindow(command, shown, (int)TextSize, codeSize,
+                                         () => Fill(reload(), command.Library, command.Name));
+        editor.Show(this);
+    }
 
     // « Nouvelle commande... » (D157) : questionnaire ; la commande créée est montrée dans son onglet
     async System.Threading.Tasks.Task CreateCommandAsync()
@@ -124,7 +161,12 @@ public sealed class LibraryWindow : Window
         string? current = selectLibrary ?? (tabs.SelectedItem as TabItem)?.Header as string;
         var pages = new List<TabItem>();
         foreach (string library in catalog.Libraries)
-            pages.Add(new TabItem { Header = library, Content = LibraryPage(catalog.All.Where(c => c.Library == library).ToList(), selectName) });
+        {
+            var page = new TabItem { Header = library };
+            page.Content = LibraryPage(catalog.All.Where(c => c.Library == library).ToList(), selectName, out Func<LibraryCommand?> pick);
+            page.Tag = pick;
+            pages.Add(page);
+        }
         if (catalog.Errors.Count > 0)
             pages.Add(new TabItem { Header = $"Fichiers refusés ({catalog.Errors.Count})", Content = ErrorsPage(catalog.Errors) });
         if (pages.Count == 0)
@@ -138,7 +180,7 @@ public sealed class LibraryWindow : Window
     }
 
     // Une bibliothèque : ses commandes à gauche, la commande choisie à droite
-    static Control LibraryPage(IReadOnlyList<LibraryCommand> commands, string? selectName)
+    Control LibraryPage(IReadOnlyList<LibraryCommand> commands, string? selectName, out Func<LibraryCommand?> current)
     {
         var details = new TextBlock { FontSize = TextSize, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 8, 8, 8) };
         var list = new ListBox
@@ -151,7 +193,9 @@ public sealed class LibraryWindow : Window
         {
             if (list.SelectedIndex >= 0)
                 details.Text = Describe(commands[list.SelectedIndex]);
+            RefreshSelected();
         };
+        current = () => list.SelectedIndex >= 0 && list.SelectedIndex < commands.Count ? commands[list.SelectedIndex] : null;
         int first = Math.Max(0, commands.ToList().FindIndex(c => c.Name == selectName));
         list.SelectedIndex = commands.Count > 0 ? first : -1;
         if (commands.Count > 0)

@@ -1046,7 +1046,7 @@ public partial class MainWindow : Window
             {
                 UseLibraries(LibraryFolders.Load());
                 return libraries;
-            });
+            }, settings.FontSize);
             libraryWindow.Closed += (_, _) => libraryWindow = null;
             libraryWindow.Fill(libraries);
             libraryWindow.Show(this);

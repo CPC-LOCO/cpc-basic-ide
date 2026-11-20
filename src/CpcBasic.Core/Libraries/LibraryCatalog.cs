@@ -8,7 +8,7 @@
 namespace CpcBasic.Core.Libraries;
 
 /// <summary>Un fichier de commande à mettre au catalogue : sa bibliothèque, son nom de fichier, son texte, et s'il vient du projet.</summary>
-public sealed record CatalogSource(string Library, string FileName, string Text, bool Protected);
+public sealed record CatalogSource(string Library, string FileName, string Text, bool Protected, string? Path = null);
 
 /// <summary>Un problème trouvé en faisant le catalogue : le fichier, la ligne (0 si tout le fichier) et l'explication.</summary>
 public sealed record CatalogError(string FileName, int Line, string Message)
@@ -92,7 +92,7 @@ public sealed class LibraryCatalog
                     errors.Add(new CatalogError(Path.Combine(library, Path.GetFileName(file)), 0, $"lecture impossible ({e.Message})."));
                     continue;
                 }
-                Add(new CatalogSource(library, Path.GetFileName(file), text, isProtected));
+                Add(new CatalogSource(library, Path.GetFileName(file), text, isProtected, file));
             }
         }
     }
@@ -122,7 +122,7 @@ public sealed class LibraryCatalog
                 $"le nom {command.Name} existe déjà dans la bibliothèque {existing.Library} : un nom ne peut servir qu'une fois."));
             return;
         }
-        byName[command.Name] = command;
+        byName[command.Name] = command with { FilePath = source.Path };
     }
 
     /// <summary>Vérifie le nom d'une bibliothèque (son dossier) ; rend le message d'erreur, ou null s'il est bon.</summary>
