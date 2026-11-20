@@ -209,6 +209,60 @@ public static class LibraryCommandFile
         return command.Parameters.Count == 0 ? command.Name : $"{command.Name} {names}";
     }
 
+    /// <summary>
+    /// Écrit le texte d'un fichier de commande à partir des réponses du questionnaire (D157) : les lignes « ;@ » puis le code.
+    /// Une valeur avec Default est écrite en OPTION, les autres en VALEUR ; l'aide peut avoir plusieurs lignes.
+    /// Le texte rendu se relit avec <see cref="Parse"/> (c'est lui qui dit s'il y a une faute).
+    /// </summary>
+    public static string Compose(string name, LibraryKind kind, IReadOnlyList<LibraryParameter> parameters,
+                                 string help, string author, string code)
+    {
+        var text = new System.Text.StringBuilder();
+        text.Append(";@NOM ").Append(name.Trim().ToUpperInvariant()).Append('\n');
+        text.Append(";@GENRE ").Append(kind switch
+        {
+            LibraryKind.Command => "COMMANDE",
+            LibraryKind.Function => "FONCTION",
+            _ => "ROUTINE"
+        }).Append('\n');
+        foreach (LibraryParameter p in parameters)
+        {
+            string role = p.Description.Trim().Length > 0 ? ", " + p.Description.Trim() : "";
+            text.Append(p.IsOptional
+                ? $";@OPTION {p.Name.ToUpperInvariant()}, {p.Min}, {p.Max}, {p.Default}{role}\n"
+                : $";@VALEUR {p.Name.ToUpperInvariant()}, {p.Min}, {p.Max}{role}\n");
+        }
+        foreach (string line in help.Replace("\r\n", "\n").Split('\n'))
+            if (line.Trim().Length > 0)
+                text.Append(";@AIDE ").Append(line.Trim()).Append('\n');
+        if (author.Trim().Length > 0)
+            text.Append(";@AUTEUR ").Append(author.Trim()).Append('\n');
+        text.Append('\n').Append(code.Replace("\r\n", "\n").TrimEnd()).Append('\n');
+        return text.ToString();
+    }
+
+    /// <summary>Code de départ d'une nouvelle commande (D157) : des commentaires qui expliquent quoi faire, puis RET.</summary>
+    public static string StarterCode(string name, LibraryKind kind, IReadOnlyList<LibraryParameter> parameters)
+    {
+        var text = new System.Text.StringBuilder();
+        text.Append($"; Code de {name.Trim().ToUpperInvariant()}, écrit comme pour l'assembleur de WinAPE (pas d'ORG).\n");
+        if (parameters.Count > 0)
+        {
+            text.Append("; Chaque valeur se lit dans sa case, par son nom :");
+            foreach (LibraryParameter p in parameters)
+                text.Append($" LD HL,({p.Name.ToUpperInvariant()})");
+            text.Append('\n');
+        }
+        text.Append(kind switch
+        {
+            LibraryKind.Function => "; Une fonction rend son résultat dans HL.\n",
+            LibraryKind.Routine => "; Une routine reçoit ses valeurs dans les registres (dites lesquels dans l'aide).\n",
+            _ => ""
+        });
+        text.Append("        RET\n");
+        return text.ToString();
+    }
+
     /// <summary>Nom du fichier sans dossier ni extension (« STAR.cmd.asm » donne « STAR »).</summary>
     public static string StemOf(string fileName)
     {

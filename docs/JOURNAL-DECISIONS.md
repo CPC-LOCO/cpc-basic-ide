@@ -1208,6 +1208,20 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essayé (19 nov. 2026) :** « ça marche très bien comme ça ».
 - **Fichier :** `src\CpcIde\LibraryWindow.cs` ; plus tard : boutons « Nouvelle commande », modifier, effacer.
 
+## D157 : questionnaire « Nouvelle commande », étape B4 (20 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; applique D144
+- **Où :** bouton « Nouvelle commande... » en bas de la fenêtre des bibliothèques (Maj+F4).
+- **Questionnaire :** nom ; genre (commande, fonction, routine) ; bibliothèque (proposée : l'onglet ouvert ; la liste des bibliothèques existantes est rappelée ; un nom nouveau crée une bibliothèque) ; aide (plusieurs lignes) ; auteur ; valeurs, une ligne chacune : nom, de, à, case « facultative » et ce que reçoit la routine quand elle est sautée (-1 proposé), rôle, bouton « Retirer » ; bouton « Ajouter une valeur » (16 au plus) ; une routine n'a pas de valeurs (partie grisée, avec l'explication). Créer (Entrée) / Annuler (Échap). Texte à la taille de la fenêtre des bibliothèques.
+- **Vérifications :** nom donné et pas déjà au catalogue (le message nomme la bibliothèque qui l'a), nom de bibliothèque correct, nombres entiers de -32768 à 65535 (&FF accepté) ; puis le texte du fichier est relu par le lecteur du compilateur (mêmes règles que pour un fichier écrit à la main : mot du BASIC, _, FN, registres, ordre des facultatives...), ses messages sont montrés en rouge sous le questionnaire.
+- **Fichier écrit :** `Documents\CPC BASIC IDE\bibliotheques\BIBLIOTHÈQUE\NOM.cmd.asm` (dossiers créés au besoin, UTF-8 sans BOM), avec un code de départ : commentaires (comment lire les valeurs, LD HL,(X) ; résultat d'une fonction dans HL ; registres d'une routine) puis RET. La fenêtre des bibliothèques se met à jour et montre la commande créée ; ses couleurs dans l'éditeur aussi.
+- **Core :** `LibraryCommandFile.Compose` (texte du fichier à partir des réponses) et `StarterCode` ; tests : 3 de plus dans LibraryCommandTests.cs (le fichier se relit sans faute et son code de départ s'assemble).
+- **Essayé (20 nov. 2026) :** commande ESSAI créée dans la bibliothèque ESSAIS : « l'ensemble marche plutôt bien » ; trois remarques de l'utilisateur, voir D158.
+- **Pas encore :** écrire et vérifier le code assembleur dans l'éditeur (étape suivante) ; modifier ou effacer une commande.
+
+## D158 : questionnaire plus clair (20 nov. 2026) (idées de l'utilisateur) ; complète D157
+- **Repère (idée 1) :** un cadre rouge sous le haut du questionnaire montre l'écriture en BASIC, mise à jour à chaque frappe : « Écriture en BASIC : LUNE x [, stylo] », « A = LUNE(x) » pour une fonction, « CALL LUNE » pour une routine ; un nom qui ne convient pas (par exemple « Axe X », avec une espace) y est marqué «Axe X»? avec la raison (« À corriger : ... »), avant même de cliquer sur Créer.
+- **Titres gris (idée 2) :** au-dessus des cases de chaque valeur : « nom (ex : X, STYLO) », « de », « à », « si sautée », « rôle (ex : couleur du contour) ».
+- **Le -1 (question 3) :** expliqué en clair sous le titre des valeurs : une valeur facultative peut être sautée en BASIC, sa case reçoit alors le nombre « si sautée » ; hors des limites (-1), il dit à la routine que la valeur a été sautée (STAR prend alors le stylo du moment) ; dans les limites (0), c'est une valeur par défaut. Le nom d'une valeur : lettres sans accent, chiffres et _, sans espace (c'est aussi le nom de sa case en assembleur).
+
 ---
 
 ## Notes de fin de session (modèle)

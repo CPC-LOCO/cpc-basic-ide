@@ -3,6 +3,8 @@
 // selon les termes de la licence publique générale GNU, version 3.
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
+using CpcBasic.Core.Assembly;
+using CpcBasic.Core.Codegen;
 using CpcBasic.Core.Libraries;
 
 namespace CpcBasic.Tests;
@@ -128,6 +130,41 @@ public class LibraryCommandTests
         var (_, errors) = Read(";@NOM STAR\n;@GENRE COMMANDE\n\n;@VALEUR X, 9, 0");
 
         Assert.Equal(4, Assert.Single(errors).Line);
+    }
+
+    [Theory]
+    [InlineData(LibraryKind.Command)]
+    [InlineData(LibraryKind.Function)]
+    public void Le_questionnaire_donne_un_fichier_qui_se_relit(LibraryKind kind)
+    {
+        var values = new[] { new LibraryParameter("X", 0, 639, "position, en points"), new LibraryParameter("STYLO", 0, 15, "couleur", -1) };
+        string code = LibraryCommandFile.StarterCode("lune", kind, values);
+        string text = LibraryCommandFile.Compose("lune", kind, values, "Dessine une lune.\r\n\r\nDeux lignes d'aide.", " Moi ", code);
+
+        var (command, errors) = LibraryCommandFile.Parse(text, "decor", "LUNE.cmd.asm", false);
+
+        Assert.Empty(errors);
+        Assert.Equal("LUNE", command!.Name);
+        Assert.Equal(kind, command.Kind);
+        Assert.Equal(values, command.Parameters);
+        Assert.Equal("Dessine une lune.\nDeux lignes d'aide.", command.Help);
+        Assert.Equal("Moi", command.Author);
+        Assert.Contains(";@OPTION STYLO, 0, 15, -1, couleur", text);
+        Assert.Contains("LD HL,(X) LD HL,(STYLO)", text);
+        Assert.EndsWith("        RET\n", text);
+        Assert.Empty(Z80Assembler.Assemble(text, new Z80Emitter(0x4000), "t_", n => n is "X" or "STYLO" ? "case" : null));
+    }
+
+    [Fact]
+    public void Une_routine_neuve_explique_les_registres()
+    {
+        string code = LibraryCommandFile.StarterCode("MA_ROUTINE", LibraryKind.Routine, []);
+        string text = LibraryCommandFile.Compose("MA_ROUTINE", LibraryKind.Routine, [], "", "", code);
+
+        Assert.Empty(LibraryCommandFile.Parse(text, "OUTILS", "MA_ROUTINE.cmd.asm", false).Errors);
+        Assert.Contains("registres", text);
+        Assert.DoesNotContain(";@AIDE", text);
+        Assert.DoesNotContain(";@AUTEUR", text);
     }
 
     [Theory]

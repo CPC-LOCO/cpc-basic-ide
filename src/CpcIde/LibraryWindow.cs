@@ -28,13 +28,16 @@ public sealed class LibraryWindow : Window
     readonly TabControl tabs = new() { FontSize = TextSize };
     readonly Button close;
     readonly Action<int> remember;
+    readonly Func<LibraryCatalog> reload;
     LibraryCatalog? shown;
 
     /// <param name="size">Taille du texte (réglage de l'éditeur) ; <paramref name="remember"/> garde la nouvelle taille.</param>
-    public LibraryWindow(int size, Action<int> remember)
+    /// <param name="reload">Relit les bibliothèques (après une nouvelle commande) et rend le catalogue.</param>
+    public LibraryWindow(int size, Action<int> remember, Func<LibraryCatalog> reload)
     {
         TextSize = size;
         this.remember = remember;
+        this.reload = reload;
         tabs.FontSize = TextSize;
         Title = "Bibliothèques";
         Width = 1050;
@@ -55,9 +58,20 @@ public sealed class LibraryWindow : Window
         close.Click += (_, _) => Close();
 
         folders = new TextBlock { FontSize = TextSize - 2, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 16, 0) };
-        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 12, 0, 0) };
+        newCommand = new Button
+        {
+            Content = "Nouvelle commande...",
+            FontSize = TextSize,
+            MinHeight = 44,
+            Padding = new Thickness(16, 6),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        newCommand.Click += async (_, _) => await CreateCommandAsync();
+        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) };
         bottom.Children.Add(folders);
-        Grid.SetColumn(close, 1);
+        Grid.SetColumn(newCommand, 1);
+        bottom.Children.Add(newCommand);
+        Grid.SetColumn(close, 2);
         bottom.Children.Add(close);
 
         var root = new DockPanel { Margin = new Thickness(16) };
@@ -79,7 +93,7 @@ public sealed class LibraryWindow : Window
                 int next = Math.Clamp((int)TextSize + (e.Key is Key.OemPlus or Key.Add ? 1 : -1), EditorSettings.MinFontSize, 30);
                 TextSize = next;
                 this.remember(next);
-                tabs.FontSize = close.FontSize = next;
+                tabs.FontSize = close.FontSize = newCommand.FontSize = next;
                 folders.FontSize = next - 2;
                 if (shown is not null)
                     Fill(shown);
@@ -88,15 +102,29 @@ public sealed class LibraryWindow : Window
     }
 
     readonly TextBlock folders;
+    readonly Button newCommand;
+
+    // « Nouvelle commande... » (D157) : questionnaire ; la commande créée est montrée dans son onglet
+    async System.Threading.Tasks.Task CreateCommandAsync()
+    {
+        string suggested = (tabs.SelectedItem as TabItem)?.Header as string ?? "";
+        if (shown is null || !shown.Libraries.Contains(suggested))
+            suggested = shown?.Libraries.FirstOrDefault() ?? "";
+        var dialog = new NewCommandWindow(shown ?? LibraryCatalog.Empty, suggested, (int)TextSize);
+        (string Library, string Name)? created = await dialog.ShowDialog<(string, string)?>(this);
+        if (created is null)
+            return;
+        Fill(reload(), created.Value.Library, created.Value.Name);
+    }
 
     /// <summary>Remplit la fenêtre avec le catalogue (appelé à l'ouverture et chaque fois qu'on la redemande).</summary>
-    public void Fill(LibraryCatalog catalog)
+    public void Fill(LibraryCatalog catalog, string? selectLibrary = null, string? selectName = null)
     {
         shown = catalog;
-        string? current = (tabs.SelectedItem as TabItem)?.Header as string;
+        string? current = selectLibrary ?? (tabs.SelectedItem as TabItem)?.Header as string;
         var pages = new List<TabItem>();
         foreach (string library in catalog.Libraries)
-            pages.Add(new TabItem { Header = library, Content = LibraryPage(catalog.All.Where(c => c.Library == library).ToList()) });
+            pages.Add(new TabItem { Header = library, Content = LibraryPage(catalog.All.Where(c => c.Library == library).ToList(), selectName) });
         if (catalog.Errors.Count > 0)
             pages.Add(new TabItem { Header = $"Fichiers refusés ({catalog.Errors.Count})", Content = ErrorsPage(catalog.Errors) });
         if (pages.Count == 0)
@@ -110,7 +138,7 @@ public sealed class LibraryWindow : Window
     }
 
     // Une bibliothèque : ses commandes à gauche, la commande choisie à droite
-    static Control LibraryPage(IReadOnlyList<LibraryCommand> commands)
+    static Control LibraryPage(IReadOnlyList<LibraryCommand> commands, string? selectName)
     {
         var details = new TextBlock { FontSize = TextSize, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 8, 8, 8) };
         var list = new ListBox
@@ -124,9 +152,10 @@ public sealed class LibraryWindow : Window
             if (list.SelectedIndex >= 0)
                 details.Text = Describe(commands[list.SelectedIndex]);
         };
-        list.SelectedIndex = commands.Count > 0 ? 0 : -1;
+        int first = Math.Max(0, commands.ToList().FindIndex(c => c.Name == selectName));
+        list.SelectedIndex = commands.Count > 0 ? first : -1;
         if (commands.Count > 0)
-            details.Text = Describe(commands[0]);
+            details.Text = Describe(commands[first]);
 
         var page = new Grid { ColumnDefinitions = new ColumnDefinitions("320,*"), Margin = new Thickness(0, 8, 0, 0) };
         page.Children.Add(list);
