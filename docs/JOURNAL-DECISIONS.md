@@ -1299,6 +1299,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Vérifié par l'utilisateur dans WinAPE :** CERCLES, FICHIERS (écriture et lecture d'un fichier), PARTIE1 puis PARTIE2 (RUN "nom" et fichier SCORE) : tout marche sans chargeur.
 - **Tests :** `NoLoaderTests` (5).
 
+## D169 : une valeur TEXTE dans les bibliothèques (20 nov. 2026) (demande de l'utilisateur, pour sa commande TYPO ; façon de faire choisie par l'assistant)
+- **Pourquoi :** l'utilisateur veut mettre sa RSX TYPO (petits caractères de 4×8, 2020) dans une bibliothèque TEXTE ; elle reçoit un texte. Forme choisie par l'utilisateur : `TYPO texte [, x, y]` et `DEFTYPO "x", xx, xx, xx` (étapes suivantes).
+- **Fiche :** `;@TEXTE NOM, rôle` ; toujours obligatoire, donc avant les OPTION. `LibraryParameter.IsText`. Écriture montrée : `message$`.
+- **Ce que reçoit la routine :** dans la case, l'adresse de la fiche du texte (1 octet : longueur ; 2 octets : adresse des lettres), comme `@A$` pour une RSX : le code d'une RSX existante se garde. Le texte peut être écrit, une variable, une case de tableau ou un calcul (A$ + "!", LEFT$...) : une fiche temporaire, valable le temps de l'instruction.
+- **Vérification :** un nombre à la place d'un TEXTE, ou l'inverse : « un texte et un nombre ne se mélangent pas ».
+- **Éditeur :** case « texte » sur chaque valeur du questionnaire ; fenêtre des bibliothèques : « un texte ».
+- **Tests :** `LibraryTextTests` (14).
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -37,7 +37,7 @@ public sealed class NewCommandWindow : Window
     readonly List<ValueRow> values = [];
     readonly LibraryCommand? editing;      // « Modifier la fiche » (D160) : la commande d'avant ; null pour une nouvelle
 
-    sealed record ValueRow(Grid Line, TextBox Name, TextBox Min, TextBox Max, CheckBox Optional, TextBox Skipped, TextBox Role);
+    sealed record ValueRow(Grid Line, TextBox Name, CheckBox Text, TextBox Min, TextBox Max, CheckBox Optional, TextBox Skipped, TextBox Role);
 
     /// <param name="editing">Pour « Modifier la fiche » (D160) : la commande à modifier (son code est gardé) ; null : nouvelle.</param>
     public NewCommandWindow(LibraryCatalog catalog, string suggestedLibrary, int fontSize, LibraryCommand? editing = null)
@@ -86,7 +86,7 @@ public sealed class NewCommandWindow : Window
         preview = new TextBlock { FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap };
         // Titres gris des cases d'une valeur, avec des exemples (idée de l'utilisateur, D158)
         header = new Grid { ColumnDefinitions = new ColumnDefinitions(ValueColumns), Margin = new Thickness(0, 6, 0, 0) };
-        string[] titles = ["nom (ex : X, STYLO)", "de", "à", "", "si sautée", "rôle (ex : couleur du contour)"];
+        string[] titles = ["nom (ex : X, STYLO)", "", "de", "à", "", "si sautée", "rôle (ex : couleur du contour)"];
         for (int i = 0; i < titles.Length; i++)
         {
             var title = new TextBlock { Text = titles[i], FontSize = size - 3, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 6, 0) };
@@ -125,6 +125,8 @@ public sealed class NewCommandWindow : Window
         body.Children.Add(Note("Facultative : on peut la sauter en BASIC (STAR 160,100,30,80,5 sans le stylo). La case reçoit alors le nombre " +
                                "« si sautée ». Un nombre hors des limites, comme -1, dit à la routine que la valeur a été sautée (STAR prend alors " +
                                "le stylo du moment) ; un nombre dans les limites, comme 0, sert simplement de valeur par défaut."));
+        body.Children.Add(Note("Texte : la valeur est un texte (TYPO \"BONJOUR\" ou TYPO A$). Sa case reçoit l'adresse de la fiche du texte : " +
+                               "1 octet pour la longueur, puis 2 octets pour l'adresse des lettres, comme @A$ pour une RSX. Un texte est obligatoire."));
         body.Children.Add(header);
         body.Children.Add(rows);
         body.Children.Add(addValue);
@@ -165,6 +167,7 @@ public sealed class NewCommandWindow : Window
             AddValue();
             ValueRow row = values[^1];
             row.Name.Text = p.Name;
+            row.Text.IsChecked = p.IsText;
             row.Min.Text = p.Min.ToString(CultureInfo.InvariantCulture);
             row.Max.Text = p.Max.ToString(CultureInfo.InvariantCulture);
             row.Optional.IsChecked = p.IsOptional;
@@ -198,7 +201,7 @@ public sealed class NewCommandWindow : Window
         grid.Children.Add(control);
     }
 
-    // Une ligne de valeur : nom, de, à, facultative, si sautée, rôle, retirer
+    // Une ligne de valeur : nom, texte (D169), de, à, facultative, si sautée, rôle, retirer
     void AddValue()
     {
         if (values.Count >= LibraryCommandFile.MaxParameters)
@@ -214,15 +217,26 @@ public sealed class NewCommandWindow : Window
         skipped.IsEnabled = false;
         var optional = new CheckBox { Content = "facultative", VerticalAlignment = VerticalAlignment.Center };
         optional.IsCheckedChanged += (_, _) => skipped.IsEnabled = optional.IsChecked == true;
+        // un texte (D169) : pas de limites, toujours obligatoire ; la case reçoit l'adresse de la fiche du texte
+        var isText = new CheckBox { Content = "texte", VerticalAlignment = VerticalAlignment.Center };
+        isText.IsCheckedChanged += (_, _) =>
+        {
+            bool text = isText.IsChecked == true;
+            if (text)
+                optional.IsChecked = false;
+            min.IsEnabled = max.IsEnabled = optional.IsEnabled = !text;
+            skipped.IsEnabled = !text && optional.IsChecked == true;
+            UpdatePreview();
+        };
         var remove = new Button { Content = "Retirer" };
-        Control[] cells = [valueName, min, max, optional, skipped, role, remove];
+        Control[] cells = [valueName, isText, min, max, optional, skipped, role, remove];
         for (int i = 0; i < cells.Length; i++)
         {
             Grid.SetColumn(cells[i], i);
             cells[i].Margin = new Thickness(0, 0, 6, 0);
             line.Children.Add(cells[i]);
         }
-        var row = new ValueRow(line, valueName, min, max, optional, skipped, role);
+        var row = new ValueRow(line, valueName, isText, min, max, optional, skipped, role);
         remove.Click += (_, _) =>
         {
             values.Remove(row);
@@ -237,7 +251,7 @@ public sealed class NewCommandWindow : Window
         valueName.Focus();
     }
 
-    const string ValueColumns = "160,90,90,Auto,90,*,Auto";
+    const string ValueColumns = "160,Auto,90,90,Auto,90,*,Auto";
 
     // Écriture en BASIC de la commande telle qu'elle est remplie ; un nom qui ne convient pas est signalé tout de suite
     void UpdatePreview()
@@ -256,7 +270,7 @@ public sealed class NewCommandWindow : Window
         foreach (ValueRow row in values)
         {
             string valueName = (row.Name.Text ?? "").Trim();
-            string shown = valueName.Length == 0 ? "?" : valueName.ToLowerInvariant();
+            string shown = (valueName.Length == 0 ? "?" : valueName.ToLowerInvariant()) + (row.Text.IsChecked == true ? "$" : "");
             if (valueName.Length > 0 && LibraryCommandFile.CheckName(valueName, "un nom de valeur") is string valueError)
             {
                 shown = $"«{valueName}»?";
@@ -307,6 +321,12 @@ public sealed class NewCommandWindow : Window
                 string label = valueName.Length > 0 ? valueName : $"la valeur {values.IndexOf(row) + 1}";
                 if (valueName.Length == 0)
                     errors.Add($"Donnez un nom à {label}.");
+                if (row.Text.IsChecked == true)     // un texte (D169)
+                {
+                    if (valueName.Length > 0)
+                        parameters.Add(new LibraryParameter(valueName, 0, 255, (row.Role.Text ?? "").Trim(), IsText: true));
+                    continue;
+                }
                 int? min = Number(row.Min, $"{label} : la plus petite valeur", errors);
                 int? max = Number(row.Max, $"{label} : la plus grande valeur", errors);
                 int? skipped = row.Optional.IsChecked == true ? Number(row.Skipped, $"{label} : la valeur si elle est sautée", errors) : null;
@@ -371,6 +391,8 @@ public sealed class NewCommandWindow : Window
 
     // Les messages du lecteur parlent du fichier (« ;@VALEUR ») : ici on parle du questionnaire
     static string Explain(string message) =>
-        message.Replace("une VALEUR obligatoire ne peut pas venir après une OPTION : mettez les OPTION à la fin.",
+        message.Replace("un TEXTE ne peut pas venir après une OPTION : mettez les OPTION à la fin.",
+                        "un texte ne peut pas venir après une valeur facultative : mettez les facultatives à la fin.")
+               .Replace("une VALEUR obligatoire ne peut pas venir après une OPTION : mettez les OPTION à la fin.",
                         "une valeur obligatoire ne peut pas venir après une valeur facultative : mettez les facultatives à la fin.");
 }

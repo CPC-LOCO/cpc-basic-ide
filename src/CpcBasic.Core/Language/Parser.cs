@@ -1242,7 +1242,11 @@ public static class Parser
             }
             else
             {
-                Expression? value = ParseExpression(tokens, ref pos, diagnostics);
+                // un texte est permis ici (valeur TEXTE, D169) : le genre est vérifié par CompleteLibraryArguments
+                Token at = tokens[pos];
+                Expression? value = ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (value is not null && !Types.IsString(value))
+                    value = IntegerConstant(value, at, diagnostics);
                 if (value is null)
                     return false;
                 values.Add(value);
@@ -1272,6 +1276,18 @@ public static class Parser
             if (value is null)
             {
                 arguments.Add(new NumberExpression(parameter.Default!.Value));     // OPTION sautée (D150)
+                continue;
+            }
+            // un TEXTE veut un texte, une VALEUR un nombre (D169)
+            if (parameter.IsText != Types.IsString(value))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, line,
+                    $"{command.Name}, valeur {parameter.Name.ToLowerInvariant()}{(parameter.IsText ? "$" : "")}"));
+                return null;
+            }
+            if (parameter.IsText)
+            {
+                arguments.Add(value);
                 continue;
             }
             int before = diagnostics.Count;

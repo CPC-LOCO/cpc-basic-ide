@@ -128,7 +128,9 @@ utilise.
   Ctrl et + / Ctrl et - : taille du texte de cette fenetre.
 - "Nouvelle commande..." : un questionnaire (nom, commande / fonction /
   routine, bibliotheque, aide, valeurs avec leurs limites, valeurs
-  facultatives) ; le cadre rouge montre comment la commande s'ecrira.
+  facultatives, textes) ; le cadre rouge montre comment la commande
+  s'ecrira. Une valeur "texte" (TYPO "BONJOUR", TYPO A$) : sa case
+  recoit l'adresse de la fiche du texte, comme @A$ pour une RSX.
 - "Modifier le code..." : l'editeur d'assembleur (F5 verifie, Ctrl+S
   enregistre). "Voir le code..." pour les commandes livrees avec
   l'editeur (protegees). "Modifier la fiche...", "Effacer".

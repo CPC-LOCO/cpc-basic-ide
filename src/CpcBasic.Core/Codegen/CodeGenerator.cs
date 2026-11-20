@@ -792,16 +792,24 @@ public static class CodeGenerator
         {
             LibraryCommand command = libraryCatalog.Find(name)!;
             libraryUsed.Add(command.Name);
+            // un TEXTE (D169) : HL = adresse de la fiche du texte ; une VALEUR : HL = le nombre
+            void EmitArgument(int i)
+            {
+                if (command.Parameters[i].IsText)
+                    EmitString(arguments[i]);
+                else
+                    EmitExpression(arguments[i]);
+            }
             if (arguments.Count == 1)
             {
-                EmitExpression(arguments[0]);
+                EmitArgument(0);
                 emitter.LdMemHl(LibraryLinker.CellLabel(command.Name, command.Parameters[0].Name));
             }
             else if (arguments.Count > 1)
             {
-                foreach (Expression argument in arguments)
+                for (int i = 0; i < arguments.Count; i++)
                 {
-                    EmitExpression(argument);
+                    EmitArgument(i);
                     emitter.PushHl();
                 }
                 for (int i = arguments.Count - 1; i >= 0; i--)

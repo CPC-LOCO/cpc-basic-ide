@@ -17,8 +17,11 @@ public enum LibraryKind { Command, Function, Routine }
 /// Une valeur donnée à une commande ou à une fonction : son nom (celui de sa case mémoire), ses limites et son rôle.
 /// Default : pour une valeur facultative (;@OPTION, D150), ce que reçoit la routine quand la valeur est sautée
 /// (elle peut être hors des limites : la routine sait ainsi qu'elle a été sautée) ; null : valeur obligatoire.
+/// IsText (;@TEXTE, D169) : un texte du BASIC ("BONJOUR", A$, A$ + B$...) ; sa case reçoit l'adresse de la fiche du texte
+/// (3 octets : longueur, puis adresse des lettres), comme un paramètre @A$ d'une RSX. Toujours obligatoire.
 /// </summary>
-public sealed record LibraryParameter(string Name, int Min, int Max, string Description, int? Default = null)
+public sealed record LibraryParameter(string Name, int Min, int Max, string Description, int? Default = null,
+                                      bool IsText = false)
 {
     public bool IsOptional => Default is not null;
 }
@@ -56,6 +59,7 @@ public sealed record LibraryCommand(
 /// ;@VALEUR X, 0, 639, position horizontale du centre
 /// ;@VALEUR Y, 0, 399, position verticale du centre
 /// ;@OPTION STYLO, 0, 15, -1, couleur du contour (sautée : la routine reçoit -1)
+/// ;@TEXTE MESSAGE, ce qui est affiché     (un texte : la case reçoit l'adresse de sa fiche, D169)
 /// ;@AIDE Dessine une étoile
 /// ;@AUTEUR RetroPoke
 ///         LD HL,(X)
@@ -142,6 +146,13 @@ public static class LibraryCommandFile
                         errors.Add(new(number, parameterError));
                     break;
 
+                case "TEXTE":                   // un texte (D169), obligatoire comme une VALEUR
+                    if (parameters.Any(p => p.IsOptional))
+                        errors.Add(new(number, "un TEXTE ne peut pas venir après une OPTION : mettez les OPTION à la fin."));
+                    else if (ParseText(value, parameters) is string textError)
+                        errors.Add(new(number, textError));
+                    break;
+
                 case "OPTION":                  // valeur facultative (D150)
                     if (ParseParameter(value, parameters, optional: true) is string optionError)
                         errors.Add(new(number, optionError));
@@ -156,7 +167,7 @@ public static class LibraryCommandFile
                     break;
 
                 default:
-                    errors.Add(new(number, $"« ;@{keyword} » n'est pas connu (NOM, GENRE, VALEUR, OPTION, AIDE ou AUTEUR)."));
+                    errors.Add(new(number, $"« ;@{keyword} » n'est pas connu (NOM, GENRE, VALEUR, TEXTE, OPTION, AIDE ou AUTEUR)."));
                     break;
             }
         }
@@ -204,7 +215,7 @@ public static class LibraryCommandFile
         foreach (LibraryParameter p in command.Parameters)
         {
             string separator = text.Length == 0 ? "" : ", ";
-            string word = p.Name.ToLowerInvariant();
+            string word = p.Name.ToLowerInvariant() + (p.IsText ? "$" : "");   // un texte : « message$ » (D169)
             text.Append(p.IsOptional ? $" [{separator}{word}]" : separator + word);
         }
         string names = text.ToString().Trim();
@@ -232,7 +243,9 @@ public static class LibraryCommandFile
         foreach (LibraryParameter p in parameters)
         {
             string role = p.Description.Trim().Length > 0 ? ", " + p.Description.Trim() : "";
-            text.Append(p.IsOptional
+            if (p.IsText)
+                text.Append($";@TEXTE {p.Name.ToUpperInvariant()}{role}\n");
+            else text.Append(p.IsOptional
                 ? $";@OPTION {p.Name.ToUpperInvariant()}, {p.Min}, {p.Max}, {p.Default}{role}\n"
                 : $";@VALEUR {p.Name.ToUpperInvariant()}, {p.Min}, {p.Max}{role}\n");
         }
@@ -275,6 +288,8 @@ public static class LibraryCommandFile
             foreach (LibraryParameter p in parameters)
                 text.Append($" LD HL,({p.Name.ToUpperInvariant()})");
             text.Append('\n');
+            if (parameters.Any(p => p.IsText))
+                text.Append("; Un texte : sa case donne l'adresse de sa fiche (1 octet : longueur, puis 2 octets : adresse des lettres).\n");
         }
         text.Append(kind switch
         {
@@ -306,6 +321,22 @@ public static class LibraryCommandFile
             return $"« {name} » est trop long pour {what} ({MaxNameLength} caractères au plus).";
         if (Reserved.Contains(name.ToUpperInvariant()))
             return $"« {name} » ne convient pas pour {what} : c'est un nom de registre ou de condition du Z80.";
+        return null;
+    }
+
+    // TEXTE nom[, description] (D169)
+    static string? ParseText(string value, List<LibraryParameter> parameters)
+    {
+        string[] parts = value.Split(',', 2);
+        string name = parts[0].Trim();
+        if (name.Length == 0)
+            return "TEXTE : écrivez TEXTE nom, rôle (par exemple TEXTE MESSAGE, ce qui est affiché).";
+        if (CheckName(name, "le nom d'une valeur") is string nameError)
+            return nameError;
+        name = name.ToUpperInvariant();
+        if (parameters.Any(p => p.Name == name))
+            return $"la valeur {name} est déjà déclarée.";
+        parameters.Add(new LibraryParameter(name, 0, 255, parts.Length > 1 ? parts[1].Trim() : "", IsText: true));
         return null;
     }
 

@@ -299,7 +299,9 @@ public sealed class LibraryWindow : Window
             {
                 string skipped = p.IsOptional ? $", facultative (sautée : la routine reçoit {p.Default})" : "";
                 string role = p.Description.Length > 0 ? " : " + p.Description : "";
-                lines.Add($"   {p.Name.ToLowerInvariant()}, de {p.Min} à {p.Max}{skipped}{role}");
+                lines.Add(p.IsText
+                    ? $"   {p.Name.ToLowerInvariant()}$, un texte (la case reçoit l'adresse de sa fiche){role}"
+                    : $"   {p.Name.ToLowerInvariant()}, de {p.Min} à {p.Max}{skipped}{role}");
             }
         }
         return string.Join("\n", lines);
