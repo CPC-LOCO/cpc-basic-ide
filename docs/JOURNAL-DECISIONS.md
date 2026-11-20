@@ -1335,6 +1335,10 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - L'ancien TYPO (par GRA WR CHAR et le caractère 255, D170) est retiré, gardé dans `essais\TYPO-v1-firmware.cmd.asm.txt` ; TYPOVITE prend le nom TYPO : même écriture, `TYPO texte [, x, y]`, mêmes couleurs, même fonte, DEFTYPO inchangé.
 - **Tests :** `TypoTests` réécrits sur les points de l'écran (16).
 
+## D174 : « / » entre deux entiers reste entier (20 nov. 2026) (choix de l'utilisateur : « la rapidité est une priorité ») ; confirme D037
+- Question venue de D172 (`ROUND(T1/T2,1)` affichait 2). Choix proposés : garder ; faire comme le Locomotive (toujours à virgule) ; un réglage. **Choix 1 : garder.**
+- Pour une division à virgule sans F8 : `CREAL(A)/B`, une variable à virgule (A!), ou le réglage F8. Écrit dans `packaging\LISEZMOI.txt` (point 5).
+
 ---
 
 ## Notes de fin de session (modèle)

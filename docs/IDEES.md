@@ -56,6 +56,6 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 
 - **Bibliothèque TEXTE : TYPO et DEFTYPO** (idée de l'utilisateur, 20 nov. 2026, d'après sa RSX TYPO de 2020) : petits caractères de 4×8, deux par caractère du CPC (40 colonnes en MODE 0, 80 en MODE 1). `TYPO texte [, x, y]`, `DEFTYPO "x", xx, xx, xx`. Étape 1 faite : valeur TEXTE (D169) ; étape 2 faite : TYPO et `typo.bas` (D170) ; DEFTYPO fait (D171) ; écriture directe dans l'écran (D172, D173). **Terminé.**
 
-- **Division de deux entiers** (vu le 20 nov. 2026, D172) : `ROUND(T1/T2,1)` avec T1 et T2 entiers affiche 2 au lieu de 2.1 ; le Locomotive donne un nombre à virgule pour « / ». À vérifier et corriger (comparer avec le vrai BASIC).
+- **Division de deux entiers** (vu le 20 nov. 2026, D172) : `ROUND(T1/T2,1)` avec T1 et T2 entiers affiche 2 au lieu de 2.1 ; le Locomotive donne un nombre à virgule pour « / ». **Tranché (D174) : on garde, la vitesse d'abord** ; astuce CREAL(A)/B dans le LISEZMOI.
 
 - **Affichage rapide du texte normal** (idée de l'utilisateur, 20 nov. 2026, après TYPO) : un écran plein en MODE 1 par PRINT prend plus de 3 secondes ; l'utilisateur a écrit une RSX plus rapide (MODE 0, 1 et 2). Plus tard : la regarder, comme TYPO, pour en faire une commande de bibliothèque (ou accélérer PRINT).

@@ -92,8 +92,9 @@ Reglages (menu Options) :
 ---------------------------------------------------
   - Sans F8, A est un entier (et non un reel), et A et A% sont deux
     variables differentes. Avec F8, A est a virgule comme sur le CPC.
-  - Sans F8, la division / est entiere (7/2 donne 3) ; avec F8, elle donne
-    un nombre a virgule, comme le CPC.
+  - Sans F8, la division / est entiere (7/2 donne 3), pour la vitesse ;
+    avec F8, elle donne un nombre a virgule, comme le CPC. Pour une seule
+    division a virgule sans F8 : CREAL(A)/B (CREAL(7)/2 donne 3.5).
   - CHAIN et MERGE sont refuses : utilisez RUN "nom" (et un fichier pour
     garder des valeurs).
   - Un programme compile ne revient pas au BASIC : a la fin, il attend
