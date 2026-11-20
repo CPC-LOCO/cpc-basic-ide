@@ -90,14 +90,22 @@ public static class AsmProgram
     }
 
     /// <summary>La disquette : NOM.BAS (chargeur : MEMORY sous ORG, LOAD, CALL au lancement) et NOM.BIN.</summary>
-    public static DiskImage ToDisk(AsmProgramResult program, string name)
+    /// <param name="withLoader">
+    /// Vrai : NOM.BAS (MEMORY, LOAD, CALL) charge NOM.BIN ; le programme peut finir par RET (retour au BASIC).
+    /// Faux (D166) : NOM.BIN seul ; RUN"NOM" le lance directement, le BASIC est abandonné : le programme ne doit
+    /// jamais finir par RET (le CPC redémarrerait), comme un jeu qui tourne sans fin.
+    /// </param>
+    public static DiskImage ToDisk(AsmProgramResult program, string name, bool withLoader = true)
     {
         if (program.Code is null)
             throw new InvalidOperationException("le programme a des fautes : pas de disquette.");
         string upper = name.Trim().ToUpperInvariant();
         var disk = new DiskImage();
-        byte[] loader = BasicLoader.Build($"{upper}.BIN", program.Origin - 1, program.Entry);
-        disk.AddFile(upper, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
+        if (withLoader)
+        {
+            byte[] loader = BasicLoader.Build($"{upper}.BIN", program.Origin - 1, program.Entry);
+            disk.AddFile(upper, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
+        }
         disk.AddFile(upper, "BIN", AmsdosFileType.Binary, program.Origin, program.Entry, program.Code);
         return disk;
     }

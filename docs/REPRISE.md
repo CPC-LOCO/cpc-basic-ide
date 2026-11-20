@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D165 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D166 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -50,7 +50,7 @@ Documents de référence :
 - **Première commande du projet :** STAR (bibliothèque GRAPHIQUE, `bibliotheques\GRAPHIQUE\STAR.cmd.asm`) : `STAR x, y, rayon interne, rayon externe, pointes [, stylo] [, remplissage] [, angle]`, 2 à 16 pointes, contour et intérieur, essayée dans WinAPE (examples\etoiles.bas ; D150 à D153). Vérifiée avec un simulateur Python du texte assembleur (`essais\star\`). Taille : 2174 octets. POLYGON abandonnée (STAR fait les polygones).
 - **Répertoire de distribution fait (D161)** : menu Fichier, « Préparer un dossier à distribuer... ». Étapes B1 à B5 toutes faites.
 - **Reste :** autres bibliothèques du projet (texte, son...) ; idée « Assembleur seul » (IDEES.md).
-- **Assembleur seul (D163, D164, après la 0.5.0) :** menu Assembleur de l'éditeur : fenêtre pour écrire un programme entièrement en assembleur (.asm), ORG obligatoire (&0400 à &A67B), RUN (lancement), WRITE acceptée sans effet, routines des bibliothèques appelées par leur nom ; F5 écrit NOM.dsk (NOM.BIN et chargeur NOM.BAS) ; essayé dans WinAPE.
+- **Assembleur seul (D163, D164, D166, après la 0.5.0) :** menu Assembleur de l'éditeur : fenêtre pour écrire un programme entièrement en assembleur (.asm), ORG obligatoire (&0400 à &A67B), RUN (lancement), WRITE acceptée sans effet, routines des bibliothèques appelées par leur nom ; F5 écrit NOM.dsk (NOM.BIN et chargeur NOM.BAS ; ou NOM.BIN seul si la case « Avec chargeur BASIC » est décochée : lancé directement, il ne doit jamais finir par RET, D166) ; essayé dans WinAPE.
 - **Tests :** 1856, tous réussis (20 nov. 2026).
 
 ### État au 16 novembre 2026 (pour mémoire)

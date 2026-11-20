@@ -1278,6 +1278,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Choix proposés :** .asm (le plus simple), .cmd.asm (garder), .bib (court et français) ; **choix 2 : garder .cmd.asm** : on voit tout de suite que c'est une commande, et c'est de l'assembleur (tout éditeur de texte l'ouvre).
 - **Rien ne change dans le code** (`LibraryCommandFile.Extension`) ; ce n'est plus provisoire.
 
+## D166 : « assembleur seul » sans chargeur BASIC (20 nov. 2026) (idée de l'utilisateur ; façon de faire choisie par l'assistant) ; complète D163 et D164
+- **Essai dans WinAPE :** `RUN"BONJOUR.BIN"` lance bien le programme (l'en-tête AMSDOS porte l'adresse de lancement), mais le CPC abandonne le BASIC : le `RET` final fait redémarrer la machine. `essais\bonjour2.asm` (attente sans fin au lieu de `RET`) : le texte reste affiché. Vérifié par l'utilisateur.
+- **Choix :** une case « Avec chargeur BASIC » dans la fenêtre « Assembleur seul », cochée au départ. Décochée : la disquette n'a que `NOM.BIN` ; `RUN"NOM"` le trouve seul (AMSDOS essaie NOM, puis NOM.BAS, puis NOM.BIN). Le choix est gardé tant que l'éditeur reste ouvert.
+- **Cœur :** `AsmProgram.ToDisk(program, name, withLoader = true)` ; un test de plus.
+- **Vérifié par l'utilisateur dans WinAPE :** case décochée, la disquette n'a que BONJOUR2.BIN et `RUN"BONJOUR2"` le lance. (Si la disquette est ouverte dans l'émulateur, l'écriture est refusée avec un message clair : fermer, puis recompiler.)
+
 ---
 
 ## Notes de fin de session (modèle)

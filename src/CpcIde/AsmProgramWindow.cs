@@ -27,7 +27,8 @@ namespace CpcIde;
 /// <summary>
 /// « Assembleur seul » (idée de l'utilisateur, D163, D164) : une fenêtre pour écrire un programme entièrement en assembleur
 /// (style WinAPE), l'enregistrer en .asm et le compiler sur une disquette (.dsk à côté du .asm : NOM.BIN et son chargeur
-/// NOM.BAS). Menus Fichier et Compiler ; F5 compiler, Maj+F5 vérifier, Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+Maj+S.
+/// NOM.BAS ; ou NOM.BIN seul, case « Avec chargeur BASIC » décochée, D166). Menus Fichier et Compiler ; F5 compiler,
+/// Maj+F5 vérifier, Ctrl+N / Ctrl+O / Ctrl+S / Ctrl+Maj+S.
 /// </summary>
 public sealed class AsmProgramWindow : Window
 {
@@ -54,6 +55,9 @@ public sealed class AsmProgramWindow : Window
     readonly TextEditor editor;
     readonly ListBox problems;
     readonly TextBlock status;
+    readonly CheckBox withLoader;
+    // le choix est gardé tant que l'éditeur reste ouvert (d'une fenêtre « Assembleur seul » à la suivante)
+    static bool lastWithLoader = true;
     string? path;
     bool modified;
     bool closingConfirmed;
@@ -118,7 +122,17 @@ public sealed class AsmProgramWindow : Window
         };
         status.Text = "F5 : compiler (enregistre le .asm et écrit la disquette .dsk à côté).   Maj+F5 : vérifier sans rien écrire.";
 
+        withLoader = new CheckBox
+        {
+            IsChecked = lastWithLoader,
+            Margin = new Thickness(0, 8, 0, 0),
+            Content = "Avec chargeur BASIC (NOM.BAS) : le programme peut finir par RET et revenir au BASIC. "
+                + "Décoché : NOM.BIN seul, lancé directement ; il ne doit jamais finir (le CPC redémarrerait)."
+        };
+        withLoader.IsCheckedChanged += (_, _) => lastWithLoader = withLoader.IsChecked == true;
+
         var bottom = new StackPanel { Margin = new Thickness(12, 0, 12, 12) };
+        bottom.Children.Add(withLoader);
         bottom.Children.Add(status);
         bottom.Children.Add(problems);
 
@@ -337,7 +351,7 @@ public sealed class AsmProgramWindow : Window
         string dsk = Path.ChangeExtension(path!, ".dsk");
         try
         {
-            AsmProgram.ToDisk(program, name).Save(dsk);
+            AsmProgram.ToDisk(program, name, withLoader.IsChecked == true).Save(dsk);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -345,7 +359,10 @@ public sealed class AsmProgramWindow : Window
             status.Foreground = new SolidColorBrush(Color.Parse("#C00000"));
             return;
         }
-        status.Text = $"Compilation réussie : {dsk}. Programme {summary} Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\".";
+        string how = withLoader.IsChecked == true
+            ? $"tapez RUN\"{name}\"."
+            : $"tapez RUN\"{name}\" (sans chargeur : le BASIC est abandonné, le programme ne doit jamais finir par RET).";
+        status.Text = $"Compilation réussie : {dsk}. Programme {summary} Dans l'émulateur : insérez le disque dans le lecteur A, puis {how}";
     }
 
     void GoToProblem()

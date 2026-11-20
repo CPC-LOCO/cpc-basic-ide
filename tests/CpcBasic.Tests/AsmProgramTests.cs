@@ -97,4 +97,14 @@ public class AsmProgramTests
 
         Assert.Equal(new[] { "JEU.BAS", "JEU.BIN" }, disk.FileNames);
     }
+
+    [Fact]
+    public void Sans_chargeur_la_disquette_n_a_que_le_programme()
+    {
+        AsmProgramResult program = Build(" ORG &8000\nFIN: JR FIN\n RUN &8000");
+
+        var disk = AsmProgram.ToDisk(program, "jeu", withLoader: false);
+
+        Assert.Equal(new[] { "JEU.BIN" }, disk.FileNames);
+    }
 }
