@@ -35,14 +35,17 @@ public sealed class NewCommandWindow : Window
     readonly Grid header;
     readonly Button addValue;
     readonly List<ValueRow> values = [];
+    readonly LibraryCommand? editing;      // « Modifier la fiche » (D160) : la commande d'avant ; null pour une nouvelle
 
     sealed record ValueRow(Grid Line, TextBox Name, TextBox Min, TextBox Max, CheckBox Optional, TextBox Skipped, TextBox Role);
 
-    public NewCommandWindow(LibraryCatalog catalog, string suggestedLibrary, int fontSize)
+    /// <param name="editing">Pour « Modifier la fiche » (D160) : la commande à modifier (son code est gardé) ; null : nouvelle.</param>
+    public NewCommandWindow(LibraryCatalog catalog, string suggestedLibrary, int fontSize, LibraryCommand? editing = null)
     {
         this.catalog = catalog;
+        this.editing = editing;
         size = fontSize;
-        Title = "Nouvelle commande";
+        Title = editing is null ? "Nouvelle commande" : $"Modifier la fiche de {editing.Name}";
         Width = 1000;
         Height = 720;
         MinWidth = 700;
@@ -98,7 +101,7 @@ public sealed class NewCommandWindow : Window
 
         problems = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#C00000")), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
 
-        var create = new Button { Content = "Créer", IsDefault = true, MinHeight = size * 2.4, Padding = new Thickness(20, 4), Margin = new Thickness(0, 0, 8, 0) };
+        var create = new Button { Content = editing is null ? "Créer" : "Enregistrer", IsDefault = true, MinHeight = size * 2.4, Padding = new Thickness(20, 4), Margin = new Thickness(0, 0, 8, 0) };
         create.Click += (_, _) => Create();
         var cancel = new Button { Content = "Annuler (Échap)", IsCancel = true, MinHeight = size * 2.4, Padding = new Thickness(20, 4) };
         cancel.Click += (_, _) => Close(null);
@@ -142,7 +145,34 @@ public sealed class NewCommandWindow : Window
             }
         };
         Opened += (_, _) => name.Focus();
+        if (editing is not null)
+            FillFrom(editing);
         UpdatePreview();
+    }
+
+    // Fiche déjà remplie avec la commande à modifier (D160)
+    void FillFrom(LibraryCommand command)
+    {
+        name.Text = command.Name;
+        isCommand.IsChecked = command.Kind == LibraryKind.Command;
+        isFunction.IsChecked = command.Kind == LibraryKind.Function;
+        isRoutine.IsChecked = command.Kind == LibraryKind.Routine;
+        library.Text = command.Library;
+        help.Text = command.Help;
+        author.Text = command.Author;
+        foreach (LibraryParameter p in command.Parameters)
+        {
+            AddValue();
+            ValueRow row = values[^1];
+            row.Name.Text = p.Name;
+            row.Min.Text = p.Min.ToString(CultureInfo.InvariantCulture);
+            row.Max.Text = p.Max.ToString(CultureInfo.InvariantCulture);
+            row.Optional.IsChecked = p.IsOptional;
+            if (p.Default is int skipped)
+                row.Skipped.Text = skipped.ToString(CultureInfo.InvariantCulture);
+            row.Role.Text = p.Description;
+        }
+        UpdateValuesState();
     }
 
     TextBox Box(string watermark) => new() { PlaceholderText = watermark, FontSize = size };
@@ -265,7 +295,7 @@ public sealed class NewCommandWindow : Window
             errors.Add("Donnez un nom à la commande.");
         if (LibraryCatalog.CheckLibraryName(libraryName) is string libraryError)
             errors.Add(libraryName.Length == 0 ? "Donnez le nom de la bibliothèque (par exemple GRAPHIQUE)." : libraryError);
-        if (commandName.Length > 0 && catalog.Find(commandName) is LibraryCommand other)
+        if (commandName.Length > 0 && catalog.Find(commandName) is LibraryCommand other && other.Name != editing?.Name)
             errors.Add($"Le nom {commandName} existe déjà dans la bibliothèque {other.Library} : choisissez un autre nom.");
 
         var parameters = new List<LibraryParameter>();
@@ -288,8 +318,11 @@ public sealed class NewCommandWindow : Window
         if (errors.Count == 0)
         {
             // le fichier est écrit puis relu par le lecteur du compilateur : mêmes vérifications que pour un fichier écrit à la main
-            string text = LibraryCommandFile.Compose(commandName, kind, parameters, help.Text ?? "", author.Text ?? "",
-                                                     LibraryCommandFile.StarterCode(commandName, kind, parameters));
+            // modifier la fiche : le code d'avant est gardé tel quel (D160)
+            string code = editing is null
+                ? LibraryCommandFile.StarterCode(commandName, kind, parameters)
+                : LibraryCommandFile.SplitHeader(editing.Code).Body.TrimStart('\n');
+            string text = LibraryCommandFile.Compose(commandName, kind, parameters, help.Text ?? "", author.Text ?? "", code);
             string fileName = commandName + LibraryCommandFile.Extension;
             var (_, fileErrors) = LibraryCommandFile.Parse(text, libraryName, fileName, isProtected: false);
             errors.AddRange(fileErrors.Select(e => Explain(e.Message)));
@@ -297,7 +330,9 @@ public sealed class NewCommandWindow : Window
             {
                 string folder = Path.Combine(LibraryFolders.User, libraryName);
                 string path = Path.Combine(folder, fileName);
-                if (File.Exists(path))
+                string? before = editing?.FilePath;
+                bool samePlace = before is not null && string.Equals(Path.GetFullPath(before), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase);
+                if (File.Exists(path) && !samePlace)
                     errors.Add($"Le fichier existe déjà : {path}");
                 else
                 {
@@ -305,6 +340,8 @@ public sealed class NewCommandWindow : Window
                     {
                         Directory.CreateDirectory(folder);
                         File.WriteAllText(path, text, new UTF8Encoding(false));
+                        if (before is not null && !samePlace)
+                            File.Delete(before);            // nom ou bibliothèque changé : l'ancien fichier part (D160)
                         Close((libraryName, commandName));
                         return;
                     }

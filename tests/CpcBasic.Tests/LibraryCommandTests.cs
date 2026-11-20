@@ -156,6 +156,17 @@ public class LibraryCommandTests
     }
 
     [Fact]
+    public void La_fiche_et_le_code_se_separent()
+    {
+        var (header, body) = LibraryCommandFile.SplitHeader(";@NOM STAR\r\n  ;@GENRE COMMANDE\r\n\r\n; code\r\n  RET\r\n");
+
+        Assert.Equal(";@NOM STAR\n  ;@GENRE COMMANDE\n", header);
+        Assert.Equal("\n; code\n  RET\n", body);
+        Assert.Equal(("", "  RET"), LibraryCommandFile.SplitHeader("  RET"));
+        Assert.Equal((";@NOM A", ""), LibraryCommandFile.SplitHeader(";@NOM A"));
+    }
+
+    [Fact]
     public void Une_routine_neuve_explique_les_registres()
     {
         string code = LibraryCommandFile.StarterCode("MA_ROUTINE", LibraryKind.Routine, []);

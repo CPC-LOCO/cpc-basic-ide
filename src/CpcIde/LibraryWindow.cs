@@ -30,7 +30,7 @@ public sealed class LibraryWindow : Window
     readonly Action<int> remember;
     readonly Func<LibraryCatalog> reload;
     readonly int codeSize;
-    readonly Button code;
+    readonly Button code, sheet, erase;
     LibraryCatalog? shown;
     LibraryCommand? selected;              // commande choisie dans l'onglet ouvert (D159)
 
@@ -82,15 +82,21 @@ public sealed class LibraryWindow : Window
             IsEnabled = false
         };
         code.Click += (_, _) => OpenCode();
+        sheet = BottomButton("Modifier la fiche...");
+        sheet.Click += async (_, _) => await EditSheetAsync();
+        erase = BottomButton("Effacer");
+        erase.Click += async (_, _) => await EraseAsync();
         tabs.SelectionChanged += (_, _) => RefreshSelected();
-        var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), Margin = new Thickness(0, 12, 0, 0) };
+        // en bas : les dossiers, puis les boutons (ils passent à la ligne si la fenêtre est étroite)
+        var buttons = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        foreach (Button b in new[] { code, sheet, erase, newCommand, close })
+        {
+            b.Margin = new Thickness(8, 8, 0, 0);
+            buttons.Children.Add(b);
+        }
+        var bottom = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         bottom.Children.Add(folders);
-        Grid.SetColumn(code, 1);
-        bottom.Children.Add(code);
-        Grid.SetColumn(newCommand, 2);
-        bottom.Children.Add(newCommand);
-        Grid.SetColumn(close, 3);
-        bottom.Children.Add(close);
+        bottom.Children.Add(buttons);
 
         var root = new DockPanel { Margin = new Thickness(16) };
         DockPanel.SetDock(bottom, Dock.Bottom);
@@ -111,7 +117,7 @@ public sealed class LibraryWindow : Window
                 int next = Math.Clamp((int)TextSize + (e.Key is Key.OemPlus or Key.Add ? 1 : -1), EditorSettings.MinFontSize, 30);
                 TextSize = next;
                 this.remember(next);
-                tabs.FontSize = close.FontSize = newCommand.FontSize = code.FontSize = next;
+                tabs.FontSize = close.FontSize = newCommand.FontSize = code.FontSize = sheet.FontSize = erase.FontSize = next;
                 folders.FontSize = next - 2;
                 if (shown is not null)
                     Fill(shown);
@@ -128,6 +134,53 @@ public sealed class LibraryWindow : Window
         selected = ((tabs.SelectedItem as TabItem)?.Tag as Func<LibraryCommand?>)?.Invoke();
         code.IsEnabled = selected?.FilePath is not null;
         code.Content = selected?.Protected == true ? "Voir le code..." : "Modifier le code...";
+        sheet.IsEnabled = erase.IsEnabled = selected is { Protected: false, FilePath: not null };   // les commandes du projet sont protégées
+    }
+
+    Button BottomButton(string text) => new()
+    {
+        Content = text,
+        FontSize = TextSize,
+        MinHeight = 44,
+        Padding = new Thickness(16, 6),
+        IsEnabled = false
+    };
+
+    // « Modifier la fiche... » (D160) : le questionnaire déjà rempli ; le code est gardé
+    async System.Threading.Tasks.Task EditSheetAsync()
+    {
+        if (selected is not { Protected: false } command || shown is null)
+            return;
+        var dialog = new NewCommandWindow(shown, command.Library, (int)TextSize, command);
+        (string Library, string Name)? changed = await dialog.ShowDialog<(string, string)?>(this);
+        if (changed is not null)
+            Fill(reload(), changed.Value.Library, changed.Value.Name);
+    }
+
+    // « Effacer » (D160) : après une question (par prudence, « Garder » est choisi au départ)
+    async System.Threading.Tasks.Task EraseAsync()
+    {
+        if (selected is not { Protected: false, FilePath: string path } command)
+            return;
+        bool yes = await new ConfirmDialog("Effacer une commande",
+            $"Effacer la {(command.Kind == LibraryKind.Function ? "fonction" : command.Kind == LibraryKind.Routine ? "routine" : "commande")} " +
+            $"{command.Name} de la bibliothèque {command.Library} ? Son fichier sera supprimé : {path}",
+            "Effacer", "Garder").ShowDialog<bool>(this);
+        if (!yes)
+            return;
+        try
+        {
+            File.Delete(path);
+            string? folder = Path.GetDirectoryName(path);
+            if (folder is not null && Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any())
+                Directory.Delete(folder);          // bibliothèque vide : son dossier part aussi
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            folders.Text = $"Le fichier n'a pas pu être effacé ({ex.Message}).";
+            return;
+        }
+        Fill(reload(), command.Library);
     }
 
     // « Modifier le code... » (D159) : éditeur d'assembleur, à côté (on peut en ouvrir plusieurs)

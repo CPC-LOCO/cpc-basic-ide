@@ -1232,6 +1232,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Taille réelle de STAR (mesurée ici) :** 2174 octets avec l'intérieur (dont 480 de listes et 184 de table des sinus) ; les estimations données plus tôt (environ 600 octets pour le contour seul, « presque rien de plus » pour D153) étaient trop basses : la partie intérieur (D152, D153) pèse à elle seule plus de 1000 octets.
 - **Pas encore :** « Modifier la fiche » et « Effacer ».
 
+## D160 : modifier la fiche, effacer une commande (20 nov. 2026) (demande de l'utilisateur ; façon de faire choisie par l'assistant) ; termine D157 et D159
+- **Demande de l'utilisateur :** « il faudra prévoir la possibilité de modifier/supprimer une commande ».
+- **« Modifier la fiche... » :** le questionnaire de D157, déjà rempli (nom, genre, bibliothèque, aide, auteur, valeurs) ; « Enregistrer » ; le code assembleur est gardé tel quel ; nom ou bibliothèque changé : le fichier est écrit à sa nouvelle place puis l'ancien est supprimé (refusé si un fichier existe déjà à la nouvelle place) ; même vérifications que pour une nouvelle commande (un nom déjà pris par une autre commande est refusé, le sien non).
+- **« Effacer » :** question « Effacer la commande X de la bibliothèque Y ? Son fichier sera supprimé : ... » avec « Garder » choisi au départ (comme D118) ; le dossier d'une bibliothèque devenue vide est supprimé aussi.
+- **Protection :** ces deux boutons ne marchent que pour les commandes du programmeur ; grisés pour celles du projet.
+- **Fenêtre :** les boutons du bas passent à la ligne si la fenêtre est étroite (Modifier le code, Modifier la fiche, Effacer, Nouvelle commande, Fermer).
+- **Core :** `LibraryCommandFile.SplitHeader` (fiche et code séparés), utilisé aussi par l'éditeur d'assembleur ; 1 test de plus.
+- **Essayé (20 nov. 2026) :** STAR grisée ; fiche de LUNE modifiée, code gardé ; ESSAI effacée : « tout marche comme tu l'as prévu ! C'est parfait ».
+
 ---
 
 ## Notes de fin de session (modèle)

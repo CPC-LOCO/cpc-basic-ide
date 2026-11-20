@@ -245,6 +245,25 @@ public static class LibraryCommandFile
         return text.ToString();
     }
 
+    /// <summary>
+    /// Sépare la fiche (les lignes « ;@ » du tout début, avec leur fin de ligne) du code qui suit (D159, D160).
+    /// Les fins de ligne sont ramenées à « \n ».
+    /// </summary>
+    public static (string Header, string Body) SplitHeader(string text)
+    {
+        text = text.Replace("\r\n", "\n");
+        int at = 0;
+        while (at < text.Length)
+        {
+            int end = text.IndexOf('\n', at);
+            string line = end < 0 ? text[at..] : text[at..end];
+            if (!line.TrimStart().StartsWith(";@"))
+                break;
+            at = end < 0 ? text.Length : end + 1;
+        }
+        return (text[..at], text[at..]);
+    }
+
     /// <summary>Code de départ d'une nouvelle commande (D157) : des commentaires qui expliquent quoi faire, puis RET.</summary>
     public static string StarterCode(string name, LibraryKind kind, IReadOnlyList<LibraryParameter> parameters)
     {

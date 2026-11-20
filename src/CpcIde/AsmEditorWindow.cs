@@ -60,7 +60,7 @@ public sealed class AsmEditorWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontSize = textSize;
 
-        (header, string body) = Split(command.Code);
+        (header, string body) = LibraryCommandFile.SplitHeader(command.Code);
         headerLines = header.Count(c => c == '\n');
 
         // Fiche rappelée en haut : écriture en BASIC, cases des valeurs, ce que doit faire le code
@@ -171,22 +171,6 @@ public sealed class AsmEditorWindow : Window
         Padding = new Thickness(16, 6),
         Margin = new Thickness(8, 0, 0, 0)
     };
-
-    // La fiche : les lignes « ;@ » du tout début du fichier ; le reste est le code
-    static (string Header, string Body) Split(string text)
-    {
-        text = text.Replace("\r\n", "\n");
-        int at = 0;
-        while (at < text.Length)
-        {
-            int end = text.IndexOf('\n', at);
-            string line = end < 0 ? text[at..] : text[at..end];
-            if (!line.TrimStart().StartsWith(";@"))
-                break;
-            at = end < 0 ? text.Length : end + 1;
-        }
-        return (text[..at], text[at..]);
-    }
 
     string FullText() => header + editor.Text.Replace("\r\n", "\n");
 

@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D143 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D160 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -41,7 +41,17 @@ Documents de référence :
 - **Journal :** on n'efface jamais une entrée ; si une décision change, on en ajoute une nouvelle qui renvoie à l'ancienne.
 - **Mots réservés :** chaque nouveau mot-clé empêche d'utiliser ce nom comme variable ; à signaler et à noter dans le journal.
 
-## 3. État au moment de la reprise (16 novembre 2026, fin d'après-midi)
+## 3. État au moment de la reprise (20 novembre 2026, matin)
+
+### Bibliothèques de commandes (19 et 20 nov. 2026, D144 à D160, pas encore publiées)
+
+- **Idée de l'utilisateur (D144) :** les programmeurs ajoutent leurs commandes et fonctions, écrites en assembleur, rangées par bibliothèque ; le compilateur ne prend que celles utilisées.
+- **Fait :** assembleur Z80 style WinAPE (`src\CpcBasic.Core\Assembly\Z80Assembler.cs`, D145) ; fichier d'une commande `NOM.cmd.asm` (extension provisoire) : fiche en lignes « ;@ » (NOM, GENRE, VALEUR, OPTION facultative, AIDE, AUTEUR) puis le code (D146, D150) ; catalogue des deux dossiers (projet : `bibliotheques\` du dépôt, copié à côté de CpcIde.exe, protégé ; programmeur : `Documents\CPC BASIC IDE\bibliotheques`, D147, D149) ; le compilateur cherche les mots inconnus au catalogue, range les valeurs dans leurs cases, ajoute la commande et les routines qu'elle appelle (D148) ; éditeur : commandes colorées (D154), fenêtre des bibliothèques à onglets Maj+F4 (D155, D156), questionnaire « Nouvelle commande » avec repère d'écriture en BASIC (D157, D158), éditeur d'assembleur avec Vérifier F5 et Enregistrer Ctrl+S, « Voir le code » pour les commandes protégées (D159), « Modifier la fiche » et « Effacer » (D160).
+- **Première commande du projet :** STAR (bibliothèque GRAPHIQUE, `bibliotheques\GRAPHIQUE\STAR.cmd.asm`) : `STAR x, y, rayon interne, rayon externe, pointes [, stylo] [, remplissage] [, angle]`, 2 à 16 pointes, contour et intérieur, essayée dans WinAPE (examples\etoiles.bas ; D150 à D153). Vérifiée avec un simulateur Python du texte assembleur (`essais\star\`). Taille : 2174 octets. POLYGON abandonnée (STAR fait les polygones).
+- **Reste (D144) :** étape B5, « Répertoire de distribution » (déposer un programme avec les commandes ajoutées qu'il utilise) ; choisir l'extension des fichiers de commande ; autres bibliothèques du projet (texte, son...).
+- **Tests :** 1839, tous réussis (20 nov. 2026).
+
+### État au 16 novembre 2026 (pour mémoire)
 
 - **Version publique :** 0.4.0 (pre-release GitHub v0.4.0, Windows 64 bits, 19 nov. 2026, commit 9f8811c ; D143). Tout ce qui suit D143 n'est pas encore publié. Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
 - **Dernier commit sur GitHub :** « Version 0.4.0 (D143) » (19 nov. 2026, **1673 tests**, tous réussis).
@@ -150,4 +160,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Le dernier commit est « Version 0.4.0 (D143) » ; 1673 tests passent. La version 0.4.0 est publiée (pre-release GitHub v0.4.0, 19 nov. 2026). Rien n'est en cours : propose-moi la suite (voir IDEES.md et les questions en attente), une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Les bibliothèques de commandes sont faites jusqu'à D160 (STAR, fenêtre des bibliothèques, éditeur d'assembleur) ; 1839 tests passent. La version publiée est 0.4.0. Propose-moi la suite (Répertoire de distribution, IDEES.md), une étape à la fois, une seule action par message.
