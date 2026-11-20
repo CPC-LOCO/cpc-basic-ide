@@ -1133,7 +1133,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Lignes de tête :** `;@NOM` (obligatoire, pareil que le nom du fichier) ; `;@GENRE COMMANDE`, `FONCTION` ou `ROUTINE` (obligatoire) ; `;@VALEUR nom, plus petite, plus grande, rôle` (une ligne par valeur, dans l'ordre où on les écrit en BASIC, 16 au plus) ; `;@AIDE` (une ou plusieurs lignes) ; `;@AUTEUR`.
 - **Noms :** lettres sans accent, chiffres et _, une lettre au début, 16 caractères au plus ; pas un nom de registre ou de condition du Z80 (A, HL, NZ...) ; une valeur ne s'appelle pas comme la commande.
 - **Routine :** pas de VALEUR, elle reçoit ses valeurs dans les registres (l'AIDE le dit).
-- **Extension :** provisoire `.cmd.asm`, à choisir par l'utilisateur (D144) ; elle est écrite à un seul endroit (`LibraryCommandFile.Extension`).
+- **Extension :** provisoire `.cmd.asm`, à choisir par l'utilisateur (D144) ; elle est écrite à un seul endroit (`LibraryCommandFile.Extension`). **Gardée définitivement (D165).**
 
 ## D147 : catalogue des bibliothèques, étape B2 (19 nov. 2026) (choix laissés à l'assistant par l'utilisateur) ; applique D144 et D146
 - **Fichier :** `src\CpcBasic.Core\Libraries\LibraryCatalog.cs` ; tests dans `tests\CpcBasic.Tests\LibraryCatalogTests.cs`.
@@ -1273,6 +1273,10 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Compiler (F5) :** enregistre le .asm, puis écrit NOM.dsk à côté (NOM.BIN et NOM.BAS) ; compte rendu : adresses de début et de fin, taille, adresse de lancement, routines des bibliothèques ajoutées, « RUN"NOM" » ; nom de 8 caractères au plus ; .dsk ouvert dans l'émulateur : message clair. Vérifier (Maj+F5) : même chose sans rien écrire.
 - **Fichiers :** `src\CpcIde\AsmProgramWindow.cs` (nouveau), MainWindow.axaml et .cs (menu).
 - **Essayé dans WinAPE (20 nov. 2026) :** l'exemple vérifié (&8000 à &8027, 40 octets), compilé en essais\bonjour.dsk (BONJOUR.BAS et BONJOUR.BIN, 1K chacun) ; RUN"BONJOUR" affiche « BONJOUR DE L'ASSEMBLEUR ! » puis Ready (retour au BASIC par RET).
+
+## D165 : extension des fichiers de commande : .cmd.asm, définitive (20 nov. 2026) (choix de l'utilisateur) ; tranche la question laissée ouverte par D144 et D146
+- **Choix proposés :** .asm (le plus simple), .cmd.asm (garder), .bib (court et français) ; **choix 2 : garder .cmd.asm** : on voit tout de suite que c'est une commande, et c'est de l'assembleur (tout éditeur de texte l'ouvre).
+- **Rien ne change dans le code** (`LibraryCommandFile.Extension`) ; ce n'est plus provisoire.
 
 ---
 

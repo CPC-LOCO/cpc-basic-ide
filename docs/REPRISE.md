@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D161 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D165 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -46,11 +46,12 @@ Documents de référence :
 ### Bibliothèques de commandes (19 et 20 nov. 2026, D144 à D161, publiées dans la 0.5.0)
 
 - **Idée de l'utilisateur (D144) :** les programmeurs ajoutent leurs commandes et fonctions, écrites en assembleur, rangées par bibliothèque ; le compilateur ne prend que celles utilisées.
-- **Fait :** assembleur Z80 style WinAPE (`src\CpcBasic.Core\Assembly\Z80Assembler.cs`, D145) ; fichier d'une commande `NOM.cmd.asm` (extension provisoire) : fiche en lignes « ;@ » (NOM, GENRE, VALEUR, OPTION facultative, AIDE, AUTEUR) puis le code (D146, D150) ; catalogue des deux dossiers (projet : `bibliotheques\` du dépôt, copié à côté de CpcIde.exe, protégé ; programmeur : `Documents\CPC BASIC IDE\bibliotheques`, D147, D149) ; le compilateur cherche les mots inconnus au catalogue, range les valeurs dans leurs cases, ajoute la commande et les routines qu'elle appelle (D148) ; éditeur : commandes colorées (D154), fenêtre des bibliothèques à onglets Maj+F4 (D155, D156), questionnaire « Nouvelle commande » avec repère d'écriture en BASIC (D157, D158), éditeur d'assembleur avec Vérifier F5 et Enregistrer Ctrl+S, « Voir le code » pour les commandes protégées (D159), « Modifier la fiche » et « Effacer » (D160).
+- **Fait :** assembleur Z80 style WinAPE (`src\CpcBasic.Core\Assembly\Z80Assembler.cs`, D145) ; fichier d'une commande `NOM.cmd.asm` (extension .cmd.asm, définitive, D165) : fiche en lignes « ;@ » (NOM, GENRE, VALEUR, OPTION facultative, AIDE, AUTEUR) puis le code (D146, D150) ; catalogue des deux dossiers (projet : `bibliotheques\` du dépôt, copié à côté de CpcIde.exe, protégé ; programmeur : `Documents\CPC BASIC IDE\bibliotheques`, D147, D149) ; le compilateur cherche les mots inconnus au catalogue, range les valeurs dans leurs cases, ajoute la commande et les routines qu'elle appelle (D148) ; éditeur : commandes colorées (D154), fenêtre des bibliothèques à onglets Maj+F4 (D155, D156), questionnaire « Nouvelle commande » avec repère d'écriture en BASIC (D157, D158), éditeur d'assembleur avec Vérifier F5 et Enregistrer Ctrl+S, « Voir le code » pour les commandes protégées (D159), « Modifier la fiche » et « Effacer » (D160).
 - **Première commande du projet :** STAR (bibliothèque GRAPHIQUE, `bibliotheques\GRAPHIQUE\STAR.cmd.asm`) : `STAR x, y, rayon interne, rayon externe, pointes [, stylo] [, remplissage] [, angle]`, 2 à 16 pointes, contour et intérieur, essayée dans WinAPE (examples\etoiles.bas ; D150 à D153). Vérifiée avec un simulateur Python du texte assembleur (`essais\star\`). Taille : 2174 octets. POLYGON abandonnée (STAR fait les polygones).
 - **Répertoire de distribution fait (D161)** : menu Fichier, « Préparer un dossier à distribuer... ». Étapes B1 à B5 toutes faites.
-- **Reste :** choisir l'extension des fichiers de commande (provisoire .cmd.asm) ; autres bibliothèques du projet (texte, son...) ; idée « Assembleur seul » (IDEES.md).
-- **Tests :** 1842, tous réussis (20 nov. 2026).
+- **Reste :** autres bibliothèques du projet (texte, son...) ; idée « Assembleur seul » (IDEES.md).
+- **Assembleur seul (D163, D164, après la 0.5.0) :** menu Assembleur de l'éditeur : fenêtre pour écrire un programme entièrement en assembleur (.asm), ORG obligatoire (&0400 à &A67B), RUN (lancement), WRITE acceptée sans effet, routines des bibliothèques appelées par leur nom ; F5 écrit NOM.dsk (NOM.BIN et chargeur NOM.BAS) ; essayé dans WinAPE.
+- **Tests :** 1856, tous réussis (20 nov. 2026).
 
 ### État au 16 novembre 2026 (pour mémoire)
 
@@ -161,4 +162,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Les bibliothèques de commandes sont faites jusqu'à D161 (STAR, fenêtre des bibliothèques, éditeur d'assembleur, dossier à distribuer) ; 1842 tests passent. La version publiée est 0.5.0 (20 nov. 2026). Propose-moi la suite (Répertoire de distribution, IDEES.md), une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Les bibliothèques de commandes (D144 à D161) et l'assembleur seul (D163, D164) sont faits ; 1856 tests passent. La version publiée est 0.5.0 (20 nov. 2026). Propose-moi la suite (Répertoire de distribution, IDEES.md), une étape à la fois, une seule action par message.

@@ -67,7 +67,7 @@ public sealed record LibraryCommand(
 /// </summary>
 public static class LibraryCommandFile
 {
-    /// <summary>Extension des fichiers de commande. Provisoire : l'utilisateur la choisira (D144, question 5).</summary>
+    /// <summary>Extension des fichiers de commande : .cmd.asm, choisie par l'utilisateur (D165).</summary>
     public const string Extension = ".cmd.asm";
 
     public const int MaxParameters = 16;
