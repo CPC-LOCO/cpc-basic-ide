@@ -1266,6 +1266,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Code :** `Z80Assembler` (ORG, RUN, WRITE permis seulement avec `StandaloneInfo` ; refusés dans une commande de bibliothèque comme avant), `AsmProgram` (Build et ToDisk) ; tests : AsmProgramTests.cs (14).
 - **Ensuite :** la fenêtre et le menu « Assembleur » (nouveau, ouvrir, enregistrer, vérifier, compiler).
 
+## D164 : fenêtre « Assembleur seul » (20 nov. 2026) (façon de faire choisie par l'assistant) ; suite de D163
+- **Où :** nouveau menu « Assembleur » de l'éditeur : « Nouveau programme assembleur », « Ouvrir un programme assembleur... » ; une fenêtre par programme.
+- **Fenêtre :** barre de menus Fichier (Nouveau Ctrl+N, Ouvrir Ctrl+O, Enregistrer Ctrl+S, Enregistrer sous Ctrl+Maj+S, Fermer Échap) et Compiler (Compiler F5, Vérifier Maj+F5), comme l'éditeur BASIC ; même papier bleu, même police et mêmes couleurs que l'éditeur des bibliothèques ; liste des fautes (Entrée ou double clic : aller à la ligne) ; titre avec une étoile tant que ce n'est pas enregistré, question avant de perdre des changements.
+- **Nouveau programme :** un petit exemple déjà écrit (ORG &8000, RUN DEBUT, affiche « BONJOUR DE L'ASSEMBLEUR ! » par TXT OUTPUT, RET).
+- **Compiler (F5) :** enregistre le .asm, puis écrit NOM.dsk à côté (NOM.BIN et NOM.BAS) ; compte rendu : adresses de début et de fin, taille, adresse de lancement, routines des bibliothèques ajoutées, « RUN"NOM" » ; nom de 8 caractères au plus ; .dsk ouvert dans l'émulateur : message clair. Vérifier (Maj+F5) : même chose sans rien écrire.
+- **Fichiers :** `src\CpcIde\AsmProgramWindow.cs` (nouveau), MainWindow.axaml et .cs (menu).
+- **Essayé dans WinAPE (20 nov. 2026) :** l'exemple vérifié (&8000 à &8027, 40 octets), compilé en essais\bonjour.dsk (BONJOUR.BAS et BONJOUR.BIN, 1K chacun) ; RUN"BONJOUR" affiche « BONJOUR DE L'ASSEMBLEUR ! » puis Ready (retour au BASIC par RET).
+
 ---
 
 ## Notes de fin de session (modèle)

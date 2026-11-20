@@ -273,6 +273,23 @@ public partial class MainWindow : Window
     void OnVersionClick(object? sender, RoutedEventArgs e) => ToggleCpcVersion();
     void OnVariablesClick(object? sender, RoutedEventArgs e) => ShowVariables();
     void OnLibrariesClick(object? sender, RoutedEventArgs e) => ShowLibraries();
+
+    // Assembleur seul (D163, D164) : une fenêtre par programme assembleur
+    void OnAsmNewClick(object? sender, RoutedEventArgs e) =>
+        new AsmProgramWindow(settings.LibraryFontSize, settings.FontSize).Show(this);
+
+    async void OnAsmOpenClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Ouvrir un programme assembleur",
+            AllowMultiple = false,
+            FileTypeFilter = new[] { new FilePickerFileType("Programme assembleur (*.asm)") { Patterns = new[] { "*.asm" } }, FilePickerFileTypes.All }
+        });
+        string? file = files.Count == 0 ? null : files[0].TryGetLocalPath();
+        if (file is not null)
+            new AsmProgramWindow(settings.LibraryFontSize, settings.FontSize, file).Show(this);
+    }
     void OnDebugClick(object? sender, RoutedEventArgs e) => ToggleDebug();
     void OnPriorityClick(object? sender, RoutedEventArgs e) => TogglePriority();
     void OnWrapClick(object? sender, RoutedEventArgs e)

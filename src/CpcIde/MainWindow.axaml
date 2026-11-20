@@ -87,6 +87,10 @@
                 <MenuItem Header="_Vérifier sans enregistrer" InputGesture="Shift+F5" Click="OnVerifyClick" />
                 <MenuItem Header="_Liste des variables" InputGesture="F4" Click="OnVariablesClick" />
             </MenuItem>
+            <MenuItem Header="_Assembleur">
+                <MenuItem Header="_Nouveau programme assembleur" Click="OnAsmNewClick" />
+                <MenuItem Header="_Ouvrir un programme assembleur..." Click="OnAsmOpenClick" />
+            </MenuItem>
             <MenuItem Header="_Bibliothèques">
                 <MenuItem Header="_Liste des bibliothèques" InputGesture="Shift+F4" Click="OnLibrariesClick" />
             </MenuItem>
