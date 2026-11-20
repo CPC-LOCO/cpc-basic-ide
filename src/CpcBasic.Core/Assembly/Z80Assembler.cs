@@ -11,6 +11,19 @@ using CpcBasic.Core.Codegen;
 
 namespace CpcBasic.Core.Assembly;
 
+/// <summary>
+/// Ce qu'un programme « assembleur seul » dit de lui-même (D163) : l'adresse de ORG et sa ligne, et l'adresse de lancement
+/// donnée par RUN (une étiquette plus un nombre, ou un nombre seul ; RunLine vaut 0 sans RUN).
+/// </summary>
+public sealed class StandaloneInfo
+{
+    public int? Origin { get; set; }
+    public int OriginLine { get; set; }
+    public string? RunLabel { get; set; }
+    public int RunNumber { get; set; }
+    public int RunLine { get; set; }
+}
+
 /// <summary>Une erreur trouvée dans le texte assembleur : numéro de ligne (à partir de 1) et explication.</summary>
 public sealed record AsmError(int Line, string Message)
 {
@@ -55,7 +68,7 @@ public static class Z80Assembler
         "SLL", "SL1", "RLD", "RRD", "BIT", "SET", "RES", "JP", "JR", "DJNZ", "CALL", "RET", "RETI", "RETN", "RST",
         "IN", "INI", "INIR", "IND", "INDR", "OUT", "OUTI", "OTIR", "OUTD", "OTDR",
         "EQU", "DEFB", "DB", "BYTE", "DEFW", "DW", "WORD", "DEFS", "DS", "DEFM", "TEXT",
-        "ORG", "READ", "INCLUDE", "MACRO", "MEND", "ENDM", "ALIGN", "END", "NOLIST", "LIST"
+        "ORG", "READ", "INCLUDE", "MACRO", "MEND", "ENDM", "ALIGN", "END", "NOLIST", "LIST", "RUN", "WRITE"
     ];
 
     static readonly Dictionary<string, int> Reg8 = new()
@@ -90,8 +103,11 @@ public static class Z80Assembler
     /// de la routine ; <paramref name="resolve"/> rend l'étiquette de l'émetteur pour un nom extérieur (ou null s'il est inconnu).
     /// Rend la liste des erreurs (vide si tout va bien) ; les noms extérieurs utilisés vont dans <paramref name="externals"/>.
     /// </summary>
+    /// <param name="standalone">Programme « assembleur seul » (D163) : ORG (au début, une fois), RUN (adresse de lancement)
+    /// et WRITE (acceptée, sans effet) sont permis et notés ici ; null pour une commande de bibliothèque (refusés).</param>
     public static IReadOnlyList<AsmError> Assemble(string source, Z80Emitter emitter, string prefix,
-                                                    Func<string, string?> resolve, ISet<string>? externals = null)
+                                                    Func<string, string?> resolve, ISet<string>? externals = null,
+                                                    StandaloneInfo? standalone = null)
     {
         var errors = new List<AsmError>();
         var lines = new List<Line>();
@@ -125,7 +141,11 @@ public static class Z80Assembler
             }
         }
 
-        var context = new Context(emitter, prefix, resolve, externals, locals, equs);
+        var context = new Context(emitter, prefix, resolve, externals, locals, equs)
+        {
+            Standalone = standalone,
+            StartSize = emitter.Size
+        };
 
         // 2e passage : les instructions
         foreach (Line line in lines)
@@ -274,6 +294,8 @@ public static class Z80Assembler
                          HashSet<string> locals, Dictionary<string, (string Text, int Line)> equs)
     {
         public readonly Z80Emitter Emitter = emitter;
+        public StandaloneInfo? Standalone { get; init; }
+        public int StartSize { get; init; }
         public int LineNumber;
         public string? Here;                 // étiquette « $ » de l'instruction en cours
         int hereCount;
@@ -680,7 +702,36 @@ public static class Z80Assembler
         switch (m)
         {
             case "ORG":
-                throw new AsmException("ORG n'est pas utile ici : le compilateur place lui-même la routine dans le programme.");
+            {
+                if (context.Standalone is not StandaloneInfo info)
+                    throw new AsmException("ORG n'est pas utile ici : le compilateur place lui-même la routine dans le programme.");
+                Count(line, 1);
+                if (info.Origin is not null)
+                    throw new AsmException($"un seul ORG pour l'instant : il y en a déjà un à la ligne {info.OriginLine}.");
+                if (context.Emitter.Size != context.StartSize)
+                    throw new AsmException("ORG doit venir avant la première instruction (c'est l'adresse où le programme est chargé).");
+                info.Origin = Constant(o[0], context, 0, 0xFFFF, "l'adresse de ORG");
+                info.OriginLine = line.Number;
+                return;
+            }
+            case "RUN":
+            {
+                if (context.Standalone is not StandaloneInfo info)
+                    throw new AsmException("RUN ne sert que dans un programme « assembleur seul » (adresse de lancement).");
+                Count(line, 1);
+                if (info.RunLine > 0)
+                    throw new AsmException($"RUN est déjà donné à la ligne {info.RunLine}.");
+                Value start = Evaluate(o[0], context);
+                context.PlaceHere();
+                info.RunLabel = start.Label;
+                info.RunNumber = start.Number;
+                info.RunLine = line.Number;
+                return;
+            }
+            case "WRITE":
+                if (context.Standalone is null)
+                    throw new AsmException("WRITE ne sert pas ici.");
+                return;                                                     // WinAPE : où écrire le programme ; ici, c'est « Compiler »
             case "READ" or "INCLUDE":
                 throw new AsmException($"{m} (inclure un autre fichier) n'existe pas encore : appelez plutôt une routine de bibliothèque par CALL.");
             case "MACRO" or "MEND" or "ENDM":

@@ -1257,6 +1257,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Paquet construit (20 nov. 2026) :** `release\CpcBasic-0.5.0-win-x64.zip`, SHA256 7560edacc72a78fd07117dea2b0b48e632d8e20102fc961b0b34c2084a0cd7b6 (même somme chez l'utilisateur et ici) ; contenu vérifié (bibliotheques\GRAPHIQUE\STAR.cmd.asm, exemples dont etoiles.bas, pas de ROM) ; essayé par l'utilisateur : etoiles.bas compilé depuis le paquet, « Bibliothèques utilisées : GRAPHIQUE (STAR) », 5543 octets.
 - **Publiée (20 nov. 2026) :** pre-release GitHub v0.5.0, « CPC BASIC IDE 0.5.0 (version de test) », commit 885ded1.
 
+## D163 : « assembleur seul », le cœur (20 nov. 2026) (idée de l'utilisateur ; choix : nom du fichier .asm, ORG de &0400 à &A67B par défaut)
+- **Idée de l'utilisateur :** un menu pour écrire un programme entièrement en assembleur, l'enregistrer en .asm et le compiler sur une disquette ; ORG obligatoire.
+- **Façon de WinAPE (vérifiée sur cpcwiki) :** `org &8000`, `run &8000` (adresse de lancement), `write direct "a:nom.bin"` (où écrire le résultat).
+- **Choix de l'utilisateur :** le nom vient du fichier : jeu.asm donne JEU.BIN (« comme les autres, la source .asm et le compilé en .bin ») ; WRITE est acceptée sans effet (un texte de WinAPE se colle sans changement). Adresses permises pour ORG : pas de réponse, choix conseillé appliqué et annoncé : de &0400 à &A67B (au-dessous, le chargeur BASIC serait écrasé ; au-dessus, la mémoire du système).
+- **Règles :** ORG au début (avant la première instruction), une seule fois ; RUN facultatif (étiquette ou nombre ; sinon l'adresse de ORG), une seule fois ; le programme ne doit pas dépasser &A67B ; les commandes et routines des bibliothèques appelées par leur nom sont ajoutées après le code (avec celles qu'elles appellent).
+- **Disquette :** NOM.BIN (chargement à ORG, lancement à RUN) et NOM.BAS (MEMORY ORG-1, LOAD, CALL lancement) : RUN"NOM" le lance ; un RET à la fin revient au BASIC.
+- **Code :** `Z80Assembler` (ORG, RUN, WRITE permis seulement avec `StandaloneInfo` ; refusés dans une commande de bibliothèque comme avant), `AsmProgram` (Build et ToDisk) ; tests : AsmProgramTests.cs (14).
+- **Ensuite :** la fenêtre et le menu « Assembleur » (nouveau, ouvrir, enregistrer, vérifier, compiler).
+
 ---
 
 ## Notes de fin de session (modèle)
