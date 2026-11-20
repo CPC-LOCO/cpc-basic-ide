@@ -1255,6 +1255,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **D016 :** aucune ROM dans le paquet (exemples .bas, documents, bibliothèque GRAPHIQUE seulement).
 - **Idée notée pour après (IDEES.md) :** « Assembleur seul » (question de l'utilisateur).
 - **Paquet construit (20 nov. 2026) :** `release\CpcBasic-0.5.0-win-x64.zip`, SHA256 7560edacc72a78fd07117dea2b0b48e632d8e20102fc961b0b34c2084a0cd7b6 (même somme chez l'utilisateur et ici) ; contenu vérifié (bibliotheques\GRAPHIQUE\STAR.cmd.asm, exemples dont etoiles.bas, pas de ROM) ; essayé par l'utilisateur : etoiles.bas compilé depuis le paquet, « Bibliothèques utilisées : GRAPHIQUE (STAR) », 5543 octets.
+- **Publiée (20 nov. 2026) :** pre-release GitHub v0.5.0, « CPC BASIC IDE 0.5.0 (version de test) », commit 885ded1.
 
 ---
 
