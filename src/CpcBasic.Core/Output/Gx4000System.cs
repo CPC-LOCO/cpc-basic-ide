@@ -19,13 +19,37 @@ namespace CpcBasic.Core.Output;
 /// Le programme compilé ne change pas : il appelle les mêmes adresses, nos routines répondent.
 /// Les routines tournent depuis la cartouche (ROM basse, toujours branchée) ; leurs variables sont en &amp;BE00.
 /// Manettes (D183) : JOY, et les touches de la table (tir 1 = espace, tir 2 = ENTRÉE, directions = flèches, plus les
-/// touches d'INKEY placées par le compilateur). Pas encore faits : PEN, PAPER, les fenêtres, le son, la saisie
-/// d'INPUT à la manette ; les autres adresses de la ROM répondent par un simple retour.
+/// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Pas encore faits :
+/// PEN, PAPER, les fenêtres, le son ; les autres adresses de la ROM répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
     /// <summary>Adresses fixes des routines, pour les tests : TXT OUTPUT, SCR SET MODE, TXT SET CURSOR, TXT GET CURSOR.</summary>
     public const int TxtOutputEntry = 0x0040, SetModeEntry = 0x0043, SetCursorEntry = 0x0046, GetCursorEntry = 0x0049;
+
+    /// <summary>
+    /// Saisie à la manette (D184), pour les tests : un passage de la boucle (retenue : fini, A = caractère rendu à INPUT ;
+    /// sinon on continue). Sans INPUT dans le programme, la routine n'est pas dans la cartouche : l'entrée rend « pas fini ».
+    /// </summary>
+    public const int WheelStepEntry = 0x004C;
+
+    /// <summary>
+    /// Variables de la saisie à la manette : lettre proposée (2 octets), début de son groupe (2 octets), lettre montrée
+    /// (sinon carré vide).
+    /// </summary>
+    public const int WheelLetter = 0xBE0A, WheelGroup = 0xBE0C, WheelShown = 0xBE10;
+
+    /// <summary>
+    /// Les groupes de la saisie à la manette (D184, schéma de l'utilisateur) : haut / bas changent de lettre dans le groupe
+    /// (en restant appuyé, ça défile), tir 2 passe au groupe suivant, droite écrit la lettre, gauche efface, tir 1 valide.
+    /// </summary>
+    public static readonly IReadOnlyList<string> WheelGroups =
+    [
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "abcdefghijklmnopqrstuvwxyz",
+        "0123456789",
+        " .,-+*/=!?()<>:;@#$%&_"
+    ];
 
     /// <summary>Variables du système : colonne et ligne du curseur (à partir de 0), octets par caractère, largeur...</summary>
     public const int Variables = 0xBE00;
@@ -43,6 +67,7 @@ public static class Gx4000System
                 JP SETMODE
                 JP SETCUR
                 JP GETCUR
+                JP MOLUN
         DEPART: IM 1
                 LD SP,&BFF0
                 LD BC,&7F89             ; Gate Array : MODE 1, cartouche gardée en &0000, ROM haute coupée
@@ -98,7 +123,7 @@ public static class Gx4000System
                 JR BRL
         BRFIN:  LD HL,&BE00             ; variables du système à zéro
                 LD DE,&BE01
-                LD BC,15
+                LD BC,31
                 LD (HL),0
                 LDIR
                 LD A,1
@@ -178,7 +203,13 @@ public static class Gx4000System
                 LD A,(DE)
                 INC DE
                 LD C,A
-                LD A,(&BE02)
+                LD A,(&BE0F)            ; dessin en couleurs inversées (lettre proposée, D184) ?
+                OR A
+                JR Z,LIGNE2
+                LD A,C
+                CPL
+                LD C,A
+        LIGNE2: LD A,(&BE02)
                 LD B,A                  ; octets par caractère
         OCTET:  LD A,(&BE04)
                 AND C
@@ -328,7 +359,8 @@ public static class Gx4000System
         VALIDE: SCF
                 RET
         ; ---------- manettes (D183) : lues comme le CPC, par la grille du clavier (lignes 9 et 6) ----------
-        ; &BE07 = manette 1, &BE08 = manette 2 : bit à 1 = appuyé (0 haut, 1 bas, 2 gauche, 3 droite, 4 tir 2, 5 tir 1)
+        ; &BE07 = manette 1, &BE08 = manette 2 : bit à 1 = appuyé (0 haut, 1 bas, 2 gauche, 3 droite, 4 tir 1, 5 tir 2 ;
+        ; tir 1 = le bouton principal, valeur 16 de JOY, comme le bouton unique des manettes du CPC, D184)
         LIRE:   LD BC,&F40E
                 OUT (C),C
                 LD BC,&F6C0
@@ -430,8 +462,8 @@ public static class Gx4000System
                 POP HL
                 SCF
                 RET
-        CARS:   DEFB &F0,&F1,&F2,&F3,13,32
-        CLES:   DEFB 0,2,8,1,18,47
+        CARS:   DEFB &F0,&F1,&F2,&F3,32,13
+        CLES:   DEFB 0,2,8,1,47,18
         ; ---------- KM WAIT CHAR (&BB06) / KM WAIT KEY (&BB18) : attend un appui ----------
         ATTCAR: CALL LITCAR
                 JR NC,ATTCAR
@@ -441,6 +473,7 @@ public static class Gx4000System
                 RET
         FLUX:   XOR A                   ; TXT STR SELECT : flux 0
                 RET
+        {3}
 
         CRTC:   DEFB 63,40,46,&8E,38,0,25,30,0,7,0,0,&30,0
         ENCRES: DEFB &44,&4A,&53,&4C,&44  ; bleu, jaune vif, bleu ciel vif, rouge vif ; bordure : bleu
@@ -454,12 +487,13 @@ public static class Gx4000System
                 DEFW &BB24,JOYST
                 DEFW &BB09,LITCAR
                 DEFW &BB1B,LITCLE
-                DEFW &BB06,ATTCAR
+                DEFW &BB06,{4}
                 DEFW &BB18,ATTCLE
                 DEFW &BBB4,FLUX
                 DEFW &BC0E,SETMODE
                 DEFW 0
         TOUCHES: {2}
+        {5}
         POLICE: {1}
         PROG:
         """;
@@ -469,11 +503,12 @@ public static class Gx4000System
 
     /// <summary>
     /// Correspondance de base (D183) : tir 1 = espace (47), tir 2 = ENTRÉE (18 et 6), directions = flèches (0, 2, 8, 1),
+    /// le tir 1 étant le bouton principal, bit 4 (valeur 16 de JOY) : D184, essai de l'utilisateur dans AMSpiriT ;
     /// et les touches de la manette elles-mêmes (72 à 77 pour la manette 1, 48 à 53 pour la manette 2).
     /// </summary>
     public static readonly IReadOnlyList<KeyLink> BaseKeys =
     [
-        new(47, 0, 0x20), new(18, 0, 0x10), new(6, 0, 0x10),
+        new(47, 0, 0x10), new(18, 0, 0x20), new(6, 0, 0x20),
         new(0, 0, 0x01), new(2, 0, 0x02), new(8, 0, 0x04), new(1, 0, 0x08),
         new(72, 0, 0x01), new(73, 0, 0x02), new(74, 0, 0x04), new(75, 0, 0x08), new(76, 0, 0x10), new(77, 0, 0x20),
         new(48, 1, 0x01), new(49, 1, 0x02), new(50, 1, 0x04), new(51, 1, 0x08), new(52, 1, 0x10), new(53, 1, 0x20)
@@ -485,16 +520,198 @@ public static class Gx4000System
     /// </summary>
     public static readonly IReadOnlyList<(int Joystick, int Buttons, string Name)> FreeButtons =
     [
-        (0, 0x10, "au tir 2 de la manette 1"),
+        (0, 0x20, "au tir 2 de la manette 1"),
         (0, 0x30, "aux tirs 1 et 2 de la manette 1 appuyés ensemble"),
         (1, 0x01, "au haut de la manette 2"), (1, 0x02, "au bas de la manette 2"),
         (1, 0x04, "à la gauche de la manette 2"), (1, 0x08, "à la droite de la manette 2"),
-        (1, 0x20, "au tir 1 de la manette 2"), (1, 0x10, "au tir 2 de la manette 2"),
+        (1, 0x10, "au tir 1 de la manette 2"), (1, 0x20, "au tir 2 de la manette 2"),
         (1, 0x30, "aux tirs 1 et 2 de la manette 2 appuyés ensemble")
     ];
 
+    const string Wheel = """
+        ; ---------- KM WAIT CHAR (&BB06) avec INPUT (D184) : saisie à la manette ----------
+        ; lettre proposée en couleurs inversées là où elle va s'écrire ; haut / bas : lettre précédente / suivante
+        ; (défile en restant appuyé) ; tir 2 : groupe suivant ; droite : écrit la lettre ; gauche : efface (DEL) ;
+        ; tir 1 : valide (13). &BE0A : lettre proposée, &BE0C : début de son groupe, &BE0E : compteur du défilement.
+        ; Ce qu'on voit est ce qu'on obtient (essai de l'utilisateur) : après une lettre écrite et au début de chaque
+        ; INPUT, un carré vide (&BE10 = 0) ; droite sur le carré vide écrit un espace ; haut / bas repartent de la
+        ; dernière lettre (la toute première fois, A est montré sans bouger, &BE12) ; tir 1 avec une lettre montrée :
+        ; la lettre est écrite, puis la saisie validée (&BE11 : 13 en attente).
+        MOLETTE: PUSH BC
+                PUSH DE
+                PUSH HL
+                CALL MOLINIT
+                CALL MONTRE
+        MOLB:   CALL MOLUN
+                JR C,MOLRET
+                CALL PAUSE
+                JR MOLB
+        MOLRET: POP HL
+                POP DE
+                POP BC
+                RET
+        MOLINIT: LD HL,(&BE0A)
+                LD A,H
+                OR L
+                RET NZ
+                LD HL,GROUPES
+                LD (&BE0A),HL
+                LD (&BE0C),HL
+                LD A,1
+                LD (&BE12),A            ; première fois : A montré sans bouger
+                RET
+        ; un passage : retenue = fini (A = caractère) ; sinon, pas fini
+        MOLUN:  CALL MOLINIT
+                LD A,(&BE11)            ; 13 en attente (tir 1 après une lettre montrée)
+                OR A
+                JR Z,MOLU1
+                XOR A
+                LD (&BE11),A
+                CALL EFFACE
+                LD A,13
+                SCF
+                RET
+        MOLU1:  CALL LIRE
+                LD A,(&BE09)
+                CPL
+                LD C,A
+                LD A,(&BE07)
+                LD (&BE09),A
+                LD B,A                  ; boutons tenus
+                AND C
+                LD E,A                  ; boutons qui viennent d'être appuyés
+                BIT 3,E
+                JP NZ,MOLDR
+                BIT 2,E
+                JP NZ,MOLGA
+                BIT 4,E                 ; tir 1 (bit 4) : valider
+                JP NZ,MOLT1
+                BIT 5,E                 ; tir 2 (bit 5) : groupe suivant
+                JP NZ,MOLT2
+                LD A,E
+                AND 3
+                JR NZ,MOLHB
+                LD A,B
+                AND 3
+                JR Z,MOLRIEN            ; ni haut ni bas tenu
+                LD HL,&BE0E
+                DEC (HL)
+                JR NZ,MOLRIEN
+                LD (HL),4               ; tenu : une lettre toutes les 4 attentes
+                JR MOLHB2
+        MOLHB:  LD A,15                 ; nouvel appui : une lettre, puis attente avant de défiler
+                LD (&BE0E),A
+        MOLHB2: LD HL,(&BE0A)
+                LD A,(&BE12)
+                OR A
+                JR NZ,MOLNOUV           ; toute première fois : la lettre est montrée sans bouger
+                BIT 0,B
+                JR Z,MOLBAS
+                LD DE,(&BE0C)           ; haut : lettre précédente
+                OR A
+                SBC HL,DE
+                ADD HL,DE
+                JR NZ,MOLPREC
+        MOLDER: INC HL                  ; au début du groupe : la dernière lettre du groupe
+                LD A,(HL)
+                OR A
+                JR NZ,MOLDER
+        MOLPREC: DEC HL
+                JR MOLNOUV
+        MOLBAS: INC HL                  ; bas : lettre suivante ; après la dernière, la première
+                LD A,(HL)
+                OR A
+                JR NZ,MOLNOUV
+                LD HL,(&BE0C)
+                JR MOLNOUV
+        MOLT2:  LD HL,(&BE0C)           ; tir 2 : groupe suivant, à sa première lettre
+        MOLT2A: LD A,(HL)
+                INC HL
+                OR A
+                JR NZ,MOLT2A
+                LD A,(HL)
+                CP &FF
+                JR NZ,MOLT2B
+                LD HL,GROUPES
+        MOLT2B: LD (&BE0C),HL
+        MOLNOUV: LD (&BE0A),HL
+                XOR A
+                LD (&BE12),A
+                INC A
+                LD (&BE10),A            ; une lettre est montrée
+                CALL MONTRE
+        MOLRIEN: OR A
+                RET
+        MOLDR:  CALL EFFACE             ; droite : la lettre montrée, ou un espace sur le carré vide
+                LD A,(&BE10)
+                OR A
+                LD A,32
+                JR Z,MOLDR2
+                LD HL,(&BE0A)
+                LD A,(HL)
+        MOLDR2: LD B,A
+                XOR A
+                LD (&BE10),A            ; ensuite : carré vide
+                LD A,B
+                SCF
+                RET
+        MOLGA:  CALL EFFACE             ; gauche : DEL, efface la lettre d'avant
+                LD A,127
+                SCF
+                RET
+        MOLT1:  CALL EFFACE             ; tir 1 : la saisie est finie
+                LD A,(&BE10)
+                OR A
+                LD A,13
+                JR Z,MOLT1R
+                XOR A                   ; une lettre est montrée : elle est écrite d'abord, 13 ensuite
+                LD (&BE10),A
+                INC A
+                LD (&BE11),A
+                LD HL,(&BE0A)
+                LD A,(HL)
+        MOLT1R: SCF
+                RET
+        ; la lettre proposée en couleurs inversées, ou un espace normal, sans bouger le curseur
+        MONTRE: LD A,(&BE10)            ; carré vide (un espace inversé) ou la lettre proposée
+                OR A
+                LD A,32
+                JR Z,MONTRE2
+                LD HL,(&BE0A)
+                LD A,(HL)
+        MONTRE2: LD B,&FF
+                JR DESSINE
+        EFFACE: LD A,32
+                LD B,0
+        DESSINE: LD C,A
+                LD A,(&BE03)
+                LD D,A
+                LD A,(&BE00)
+                CP D
+                RET NC                  ; au bout de la ligne : rien à montrer
+                LD A,B
+                LD (&BE0F),A
+                LD HL,(&BE00)
+                PUSH HL
+                LD A,C
+                CALL TXTOUT
+                POP HL
+                LD (&BE00),HL
+                XOR A
+                LD (&BE0F),A
+                RET
+        ; environ 1/50 de seconde
+        PAUSE:  LD D,24
+        PAUSE1: LD B,0
+        PAUSE2: DJNZ PAUSE2
+                DEC D
+                JR NZ,PAUSE1
+                RET
+        """;
+
     /// <summary>Le système seul, pour un programme de la longueur donnée (sans le programme).</summary>
-    public static byte[] SystemCode(int programLength, IEnumerable<KeyLink>? extraKeys = null)
+    /// <param name="withInput">Vrai si le programme utilise INPUT ou LINE INPUT : la saisie à la manette est ajoutée (D184).</param>
+    public static byte[] SystemCode(int programLength, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false)
     {
         string keys = string.Join(",", BaseKeys.Concat(extraKeys ?? []).Select(k => $"{k.Key},{k.Joystick},&{k.Buttons:X2}")) + ",&FF";
         var font = new StringBuilder();
@@ -506,7 +723,12 @@ public static class Gx4000System
             font.Append("DEFB ").Append(string.Join(",", glyphs.Skip(i).Take(8).Select(b => $"&{b:X2}")));
         }
         string source = Template.Replace("{0}", programLength.ToString()).Replace("{1}", font.ToString())
-                                .Replace("{2}", "DEFB " + keys);
+                                .Replace("{2}", "DEFB " + keys)
+                                .Replace("{3}", withInput ? Wheel.Trim() : "MOLUN:  OR A                   ; pas de saisie à la manette\n                RET")
+                                .Replace("{4}", withInput ? "MOLETTE" : "ATTCAR")
+                                .Replace("{5}", withInput
+                                    ? "GROUPES: DEFB " + string.Join(",0,", WheelGroups.Select(g => string.Join(",", g.Select(c => (int)c)))) + ",0,&FF"
+                                    : "");
         var emitter = new Z80Emitter(0);
         IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(source, emitter, "gx_", _ => null);
         if (errors.Count > 0)
@@ -515,9 +737,9 @@ public static class Gx4000System
     }
 
     /// <summary>La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000).</summary>
-    public static CartridgeImage Build(byte[] program, IEnumerable<KeyLink>? extraKeys = null)
+    public static CartridgeImage Build(byte[] program, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false)
     {
-        byte[] system = SystemCode(program.Length, extraKeys);
+        byte[] system = SystemCode(program.Length, extraKeys, withInput);
         if (system.Length + program.Length > CartridgeImage.PageSize)
             throw new InvalidOperationException(
                 $"Le programme fait {program.Length} octets : pour l'instant, une cartouche en accepte {CartridgeImage.PageSize - system.Length} au plus.");

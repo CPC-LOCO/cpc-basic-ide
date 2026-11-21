@@ -172,12 +172,12 @@ public class Gx4000SystemTests
     }
 
     [Theory]
-    [InlineData(0x20, 47, true)]                              // tir 1 = espace
-    [InlineData(0x20, 77, true)]                              // tir 1 = touche 77 de la manette
-    [InlineData(0x10, 18, true)]                              // tir 2 = ENTRÉE
+    [InlineData(0x10, 47, true)]                              // tir 1 (bit 4) = espace
+    [InlineData(0x10, 76, true)]                              // tir 1 = touche 76 de la manette
+    [InlineData(0x20, 18, true)]                              // tir 2 (bit 5) = ENTRÉE
     [InlineData(0x01, 0, true)]                               // haut = flèche haut
     [InlineData(0x00, 47, false)]                             // rien d'appuyé
-    [InlineData(0x20, 67, false)]                             // Q : pas dans la table
+    [InlineData(0x10, 67, false)]                             // Q : pas dans la table
     public void KM_TEST_KEY_lit_la_manette(byte pad, int key, bool pressed)
     {
         Assert.Equal(pressed, TestKey(Pads(pad), key));
@@ -189,13 +189,13 @@ public class Gx4000SystemTests
         var q = new[] { new Gx4000System.KeyLink(67, 0, 0x30) };   // Q = tirs 1 et 2 ensemble
 
         Assert.True(TestKey(Pads(0x30, extra: q), 67));
-        Assert.False(TestKey(Pads(0x20, extra: q), 67));
+        Assert.False(TestKey(Pads(0x10, extra: q), 67));
     }
 
     [Fact]
     public void KM_GET_JOYSTICK_rend_les_deux_manettes()
     {
-        MiniZ80 cpu = Pads(0x21, 0x04);                       // manette 1 : haut + tir 1 ; manette 2 : gauche
+        MiniZ80 cpu = Pads(0x21, 0x04);                       // manette 1 : haut + tir 2 ; manette 2 : gauche
         cpu.Call(EntryOf(0xBB24, cpu));
 
         Assert.Equal(0x21, cpu.H);
@@ -205,7 +205,7 @@ public class Gx4000SystemTests
     [Fact]
     public void KM_READ_CHAR_donne_un_espace_au_tir_1_une_seule_fois()
     {
-        MiniZ80 cpu = Pads(0x20);
+        MiniZ80 cpu = Pads(0x10);
         int entry = EntryOf(0xBB09, cpu);
         cpu.Call(entry);
         Assert.True(cpu.CarryFlag);
@@ -247,5 +247,121 @@ public class Gx4000SystemTests
         Assert.Equal(2, result.Notes.Count);
         Assert.Contains("calculé", result.Notes[0]);
         Assert.Contains("INPUT", result.Notes[1]);
+    }
+
+    // ---------- saisie à la manette pour INPUT (D184) ----------
+
+    static MiniZ80 Wheel()
+    {
+        var cpu = new MiniZ80 { UpperRomEnabled = false };
+        cpu.Load(Gx4000System.SystemCode(0, null, withInput: true), 0);
+        Mode(cpu, 1);
+        return cpu;
+    }
+
+    // un passage de la boucle avec ces boutons de la manette 1 ; rend le caractère si la saisie avance, sinon null
+    static char? Step(MiniZ80 cpu, byte pad)
+    {
+        cpu.Ports[0xF449] = (byte)~pad;
+        cpu.Call(Gx4000System.WheelStepEntry);
+        return cpu.CarryFlag ? (char)cpu.A : null;
+    }
+
+    static char Proposed(MiniZ80 cpu) =>
+        (char)cpu.Memory[cpu.Memory[Gx4000System.WheelLetter] | cpu.Memory[Gx4000System.WheelLetter + 1] << 8];
+
+    [Theory]
+    [InlineData(0x08, ' ')]                                   // droite sur le carré vide du départ : un espace
+    [InlineData(0x04, (char)127)]                             // gauche : DEL
+    [InlineData(0x10, (char)13)]                              // tir 1 : la saisie est finie
+    public void Droite_gauche_et_tir_1(byte pad, char expected)
+    {
+        Assert.Equal(expected, Step(Wheel(), pad));
+    }
+
+    [Fact]
+    public void Bas_et_haut_changent_de_lettre_dans_le_groupe()
+    {
+        MiniZ80 cpu = Wheel();
+        Assert.Null(Step(cpu, 0x02));                         // toute première fois : A montré sans bouger
+        Assert.Equal('A', Proposed(cpu));
+        Assert.Equal(1, cpu.Memory[Gx4000System.WheelShown]);
+        Step(cpu, 0x00);
+        Step(cpu, 0x02);                                      // bas : B
+        Assert.Equal('B', Proposed(cpu));
+        Step(cpu, 0x00);
+        Step(cpu, 0x01);                                      // haut : A
+        Step(cpu, 0x00);
+        Step(cpu, 0x01);                                      // haut au début du groupe : Z
+        Assert.Equal('Z', Proposed(cpu));
+        Step(cpu, 0x00);
+        Assert.Equal('Z', Step(cpu, 0x08));                   // droite : Z est écrite
+        Assert.Equal(0, cpu.Memory[Gx4000System.WheelShown]); // ensuite : carré vide
+        Step(cpu, 0x00);
+        Assert.Equal(' ', Step(cpu, 0x08));                   // droite sur le carré vide : un espace
+        Step(cpu, 0x00);
+        Step(cpu, 0x01);                                      // haut repart de la dernière lettre : Y
+        Assert.Equal('Y', Proposed(cpu));
+    }
+
+    [Fact]
+    public void Tir_1_avec_une_lettre_montree_l_ecrit_puis_valide()
+    {
+        MiniZ80 cpu = Wheel();
+        Step(cpu, 0x02);                                      // A montré
+        Step(cpu, 0x00);
+
+        Assert.Equal('A', Step(cpu, 0x10));                   // tir 1 : la lettre d'abord...
+        Assert.Equal((char)13, Step(cpu, 0x10));              // ... puis la fin de la saisie, au passage suivant
+        Assert.Equal(0, cpu.Memory[Gx4000System.WheelShown]);
+    }
+
+    [Fact]
+    public void Le_tir_2_passe_au_groupe_suivant()
+    {
+        MiniZ80 cpu = Wheel();
+        var firsts = new List<char>();
+        for (int i = 0; i < 4; i++)
+        {
+            Step(cpu, 0x20);                                  // tir 2
+            firsts.Add(Proposed(cpu));
+            Step(cpu, 0x00);                                  // on relâche
+        }
+
+        Assert.Equal(new[] { 'a', '0', ' ', 'A' }, firsts);   // minuscules, chiffres, signes, puis retour
+    }
+
+    [Fact]
+    public void La_lettre_proposee_est_montree_en_couleurs_inversees_puis_effacee()
+    {
+        MiniZ80 cpu = Wheel();
+        Step(cpu, 0x02);                                      // A : première ligne ..###.. = &38, inversée &C7
+
+        Assert.Equal(new byte[] { 0xC0, 0x70 }, cpu.Memory[0xC000..0xC002]);   // MODE 1 : stylo 1 autour de la lettre
+        Step(cpu, 0x00);
+        Step(cpu, 0x08);                                      // droite : effacée (INPUT écrira la lettre lui-même)
+        Assert.Equal(new byte[] { 0x00, 0x00 }, cpu.Memory[0xC000..0xC002]);
+        Assert.Equal(0, cpu.Memory[Gx4000System.Variables]);  // le curseur n'a pas bougé
+    }
+
+    [Fact]
+    public void Sans_INPUT_pas_de_saisie_a_la_manette()
+    {
+        var cpu = new MiniZ80 { UpperRomEnabled = false };
+        cpu.Load(Gx4000System.SystemCode(0), 0);
+        cpu.Call(Gx4000System.WheelStepEntry);
+
+        Assert.False(cpu.CarryFlag);
+        Assert.True(Gx4000System.SystemCode(0).Length + 200 < Gx4000System.SystemCode(0, null, true).Length);
+    }
+
+    [Fact]
+    public void Avec_INPUT_le_compilateur_ajoute_la_saisie_et_le_dit()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 INPUT \"NOM\";N$\n20 PRINT N$\n30 LINE INPUT A$");
+
+        Assert.NotNull(result.Cartridge);
+        Assert.Single(result.Notes);                          // un seul message, même avec deux saisies
+        Assert.Contains("saisie à la manette", result.Notes[0]);
     }
 }

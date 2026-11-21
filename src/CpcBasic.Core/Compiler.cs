@@ -142,7 +142,7 @@ public static class Compiler
     /// Cartouche GX4000 (D182) : le programme compilé (avec chargeur : pas de disquette rebranchée au départ), précédé
     /// de notre petit système (Gx4000System). Manettes (D183) : chaque touche d'INKEY(n) écrite en clair qui n'est pas
     /// dans la correspondance de base reçoit un bouton libre (Notes le dit) ; plus de bouton libre : Problems, pas de
-    /// cartouche. INKEY avec un numéro calculé, INPUT et LINE INPUT : un avertissement dans Notes.
+    /// cartouche. INKEY avec un numéro calculé : un avertissement dans Notes. INPUT, LINE INPUT : saisie à la manette (D184).
     /// </summary>
     public static CartridgeResult CompileToCartridge(string source, CompilerOptions? options = null)
     {
@@ -155,12 +155,16 @@ public static class Compiler
         var problems = new List<string>();
         var links = new List<Gx4000System.KeyLink>();
         var placed = new HashSet<int>(Gx4000System.BaseKeys.Select(k => k.Key));
+        bool withInput = false;
         foreach (Statement statement in program!.Statements)
         {
-            if (statement is InputStatement or LineInputStatement)
-                notes.Add($"Ligne {statement.SourceLine} : {(statement is InputStatement ? "INPUT" : "LINE INPUT")} " +
-                          "attend le clavier : sur la console, seuls le tir 1 (espace) et le tir 2 (ENTRÉE) répondent pour l'instant " +
-                          "(la saisie à la manette viendra à l'étape suivante).");
+            if (statement is InputStatement or LineInputStatement && !withInput)
+            {
+                withInput = true;                       // D184 : une seule fois, la saisie à la manette est ajoutée
+                notes.Add($"Ligne {statement.SourceLine} : {(statement is InputStatement ? "INPUT" : "LINE INPUT")} : sur la console, " +
+                          "saisie à la manette : haut et bas changent de lettre, le tir 2 change de groupe (majuscules, minuscules, " +
+                          "chiffres, signes), droite écrit la lettre, gauche efface, le tir 1 valide.");
+            }
             foreach (Expression expression in AstWalker.All(statement))
             {
                 if (expression is not CallExpression { Function: "INKEY" } inkey || inkey.Arguments.Count == 0)
@@ -182,12 +186,12 @@ public static class Compiler
                 (int joystick, int buttons, string name) = Gx4000System.FreeButtons[links.Count];
                 links.Add(new Gx4000System.KeyLink(key, joystick, buttons));
                 notes.Add($"Ligne {statement.SourceLine} : INKEY({key}) : sur la console, la touche {key} correspondra {name}." +
-                          (joystick == 0 && buttons == 0x10 ? " Le tir 2 sert aussi de touche ENTRÉE : il « appuie » sur les deux." : ""));
+                          (joystick == 0 && buttons == 0x20 ? " Le tir 2 sert aussi de touche ENTRÉE : il « appuie » sur les deux." : ""));
             }
         }
         if (problems.Count > 0)
             return new CartridgeResult([], null, code!.Length, notes, problems);
-        return new CartridgeResult([], Gx4000System.Build(code!, links), code!.Length, notes, problems);
+        return new CartridgeResult([], Gx4000System.Build(code!, links, withInput), code!.Length, notes, problems);
     }
 
     /// <summary>
