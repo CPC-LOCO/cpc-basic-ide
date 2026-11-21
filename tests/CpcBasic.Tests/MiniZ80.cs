@@ -9,18 +9,14 @@ using CpcBasic.Core.Codegen;
 namespace CpcBasic.Tests;
 
 /// <summary>
-/// Mini-émulateur Z80 pour les tests : il ne connaît que les instructions utilisées par les modules
-/// de la bibliothèque (PrintInt, Mul16, Div16, Pixel, Box...). Seuls les indicateurs Z (zéro) et C (retenue)
-/// sont gérés. Un appel au firmware &amp;BB5A (afficher un caractère) est capté dans Output.
-/// Si un module utilise une instruction inconnue, l'émulateur le dit : il suffit de l'ajouter ici.
+/// Mini-émulateur Z80 pour les tests. Depuis D176, il connaît toutes les instructions du Z80 et tous les indicateurs
+/// (MiniZ80.Core.cs). Ici : la mémoire, la pile, et la simulation du firmware (CallTo, JumpTo) : un appel au firmware
+/// &amp;BB5A (afficher un caractère) est capté dans Output, le tracé va dans la mémoire de l'écran, etc.
 /// </summary>
-internal sealed class MiniZ80
+internal sealed partial class MiniZ80
 {
     public byte A, B, C, D, E, H, L;
-    public bool CarryFlag, ZeroFlag;
 
-    /// <summary>Indicateur de débordement signé (P/V), mis à jour par ADC HL,DE ; lu par JP PE (boucles FOR, D058).</summary>
-    public bool OverflowFlag;
     public readonly byte[] Memory = new byte[65536];
     public readonly StringBuilder Output = new();
 
@@ -592,1001 +588,495 @@ internal sealed class MiniZ80
             pc = 0xBDE8;                                               // point suivant : par l'entrée SCR WRITE
             return;
         }
-        int opcodeAddress = pc;
-        byte op = Fetch();
+        Execute(pc);
+    }
 
-        switch (op)
+    // JumpTo : simulé par le firmware de MiniZ80, sinon vrai saut (D176 : sorti de l'ancienne grande instruction switch)
+    void JumpTo(ushort target)
+    {
+        do
         {
-            case 0x00: break;                                          // NOP
+            if (target >= 0xB900 && Memory[target] == 0xC3)
+            {
+                pc = target;                                       // entrée du firmware détournée (PRINT #9, D084)
+                break;
+            }
+            if (target == 0xB90C)
+            {
+                UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
+                pc = Pop();
+            }
+            else if (target == 0xBB75)
+            {
+                CursorMoves.Add((H, L));                           // JP TXT SET CURSOR (éditeur de ligne, D076)
+                pc = Pop();
+            }
+            else if (target == 0xBB8A || target == 0xBB8D)
+            {
+                pc = Pop();                                        // JP TXT PLACE / REMOVE CURSOR (D076)
+            }
+            else if (target == 0xBCE9)
+            {
+                TickRoutine = EventRoutine;                        // JP KL ADD TICKER (rt_ev_init, D079)
+                pc = Pop();
+            }
+            else if (target == 0xBBAB)
+            {
+                FirstUserChar = DE;                                // JP TXT SET M TABLE (sortie de rt_symafter, D075)
+                MatrixTables.Add((DE, HL));
+                pc = Pop();
+            }
+            else if (target == 0xBBB4)
+            {
+                SelectStream();                                    // JP TXT STR SELECT (sortie de rt_stream, D072)
+                pc = Pop();
+            }
+            else if (target == 0xBB5A)
+            {
+                TextOutput(A);                                     // JP TXT OUTPUT (sortie de rt_fp_out, D070)
+                pc = Pop();
+            }
+            else if (FirmwareMathsCall(target))
+            {
+                pc = Pop();                                        // routine de calcul : retour à l'appelant
+            }
+            else
+            {
+                pc = target;
+            }
+            break;
+        }
+        while (false);
+    }
 
-            // Chargements
-            case 0x06: B = Fetch(); break;                             // LD B,n
-            case 0x16: D = Fetch(); break;                             // LD D,n
-            case 0x26: H = Fetch(); break;                             // LD H,n
-            case 0x2E: L = Fetch(); break;                             // LD L,n
-            case 0x3A: A = Memory[Fetch16()]; break;                   // LD A,(nn)
-            case 0x32: Memory[Fetch16()] = A; break;                   // LD (nn),A
-            case 0x7E: A = ReadMemory(HL); break;                      // LD A,(HL)
-            case 0x77: Memory[HL] = A; break;                          // LD (HL),A
-            case 0x7B: A = E; break;                                   // LD A,E
-            case 0x3E: A = Fetch(); break;                             // LD A,n
-            case 0x21: HL = Fetch16(); break;                          // LD HL,nn
-            case 0x11: DE = Fetch16(); break;                          // LD DE,nn
-            case 0x44: B = H; break;                                   // LD B,H
-            case 0x47: B = A; break;                                   // LD B,A
-            case 0x45: B = L; break;                                   // LD B,L (D092)
-            case 0x48: C = B; break;                                   // LD C,B (D086)
-            case 0x4D: C = L; break;                                   // LD C,L
-            case 0x4F: C = A; break;                                   // LD C,A
-            case 0x57: D = A; break;                                   // LD D,A
-            case 0x5F: E = A; break;                                   // LD E,A
-            case 0x67: H = A; break;                                   // LD H,A
-            case 0x69: L = C; break;                                   // LD L,C
-            case 0x6F: L = A; break;                                   // LD L,A
-            case 0x78: A = B; break;                                   // LD A,B
-            case 0x79: A = C; break;                                   // LD A,C
-            case 0x7A: A = D; break;                                   // LD A,D
-            case 0x7C: A = H; break;                                   // LD A,H
-            case 0x7D: A = L; break;                                   // LD A,L
-            case 0xEB: (DE, HL) = (HL, DE); break;                     // EX DE,HL
-
-            // Addition 16 bits
-            case 0x09: AddHl(BC); break;                               // ADD HL,BC
-            case 0x19: AddHl(DE); break;                               // ADD HL,DE
-            case 0x29: AddHl(HL); break;                               // ADD HL,HL
-
-            // Compteurs et opérations sur A
-            case 0x23: HL = (ushort)(HL + 1); break;                   // INC HL
-            case 0x2A:                                                 // LD HL,(nn)
+    // CallTo : simulé par le firmware de MiniZ80, sinon vrai saut (D176 : sorti de l'ancienne grande instruction switch)
+    void CallTo(ushort address)
+    {
+        do
+        {
+            if (address is 0xBB39 or 0xBB27 or 0xBB2D or 0xBB33)
             {
-                int at = Fetch16();
-                HL = (ushort)(Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8));
+                KeyCalls.Add((address, A, B));                     // KM SET REPEAT / TRANSLATE / SHIFT / CONTROL (D092)
                 break;
             }
-            case 0x22:                                                 // LD (nn),HL
+            if (address == 0xBB0F)
             {
-                int at = Fetch16();
-                Memory[at] = L;
-                Memory[(at + 1) & 0xFFFF] = H;
+                Expansions[B] = System.Text.Encoding.ASCII.GetString(Memory, HL, C);   // KM SET EXPAND (D092)
+                CarryFlag = true;
                 break;
             }
-            case 0xAA: A ^= D; ZeroFlag = A == 0; CarryFlag = false; break;   // XOR D
-            case 0xAB: A ^= E; ZeroFlag = A == 0; CarryFlag = false; break;   // XOR E
-            case 0x3C: A++; ZeroFlag = A == 0; break;                  // INC A
-            case 0x3D: A--; ZeroFlag = A == 0; break;                  // DEC A
-            case 0x0D: C--; ZeroFlag = C == 0; break;                  // DEC C
-            case 0x15: D--; ZeroFlag = D == 0; break;                  // DEC D (D109)
-            case 0xB7: ZeroFlag = A == 0; CarryFlag = false; break;    // OR A
-            case 0x2F: A ^= 0xFF; break;                               // CPL
-            case 0xC2: { ushort jumpTo = Fetch16(); if (!ZeroFlag) pc = jumpTo; break; }    // JP NZ,nn
-            case 0xCA: { ushort jumpTo = Fetch16(); if (ZeroFlag) pc = jumpTo; break; }     // JP Z,nn
-            case 0xD2: { ushort jumpTo = Fetch16(); if (!CarryFlag) pc = jumpTo; break; }   // JP NC,nn
-            case 0xDA: { ushort jumpTo = Fetch16(); if (CarryFlag) pc = jumpTo; break; }    // JP C,nn
-            case 0x80: Add(B); break;                                  // ADD A,B
-            case 0x81: Add(C); break;                                  // ADD A,C
-            case 0x85: Add(L); break;                                  // ADD A,L
-            case 0x87: Add(A); break;                                  // ADD A,A
-            case 0xC6: Add(Fetch()); break;                            // ADD A,n
-            case 0xCE: Add(Fetch(), withCarry: true); break;          // ADC A,n
-            case 0x91: Sub(C); break;                                  // SUB C
-            case 0xA2: And(D); break;                                  // AND D
-            case 0xA3: And(E); break;                                  // AND E
-            case 0xA6: And(ReadMemory(HL)); break;                     // AND (HL)
-            case 0xA1: And(C); break;                                  // AND C (D109)
-            case 0xE6: And(Fetch()); break;                            // AND n
-            case 0xB8: Compare(B); break;                              // CP B
-            case 0xB5: A |= L; ZeroFlag = A == 0; CarryFlag = false; break;   // OR L
-            case 0xB4: A |= H; ZeroFlag = A == 0; CarryFlag = false; break;   // OR H (D092)
-            case 0xB3: A |= E; ZeroFlag = A == 0; CarryFlag = false; break;   // OR E
-            case 0xAF: A = 0; ZeroFlag = true; CarryFlag = false; break;      // XOR A
-            case 0xEE: A ^= Fetch(); ZeroFlag = A == 0; CarryFlag = false; break;   // XOR n
-            case 0xFE:                                                 // CP n
+            if (address is 0xBBC0 or 0xBBC3 or 0xBBEA or 0xBBED or 0xBBF6 or 0xBBF9 or 0xBBF0 or 0xBBF3 or 0xBBC6
+                or 0xBBDE or 0xBC3E or 0xBB3F)
             {
-                byte n = Fetch();
-                CarryFlag = A < n;
-                ZeroFlag = A == n;
-                break;
-            }
-            case 0x92: Sub(D); break;                                  // SUB D
-            case 0x93: Sub(E); break;                                  // SUB E
-            case 0x94: Sub(H); break;                                  // SUB H
-            case 0x95: Sub(L); break;                                  // SUB L
-            case 0x9F:                                                 // SBC A,A
-                A = (byte)(CarryFlag ? 0xFF : 0x00);
-                ZeroFlag = A == 0;
-                break;
-            case 0x37: CarryFlag = true; break;                        // SCF
-            case 0x6B: L = E; break;                                   // LD L,E (D069)
-            case 0x63: H = E; break;                                   // LD H,E (D091)
-            case 0x6C: L = H; break;                                   // LD L,H (POS, D072)
-            case 0x24: H++; ZeroFlag = H == 0; break;                  // INC H (D076)
-            case 0x82: Add(D); break;                                  // ADD A,D (D068)
-            case 0x83: Add(E); break;                                  // ADD A,E (D068)
-            case 0x34: Memory[HL]++; ZeroFlag = Memory[HL] == 0; break;            // INC (HL) (D068)
-            case 0x35: Memory[HL]--; ZeroFlag = Memory[HL] == 0; break;            // DEC (HL) (D068)
-            case 0xAE: A ^= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // XOR (HL) (D068)
-            case 0xF6: A |= Fetch(); ZeroFlag = A == 0; CarryFlag = false; break;          // OR n (D068)
-            case 0x1F:                                                 // RRA (STAR, D151)
-            {
-                bool low = (A & 0x01) != 0;
-                A = (byte)((A >> 1) | (CarryFlag ? 0x80 : 0));
-                CarryFlag = low;
-                break;
-            }
-            case 0x2C: L++; ZeroFlag = L == 0; break;                  // INC L (STAR, D151)
-            case 0x17:                                                 // RLA
-            {
-                bool carryOut = (A & 0x80) != 0;
-                A = (byte)((A << 1) | (CarryFlag ? 1 : 0));
-                CarryFlag = carryOut;
-                break;
-            }
-
-            // Pile et appels
-            case 0xC5: Push(BC); break;                                // PUSH BC
-            case 0xD5: Push(DE); break;                                // PUSH DE
-            case 0xE5: Push(HL); break;                                // PUSH HL
-            case 0xC1: BC = Pop(); break;                              // POP BC
-            case 0xF5:                                                 // PUSH AF
-                Push((ushort)((A << 8) | (ZeroFlag ? 0x40 : 0) | (CarryFlag ? 0x01 : 0)));
-                break;
-            case 0xF1:                                                 // POP AF
-            {
-                ushort af = Pop();
-                A = (byte)(af >> 8);
-                ZeroFlag = (af & 0x40) != 0;
-                CarryFlag = (af & 0x01) != 0;
-                break;
-            }
-            case 0xC0: if (!ZeroFlag) pc = Pop(); break;               // RET NZ
-            case 0xD1: DE = Pop(); break;                              // POP DE
-            case 0xE1: HL = Pop(); break;                              // POP HL
-            case 0xC9: pc = Pop(); break;                              // RET
-            case 0xC8: if (ZeroFlag) pc = Pop(); break;                // RET Z
-            case 0xD0: if (!CarryFlag) pc = Pop(); break;              // RET NC
-            case 0xD8: if (CarryFlag) pc = Pop(); break;               // RET C
-            case 0xC3:                                                 // JP nn
-            {
-                ushort target = Fetch16();
-                if (target >= 0xB900 && Memory[target] == 0xC3)
+                bool relative = address is 0xBBC3 or 0xBBED or 0xBBF9 or 0xBBF3;   // graphisme (D091)
+                switch (address)
                 {
-                    pc = target;                                       // entrée du firmware détournée (PRINT #9, D084)
-                    break;
-                }
-                if (target == 0xB90C)
-                {
-                    UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE, puis retour à l'appelant
-                    pc = Pop();
-                }
-                else if (target == 0xBB75)
-                {
-                    CursorMoves.Add((H, L));                           // JP TXT SET CURSOR (éditeur de ligne, D076)
-                    pc = Pop();
-                }
-                else if (target == 0xBB8A || target == 0xBB8D)
-                {
-                    pc = Pop();                                        // JP TXT PLACE / REMOVE CURSOR (D076)
-                }
-                else if (target == 0xBCE9)
-                {
-                    TickRoutine = EventRoutine;                        // JP KL ADD TICKER (rt_ev_init, D079)
-                    pc = Pop();
-                }
-                else if (target == 0xBBAB)
-                {
-                    FirstUserChar = DE;                                // JP TXT SET M TABLE (sortie de rt_symafter, D075)
-                    MatrixTables.Add((DE, HL));
-                    pc = Pop();
-                }
-                else if (target == 0xBBB4)
-                {
-                    SelectStream();                                    // JP TXT STR SELECT (sortie de rt_stream, D072)
-                    pc = Pop();
-                }
-                else if (target == 0xBB5A)
-                {
-                    TextOutput(A);                                     // JP TXT OUTPUT (sortie de rt_fp_out, D070)
-                    pc = Pop();
-                }
-                else if (FirmwareMathsCall(target))
-                {
-                    pc = Pop();                                        // routine de calcul : retour à l'appelant
-                }
-                else
-                {
-                    pc = target;
+                    case 0xBBC6:                                   // GRA ASK CURSOR
+                        DE = (ushort)GraphicsX;
+                        HL = (ushort)GraphicsY;
+                        break;
+                    case 0xBBDE: GraphicsPen = A; break;           // GRA SET PEN
+                    case 0xBC3E: Speeds.Add(("INK", H, L)); break; // SCR SET FLASHING
+                    case 0xBB3F: Speeds.Add(("KEY", H, L)); break; // KM SET DELAY
+                    default:                                       // MOVE, PLOT, LINE, TEST : le curseur va au point
+                        short fromX = GraphicsX, fromY = GraphicsY;
+                        GraphicsX = (short)((relative ? GraphicsX : 0) + (short)DE);
+                        GraphicsY = (short)((relative ? GraphicsY : 0) + (short)HL);
+                        if (address == 0xBBF6)
+                            Lines.Add((fromX, fromY, GraphicsX, GraphicsY, GraphicsPen));
+                        if (address is 0xBBF6 or 0xBBF9 && (Memory[0xBDE9] != 0xFC || Memory[0xBDEA] != 0xBD))
+                        {
+                            // SCR WRITE détourné (MASK, D110) : chaque point de la ligne passe par &BDE8, comme le firmware
+                            QueueLine(fromX, fromY, GraphicsX, GraphicsY);
+                            Push((ushort)pc);
+                            pc = 0xBDFE;
+                        }
+                        if (address is 0xBBEA or 0xBBED)
+                        {
+                            Points[(GraphicsX, GraphicsY)] = GraphicsPen;
+                            SetPixel(GraphicsX, GraphicsY, GraphicsPen);   // aussi dans la mémoire de l'écran (D109)
+                        }
+                        if (address is 0xBBF0 or 0xBBF3)
+                            A = GetPixel(GraphicsX, GraphicsY);            // lu dans la mémoire de l'écran (D109)
+                        break;
                 }
                 break;
             }
-            case 0xCD:                                                 // CALL nn
+            if (address == 0x001B)
             {
-                ushort address = Fetch16();
-                if (address is 0xBB39 or 0xBB27 or 0xBB2D or 0xBB33)
+                Push((ushort)pc);                                  // KL FAR PCHL : appel de HL (D089)
+                pc = HL;
+                break;
+            }
+            if (address == 0xBCD4)
+            {
+                var name = new System.Text.StringBuilder();         // KL FIND COMMAND : dernière lettre avec le bit 7 (D089)
+                for (int at = HL; ; at++)
                 {
-                    KeyCalls.Add((address, A, B));                     // KM SET REPEAT / TRANSLATE / SHIFT / CONTROL (D092)
-                    break;
+                    name.Append((char)(Memory[at] & 0x7F));
+                    if ((Memory[at] & 0x80) != 0)
+                        break;
                 }
-                if (address == 0xBB0F)
+                CarryFlag = RsxCommands.TryGetValue(name.ToString(), out ushort routine);
+                if (CarryFlag)
                 {
-                    Expansions[B] = System.Text.Encoding.ASCII.GetString(Memory, HL, C);   // KM SET EXPAND (D092)
-                    CarryFlag = true;
-                    break;
+                    HL = routine;
+                    C = 0xFF;
                 }
-                if (address is 0xBBC0 or 0xBBC3 or 0xBBEA or 0xBBED or 0xBBF6 or 0xBBF9 or 0xBBF0 or 0xBBF3 or 0xBBC6
-                    or 0xBBDE or 0xBC3E or 0xBB3F)
+                break;
+            }
+            if (address >= 0xB900 && Memory[address] == 0xC3)
+            {
+                Push((ushort)pc);                                  // entrée du firmware détournée (PRINT #9, D084)
+                pc = address;
+                break;
+            }
+            if (address is >= 0xBC77 and <= 0xBC9B or 0xBC68)
+            {
+                switch (address)                                   // CAS ... (fichiers, D084) : retenue = réussi
                 {
-                    bool relative = address is 0xBBC3 or 0xBBED or 0xBBF9 or 0xBBF3;   // graphisme (D091)
-                    switch (address)
-                    {
-                        case 0xBBC6:                                   // GRA ASK CURSOR
-                            DE = (ushort)GraphicsX;
-                            HL = (ushort)GraphicsY;
-                            break;
-                        case 0xBBDE: GraphicsPen = A; break;           // GRA SET PEN
-                        case 0xBC3E: Speeds.Add(("INK", H, L)); break; // SCR SET FLASHING
-                        case 0xBB3F: Speeds.Add(("KEY", H, L)); break; // KM SET DELAY
-                        default:                                       // MOVE, PLOT, LINE, TEST : le curseur va au point
-                            short fromX = GraphicsX, fromY = GraphicsY;
-                            GraphicsX = (short)((relative ? GraphicsX : 0) + (short)DE);
-                            GraphicsY = (short)((relative ? GraphicsY : 0) + (short)HL);
-                            if (address == 0xBBF6)
-                                Lines.Add((fromX, fromY, GraphicsX, GraphicsY, GraphicsPen));
-                            if (address is 0xBBF6 or 0xBBF9 && (Memory[0xBDE9] != 0xFC || Memory[0xBDEA] != 0xBD))
-                            {
-                                // SCR WRITE détourné (MASK, D110) : chaque point de la ligne passe par &BDE8, comme le firmware
-                                QueueLine(fromX, fromY, GraphicsX, GraphicsY);
-                                Push((ushort)pc);
-                                pc = 0xBDFE;
-                            }
-                            if (address is 0xBBEA or 0xBBED)
-                            {
-                                Points[(GraphicsX, GraphicsY)] = GraphicsPen;
-                                SetPixel(GraphicsX, GraphicsY, GraphicsPen);   // aussi dans la mémoire de l'écran (D109)
-                            }
-                            if (address is 0xBBF0 or 0xBBF3)
-                                A = GetPixel(GraphicsX, GraphicsY);            // lu dans la mémoire de l'écran (D109)
-                            break;
-                    }
-                    break;
-                }
-                if (address == 0x001B)
-                {
-                    Push((ushort)pc);                                  // KL FAR PCHL : appel de HL (D089)
-                    pc = HL;
-                    break;
-                }
-                if (address == 0xBCD4)
-                {
-                    var name = new System.Text.StringBuilder();         // KL FIND COMMAND : dernière lettre avec le bit 7 (D089)
-                    for (int at = HL; ; at++)
-                    {
-                        name.Append((char)(Memory[at] & 0x7F));
-                        if ((Memory[at] & 0x80) != 0)
-                            break;
-                    }
-                    CarryFlag = RsxCommands.TryGetValue(name.ToString(), out ushort routine);
-                    if (CarryFlag)
-                    {
-                        HL = routine;
-                        C = 0xFF;
-                    }
-                    break;
-                }
-                if (address >= 0xB900 && Memory[address] == 0xC3)
-                {
-                    Push((ushort)pc);                                  // entrée du firmware détournée (PRINT #9, D084)
-                    pc = address;
-                    break;
-                }
-                if (address is >= 0xBC77 and <= 0xBC9B or 0xBC68)
-                {
-                    switch (address)                                   // CAS ... (fichiers, D084) : retenue = réussi
-                    {
-                        case 0xBC8C:                                                                    // CAS OUT OPEN
-                            outFileName = FileName();
-                            fileOut = Files[outFileName] = new();
-                            FileHeaders.Remove(outFileName);
-                            CarryFlag = true;
-                            break;
-                        case 0xBC98:                                                                    // CAS OUT DIRECT (D085)
-                            fileOut!.AddRange(Memory[HL..(HL + DE)]);
-                            FileHeaders[outFileName] = (A, HL);
-                            CarryFlag = true;
-                            break;
-                        case 0xBC83:                                                                    // CAS IN DIRECT (D085)
-                            fileIn!.ToArray().CopyTo(Memory, HL);
-                            CarryFlag = true;                          // HL = lancement : l'adresse de chargement ici
-                            break;
-                        case 0xBC7D: fileIn = null; CarryFlag = true; break;                            // CAS IN ABANDON
-                        case 0xBC9B: Catalogs++; CarryFlag = true; break;                               // CAS CATALOG
-                        case 0xBC68: TapeSpeeds.Add((HL, A)); break;                                    // CAS SET SPEED
-                        case 0xBC95: fileOut!.Add(A); CarryFlag = true; break;                          // CAS OUT CHAR
-                        case 0xBC8F: fileOut = null; CarryFlag = true; break;                           // CAS OUT CLOSE
-                        case 0xBC77:                                                                    // CAS IN OPEN
-                            inFileName = FileName();
-                            CarryFlag = Files.TryGetValue(inFileName, out fileIn);
-                            fileInPos = 0;
-                            if (CarryFlag)
-                            {
-                                (byte type, int start) = FileHeaders.TryGetValue(inFileName, out var header) ? header : ((byte)0x16, 0);
-                                A = type;                              // texte : &16
-                                DE = (ushort)start;
-                                BC = (ushort)fileIn!.Count;
-                            }
-                            else
-                            {
-                                A = 0x92;                              // AMSDOS : 146, fichier absent (DERR, D099)
-                            }
-                            break;
-                        case 0xBC80:                                                                    // CAS IN CHAR
-                            CarryFlag = fileInPos < fileIn!.Count;
-                            if (CarryFlag)
-                                A = fileIn[fileInPos++];
-                            break;
-                        case 0xBC86: fileInPos--; CarryFlag = true; break;                              // CAS RETURN
-                        case 0xBC89: CarryFlag = fileInPos < fileIn!.Count; break;                      // CAS TEST EOF
-                        case 0xBC7A: fileIn = null; CarryFlag = true; break;                            // CAS IN CLOSE
-                        default: throw new InvalidOperationException($"Routine CAS non simulée : {address:X4}");
-                    }
-                    break;
-                }
-                if (address == 0xBB5A)
-                {
-                    TextOutput(A);                                     // TXT OUTPUT : caractère affiché
-                }
-                else if (address == 0xBC11)
-                {
-                    A = ScreenMode;                                    // SCR GET MODE
-                }
-                else if (address == 0xB903)
-                {
-                    A = (byte)(UpperRomEnabled ? 1 : 0);               // KL U ROM DISABLE : A = état précédent
-                    UpperRomEnabled = false;
-                }
-                else if (address == 0xB90C)
-                {
-                    UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE
-                }
-                else if (address == 0xBB1E)
-                {
-                    ZeroFlag = !Keys.TryGetValue(A, out byte state);   // KM TEST KEY
-                    C = state;
-                }
-                else if (address == 0xBB24)
-                {
-                    H = Joystick0;                                     // KM GET JOYSTICK
-                    L = Joystick1;
-                }
-                else if (address == 0xBB06)
-                {
-                    if (KeyQueue.Count == 0 && TimedKeys.Count > 0)
-                    {
-                        Ticks = Math.Max(Ticks, TimedKeys[0].Tick);   // on attend la prochaine touche tapée (D083)
-                        byte key = TimedKeys[0].Key;
-                        TimedKeys.RemoveAt(0);
-                        PressKey(key);
-                    }
-                    if (KeyQueue.Count == 0)
-                        throw new InvalidOperationException("Le programme attend une touche, mais il n'y en a plus de prévues.");
-                    A = KeyQueue.Dequeue();                            // KM WAIT CHAR
-                }
-                else if (address == 0xBB09)
-                {
-                    CarryFlag = KeyQueue.Count > 0;                    // KM READ CHAR
-                    if (CarryFlag)
-                        A = KeyQueue.Dequeue();
-                }
-                else if (address == 0xBB78)
-                {
-                    string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
-                    H = (byte)(shown.Length - shown.LastIndexOf('\n'));
-                    L = (byte)(1 + shown.Count(c => c == '\n'));
-                    A = 0;                                             // nombre de défilements : jamais ici (D136)
-                }
-                else if (address == 0xBCEF)
-                {
-                    EventRoutine = DE;                                 // KL INIT EVENT (D079)
-                    eventBlocks[HL] = DE;
-                }
-                else if (address == 0xBB75)
-                {
-                    CursorMoves.Add((H, L));                           // TXT SET CURSOR (D076)
-                }
-                else if (address == 0xBB8A || address == 0xBB8D)
-                {
-                    // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
-                }
-                else if (address is 0xBBC9 or 0xBB90)
-                {
-                    if (address == 0xBB90)
-                        TextPen = A;                                   // TXT SET PEN (FPRINT, D175)
-                }
-                else if (address == 0xBB93)
-                {
-                    A = TextPen;                                       // TXT GET PEN (FPRINT, D175)
-                }
-                else if (address == 0xBBAE)
-                {
-                    CarryFlag = FirstUserChar < 256;                   // TXT GET M TABLE (FPRINT, D175) : les dessins sont
-                    A = (byte)FirstUserChar;                           // rangés comme TXT GET MATRIX (&3800 + 8 x code)
-                    HL = (ushort)(0x3800 + FirstUserChar * 8);
-                }
-                else if (address == 0xBB96)
-                {
-                    TextPaper = A;                                     // TXT SET PAPER (FPRINT, D175)
-                }
-                else if (address == 0xBB99)
-                {
-                    A = TextPaper;                                     // TXT GET PAPER (FPRINT, D175)
-                }
-                else if (address == 0xBC1A)
-                {
-                    int width = 8 / PixelsPerByte;                     // SCR CHAR POSITION (FPRINT, D175) : H = colonne,
-                    HL = (ushort)(0xC000 + L * 80 + H * width);        // L = ligne (physiques, depuis 0) -> HL, B = largeur
-                    B = (byte)width;
-                }
-                else if (address == 0xBBDB)
-                {
-                    Array.Fill(Memory, EncodeInk(GraphicsPaper), 0xC000, 0x4000);   // GRA CLEAR WINDOW : tout l'écran ici (D110)
-                }
-                else if (address is 0xBBCF or 0xBBD2 or 0xBB9F or 0xBBE4)
-                {
-                    RegisterCalls.Add((address, A, DE, HL));           // GRA WIN WIDTH / HEIGHT, TXT SET BACK (D104)
-                    if (address == 0xBBE4)
-                        GraphicsPaper = A;                             // GRA SET PAPER (D110)
-                    if (address == 0xBBCF)
-                        (WindowLeft, WindowRight) = ((short)DE, (short)HL);
-                    else if (address == 0xBBD2)
-                        (WindowTop, WindowBottom) = ((short)DE, (short)HL);
-                }
-                else if (address == 0xBC1D)
-                {
-                    (int dot, byte dotMask) = DotPosition((short)DE, (short)HL);   // SCR DOT POSITION (D109)
-                    HL = (ushort)dot;
-                    C = dotMask;
-                    B = (byte)(PixelsPerByte - 1);
-                }
-                else if (address == 0xBC26)
-                {
-                    HL = (ushort)((HL & 0x3800) != 0x3800 ? HL + 0x800 : HL - 0x3800 + 80);   // SCR NEXT LINE (D109)
-                }
-                else if (address == 0xBC29)
-                {
-                    HL = (ushort)((HL & 0x3800) != 0 ? HL - 0x800 : HL + 0x3800 - 80);      // SCR PREV LINE (D109)
-                }
-                else if (address == 0xBC2C)
-                {
-                    A = EncodeInk(A);                                  // SCR INK ENCODE (D109)
-                }
-                else if (address == 0xBBE7)
-                {
-                    A = GraphicsPaper;                                 // GRA GET PAPER (D110)
-                }
-                else if (address == 0xBBE1)
-                {
-                    A = GraphicsPen;                                   // GRA GET PEN (D107)
-                }
-                else if (address == 0xBBCC)
-                {
-                    DE = 0;                                            // GRA GET ORIGIN : l'origine reste 0,0 ici (D107)
-                    HL = 0;
-                }
-                else if (address == 0xBBD5)
-                {
-                    DE = (ushort)WindowLeft;                           // GRA GET W WIDTH (D107)
-                    HL = (ushort)WindowRight;
-                }
-                else if (address == 0xBBD8)
-                {
-                    DE = (ushort)WindowTop;                            // GRA GET W HEIGHT (D107)
-                    HL = (ushort)WindowBottom;
-                }
-                else if (address is 0xBB81 or 0xBB84 or 0xBB7B or 0xBB7E or 0xBD19)
-                {
-                    FirmwareCalls.Add(address);                        // TXT CUR ON / OFF, ENABLE / DISABLE, MC WAIT FLYBACK (D102)
-                }
-                else if (address == 0xBB60)
-                {
-                    (byte col, byte row) = CursorMoves.Count > 0 ? CursorMoves[^1] : ((byte)1, (byte)1);
-                    CarryFlag = ScreenChars.TryGetValue((col, row), out byte shown);   // TXT RD CHAR (D076)
-                    A = shown;
-                }
-                else if (address == 0xBBA8)
-                {
-                    CarryFlag = A >= FirstUserChar;                    // TXT SET MATRIX (D075)
-                    if (CarryFlag)
-                        Matrices.Add((A, Memory[HL..(HL + 8)]));
-                }
-                else if (address == 0xBBA5)
-                {
-                    HL = (ushort)(0x3800 + A * 8);                     // TXT GET MATRIX : dessin (mémoire vide ici)
-                    CarryFlag = A >= FirstUserChar;                    // retenue : caractère redessinable (D170)
-                    MatrixReads++;
-                }
-                else if (address == 0xBBFC)
-                {
-                    GraphicChars.Add(Memory[(0x3800 + A * 8)..(0x3800 + A * 8 + 8)]);   // GRA WR CHAR : le dessin écrit (D170)
-                }
-                else if (address == 0xBBAB)
-                {
-                    FirstUserChar = DE;                                // TXT SET M TABLE (D075)
-                    MatrixTables.Add((DE, HL));
-                }
-                else if (address == 0xB906)
-                {
-                    A = 0;                                             // KL L ROM ENABLE : état d'avant
-                }
-                else if (address == 0xBB63)
-                {
-                    Tags.Add(A != 0);                                  // TXT SET GRAPHIC (TAG, TAGOFF)
-                }
-                else if (address == 0xBB69)
-                {
-                    H = 0;                                             // TXT GET WINDOW : gauche, droite, haut, bas (D073)
-                    D = (byte)(WindowWidth - 1);
-                    L = 0;
-                    E = 24;
-                }
-                else if (address == 0xBB87)
-                {
-                    if (H > WindowWidth)                               // TXT VALIDATE (D072) : au-delà du bord droit,
-                    {                                                  // le caractère suivant ira à la ligne (D073)
-                        L = (byte)(L + (H - 1) / WindowWidth);
-                        H = (byte)((H - 1) % WindowWidth + 1);
-                    }
-                    CarryFlag = true;
-                }
-                else if (address == 0xBBB4)
-                {
-                    SelectStream();                                    // TXT STR SELECT (D072)
-                }
-                else if (address == 0xBB66)
-                {
-                    Windows.Add((CurrentStream, H, D, L, E));          // TXT WIN ENABLE (WINDOW, D072)
-                }
-                else if (address == 0xBBB7)
-                {
-                    Swaps.Add((B, C));                                 // TXT SWAP STREAMS (WINDOW SWAP, D072)
-                }
-                else if (address == 0xBCAA)
-                {
-                    if (SoundQueueModel)                               // SOUND QUEUE avec files (D082)
-                    {
-                        int channel = (Memory[HL] & 1) != 0 ? 0 : (Memory[HL] & 2) != 0 ? 1 : 2;
-                        int ticks = Math.Max(1, (Memory[HL + 7] | (Memory[HL + 8] << 8)) / 2);
-                        CarryFlag = soundWaiting[channel].Count < 4;
+                    case 0xBC8C:                                                                    // CAS OUT OPEN
+                        outFileName = FileName();
+                        fileOut = Files[outFileName] = new();
+                        FileHeaders.Remove(outFileName);
+                        CarryFlag = true;
+                        break;
+                    case 0xBC98:                                                                    // CAS OUT DIRECT (D085)
+                        fileOut!.AddRange(Memory[HL..(HL + DE)]);
+                        FileHeaders[outFileName] = (A, HL);
+                        CarryFlag = true;
+                        break;
+                    case 0xBC83:                                                                    // CAS IN DIRECT (D085)
+                        fileIn!.ToArray().CopyTo(Memory, HL);
+                        CarryFlag = true;                          // HL = lancement : l'adresse de chargement ici
+                        break;
+                    case 0xBC7D: fileIn = null; CarryFlag = true; break;                            // CAS IN ABANDON
+                    case 0xBC9B: Catalogs++; CarryFlag = true; break;                               // CAS CATALOG
+                    case 0xBC68: TapeSpeeds.Add((HL, A)); break;                                    // CAS SET SPEED
+                    case 0xBC95: fileOut!.Add(A); CarryFlag = true; break;                          // CAS OUT CHAR
+                    case 0xBC8F: fileOut = null; CarryFlag = true; break;                           // CAS OUT CLOSE
+                    case 0xBC77:                                                                    // CAS IN OPEN
+                        inFileName = FileName();
+                        CarryFlag = Files.TryGetValue(inFileName, out fileIn);
+                        fileInPos = 0;
                         if (CarryFlag)
                         {
-                            Sounds.Add(Memory[HL..(HL + 9)]);
-                            if (soundPlaying[channel] == 0)
-                                soundPlaying[channel] = ticks;
-                            else
-                                soundWaiting[channel].Enqueue(ticks);
+                            (byte type, int start) = FileHeaders.TryGetValue(inFileName, out var header) ? header : ((byte)0x16, 0);
+                            A = type;                              // texte : &16
+                            DE = (ushort)start;
+                            BC = (ushort)fileIn!.Count;
                         }
-                    }
-                    else
+                        else
+                        {
+                            A = 0x92;                              // AMSDOS : 146, fichier absent (DERR, D099)
+                        }
+                        break;
+                    case 0xBC80:                                                                    // CAS IN CHAR
+                        CarryFlag = fileInPos < fileIn!.Count;
+                        if (CarryFlag)
+                            A = fileIn[fileInPos++];
+                        break;
+                    case 0xBC86: fileInPos--; CarryFlag = true; break;                              // CAS RETURN
+                    case 0xBC89: CarryFlag = fileInPos < fileIn!.Count; break;                      // CAS TEST EOF
+                    case 0xBC7A: fileIn = null; CarryFlag = true; break;                            // CAS IN CLOSE
+                    default: throw new InvalidOperationException($"Routine CAS non simulée : {address:X4}");
+                }
+                break;
+            }
+            if (address == 0xBB5A)
+            {
+                TextOutput(A);                                     // TXT OUTPUT : caractère affiché
+            }
+            else if (address == 0xBC11)
+            {
+                A = ScreenMode;                                    // SCR GET MODE
+            }
+            else if (address == 0xB903)
+            {
+                A = (byte)(UpperRomEnabled ? 1 : 0);               // KL U ROM DISABLE : A = état précédent
+                UpperRomEnabled = false;
+            }
+            else if (address == 0xB90C)
+            {
+                UpperRomEnabled = (A & 1) != 0;                    // KL ROM RESTORE
+            }
+            else if (address == 0xBB1E)
+            {
+                ZeroFlag = !Keys.TryGetValue(A, out byte state);   // KM TEST KEY
+                C = state;
+            }
+            else if (address == 0xBB24)
+            {
+                H = Joystick0;                                     // KM GET JOYSTICK
+                L = Joystick1;
+            }
+            else if (address == 0xBB06)
+            {
+                if (KeyQueue.Count == 0 && TimedKeys.Count > 0)
+                {
+                    Ticks = Math.Max(Ticks, TimedKeys[0].Tick);   // on attend la prochaine touche tapée (D083)
+                    byte key = TimedKeys[0].Key;
+                    TimedKeys.RemoveAt(0);
+                    PressKey(key);
+                }
+                if (KeyQueue.Count == 0)
+                    throw new InvalidOperationException("Le programme attend une touche, mais il n'y en a plus de prévues.");
+                A = KeyQueue.Dequeue();                            // KM WAIT CHAR
+            }
+            else if (address == 0xBB09)
+            {
+                CarryFlag = KeyQueue.Count > 0;                    // KM READ CHAR
+                if (CarryFlag)
+                    A = KeyQueue.Dequeue();
+            }
+            else if (address == 0xBB78)
+            {
+                string shown = StreamText(CurrentStream);          // TXT GET CURSOR : H = colonne, L = ligne
+                H = (byte)(shown.Length - shown.LastIndexOf('\n'));
+                L = (byte)(1 + shown.Count(c => c == '\n'));
+                A = 0;                                             // nombre de défilements : jamais ici (D136)
+            }
+            else if (address == 0xBCEF)
+            {
+                EventRoutine = DE;                                 // KL INIT EVENT (D079)
+                eventBlocks[HL] = DE;
+            }
+            else if (address == 0xBB75)
+            {
+                CursorMoves.Add((H, L));                           // TXT SET CURSOR (D076)
+            }
+            else if (address == 0xBB8A || address == 0xBB8D)
+            {
+                // TXT PLACE CURSOR / TXT REMOVE CURSOR : rien à simuler
+            }
+            else if (address is 0xBBC9 or 0xBB90)
+            {
+                if (address == 0xBB90)
+                    TextPen = A;                                   // TXT SET PEN (FPRINT, D175)
+            }
+            else if (address == 0xBB93)
+            {
+                A = TextPen;                                       // TXT GET PEN (FPRINT, D175)
+            }
+            else if (address == 0xBBAE)
+            {
+                CarryFlag = FirstUserChar < 256;                   // TXT GET M TABLE (FPRINT, D175) : les dessins sont
+                A = (byte)FirstUserChar;                           // rangés comme TXT GET MATRIX (&3800 + 8 x code)
+                HL = (ushort)(0x3800 + FirstUserChar * 8);
+            }
+            else if (address == 0xBB96)
+            {
+                TextPaper = A;                                     // TXT SET PAPER (FPRINT, D175)
+            }
+            else if (address == 0xBB99)
+            {
+                A = TextPaper;                                     // TXT GET PAPER (FPRINT, D175)
+            }
+            else if (address == 0xBC1A)
+            {
+                int width = 8 / PixelsPerByte;                     // SCR CHAR POSITION (FPRINT, D175) : H = colonne,
+                HL = (ushort)(0xC000 + L * 80 + H * width);        // L = ligne (physiques, depuis 0) -> HL, B = largeur
+                B = (byte)width;
+            }
+            else if (address == 0xBBDB)
+            {
+                Array.Fill(Memory, EncodeInk(GraphicsPaper), 0xC000, 0x4000);   // GRA CLEAR WINDOW : tout l'écran ici (D110)
+            }
+            else if (address is 0xBBCF or 0xBBD2 or 0xBB9F or 0xBBE4)
+            {
+                RegisterCalls.Add((address, A, DE, HL));           // GRA WIN WIDTH / HEIGHT, TXT SET BACK (D104)
+                if (address == 0xBBE4)
+                    GraphicsPaper = A;                             // GRA SET PAPER (D110)
+                if (address == 0xBBCF)
+                    (WindowLeft, WindowRight) = ((short)DE, (short)HL);
+                else if (address == 0xBBD2)
+                    (WindowTop, WindowBottom) = ((short)DE, (short)HL);
+            }
+            else if (address == 0xBC1D)
+            {
+                (int dot, byte dotMask) = DotPosition((short)DE, (short)HL);   // SCR DOT POSITION (D109)
+                HL = (ushort)dot;
+                C = dotMask;
+                B = (byte)(PixelsPerByte - 1);
+            }
+            else if (address == 0xBC26)
+            {
+                HL = (ushort)((HL & 0x3800) != 0x3800 ? HL + 0x800 : HL - 0x3800 + 80);   // SCR NEXT LINE (D109)
+            }
+            else if (address == 0xBC29)
+            {
+                HL = (ushort)((HL & 0x3800) != 0 ? HL - 0x800 : HL + 0x3800 - 80);      // SCR PREV LINE (D109)
+            }
+            else if (address == 0xBC2C)
+            {
+                A = EncodeInk(A);                                  // SCR INK ENCODE (D109)
+            }
+            else if (address == 0xBBE7)
+            {
+                A = GraphicsPaper;                                 // GRA GET PAPER (D110)
+            }
+            else if (address == 0xBBE1)
+            {
+                A = GraphicsPen;                                   // GRA GET PEN (D107)
+            }
+            else if (address == 0xBBCC)
+            {
+                DE = 0;                                            // GRA GET ORIGIN : l'origine reste 0,0 ici (D107)
+                HL = 0;
+            }
+            else if (address == 0xBBD5)
+            {
+                DE = (ushort)WindowLeft;                           // GRA GET W WIDTH (D107)
+                HL = (ushort)WindowRight;
+            }
+            else if (address == 0xBBD8)
+            {
+                DE = (ushort)WindowTop;                            // GRA GET W HEIGHT (D107)
+                HL = (ushort)WindowBottom;
+            }
+            else if (address is 0xBB81 or 0xBB84 or 0xBB7B or 0xBB7E or 0xBD19)
+            {
+                FirmwareCalls.Add(address);                        // TXT CUR ON / OFF, ENABLE / DISABLE, MC WAIT FLYBACK (D102)
+            }
+            else if (address == 0xBB60)
+            {
+                (byte col, byte row) = CursorMoves.Count > 0 ? CursorMoves[^1] : ((byte)1, (byte)1);
+                CarryFlag = ScreenChars.TryGetValue((col, row), out byte shown);   // TXT RD CHAR (D076)
+                A = shown;
+            }
+            else if (address == 0xBBA8)
+            {
+                CarryFlag = A >= FirstUserChar;                    // TXT SET MATRIX (D075)
+                if (CarryFlag)
+                    Matrices.Add((A, Memory[HL..(HL + 8)]));
+            }
+            else if (address == 0xBBA5)
+            {
+                HL = (ushort)(0x3800 + A * 8);                     // TXT GET MATRIX : dessin (mémoire vide ici)
+                CarryFlag = A >= FirstUserChar;                    // retenue : caractère redessinable (D170)
+                MatrixReads++;
+            }
+            else if (address == 0xBBFC)
+            {
+                GraphicChars.Add(Memory[(0x3800 + A * 8)..(0x3800 + A * 8 + 8)]);   // GRA WR CHAR : le dessin écrit (D170)
+            }
+            else if (address == 0xBBAB)
+            {
+                FirstUserChar = DE;                                // TXT SET M TABLE (D075)
+                MatrixTables.Add((DE, HL));
+            }
+            else if (address == 0xB906)
+            {
+                A = 0;                                             // KL L ROM ENABLE : état d'avant
+            }
+            else if (address == 0xBB63)
+            {
+                Tags.Add(A != 0);                                  // TXT SET GRAPHIC (TAG, TAGOFF)
+            }
+            else if (address == 0xBB69)
+            {
+                H = 0;                                             // TXT GET WINDOW : gauche, droite, haut, bas (D073)
+                D = (byte)(WindowWidth - 1);
+                L = 0;
+                E = 24;
+            }
+            else if (address == 0xBB87)
+            {
+                if (H > WindowWidth)                               // TXT VALIDATE (D072) : au-delà du bord droit,
+                {                                                  // le caractère suivant ira à la ligne (D073)
+                    L = (byte)(L + (H - 1) / WindowWidth);
+                    H = (byte)((H - 1) % WindowWidth + 1);
+                }
+                CarryFlag = true;
+            }
+            else if (address == 0xBBB4)
+            {
+                SelectStream();                                    // TXT STR SELECT (D072)
+            }
+            else if (address == 0xBB66)
+            {
+                Windows.Add((CurrentStream, H, D, L, E));          // TXT WIN ENABLE (WINDOW, D072)
+            }
+            else if (address == 0xBBB7)
+            {
+                Swaps.Add((B, C));                                 // TXT SWAP STREAMS (WINDOW SWAP, D072)
+            }
+            else if (address == 0xBCAA)
+            {
+                if (SoundQueueModel)                               // SOUND QUEUE avec files (D082)
+                {
+                    int channel = (Memory[HL] & 1) != 0 ? 0 : (Memory[HL] & 2) != 0 ? 1 : 2;
+                    int ticks = Math.Max(1, (Memory[HL + 7] | (Memory[HL + 8] << 8)) / 2);
+                    CarryFlag = soundWaiting[channel].Count < 4;
+                    if (CarryFlag)
                     {
-                        Sounds.Add(Memory[HL..(HL + 9)]);              // SOUND QUEUE : toujours une place
-                        CarryFlag = true;
+                        Sounds.Add(Memory[HL..(HL + 9)]);
+                        if (soundPlaying[channel] == 0)
+                            soundPlaying[channel] = ticks;
+                        else
+                            soundWaiting[channel].Enqueue(ticks);
                     }
                 }
-                else if (address == 0xBCB0)
+                else
                 {
-                    int channel = A == 1 ? 0 : A == 2 ? 1 : 2;         // SOUND ARM EVENT (ON SQ, D082)
-                    soundArmed[channel] = HL;
-                    KickSoundEvent(channel);
-                }
-                else if (address == 0xBCEC)
-                {
-                    TickRoutine = 0;                                   // KL DEL TICKER (RUN "nom", D086)
-                }
-                else if (address == 0xBCA7)
-                {
-                    SoundResets++;                                     // SOUND RESET (RUN "nom", D086)
-                }
-                else if (address == 0xBCAD)
-                {
-                    A = SoundStatus;                                   // SOUND CHECK
-                }
-                else if (address == 0xBCB3)
-                {
-                    Released.Add(A);                                   // SOUND RELEASE
-                }
-                else if (address == 0xBCBC || address == 0xBCBF)
-                {
-                    Envelopes.Add((address == 0xBCBF, A, Memory[HL..(HL + 16)]));   // ENV / ENT
-                }
-                else if (address == FirmwareMaths.KlProbeRom)
-                {
-                    A = 0x80;                                          // KL PROBE ROM : ROM 0 = BASIC
-                    H = FirmwareVersion;
-                    L = 0;
-                }
-                else if (FirmwareMathsCall(address))
-                {
-                    // routine de calcul à virgule simulée
-                }
-                else if (address == 0xBD2B)
-                {
-                    Printed.Append((char)A);                           // MC PRINT CHAR : l'imprimante prend le caractère (D100)
+                    Sounds.Add(Memory[HL..(HL + 9)]);              // SOUND QUEUE : toujours une place
                     CarryFlag = true;
                 }
-                else if (address == 0xBD0D)
-                {
-                    DE = (ushort)(Clock >> 16);                        // KL TIME PLEASE : temps dans DEHL
-                    HL = (ushort)(Clock & 0xFFFF);
-                }
-                else
-                {
-                    Push((ushort)pc);
-                    pc = address;
-                }
-                break;
             }
-
-            // Sauts relatifs
-            case 0x18: Jr(true); break;                                // JR
-            case 0x20: Jr(!ZeroFlag); break;                           // JR NZ
-            case 0x28: Jr(ZeroFlag); break;                            // JR Z
-            case 0x30: Jr(!CarryFlag); break;                          // JR NC
-            case 0x38: Jr(CarryFlag); break;                           // JR C
-            case 0x10:                                                 // DJNZ
+            else if (address == 0xBCB0)
             {
-                B--;
-                Jr(B != 0);
-                break;
+                int channel = A == 1 ? 0 : A == 2 ? 1 : 2;         // SOUND ARM EVENT (ON SQ, D082)
+                soundArmed[channel] = HL;
+                KickSoundEvent(channel);
             }
-
-            case 0xCB:
-                StepCb(opcodeAddress);
-                break;
-
-            case 0xE9: pc = HL; break;                                 // JP (HL)
-            case 0xEA: { ushort jumpTo = Fetch16(); if (OverflowFlag) pc = jumpTo; break; }  // JP PE,nn (débordement)
-
-            // Tableaux (D058)
-            case 0x01: BC = Fetch16(); break;                          // LD BC,nn
-            case 0x1E: E = Fetch(); break;                             // LD E,n
-            case 0x13: DE = (ushort)(DE + 1); break;                   // INC DE
-            case 0x1B: DE = (ushort)(DE - 1); break;                   // DEC DE
-            case 0x0B: BC = (ushort)(BC - 1); break;                   // DEC BC
-            case 0x2B: HL = (ushort)(HL - 1); break;                   // DEC HL
-            case 0x1A: A = ReadMemory(DE); break;                      // LD A,(DE)
-            case 0x0A: A = ReadMemory(BC); break;                      // LD A,(BC) (TYPO, D170)
-            case 0xA9: A ^= C; ZeroFlag = A == 0; CarryFlag = false; break;   // XOR C (TYPOVITE, D172)
-            case 0xE3:                                                 // EX (SP),HL (TYPOVITE, D172)
+            else if (address == 0xBCEC)
             {
-                byte low = Memory[sp], high = Memory[(ushort)(sp + 1)];
-                Memory[sp] = L;
-                Memory[(ushort)(sp + 1)] = H;
-                L = low;
-                H = high;
-                break;
+                TickRoutine = 0;                                   // KL DEL TICKER (RUN "nom", D086)
             }
-            case 0x50: D = B; break;                                   // LD D,B (TYPO, D170)
-            case 0x59: E = C; break;                                   // LD E,C (TYPO, D170)
-            case 0x03: BC = (ushort)(BC + 1); break;                   // INC BC (TYPO, D170)
-            case 0x0F: CarryFlag = (A & 0x01) != 0; A = (byte)((A >> 1) | (A << 7)); break;   // RRCA (TYPO, D170)
-            case 0x07: CarryFlag = (A & 0x80) != 0; A = (byte)((A << 1) | (A >> 7)); break;   // RLCA (TYPO, D170)
-            case 0x36: Memory[HL] = Fetch(); break;                    // LD (HL),n
-            case 0x72: Memory[HL] = D; break;                          // LD (HL),D
-            case 0x73: Memory[HL] = E; break;                          // LD (HL),E
-            case 0x46: B = ReadMemory(HL); break;                      // LD B,(HL)
-            case 0x4E: C = ReadMemory(HL); break;                      // LD C,(HL)
-            case 0x66: H = ReadMemory(HL); break;                      // LD H,(HL)
-            case 0x6E: L = ReadMemory(HL); break;                      // LD L,(HL)
-            case 0x56: D = ReadMemory(HL); break;                      // LD D,(HL) (D059)
-            case 0x5E: E = ReadMemory(HL); break;                      // LD E,(HL) (D059)
-            case 0x54: D = H; break;                                   // LD D,H
-            case 0x5D: E = L; break;                                   // LD E,L
-            case 0xB6: A |= ReadMemory(HL); ZeroFlag = A == 0; CarryFlag = false; break;   // OR (HL)
-            case 0xB0: A |= B; ZeroFlag = A == 0; CarryFlag = false; break;   // OR B
-            case 0xB1: A |= C; ZeroFlag = A == 0; CarryFlag = false; break;   // OR C
-            case 0xB2: A |= D; ZeroFlag = A == 0; CarryFlag = false; break;   // OR D (D060)
-            // Textes (lot E, D062)
-            case 0x71: Memory[HL] = C; break;                          // LD (HL),C
-            case 0x86: Add(ReadMemory(HL)); break;                     // ADD A,(HL)
-            case 0x8E: Add(ReadMemory(HL), withCarry: true); break;    // ADC A,(HL) (D139)
-            case 0x9E:                                                 // SBC A,(HL) (D139)
+            else if (address == 0xBCA7)
             {
-                int result = A - ReadMemory(HL) - (CarryFlag ? 1 : 0);
-                CarryFlag = result < 0;
-                A = (byte)result;
-                ZeroFlag = A == 0;
-                break;
+                SoundResets++;                                     // SOUND RESET (RUN "nom", D086)
             }
-            case 0xBE: Compare(ReadMemory(HL)); break;                 // CP (HL)
-            case 0x05: B--; ZeroFlag = B == 0; break;                  // DEC B
-            case 0x0C: C++; ZeroFlag = C == 0; break;                  // INC C
-            case 0x04: B++; ZeroFlag = B == 0; break;                  // INC B (D084)
-            case 0x0E: C = Fetch(); break;                             // LD C,n
-            case 0xB9: Compare(C); break;                              // CP C (D063)
-            case 0x90: Sub(B); break;                                  // SUB B (D063)
-            case 0x12: Memory[DE] = A; break;                          // LD (DE),A (D063)
-            case 0xD6: Sub(Fetch()); break;                            // SUB n (D063)
-            case 0x41: B = C; break;                                   // LD B,C (D063)
-            case 0x60: H = B; break;                                   // LD H,B (D063)
-            case 0x68: L = B; break;                                   // LD L,B (D065)
-            case 0xC4:                                                 // CALL NZ,nn (D079)
+            else if (address == 0xBCAD)
             {
-                ushort target = Fetch16();
-                if (!ZeroFlag)
-                {
-                    Push((ushort)pc);
-                    pc = target;
-                }
-                break;
+                A = SoundStatus;                                   // SOUND CHECK
             }
-            case 0xF3: InterruptsEnabled = false; break;               // DI (D079)
-            case 0xFB: InterruptsEnabled = true; break;                // EI (D079)
-            case 0xCC:                                                 // CALL Z,nn
+            else if (address == 0xBCB3)
             {
-                ushort target = Fetch16();
-                if (ZeroFlag)
-                {
-                    Push((ushort)pc);
-                    pc = target;
-                }
-                break;
+                Released.Add(A);                                   // SOUND RELEASE
             }
-            case 0xED:
-                StepEd(opcodeAddress);
-                break;
-            case 0xDD:                                                 // IX (commandes RSX, D089)
+            else if (address == 0xBCBC || address == 0xBCBF)
             {
-                byte next = Fetch();
-                int At() => (IX + (sbyte)Fetch()) & 0xFFFF;
-                switch (next)
-                {
-                    case 0x21: IX = Fetch16(); break;                  // LD IX,nn
-                    case 0x39: IX = (ushort)(IX + sp); break;          // ADD IX,SP
-                    case 0xE5: Push(IX); break;                        // PUSH IX
-                    case 0xE1: IX = Pop(); break;                      // POP IX
-                    case 0x7E: A = Memory[At()]; break;                // LD A,(IX+d)
-                    case 0x6E: L = Memory[At()]; break;                // LD L,(IX+d)
-                    case 0x66: H = Memory[At()]; break;                // LD H,(IX+d)
-                    case 0x5E: E = Memory[At()]; break;                // LD E,(IX+d)
-                    case 0x56: D = Memory[At()]; break;                // LD D,(IX+d)
-                    case 0x4E: C = Memory[At()]; break;                // LD C,(IX+d) (STAR, D153)
-                    case 0x75: Memory[At()] = L; break;                // LD (IX+d),L (STAR, D153)
-                    case 0x74: Memory[At()] = H; break;                // LD (IX+d),H (STAR, D153)
-                    case 0xBE: Compare(Memory[At()]); break;           // CP (IX+d) (STAR, D153)
-                    case 0x19: IX = (ushort)(IX + DE); break;          // ADD IX,DE (STAR, D153)
-                    default:
-                        throw new NotSupportedException($"Instruction &DD &{next:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
-                }
-                break;
+                Envelopes.Add((address == 0xBCBF, A, Memory[HL..(HL + 16)]));   // ENV / ENT
             }
-
-            // LD r,r' et calculs A,r qui n'ont pas encore leur ligne ci-dessus (D172) : décodés d'après le numéro du registre
-            case >= 0x40 and <= 0xBF when op != 0x76:
-                RegisterGroup(op);
-                break;
-
-            default:
-                throw new NotSupportedException($"Instruction &{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
+            else if (address == FirmwareMaths.KlProbeRom)
+            {
+                A = 0x80;                                          // KL PROBE ROM : ROM 0 = BASIC
+                H = FirmwareVersion;
+                L = 0;
+            }
+            else if (FirmwareMathsCall(address))
+            {
+                // routine de calcul à virgule simulée
+            }
+            else if (address == 0xBD2B)
+            {
+                Printed.Append((char)A);                           // MC PRINT CHAR : l'imprimante prend le caractère (D100)
+                CarryFlag = true;
+            }
+            else if (address == 0xBD0D)
+            {
+                DE = (ushort)(Clock >> 16);                        // KL TIME PLEASE : temps dans DEHL
+                HL = (ushort)(Clock & 0xFFFF);
+            }
+            else
+            {
+                Push((ushort)pc);
+                pc = address;
+            }
+            break;
         }
+        while (false);
     }
 
-    // registres numérotés comme dans le code du Z80 : B, C, D, E, H, L, (HL), A
-    byte GetRegister(int index) => index switch
-    {
-        0 => B, 1 => C, 2 => D, 3 => E, 4 => H, 5 => L, 6 => ReadMemory(HL), _ => A
-    };
-
-    void SetRegister(int index, byte value)
-    {
-        switch (index)
-        {
-            case 0: B = value; break;
-            case 1: C = value; break;
-            case 2: D = value; break;
-            case 3: E = value; break;
-            case 4: H = value; break;
-            case 5: L = value; break;
-            case 6: Memory[HL] = value; break;
-            default: A = value; break;
-        }
-    }
-
-    void RegisterGroup(int op)
-    {
-        byte value = GetRegister(op & 7);
-        if (op < 0x80)
-        {
-            SetRegister((op >> 3) & 7, value);                  // LD r,r'
-            return;
-        }
-        switch ((op >> 3) & 7)
-        {
-            case 0: Add(value); break;
-            case 1: Add(value, withCarry: true); break;
-            case 2: Sub(value); break;
-            case 3:
-            {
-                int result = A - value - (CarryFlag ? 1 : 0);
-                CarryFlag = result < 0;
-                A = (byte)result;
-                ZeroFlag = A == 0;
-                break;
-            }
-            case 4: And(value); break;
-            case 5: A ^= value; ZeroFlag = A == 0; CarryFlag = false; break;
-            case 6: A |= value; ZeroFlag = A == 0; CarryFlag = false; break;
-            default: Compare(value); break;
-        }
-    }
-
-    void StepCb(int opcodeAddress)
-    {
-        byte op = Fetch();
-        switch (op)
-        {
-            case 0x11: C = Rl(C); break;                               // RL C
-            case 0x1B: E = Rl_Right(E); break;                         // RR E
-            case 0x3A: CarryFlag = (D & 0x01) != 0; D = (byte)(D >> 1); ZeroFlag = D == 0; break;   // SRL D
-            case 0x3B: CarryFlag = (E & 0x01) != 0; E = (byte)(E >> 1); ZeroFlag = E == 0; break;   // SRL E (D110)
-            case 0x3F: CarryFlag = (A & 0x01) != 0; A = (byte)(A >> 1); ZeroFlag = A == 0; break;   // SRL A
-            case 0x12: D = Rl(D); break;                               // RL D
-            case 0x13: E = Rl(E); break;                               // RL E (D142)
-            case 0x23:                                                 // SLA E
-                CarryFlag = (E & 0x80) != 0;
-                E = (byte)(E << 1);
-                ZeroFlag = E == 0;
-                break;
-            case 0x1D: L = Rl_Right(L); break;                         // RR L
-            case 0x01:                                                 // RLC C (TYPOVITE, D172)
-                CarryFlag = (C & 0x80) != 0;
-                C = (byte)((C << 1) | (C >> 7));
-                ZeroFlag = C == 0;
-                break;
-            case 0x1C: H = Rl_Right(H); break;                         // RR H (STAR, D151)
-            case 0x2C:                                                 // SRA H (STAR, D152)
-                CarryFlag = (H & 0x01) != 0;
-                H = (byte)((H >> 1) | (H & 0x80));
-                ZeroFlag = H == 0;
-                break;
-            case 0x3C: CarryFlag = (H & 0x01) != 0; H = (byte)(H >> 1); ZeroFlag = H == 0; break;   // SRL H
-            // Nombres à virgule (lot F1b, D068) : décalages d'un octet en mémoire
-            case 0x26:                                                 // SLA (HL)
-                CarryFlag = (Memory[HL] & 0x80) != 0;
-                Memory[HL] = (byte)(Memory[HL] << 1);
-                ZeroFlag = Memory[HL] == 0;
-                break;
-            case 0x16: Memory[HL] = Rl(Memory[HL]); break;             // RL (HL)
-            case 0x3E:                                                 // SRL (HL)
-                CarryFlag = (Memory[HL] & 0x01) != 0;
-                Memory[HL] = (byte)(Memory[HL] >> 1);
-                ZeroFlag = Memory[HL] == 0;
-                break;
-            case 0x1E: Memory[HL] = Rl_Right(Memory[HL]); break;       // RR (HL)
-            case 0xBC: H = (byte)(H & 0x7F); break;                    // RES 7,H
-            case 0x40: ZeroFlag = (B & 0x01) == 0; break;              // BIT 0,B
-            case 0x43: ZeroFlag = (E & 0x01) == 0; break;              // BIT 0,E (D060)
-            case 0x48: ZeroFlag = (B & 0x02) == 0; break;              // BIT 1,B
-            case 0x7A: ZeroFlag = (D & 0x80) == 0; break;              // BIT 7,D
-            case 0x78: ZeroFlag = (B & 0x80) == 0; break;              // BIT 7,B (TYPO, D170)
-            case 0x7C: ZeroFlag = (H & 0x80) == 0; break;              // BIT 7,H
-            case 0x7F: ZeroFlag = (A & 0x80) == 0; break;              // BIT 7,A (STAR, D151)
-            // BIT, RES, SET n,r qui n'ont pas encore leur ligne ci-dessus (FPRINT, D175) : décodés
-            case >= 0x40:
-            {
-                int bit = (op >> 3) & 7, reg = op & 7;
-                byte value = GetRegister(reg);
-                if (op < 0x80)
-                    ZeroFlag = (value & (1 << bit)) == 0;          // BIT
-                else
-                    SetRegister(reg, op < 0xC0 ? (byte)(value & ~(1 << bit)) : (byte)(value | (1 << bit)));   // RES / SET
-                break;
-            }
-
-            default:
-                throw new NotSupportedException($"Instruction &CB{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
-        }
-    }
-
-    void StepEd(int opcodeAddress)
-    {
-        byte op = Fetch();
-        switch (op)
-        {
-            case 0x78: A = Ports.TryGetValue(BC, out byte read) ? read : (byte)0xFF; break;   // IN A,(C)
-            case 0x79: PortWrites.Add((BC, A)); break;                                       // OUT (C),A
-            case 0x73:                                                 // LD (nn),SP (D080)
-            {
-                int at = Fetch16();
-                Memory[at] = (byte)(sp & 0xFF);
-                Memory[(at + 1) & 0xFFFF] = (byte)(sp >> 8);
-                break;
-            }
-            case 0x7B:                                                 // LD SP,(nn) (D080)
-            {
-                int at = Fetch16();
-                sp = Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8);
-                break;
-            }
-            case 0x4B:                                                 // LD BC,(nn) (STAR, D152)
-            {
-                int at = Fetch16();
-                BC = (ushort)(Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8));
-                break;
-            }
-            case 0x5B:                                                 // LD DE,(nn)
-            {
-                int at = Fetch16();
-                DE = (ushort)(Memory[at] | (Memory[(at + 1) & 0xFFFF] << 8));
-                break;
-            }
-            case 0x52:                                                 // SBC HL,DE
-            {
-                int result = HL - DE - (CarryFlag ? 1 : 0);
-                CarryFlag = result < 0;
-                HL = (ushort)result;
-                ZeroFlag = HL == 0;
-                break;
-            }
-            case 0x42:                                                 // SBC HL,BC
-            {
-                int result = HL - BC - (CarryFlag ? 1 : 0);
-                CarryFlag = result < 0;
-                HL = (ushort)result;
-                ZeroFlag = HL == 0;
-                break;
-            }
-            case 0xB0:                                                 // LDIR
-                do
-                {
-                    Memory[DE] = ReadMemory(HL);
-                    HL = (ushort)(HL + 1);
-                    DE = (ushort)(DE + 1);
-                    BC = (ushort)(BC - 1);
-                }
-                while (BC != 0);
-                break;
-            case 0x5A:                                                 // ADC HL,DE
-            {
-                int result = HL + DE + (CarryFlag ? 1 : 0);
-                int signed = (short)HL + (short)DE + (CarryFlag ? 1 : 0);
-                CarryFlag = result > 0xFFFF;
-                OverflowFlag = signed is < -32768 or > 32767;
-                HL = (ushort)result;
-                ZeroFlag = HL == 0;
-                break;
-            }
-            case 0x43:                                                 // LD (nn),BC (TYPOVITE, D172)
-            {
-                int at = Fetch16();
-                Memory[at] = C;
-                Memory[(at + 1) & 0xFFFF] = B;
-                break;
-            }
-            case 0x53:                                                 // LD (nn),DE (D062)
-            {
-                int at = Fetch16();
-                Memory[at] = E;
-                Memory[(at + 1) & 0xFFFF] = D;
-                break;
-            }
-            case 0xB8:                                                 // LDDR (D062)
-                do
-                {
-                    Memory[DE] = ReadMemory(HL);
-                    HL = (ushort)(HL - 1);
-                    DE = (ushort)(DE - 1);
-                    BC = (ushort)(BC - 1);
-                }
-                while (BC != 0);
-                break;
-            case 0x6A:                                                 // ADC HL,HL
-            {
-                int result = HL + HL + (CarryFlag ? 1 : 0);
-                CarryFlag = result > 0xFFFF;
-                HL = (ushort)result;
-                ZeroFlag = HL == 0;
-                break;
-            }
-            default:
-                throw new NotSupportedException($"Instruction &ED{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
-        }
-    }
 }

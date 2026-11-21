@@ -1346,6 +1346,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 1904 réussis (21 nov. 2026).
 - **Mis de côté (choix de l'utilisateur, 21 nov. 2026) :** « ajouter des commandes se fera après que tout soit terminé ». FPRINT et ses tests sont rangés dans `essais\fprint\` ; à reprendre plus tard (essai dans WinAPE, mesure de la vitesse). Les ajouts au simulateur restent.
 
+## D176 : un Z80 complet pour les tests (21 nov. 2026) (idée de l'utilisateur : « pourquoi ne pas mettre tous les opcodes du Z80, vraiment tous, d'un coup ? »)
+- **Constat :** MiniZ80 avait été complété instruction par instruction ; beaucoup d'« échecs » de tests venaient d'une instruction manquante, pas du code testé.
+- **Fait :** `tests\CpcBasic.Tests\MiniZ80.Core.cs` : toutes les instructions, décodées par les bits du code (x, y, z, p, q) ; préfixes CB, ED, DD, FD, DDCB, FDCB ; non documentées (IXH, IXL, IYH, IYL, SLL, DDCB qui recopie dans un registre, ED sans effet) ; tous les indicateurs (S, Z, H, P/V, N, C, bits 3 et 5) ; registres de rechange (EX AF,AF', EXX), IY, I, R, mode d'interruption ; ports (IN, OUT, INI, OTIR...). Les répétitions (LDIR, CPIR...) en une seule étape, comme avant. Toutes les lectures de données passent par la ROM haute quand elle est ouverte.
+- **Gardé :** l'imitation du firmware, reprise sans réécriture dans `CallTo` (CALL, et maintenant aussi CALL cc) et `JumpTo` (JP) ; MiniZ80.cs ne garde que la mémoire, la pile et le firmware (1592 -> 1083 lignes).
+- **Résultat :** les 1896 tests passent du premier coup (les 8 tests de FPRINT sont rangés avec lui, D175) ; `Z80CoreTests` (8) vérifie des indicateurs et des instructions connus (DAA, SBC HL, IXH / IYL, DDCB, EXX, CPIR, RLD, NEG).
+
 ---
 
 ## Notes de fin de session (modèle)
