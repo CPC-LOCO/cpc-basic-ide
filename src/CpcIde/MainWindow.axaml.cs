@@ -1177,7 +1177,7 @@ public partial class MainWindow : Window
         items.Add(new MessageItem($"Programme Z80 : {result.BinarySize} octets, avec notre petit système (aucune ROM d'Amstrad).", 0));
         items.AddRange(result.Notes.Select(n => new MessageItem(n, 0)));
         items.Add(new MessageItem("Dans AMSpiriT ou SugarBox (machine GX4000 ou CPC Plus), choisissez ce fichier comme cartouche, puis réinitialisez.", 0));
-        items.Add(new MessageItem("Pas encore sur la console : PEN, PAPER, INK, le dessin, le son, les fenêtres.", 0));
+        items.Add(new MessageItem("Pas encore sur la console : le dessin, le son, les fenêtres, les encres clignotantes.", 0));
         items.AddRange(LibraryProblems());
         ShowMessages(items);
     }

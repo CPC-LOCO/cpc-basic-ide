@@ -17,6 +17,7 @@ public class Gx4000SystemTests
     {
         var cpu = new MiniZ80 { UpperRomEnabled = false };
         cpu.Load(Gx4000System.SystemCode(program?.Length ?? 0), 0);
+        cpu.Memory[Gx4000System.Variables + 0x13] = 1;       // stylo 1, comme au démarrage de la cartouche (D186)
         return cpu;
     }
 
@@ -255,6 +256,7 @@ public class Gx4000SystemTests
     {
         var cpu = new MiniZ80 { UpperRomEnabled = false };
         cpu.Load(Gx4000System.SystemCode(0, null, withInput: true), 0);
+        cpu.Memory[Gx4000System.Variables + 0x13] = 1;       // stylo 1, comme au démarrage
         Mode(cpu, 1);
         return cpu;
     }
@@ -363,5 +365,78 @@ public class Gx4000SystemTests
         Assert.NotNull(result.Cartridge);
         Assert.Single(result.Notes);                          // un seul message, même avec deux saisies
         Assert.Contains("saisie à la manette", result.Notes[0]);
+    }
+
+    // ---------- couleurs (D186) ----------
+
+    static void Firmware(MiniZ80 cpu, int address, byte a, byte b = 0)
+    {
+        cpu.A = a;
+        cpu.B = b;
+        cpu.Call(EntryOf(address, cpu));
+    }
+
+    [Fact]
+    public void PEN_et_PAPER_changent_les_couleurs_du_texte()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Firmware(cpu, 0xBB90, 3);                             // PEN 3 : octet &FF
+        Firmware(cpu, 0xBB96, 2);                             // PAPER 2 : octet &0F
+        Print(cpu, "A");
+
+        // A, ligne 1 : points 2, 3, 4 au stylo 3, les autres au papier 2
+        Assert.Equal(new byte[] { 0x3F, 0x8F }, cpu.Memory[0xC000..0xC002]);
+        Firmware(cpu, 0xBB93, 0);
+        Assert.Equal(3, cpu.A);
+        Firmware(cpu, 0xBB99, 0);
+        Assert.Equal(2, cpu.A);
+    }
+
+    [Fact]
+    public void CLS_remplit_l_ecran_avec_le_papier()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Firmware(cpu, 0xBB96, 2);
+        cpu.A = 12;                                           // CLS (code 12)
+        cpu.Call(Gx4000System.TxtOutputEntry);
+
+        Assert.Equal(0x0F, cpu.Memory[0xC000]);
+        Assert.Equal(0x0F, cpu.Memory[0xFFCF]);
+    }
+
+    [Fact]
+    public void En_MODE_0_le_stylo_9_a_ses_quatre_bits()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 0);
+        Firmware(cpu, 0xBB90, 9);                             // 9 = bits 0 et 3 : octet &C3
+        Print(cpu, "A");
+
+        // A, ligne 1, deuxième octet : les deux points allumés -> &C3
+        Assert.Equal(0xC3, cpu.Memory[0xC001]);
+    }
+
+    [Fact]
+    public void INK_et_BORDER_notent_la_couleur_et_la_rendent()
+    {
+        MiniZ80 cpu = Cpu();
+        Firmware(cpu, 0xBC32, 1, 6);                          // INK 1,6
+        Firmware(cpu, 0xBC35, 1);
+        Assert.Equal(6, cpu.B);
+
+        Firmware(cpu, 0xBC38, 0, 3);                          // BORDER 3
+        Firmware(cpu, 0xBC3B, 0);
+        Assert.Equal(3, cpu.B);
+    }
+
+    [Fact]
+    public void Un_programme_avec_des_couleurs_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 MODE 0:INK 0,0:BORDER 3:PEN 2:PAPER 0:PRINT \"A\"");
+
+        Assert.NotNull(result.Cartridge);
+        Assert.Empty(result.Notes);
     }
 }

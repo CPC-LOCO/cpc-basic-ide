@@ -19,8 +19,9 @@ namespace CpcBasic.Core.Output;
 /// Le programme compilé ne change pas : il appelle les mêmes adresses, nos routines répondent.
 /// Les routines tournent depuis la cartouche (ROM basse, toujours branchée) ; leurs variables sont en &amp;BE00.
 /// Manettes (D183) : JOY, et les touches de la table (tir 1 = espace, tir 2 = ENTRÉE, directions = flèches, plus les
-/// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Pas encore faits :
-/// PEN, PAPER, les fenêtres, le son ; les autres adresses de la ROM répondent par un simple retour.
+/// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Couleurs :
+/// PEN, PAPER, INK (sans clignotement), BORDER (D186). Pas encore faits : le dessin, les fenêtres, le son ; les autres
+/// adresses de la ROM répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -85,22 +86,6 @@ public static class Gx4000System
                 LD A,D
                 CP 14
                 JR NZ,CRTCL
-        ; Encres du CPC au démarrage : stylos 0 à 3, puis la bordure (stylo 16)
-                LD HL,ENCRES
-                LD D,0
-                LD B,&7F
-        ENCRE:  OUT (C),D
-                LD A,(HL)
-                INC HL
-                OUT (C),A
-                INC D
-                LD A,D
-                CP 4
-                JR NZ,ENCRE
-                LD A,16
-                OUT (C),A
-                LD A,(HL)
-                OUT (C),A
         ; Adresses de la ROM du CPC : un simple retour partout, puis nos routines là où elles existent
                 LD HL,&BB00
                 LD DE,&BB01
@@ -123,10 +108,23 @@ public static class Gx4000System
                 JR BRL
         BRFIN:  LD HL,&BE00             ; variables du système à zéro
                 LD DE,&BE01
-                LD BC,31
+                LD BC,63
                 LD (HL),0
                 LDIR
+        ; Encres du CPC au démarrage (D186) : les 16 stylos, puis la bordure (stylo 16)
+                LD HL,ENCRES
+                LD E,0
+        ENCRE:  LD B,(HL)
+                INC HL
+                PUSH HL
+                CALL ENCRE1
+                POP HL
+                INC E
+                LD A,E
+                CP 17
+                JR NZ,ENCRE
                 LD A,1
+                LD (&BE13),A            ; stylo 1 sur papier 0
                 CALL SETMODE
         ; Le programme compilé, recopié en &4000, puis lancé
                 LD HL,PROG
@@ -156,11 +154,13 @@ public static class Gx4000System
                 LD DE,&BE02
                 LD BC,4
                 LDIR
+                CALL MAJCOUL            ; octets du stylo et du papier pour ce mode
         ; ---------- TXT CLEAR WINDOW (&BB6C) : écran effacé, curseur en haut à gauche ----------
         CLS:    LD HL,&C000
                 LD DE,&C001
                 LD BC,&3FFF
-                LD (HL),0
+                LD A,(&BE14)            ; l'écran prend la couleur du papier
+                LD (HL),A
                 LDIR
                 XOR A
                 LD (&BE00),A
@@ -177,7 +177,7 @@ public static class Gx4000System
                 PUSH DE
                 PUSH HL
                 CP 32
-                JR C,CTRL
+                JP C,CTRL
                 CP 127
                 JR C,TXT1
                 LD A,32                 ; pas encore de dessin au-delà de 126 : un espace
@@ -212,7 +212,36 @@ public static class Gx4000System
         LIGNE2: LD A,(&BE02)
                 LD B,A                  ; octets par caractère
         OCTET:  LD A,(&BE04)
-                AND C
+                AND C                   ; points allumés (bit 0 de leur encre)
+                PUSH BC
+                LD B,A
+                LD A,(&BE06)
+                CP 1
+                JR Z,OM1
+                JR C,OM0
+                LD A,B                  ; MODE 2 : un bit par point
+                JR OMX
+        OM1:    LD A,B                  ; MODE 1 : les deux bits de chaque point
+                RRCA
+                RRCA
+                RRCA
+                RRCA
+                OR B
+                JR OMX
+        OM0:    XOR A                   ; MODE 0 : les quatre bits de chaque point
+                BIT 7,B
+                JR Z,OM0B
+                LD A,&AA
+        OM0B:   BIT 6,B
+                JR Z,OMX
+                OR &55
+        OMX:    LD B,A                  ; masque des points de la lettre
+                LD A,(&BE15)            ; stylo XOR papier
+                AND B
+                LD B,A
+                LD A,(&BE14)            ; papier
+                XOR B                   ; stylo sur les points de la lettre, papier ailleurs
+                POP BC
                 LD (HL),A
                 INC HL
                 LD A,(&BE05)
@@ -288,7 +317,8 @@ public static class Gx4000System
                 LD H,D
                 LD L,E
                 INC DE
-                LD (HL),0
+                LD A,(&BE14)
+                LD (HL),A
                 LD BC,79
                 LDIR
                 POP DE
@@ -473,10 +503,125 @@ public static class Gx4000System
                 RET
         FLUX:   XOR A                   ; TXT STR SELECT : flux 0
                 RET
+
+        ; ---------- couleurs (D186) : &BE13 stylo, &BE16 papier, &BE17 / &BE14 leurs octets pour le mode, ----------
+        ; &BE15 = stylo XOR papier ; &BE20 à &BE30 : couleur (0 à 26) de chaque stylo et de la bordure
+        ; TXT SET PEN (&BB90), TXT GET PEN (&BB93), TXT SET PAPER (&BB96), TXT GET PAPER (&BB99) : A = encre
+        SETPEN: PUSH BC
+                PUSH DE
+                AND 15
+                LD (&BE13),A
+                CALL MAJCOUL
+                POP DE
+                POP BC
+                RET
+        GETPEN: LD A,(&BE13)
+                RET
+        SETPAP: PUSH BC
+                PUSH DE
+                AND 15
+                LD (&BE16),A
+                CALL MAJCOUL
+                POP DE
+                POP BC
+                RET
+        GETPAP: LD A,(&BE16)
+                RET
+        MAJCOUL: LD A,(&BE13)
+                CALL OCTENC
+                LD (&BE17),A
+                LD A,(&BE16)
+                CALL OCTENC
+                LD (&BE14),A
+                LD B,A
+                LD A,(&BE17)
+                XOR B
+                LD (&BE15),A
+                RET
+        ; A = encre -> A = octet d'écran dont tous les points ont cette encre, dans le mode actuel
+        OCTENC: LD C,A
+                LD A,(&BE06)
+                LD HL,TENC0
+                LD B,15
+                OR A
+                JR Z,OCTE1
+                LD HL,TENC1
+                LD B,3
+                DEC A
+                JR Z,OCTE1
+                LD HL,TENC2
+                LD B,1
+        OCTE1:  LD A,C
+                AND B
+                LD E,A
+                LD D,0
+                ADD HL,DE
+                LD A,(HL)
+                RET
+        ; SCR SET INK (&BC32) : A = stylo, B = couleur (la seconde couleur, clignotante, n'est pas encore faite)
+        SETINK: PUSH BC
+                PUSH DE
+                PUSH HL
+                AND 15
+                LD E,A
+                CALL ENCRE1
+                POP HL
+                POP DE
+                POP BC
+                RET
+        ; SCR SET BORDER (&BC38) : B = couleur
+        SETBORD: PUSH BC
+                PUSH DE
+                PUSH HL
+                LD E,16
+                CALL ENCRE1
+                POP HL
+                POP DE
+                POP BC
+                RET
+        ; SCR GET INK (&BC35) : A = stylo -> B = C = couleur ; SCR GET BORDER (&BC3B)
+        GETINK: AND 15
+                JR GETI1
+        GETBORD: LD A,16
+        GETI1:  PUSH HL
+                PUSH DE
+                LD E,A
+                LD D,0
+                LD HL,&BE20
+                ADD HL,DE
+                LD B,(HL)
+                LD C,B
+                POP DE
+                POP HL
+                RET
+        ; E = stylo (16 = bordure), B = couleur du CPC (0 à 26) : notée, puis envoyée au Gate Array
+        ENCRE1: LD D,0
+                LD HL,&BE20
+                ADD HL,DE
+                LD (HL),B
+                LD A,B
+                CP 27
+                JR C,ENC2
+                LD A,26
+        ENC2:   LD HL,COULEURS
+                LD C,A
+                LD B,0
+                ADD HL,BC
+                LD A,(HL)
+                LD BC,&7F00
+                OUT (C),E
+                OUT (C),A
+                RET
+        TENC0:  DEFB &00,&C0,&0C,&CC,&30,&F0,&3C,&FC,&03,&C3,&0F,&CF,&33,&F3,&3F,&FF
+        TENC1:  DEFB &00,&F0,&0F,&FF
+        TENC2:  DEFB &00,&FF
+        ; les 27 couleurs du CPC, en valeurs du Gate Array
+        COULEURS: DEFB &54,&44,&55,&5C,&58,&5D,&4C,&45,&4D,&56,&46,&57,&5E,&40
+                DEFB &5F,&4E,&47,&4F,&52,&42,&53,&5A,&59,&5B,&4A,&43,&4B
         {3}
 
         CRTC:   DEFB 63,40,46,&8E,38,0,25,30,0,7,0,0,&30,0
-        ENCRES: DEFB &44,&4A,&53,&4C,&44  ; bleu, jaune vif, bleu ciel vif, rouge vif ; bordure : bleu
+        ENCRES: DEFB 1,24,20,6,26,0,2,8,10,12,14,16,18,22,1,16,1   ; couleurs du CPC au démarrage ; bordure : 1
         BRANCHE: DEFW &BB5A,TXTOUT
                 DEFW &BB6C,CLS
                 DEFW &BB75,SETCUR
@@ -491,6 +636,14 @@ public static class Gx4000System
                 DEFW &BB18,ATTCLE
                 DEFW &BBB4,FLUX
                 DEFW &BC0E,SETMODE
+                DEFW &BB90,SETPEN
+                DEFW &BB93,GETPEN
+                DEFW &BB96,SETPAP
+                DEFW &BB99,GETPAP
+                DEFW &BC32,SETINK
+                DEFW &BC35,GETINK
+                DEFW &BC38,SETBORD
+                DEFW &BC3B,GETBORD
                 DEFW 0
         TOUCHES: {2}
         {5}

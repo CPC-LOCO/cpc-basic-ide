@@ -1424,6 +1424,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fait :** menu Compiler, « Cartouche GX4000 », raccourci **Ctrl+F5** : enregistre le programme, compile avec les réglages de l'éditeur, écrit NOM.cpr à côté du programme ; messages : réussite et taille, messages de la cartouche (touches placées, saisie à la manette), rappel pour AMSpiriT ou SugarBox, ce qui n'est pas encore sur la console ; erreurs comme pour F5 (fichier ouvert dans l'émulateur : message). F5 ne change pas (disquette et cassette). Aide de démarrage complétée. Pas de réglage par programme.
 - **Essai (21 nov. 2026) :** `examples\gxsaisie.bas`, Ctrl+F5 : « Cartouche GX4000 réussie » (3884 octets avec la touche ESC comme le CPC), cartouche identique à l'essai dans AMSpiriT. Tests inchangés : 1952 (l'éditeur n'est pas couvert par les tests).
 
+## D186 : cartouche GX4000, les couleurs : PEN, PAPER, INK, BORDER (21 nov. 2026) (ordre conseillé, choisi par l'utilisateur)
+- **Fait :** `Gx4000System.cs` : TXT SET / GET PEN (&BB90, &BB93), TXT SET / GET PAPER (&BB96, &BB99), SCR SET / GET INK (&BC32, &BC35), SCR SET / GET BORDER (&BC38, &BC3B). Le texte s'écrit stylo sur papier dans les 3 modes : masque des points de la lettre selon le mode, puis papier XOR ((stylo XOR papier) ET masque) ; octets « toutes les encres » par mode (tables TENC0, TENC1, TENC2). CLS, MODE et l'écran qui remonte prennent la couleur du papier. Les 27 couleurs du CPC en valeurs du Gate Array ; couleur de chaque stylo et de la bordure notée en &BE20 à &BE30. Au démarrage : les 16 encres et la bordure du CPC allumé (1, 24, 20, 6, 26, 0, 2, 8, 10, 12, 14, 16, 18, 22, 1, 16 ; bordure 1), stylo 1, papier 0. Variables mises à zéro de &BE00 à &BE3F.
+- **Pas encore :** la seconde couleur d'INK (encre clignotante) ; le message de Ctrl+F5 le dit.
+- **Tests :** 1957 réussis (5 nouveaux). Les anciens tests appelaient les routines sans le démarrage : stylo 0 = papier, lettres invisibles ; ils mettent maintenant le stylo 1, comme le démarrage.
+- **Essai (21 nov. 2026) :** `examples\gxcoul.bas` (Ctrl+F5) dans AMSpiriT : MODE 0, 15 stylos de couleurs différentes sur fond noir ; MODE 1, jaune sur rouge, bleu sur vert, jaune sur bleu, bordure rouge : conformes.
+
 ---
 
 ## Notes de fin de session (modèle)
