@@ -1419,6 +1419,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (21 nov. 2026) :** `gxsaisie.cpr` dans AMSpiriT (manette au clavier) : « PHILIPPE », « 62 », « Dans 10 ans, vous aurez 72 ans » ; « c'est parfait et finalement intuitif ». Le vrai comportement du BASIC (« ?Redo from start » pour des lettres à la place d'un nombre) est gardé. Tests : 1952 réussis.
 - **Idée de l'utilisateur notée dans IDEES.md (à lui rappeler quand on fera de nouvelles commandes) :** une saisie limitée, `INPUT "0123456789"+CHR$(13); "Votre âge : "; A$`, qui n'accepte que les caractères donnés (sur CPC et à la manette).
 
+## D185 : cartouche GX4000 depuis l'éditeur, Ctrl+F5 (21 nov. 2026) (choix de l'utilisateur)
+- **Constat :** F7 sert à la version du CPC (D126) et le réglage Machine (D066) n'est plus dans l'éditeur ; Maj+F5 est pris (D134).
+- **Fait :** menu Compiler, « Cartouche GX4000 », raccourci **Ctrl+F5** : enregistre le programme, compile avec les réglages de l'éditeur, écrit NOM.cpr à côté du programme ; messages : réussite et taille, messages de la cartouche (touches placées, saisie à la manette), rappel pour AMSpiriT ou SugarBox, ce qui n'est pas encore sur la console ; erreurs comme pour F5 (fichier ouvert dans l'émulateur : message). F5 ne change pas (disquette et cassette). Aide de démarrage complétée. Pas de réglage par programme.
+- **Essai (21 nov. 2026) :** `examples\gxsaisie.bas`, Ctrl+F5 : « Cartouche GX4000 réussie » (3884 octets avec la touche ESC comme le CPC), cartouche identique à l'essai dans AMSpiriT. Tests inchangés : 1952 (l'éditeur n'est pas couvert par les tests).
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -264,6 +264,7 @@ public partial class MainWindow : Window
     }
     async void OnCompileClick(object? sender, RoutedEventArgs e) => await CompileAsync();
     void OnVerifyClick(object? sender, RoutedEventArgs e) => Verify();
+    async void OnCartridgeClick(object? sender, RoutedEventArgs e) => await CompileCartridgeAsync();
     void OnSmallerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(-2);
     void OnBiggerClick(object? sender, RoutedEventArgs e) => ChangeFontSize(+2);
     void OnContrastClick(object? sender, RoutedEventArgs e) => ToggleContrast();
@@ -330,6 +331,7 @@ public partial class MainWindow : Window
             new MessageItem("Ctrl+O : ouvrir un programme.   Ctrl+S : enregistrer.   Ctrl+Maj+S : enregistrer sous un autre nom.", 0),
             new MessageItem("F5 : compiler.   F4 : liste des variables.   Maj+F4 : liste des bibliothèques et de leurs commandes.", 0),
             new MessageItem("Maj+F5 : vérifier sans enregistrer (rien n'est écrit : ni le programme, ni la disquette).", 0),
+            new MessageItem("Ctrl+F5 : cartouche GX4000 (NOM.cpr, pour la console GX4000 et les CPC Plus).", 0),
             new MessageItem("F6 : passer de l'éditeur aux messages, et inversement.   Entrée sur un message d'erreur : aller à la ligne.", 0),
             new MessageItem("F7 : version du CPC, française (AZERTY, é è à ç ù) ou anglaise (QWERTY).", 0),
             new MessageItem("F8 : variables sans signe entières ou à virgule.   F9 : touche ESC comme le CPC ou ignorée.", 0),
@@ -417,7 +419,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.F5 && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        if (e.Key == Key.F5 && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            e.Handled = true;
+            await CompileCartridgeAsync();        // D185
+        }
+        else if (e.Key == Key.F5 && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             e.Handled = true;
             Verify();
@@ -1112,6 +1119,67 @@ public partial class MainWindow : Window
         done.Add(new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0));
         done.AddRange(LibraryProblems());
         ShowMessages(done);
+    }
+
+    // Ctrl+F5 (D185) : la cartouche GX4000, NOM.cpr à côté du programme, avec notre petit système (D182 à D184) ;
+    // F5 ne change pas. Les messages : touches placées sur la manette, saisie à la manette, erreurs.
+    async Task CompileCartridgeAsync()
+    {
+        if (!await SaveAsync())
+            return;
+        string path = currentPath!;
+        UseLibraries(LibraryFolders.Load());
+        CartridgeResult result;
+        try
+        {
+            result = Compiler.CompileToCartridge(Editor.Text,
+                new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode,
+                                    settings.PreferSize, libraries));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            ShowMessages(new[]
+            {
+                new MessageItem($"Cartouche impossible : {ex.Message}", 0, MessageKind.Error),
+                new MessageItem("Aucun fichier n'a été créé.", 0)
+            });
+            return;
+        }
+
+        var items = new List<MessageItem>();
+        if (result.Cartridge is null)
+        {
+            items.AddRange(result.Diagnostics.Select(d => new MessageItem(d.Message, d.File is null ? d.Line : 0, MessageKind.Error)));
+            items.AddRange(result.Problems.Select(p => new MessageItem(p, 0, MessageKind.Error)));
+            items.AddRange(result.Notes.Select(n => new MessageItem(n, 0)));
+            items.Add(new MessageItem($"{result.Diagnostics.Count + result.Problems.Count} erreur(s). Aucun fichier n'a été créé.", 0));
+            items.AddRange(LibraryProblems());
+            ShowMessages(items);
+            return;
+        }
+
+        string cprPath = Path.ChangeExtension(path, ".cpr");
+        try
+        {
+            result.Cartridge.Save(cprPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowMessages(new[]
+            {
+                new MessageItem("Impossible d'écrire le fichier .cpr : il est sans doute ouvert dans votre émulateur.", 0, MessageKind.Error),
+                new MessageItem("Fermez l'émulateur, puis recommencez (Ctrl+F5).", 0),
+                new MessageItem($"Fichier : {cprPath}", 0)
+            });
+            return;
+        }
+        items.Add(new MessageItem($"Cartouche GX4000 réussie : {cprPath}", 0, MessageKind.Success));
+        items.Add(new MessageItem($"Programme Z80 : {result.BinarySize} octets, avec notre petit système (aucune ROM d'Amstrad).", 0));
+        items.AddRange(result.Notes.Select(n => new MessageItem(n, 0)));
+        items.Add(new MessageItem("Dans AMSpiriT ou SugarBox (machine GX4000 ou CPC Plus), choisissez ce fichier comme cartouche, puis réinitialisez.", 0));
+        items.Add(new MessageItem("Pas encore sur la console : PEN, PAPER, INK, le dessin, le son, les fenêtres.", 0));
+        items.AddRange(LibraryProblems());
+        ShowMessages(items);
     }
 
     // Maj+F5 (D134, idée de l'utilisateur) : compile en mémoire, comme F5, sans enregistrer le programme ni écrire de
