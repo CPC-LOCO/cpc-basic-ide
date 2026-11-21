@@ -1339,6 +1339,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Question venue de D172 (`ROUND(T1/T2,1)` affichait 2). Choix proposés : garder ; faire comme le Locomotive (toujours à virgule) ; un réglage. **Choix 1 : garder.**
 - Pour une division à virgule sans F8 : `CREAL(A)/B`, une variable à virgule (A!), ou le réglage F8. Écrit dans `packaging\LISEZMOI.txt` (point 5).
 
+## D175 : FPRINT, affichage rapide du texte (20 nov. 2026, en cours) (idée et RSX de l'utilisateur : SPEED1 MODE 1, 2024 ; RAPIDO MODE 2, 2026 ; forme choisie par l'utilisateur : `FPRINT texte$`, sans autre valeur ; couleurs de PEN et PAPER)
+- **Fichier :** `bibliotheques\TEXTE\FPRINT.cmd.asm` : au curseur du texte (TXT GET CURSOR, VALIDATE, fenêtre), puis curseur après le texte ; dessins lus en &3800 + 8 x code (ROM basse ouverte une fois) ou dans la table de SYMBOL AFTER (TXT GET M TABLE une fois) ; 8 lignes de &800 en &800 (SPEED1), MODE 2 déroulé par les bits 3 à 5 de H (RAPIDO) ; coupé au bord droit, pas de défilement.
+- **Erreur de l'assistant :** il avait d'abord ajouté `[, col, lig]` ; l'utilisateur avait demandé `FPRINT texte$` seul (« plus de paramètres » = plus aucune valeur). Corrigé.
+- **MiniZ80 :** TXT GET / SET PEN et PAPER, SCR CHAR POSITION, TXT GET M TABLE, tous les BIT / RES / SET n,r.
+- **Tests :** 1904 réussis (21 nov. 2026).
+- **Mis de côté (choix de l'utilisateur, 21 nov. 2026) :** « ajouter des commandes se fera après que tout soit terminé ». FPRINT et ses tests sont rangés dans `essais\fprint\` ; à reprendre plus tard (essai dans WinAPE, mesure de la vitesse). Les ajouts au simulateur restent.
+
 ---
 
 ## Notes de fin de session (modèle)

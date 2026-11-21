@@ -58,4 +58,6 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 
 - **Division de deux entiers** (vu le 20 nov. 2026, D172) : `ROUND(T1/T2,1)` avec T1 et T2 entiers affiche 2 au lieu de 2.1 ; le Locomotive donne un nombre à virgule pour « / ». **Tranché (D174) : on garde, la vitesse d'abord** ; astuce CREAL(A)/B dans le LISEZMOI.
 
-- **Affichage rapide du texte normal** (idée de l'utilisateur, 20 nov. 2026, après TYPO) : un écran plein en MODE 1 par PRINT prend plus de 3 secondes ; l'utilisateur a écrit une RSX plus rapide (MODE 0, 1 et 2). Plus tard : la regarder, comme TYPO, pour en faire une commande de bibliothèque (ou accélérer PRINT).
+- **Affichage rapide du texte normal** (idée de l'utilisateur, 20 nov. 2026, après TYPO) : un écran plein en MODE 1 par PRINT prend plus de 3 secondes ; l'utilisateur a écrit une RSX plus rapide (MODE 0, 1 et 2). Commande FPRINT texte$ écrite (D175), puis **mise de côté** dans `essais\fprint\` : les nouvelles commandes viendront quand tout le reste sera terminé (choix de l'utilisateur).
+
+- **Simulateur Z80 complet pour les tests** (idée de l'utilisateur, 21 nov. 2026) : MiniZ80 a été complété au fil des besoins ; mettre d'un coup toutes les instructions du Z80 (avec CB, ED, DD, FD, DDCB, FDCB) et tous les indicateurs (S, Z, H, P/V, N, C).

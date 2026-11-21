@@ -113,6 +113,9 @@ internal sealed class MiniZ80
     public byte CurrentStream;
     public byte WindowWidth = 40;
 
+    /// <summary>Stylo et fond du texte (TXT SET PEN / PAPER), pour FPRINT (D175).</summary>
+    public byte TextPen = 1, TextPaper;
+
     // Caractères (lot H4, D075) : premier caractère redessinable (240 au départ, comme le BASIC), dessins reçus,
     // tables données, TAG / TAGOFF
     public int FirstUserChar = 240;
@@ -995,7 +998,32 @@ internal sealed class MiniZ80
                 }
                 else if (address is 0xBBC9 or 0xBB90)
                 {
-                    // GRA SET ORIGIN, TXT SET PEN : rien à simuler (D104)
+                    if (address == 0xBB90)
+                        TextPen = A;                                   // TXT SET PEN (FPRINT, D175)
+                }
+                else if (address == 0xBB93)
+                {
+                    A = TextPen;                                       // TXT GET PEN (FPRINT, D175)
+                }
+                else if (address == 0xBBAE)
+                {
+                    CarryFlag = FirstUserChar < 256;                   // TXT GET M TABLE (FPRINT, D175) : les dessins sont
+                    A = (byte)FirstUserChar;                           // rangés comme TXT GET MATRIX (&3800 + 8 x code)
+                    HL = (ushort)(0x3800 + FirstUserChar * 8);
+                }
+                else if (address == 0xBB96)
+                {
+                    TextPaper = A;                                     // TXT SET PAPER (FPRINT, D175)
+                }
+                else if (address == 0xBB99)
+                {
+                    A = TextPaper;                                     // TXT GET PAPER (FPRINT, D175)
+                }
+                else if (address == 0xBC1A)
+                {
+                    int width = 8 / PixelsPerByte;                     // SCR CHAR POSITION (FPRINT, D175) : H = colonne,
+                    HL = (ushort)(0xC000 + L * 80 + H * width);        // L = ligne (physiques, depuis 0) -> HL, B = largeur
+                    B = (byte)width;
                 }
                 else if (address == 0xBBDB)
                 {
@@ -1440,6 +1468,18 @@ internal sealed class MiniZ80
             case 0x78: ZeroFlag = (B & 0x80) == 0; break;              // BIT 7,B (TYPO, D170)
             case 0x7C: ZeroFlag = (H & 0x80) == 0; break;              // BIT 7,H
             case 0x7F: ZeroFlag = (A & 0x80) == 0; break;              // BIT 7,A (STAR, D151)
+            // BIT, RES, SET n,r qui n'ont pas encore leur ligne ci-dessus (FPRINT, D175) : décodés
+            case >= 0x40:
+            {
+                int bit = (op >> 3) & 7, reg = op & 7;
+                byte value = GetRegister(reg);
+                if (op < 0x80)
+                    ZeroFlag = (value & (1 << bit)) == 0;          // BIT
+                else
+                    SetRegister(reg, op < 0xC0 ? (byte)(value & ~(1 << bit)) : (byte)(value | (1 << bit)));   // RES / SET
+                break;
+            }
+
             default:
                 throw new NotSupportedException($"Instruction &CB{op:X2} à l'adresse &{opcodeAddress:X4} : à ajouter à MiniZ80.");
         }
