@@ -32,7 +32,10 @@ public class CartridgeImageTests
         int second = 20 + CartridgeImage.PageSize;
         Assert.Equal("cb01", Encoding.ASCII.GetString(cpr, second, 4));
         Assert.Equal(1, cpr[second + 8]);
-        Assert.Equal(12 + 2 * (8 + CartridgeImage.PageSize), cpr.Length);
+        Assert.Equal(12 + CartridgeImage.MinPages * (8 + CartridgeImage.PageSize), cpr.Length);   // 128 Ko au moins (D183)
+        int last = 12 + (CartridgeImage.MinPages - 1) * (8 + CartridgeImage.PageSize);
+        Assert.Equal("cb07", Encoding.ASCII.GetString(cpr, last, 4));
+        Assert.Equal(0xFF, cpr[last + 8]);                    // page vide
     }
 
     [Fact]

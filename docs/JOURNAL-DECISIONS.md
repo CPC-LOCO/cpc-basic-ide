@@ -1401,6 +1401,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Pas encore faits :** la manette (KM WAIT KEY attend sans fin, KM TEST KEY « pas appuyée ») ; PEN, PAPER, INK, fenêtres, codes de contrôle à valeurs, son ; le compilateur ne signale pas encore les commandes absentes ; F5 ne fait pas encore la cartouche.
 - **Essai (21 nov. 2026) :** `examples\gxtexte.bas` (MODE 1, LOCATE, PRINT, boucle FOR) en cartouche dans SugarBox (6128 PLUS) : écran conforme. Tests : 1931 réussis (8 nouveaux, `Gx4000SystemTests` ; une erreur d'écriture dans un test corrigée).
 
+## D183 : cartouche GX4000, les manettes et la table des touches (21 nov. 2026)
+- **Correspondance de base (choix de l'utilisateur) :** tir 1 = espace (47), tir 2 = ENTRÉE (18 et 6), directions = flèches (0, 2, 8, 1) ; touches de la manette elles-mêmes : 72 à 77 (manette 1), 48 à 53 (manette 2).
+- **Autres touches d'INKEY(n) (idée de l'utilisateur) :** chaque touche écrite en clair reçoit un bouton libre, dans l'ordre : tir 2, tirs 1 et 2 ensemble, puis la manette 2 (haut, bas, gauche, droite, tir 1, tir 2, tirs 1 et 2) ; un message par touche (« la touche 67 correspondra au tir 2 de la manette 1 », avec le rappel que le tir 2 sert aussi d'ENTRÉE) ; plus de bouton libre : refus, avec la touche qui coince. INKEY avec un numéro calculé, INPUT, LINE INPUT : avertissement (la cartouche est faite).
+- **Fait :** `Gx4000System.cs` : lecture des deux manettes par la grille du clavier (lignes 9 et 6, PPI et AY, comme le CPC) ; KM TEST KEY (&BB1E) consulte la table des touches (dans la cartouche) ; KM GET JOYSTICK (&BB24) ; KM READ CHAR / READ KEY (&BB09, &BB1B) : un caractère par nouvel appui (tir 1 = espace, tir 2 = 13, flèches &F0 à &F3) ; KM WAIT CHAR / WAIT KEY (&BB06, &BB18) attendent un appui. `Compiler.CompileToCartridge` rend un `CartridgeResult` (Notes, Problems). Outil en ligne de commande : affiche les messages. Exemple `examples\gxmanet.bas`.
+- **Cartouches de 128 Ko au moins :** WinAPE ne lançait pas une cartouche d'une seule page ; `CartridgeImage` complète jusqu'à 8 pages vides (&FF), comme les vraies cartouches. (WinAPE est ensuite resté sur le 6128 normal chez l'utilisateur ; non poursuivi.)
+- **Erreurs de l'assistant corrigées :** une écriture de plage refusée par C# dans un test ; deux variables `result` dans `src\CpcBasic.Cli\Program.cs` (non vu par les tests, qui ne compilent pas cet outil) ; message « correspondra à le tir 2 » ; texte faux dans l'exemple (Q = tir 2 seul).
+- **Émulateurs :** SugarBox lance les cartouches mais plante ou s'emballe avec la manette de l'utilisateur (problème de Windows : la manette marche sur un autre ordinateur) ; **AMSpiriT** retenu pour les essais de cartouches, manette jouée au clavier (flèches, ESPACE = tir 1, CTRL = tir 2).
+- **Essai (21 nov. 2026) :** `gxmanet.cpr` dans AMSpiriT, au clavier : « avec le clavier c'est parfait ». Tests : 1943 réussis (12 nouveaux dans `Gx4000SystemTests`).
+- **Suite décidée :** la saisie à la manette pour INPUT et LINE INPUT (idée de l'utilisateur : gauche / droite font défiler les caractères, tir 1 valide la lettre, tir 2 valide la saisie ; un signe « effacer » dans la liste ; caractères selon le type demandé ; routine ajoutée seulement si le programme utilise INPUT).
+
 ---
 
 ## Notes de fin de session (modèle)

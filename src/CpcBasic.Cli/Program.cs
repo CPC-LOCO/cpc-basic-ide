@@ -35,16 +35,20 @@ if (args[0] == "--gx4000")
     string cprOut = args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".cpr");
     try
     {
-        var (errors, cartridge, size) = Compiler.CompileToCartridge(File.ReadAllText(args[1]));
-        foreach (var diagnostic in errors)
+        CartridgeResult cartResult = Compiler.CompileToCartridge(File.ReadAllText(args[1]));
+        foreach (var diagnostic in cartResult.Diagnostics)
             Console.Error.WriteLine(diagnostic.Message);
-        if (cartridge is null)
+        foreach (string problem in cartResult.Problems)
+            Console.Error.WriteLine(problem);
+        foreach (string note in cartResult.Notes)
+            Console.WriteLine(note);
+        if (cartResult.Cartridge is null)
         {
-            Console.Error.WriteLine($"{errors.Count} erreur(s). Aucun fichier n'a été créé.");
+            Console.Error.WriteLine($"{cartResult.Diagnostics.Count + cartResult.Problems.Count} erreur(s). Aucun fichier n'a été créé.");
             return 1;
         }
-        cartridge.Save(cprOut);
-        Console.WriteLine($"{Path.GetFullPath(cprOut)} créé : cartouche GX4000, programme de {size} octets.");
+        cartResult.Cartridge.Save(cprOut);
+        Console.WriteLine($"{Path.GetFullPath(cprOut)} créé : cartouche GX4000, programme de {cartResult.BinarySize} octets.");
         return 0;
     }
     catch (InvalidOperationException ex)

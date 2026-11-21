@@ -18,8 +18,9 @@ namespace CpcBasic.Core.Output;
 /// (&amp;BB5A TXT OUTPUT, &amp;BB75 TXT SET CURSOR, &amp;BC0E SCR SET MODE...), le programme recopié en &amp;4000 et lancé.
 /// Le programme compilé ne change pas : il appelle les mêmes adresses, nos routines répondent.
 /// Les routines tournent depuis la cartouche (ROM basse, toujours branchée) ; leurs variables sont en &amp;BE00.
-/// Pas encore faits : la manette (KM WAIT KEY attend sans fin, KM TEST KEY répond « pas appuyée »), PEN, PAPER,
-/// les fenêtres, le son ; les autres adresses de la ROM répondent par un simple retour.
+/// Manettes (D183) : JOY, et les touches de la table (tir 1 = espace, tir 2 = ENTRÉE, directions = flèches, plus les
+/// touches d'INKEY placées par le compilateur). Pas encore faits : PEN, PAPER, les fenêtres, le son, la saisie
+/// d'INPUT à la manette ; les autres adresses de la ROM répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -95,7 +96,12 @@ public static class Gx4000System
                 LDI
                 LDI
                 JR BRL
-        BRFIN:  LD A,1
+        BRFIN:  LD HL,&BE00             ; variables du système à zéro
+                LD DE,&BE01
+                LD BC,15
+                LD (HL),0
+                LDIR
+                LD A,1
                 CALL SETMODE
         ; Le programme compilé, recopié en &4000, puis lancé
                 LD HL,PROG
@@ -321,12 +327,118 @@ public static class Gx4000System
         ; ---------- TXT VALIDATE (&BB87) : la position convient ----------
         VALIDE: SCF
                 RET
-        ; ---------- clavier : pas encore de manette ----------
-        TESTKEY: XOR A                  ; KM TEST KEY : pas appuyée
+        ; ---------- manettes (D183) : lues comme le CPC, par la grille du clavier (lignes 9 et 6) ----------
+        ; &BE07 = manette 1, &BE08 = manette 2 : bit à 1 = appuyé (0 haut, 1 bas, 2 gauche, 3 droite, 4 tir 2, 5 tir 1)
+        LIRE:   LD BC,&F40E
+                OUT (C),C
+                LD BC,&F6C0
+                OUT (C),C
+                LD BC,&F600
+                OUT (C),C
+                LD BC,&F792
+                OUT (C),C
+                LD BC,&F649
+                OUT (C),C
+                LD B,&F4
+                IN A,(C)
+                CPL
+                AND &3F
+                LD (&BE07),A
+                LD BC,&F646
+                OUT (C),C
+                LD B,&F4
+                IN A,(C)
+                CPL
+                AND &3F
+                LD (&BE08),A
+                LD BC,&F782
+                OUT (C),C
+                LD BC,&F600
+                OUT (C),C
                 RET
-        LITCAR: OR A                    ; KM READ CHAR : pas de caractère
+        ; ---------- KM GET JOYSTICK (&BB24) : H = manette 1, L = manette 2, A = manette 1 ----------
+        JOYST:  PUSH BC
+                CALL LIRE
+                POP BC
+                LD A,(&BE08)
+                LD L,A
+                LD A,(&BE07)
+                LD H,A
                 RET
-        ATTEND: JR ATTEND               ; KM WAIT KEY, KM WAIT CHAR : attente sans fin
+        ; ---------- KM TEST KEY (&BB1E) : A = touche ; Z faux si appuyée (table des touches), C = 0 ----------
+        TESTKEY: PUSH DE
+                PUSH BC
+                LD E,A
+                CALL LIRE
+                LD HL,TOUCHES
+        TK1:    LD A,(HL)
+                CP &FF
+                JR Z,TKNON
+                CP E
+                JR Z,TK2
+                INC HL
+                INC HL
+                INC HL
+                JR TK1
+        TK2:    INC HL
+                LD A,(HL)               ; 0 = manette 1, 1 = manette 2
+                INC HL
+                LD D,(HL)               ; boutons à appuyer ensemble
+                OR A
+                LD A,(&BE07)
+                JR Z,TK3
+                LD A,(&BE08)
+        TK3:    AND D
+                CP D
+                JR NZ,TKNON
+                POP BC
+                POP DE
+                LD C,0
+                OR &FF
+                RET
+        TKNON:  POP BC
+                POP DE
+                LD C,0
+                XOR A
+                RET
+        ; ---------- KM READ CHAR (&BB09) / KM READ KEY (&BB1B) : un nouvel appui de la manette 1 ----------
+        ; tir 1 = espace, tir 2 = ENTRÉE (13), directions = flèches (&F0 à &F3) ; KEY : numéros de touches
+        LITCAR: PUSH HL
+                LD HL,CARS
+                JR LIT
+        LITCLE: PUSH HL
+                LD HL,CLES
+        LIT:    PUSH BC
+                CALL LIRE
+                LD A,(&BE09)
+                CPL
+                LD C,A
+                LD A,(&BE07)
+                LD (&BE09),A
+                AND C                   ; boutons qui viennent d'être appuyés
+                LD B,6
+        LIT1:   RRCA
+                JR C,LIT2
+                INC HL
+                DJNZ LIT1
+                POP BC
+                POP HL
+                OR A                    ; pas de caractère
+                RET
+        LIT2:   LD A,(HL)
+                POP BC
+                POP HL
+                SCF
+                RET
+        CARS:   DEFB &F0,&F1,&F2,&F3,13,32
+        CLES:   DEFB 0,2,8,1,18,47
+        ; ---------- KM WAIT CHAR (&BB06) / KM WAIT KEY (&BB18) : attend un appui ----------
+        ATTCAR: CALL LITCAR
+                JR NC,ATTCAR
+                RET
+        ATTCLE: CALL LITCLE
+                JR NC,ATTCLE
+                RET
         FLUX:   XOR A                   ; TXT STR SELECT : flux 0
                 RET
 
@@ -339,19 +451,52 @@ public static class Gx4000System
                 DEFW &BB69,FENETRE
                 DEFW &BB87,VALIDE
                 DEFW &BB1E,TESTKEY
+                DEFW &BB24,JOYST
                 DEFW &BB09,LITCAR
-                DEFW &BB06,ATTEND
-                DEFW &BB18,ATTEND
+                DEFW &BB1B,LITCLE
+                DEFW &BB06,ATTCAR
+                DEFW &BB18,ATTCLE
                 DEFW &BBB4,FLUX
                 DEFW &BC0E,SETMODE
                 DEFW 0
+        TOUCHES: {2}
         POLICE: {1}
         PROG:
         """;
 
+    /// <summary>Une touche du CPC reliée à la manette : Joystick 0 ou 1, Buttons = boutons à appuyer ensemble.</summary>
+    public sealed record KeyLink(int Key, int Joystick, int Buttons);
+
+    /// <summary>
+    /// Correspondance de base (D183) : tir 1 = espace (47), tir 2 = ENTRÉE (18 et 6), directions = flèches (0, 2, 8, 1),
+    /// et les touches de la manette elles-mêmes (72 à 77 pour la manette 1, 48 à 53 pour la manette 2).
+    /// </summary>
+    public static readonly IReadOnlyList<KeyLink> BaseKeys =
+    [
+        new(47, 0, 0x20), new(18, 0, 0x10), new(6, 0, 0x10),
+        new(0, 0, 0x01), new(2, 0, 0x02), new(8, 0, 0x04), new(1, 0, 0x08),
+        new(72, 0, 0x01), new(73, 0, 0x02), new(74, 0, 0x04), new(75, 0, 0x08), new(76, 0, 0x10), new(77, 0, 0x20),
+        new(48, 1, 0x01), new(49, 1, 0x02), new(50, 1, 0x04), new(51, 1, 0x08), new(52, 1, 0x10), new(53, 1, 0x20)
+    ];
+
+    /// <summary>
+    /// Boutons donnés, dans l'ordre, aux autres touches d'INKEY(n) (idée de l'utilisateur, D183) : tir 2, tirs 1 et 2
+    /// ensemble, puis la manette 2.
+    /// </summary>
+    public static readonly IReadOnlyList<(int Joystick, int Buttons, string Name)> FreeButtons =
+    [
+        (0, 0x10, "au tir 2 de la manette 1"),
+        (0, 0x30, "aux tirs 1 et 2 de la manette 1 appuyés ensemble"),
+        (1, 0x01, "au haut de la manette 2"), (1, 0x02, "au bas de la manette 2"),
+        (1, 0x04, "à la gauche de la manette 2"), (1, 0x08, "à la droite de la manette 2"),
+        (1, 0x20, "au tir 1 de la manette 2"), (1, 0x10, "au tir 2 de la manette 2"),
+        (1, 0x30, "aux tirs 1 et 2 de la manette 2 appuyés ensemble")
+    ];
+
     /// <summary>Le système seul, pour un programme de la longueur donnée (sans le programme).</summary>
-    public static byte[] SystemCode(int programLength)
+    public static byte[] SystemCode(int programLength, IEnumerable<KeyLink>? extraKeys = null)
     {
+        string keys = string.Join(",", BaseKeys.Concat(extraKeys ?? []).Select(k => $"{k.Key},{k.Joystick},&{k.Buttons:X2}")) + ",&FF";
         var font = new StringBuilder();
         byte[] glyphs = Gx4000Font.Bytes();
         for (int i = 0; i < glyphs.Length; i += 8)
@@ -360,7 +505,8 @@ public static class Gx4000System
                 font.Append("\n        ");
             font.Append("DEFB ").Append(string.Join(",", glyphs.Skip(i).Take(8).Select(b => $"&{b:X2}")));
         }
-        string source = Template.Replace("{0}", programLength.ToString()).Replace("{1}", font.ToString());
+        string source = Template.Replace("{0}", programLength.ToString()).Replace("{1}", font.ToString())
+                                .Replace("{2}", "DEFB " + keys);
         var emitter = new Z80Emitter(0);
         IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(source, emitter, "gx_", _ => null);
         if (errors.Count > 0)
@@ -369,9 +515,9 @@ public static class Gx4000System
     }
 
     /// <summary>La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000).</summary>
-    public static CartridgeImage Build(byte[] program)
+    public static CartridgeImage Build(byte[] program, IEnumerable<KeyLink>? extraKeys = null)
     {
-        byte[] system = SystemCode(program.Length);
+        byte[] system = SystemCode(program.Length, extraKeys);
         if (system.Length + program.Length > CartridgeImage.PageSize)
             throw new InvalidOperationException(
                 $"Le programme fait {program.Length} octets : pour l'instant, une cartouche en accepte {CartridgeImage.PageSize - system.Length} au plus.");

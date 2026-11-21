@@ -30,6 +30,13 @@ public sealed record CompileResult(
     public TapeImage? Tape { get; init; }
 }
 
+/// <summary>
+/// Résultat d'une compilation vers la cartouche GX4000 (D182, D183). Cartridge vaut null en cas d'erreur
+/// (Diagnostics : fautes du programme ; Problems : ce qui empêche la cartouche). Notes : messages à montrer.
+/// </summary>
+public sealed record CartridgeResult(IReadOnlyList<Diagnostic> Diagnostics, CartridgeImage? Cartridge, int BinarySize,
+                                     IReadOnlyList<string> Notes, IReadOnlyList<string> Problems);
+
 /// <summary>Un programme trouvé pour RUN "nom" : son texte et ses réglages (D087).</summary>
 public sealed record ProgramSource(string Source, CompilerOptions Options);
 
@@ -133,16 +140,54 @@ public static class Compiler
 
     /// <summary>
     /// Cartouche GX4000 (D182) : le programme compilé (avec chargeur : pas de disquette rebranchée au départ), précédé
-    /// de notre petit système (Gx4000System). Cartridge vaut null en cas d'erreur.
+    /// de notre petit système (Gx4000System). Manettes (D183) : chaque touche d'INKEY(n) écrite en clair qui n'est pas
+    /// dans la correspondance de base reçoit un bouton libre (Notes le dit) ; plus de bouton libre : Problems, pas de
+    /// cartouche. INKEY avec un numéro calculé, INPUT et LINE INPUT : un avertissement dans Notes.
     /// </summary>
-    public static (IReadOnlyList<Diagnostic> Diagnostics, CartridgeImage? Cartridge, int BinarySize) CompileToCartridge(
-        string source, CompilerOptions? options = null)
+    public static CartridgeResult CompileToCartridge(string source, CompilerOptions? options = null)
     {
         CompilerOptions settings = (options ?? CompilerOptions.Default) with { WithLoader = true };
-        (IReadOnlyList<Diagnostic> errors, byte[]? code, _, _) = CompileOne(source, settings);
+        (IReadOnlyList<Diagnostic> errors, byte[]? code, _, BasicProgram? program) = CompileOne(source, settings);
         if (errors.Count > 0)
-            return (errors, null, code?.Length ?? 0);
-        return ([], Gx4000System.Build(code!), code!.Length);
+            return new CartridgeResult(errors, null, code?.Length ?? 0, [], []);
+
+        var notes = new List<string>();
+        var problems = new List<string>();
+        var links = new List<Gx4000System.KeyLink>();
+        var placed = new HashSet<int>(Gx4000System.BaseKeys.Select(k => k.Key));
+        foreach (Statement statement in program!.Statements)
+        {
+            if (statement is InputStatement or LineInputStatement)
+                notes.Add($"Ligne {statement.SourceLine} : {(statement is InputStatement ? "INPUT" : "LINE INPUT")} " +
+                          "attend le clavier : sur la console, seuls le tir 1 (espace) et le tir 2 (ENTRÉE) répondent pour l'instant " +
+                          "(la saisie à la manette viendra à l'étape suivante).");
+            foreach (Expression expression in AstWalker.All(statement))
+            {
+                if (expression is not CallExpression { Function: "INKEY" } inkey || inkey.Arguments.Count == 0)
+                    continue;
+                if (inkey.Arguments[0] is not NumberExpression { Value: int key })
+                {
+                    notes.Add($"Ligne {statement.SourceLine} : INKEY avec un numéro de touche calculé : seules les touches de la " +
+                              "manette répondent (tir 1 = espace 47, tir 2 = ENTRÉE 18, flèches 0, 1, 2, 8, manettes 72 à 77 et 48 à 53).");
+                    continue;
+                }
+                if (!placed.Add(key))
+                    continue;
+                if (links.Count >= Gx4000System.FreeButtons.Count)
+                {
+                    problems.Add($"Ligne {statement.SourceLine} : INKEY({key}) : plus aucun bouton libre sur les manettes pour cette touche " +
+                                 $"({Gx4000System.FreeButtons.Count} touches en plus au plus). Utilisez JOY(0) ou les touches de la manette.");
+                    continue;
+                }
+                (int joystick, int buttons, string name) = Gx4000System.FreeButtons[links.Count];
+                links.Add(new Gx4000System.KeyLink(key, joystick, buttons));
+                notes.Add($"Ligne {statement.SourceLine} : INKEY({key}) : sur la console, la touche {key} correspondra {name}." +
+                          (joystick == 0 && buttons == 0x10 ? " Le tir 2 sert aussi de touche ENTRÉE : il « appuie » sur les deux." : ""));
+            }
+        }
+        if (problems.Count > 0)
+            return new CartridgeResult([], null, code!.Length, notes, problems);
+        return new CartridgeResult([], Gx4000System.Build(code!, links), code!.Length, notes, problems);
     }
 
     /// <summary>

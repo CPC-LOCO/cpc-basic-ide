@@ -130,11 +130,122 @@ public class Gx4000SystemTests
     [Fact]
     public void Un_programme_compile_va_sur_la_cartouche()
     {
-        var (errors, cartridge, size) = Compiler.CompileToCartridge("10 MODE 1:LOCATE 5,5:PRINT \"BONJOUR\"");
+        CartridgeResult result = Compiler.CompileToCartridge("10 MODE 1:LOCATE 5,5:PRINT \"BONJOUR\"");
 
-        Assert.Empty(errors);
-        Assert.NotNull(cartridge);
-        Assert.Equal(1, cartridge!.PageCount);
-        Assert.True(size > 0);
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+        Assert.Equal(1, result.Cartridge!.PageCount);
+        Assert.True(result.BinarySize > 0);
+        Assert.Empty(result.Notes);
+    }
+
+    // ---------- manettes (D183) ----------
+
+    // ports lus par la routine : &F449 (ligne 9, manette 1) et &F446 (ligne 6, manette 2) ; bit à 0 = appuyé
+    static MiniZ80 Pads(byte pad1, byte pad2 = 0, IEnumerable<Gx4000System.KeyLink>? extra = null)
+    {
+        var cpu = new MiniZ80 { UpperRomEnabled = false };
+        cpu.Load(Gx4000System.SystemCode(0, extra), 0);
+        cpu.Ports[0xF449] = (byte)~pad1;
+        cpu.Ports[0xF446] = (byte)~pad2;
+        return cpu;
+    }
+
+    static int EntryOf(int firmware, MiniZ80 cpu)
+    {
+        // l'adresse de la routine branchée sur cette adresse de la ROM : dans la table BRANCHE du système
+        // la table commence par &BB5A suivi de l'adresse de TXT OUTPUT (celle du saut fixe en &0040)
+        byte[] code = Gx4000System.SystemCode(0);
+        int start = Enumerable.Range(0, code.Length - 4).First(i =>
+            code[i] == 0x5A && code[i + 1] == 0xBB && code[i + 2] == code[0x41] && code[i + 3] == code[0x42]);
+        for (int i = start; code[i] != 0 || code[i + 1] != 0; i += 4)
+            if ((code[i] | code[i + 1] << 8) == firmware)
+                return code[i + 2] | code[i + 3] << 8;
+        throw new InvalidOperationException("adresse non branchée");
+    }
+
+    static bool TestKey(MiniZ80 cpu, int key)
+    {
+        cpu.A = (byte)key;
+        cpu.Call(EntryOf(0xBB1E, cpu));
+        return !cpu.ZeroFlag;
+    }
+
+    [Theory]
+    [InlineData(0x20, 47, true)]                              // tir 1 = espace
+    [InlineData(0x20, 77, true)]                              // tir 1 = touche 77 de la manette
+    [InlineData(0x10, 18, true)]                              // tir 2 = ENTRÉE
+    [InlineData(0x01, 0, true)]                               // haut = flèche haut
+    [InlineData(0x00, 47, false)]                             // rien d'appuyé
+    [InlineData(0x20, 67, false)]                             // Q : pas dans la table
+    public void KM_TEST_KEY_lit_la_manette(byte pad, int key, bool pressed)
+    {
+        Assert.Equal(pressed, TestKey(Pads(pad), key));
+    }
+
+    [Fact]
+    public void Une_touche_placee_par_le_compilateur_repond_a_ses_boutons()
+    {
+        var q = new[] { new Gx4000System.KeyLink(67, 0, 0x30) };   // Q = tirs 1 et 2 ensemble
+
+        Assert.True(TestKey(Pads(0x30, extra: q), 67));
+        Assert.False(TestKey(Pads(0x20, extra: q), 67));
+    }
+
+    [Fact]
+    public void KM_GET_JOYSTICK_rend_les_deux_manettes()
+    {
+        MiniZ80 cpu = Pads(0x21, 0x04);                       // manette 1 : haut + tir 1 ; manette 2 : gauche
+        cpu.Call(EntryOf(0xBB24, cpu));
+
+        Assert.Equal(0x21, cpu.H);
+        Assert.Equal(0x04, cpu.L);
+    }
+
+    [Fact]
+    public void KM_READ_CHAR_donne_un_espace_au_tir_1_une_seule_fois()
+    {
+        MiniZ80 cpu = Pads(0x20);
+        int entry = EntryOf(0xBB09, cpu);
+        cpu.Call(entry);
+        Assert.True(cpu.CarryFlag);
+        Assert.Equal(32, cpu.A);
+
+        cpu.Call(entry);                                      // toujours appuyé : pas de nouveau caractère
+        Assert.False(cpu.CarryFlag);
+    }
+
+    [Fact]
+    public void Le_compilateur_place_les_autres_touches_d_INKEY_et_le_dit()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 IF INKEY(67)=0 THEN PRINT \"Q\"\n20 IF INKEY(69)=0 THEN PRINT \"A\"\n30 IF INKEY(47)=0 THEN PRINT \"E\"");
+
+        Assert.NotNull(result.Cartridge);
+        Assert.Equal(2, result.Notes.Count);                  // 47 (espace) est déjà le tir 1
+        Assert.Contains("correspondra au tir 2 de la manette 1", result.Notes[0]);
+        Assert.Contains("ENTRÉE", result.Notes[0]);
+        Assert.Contains("correspondra aux tirs 1 et 2 de la manette 1", result.Notes[1]);
+    }
+
+    [Fact]
+    public void Trop_de_touches_pas_de_cartouche()
+    {
+        string source = string.Join("\n", Enumerable.Range(0, 10).Select(i => $"{10 * (i + 1)} IF INKEY({56 + i})=0 THEN PRINT {i}"));
+        CartridgeResult result = Compiler.CompileToCartridge(source);
+
+        Assert.Null(result.Cartridge);
+        Assert.Single(result.Problems);
+        Assert.Contains("INKEY(65)", result.Problems[0]);
+    }
+
+    [Fact]
+    public void INKEY_calcule_et_INPUT_donnent_un_avertissement()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 K=47:IF INKEY(K)=0 THEN PRINT 1\n20 INPUT A");
+
+        Assert.NotNull(result.Cartridge);
+        Assert.Equal(2, result.Notes.Count);
+        Assert.Contains("calculé", result.Notes[0]);
+        Assert.Contains("INPUT", result.Notes[1]);
     }
 }

@@ -21,6 +21,12 @@ public sealed class CartridgeImage
     /// <summary>Nombre de pages au plus (512 Ko).</summary>
     public const int MaxPages = 32;
 
+    /// <summary>
+    /// Nombre de pages au moins dans le fichier (128 Ko, la taille des vraies cartouches) : WinAPE ne lançait pas une
+    /// cartouche d'une seule page (D183) ; les pages en plus sont vides (&amp;FF).
+    /// </summary>
+    public const int MinPages = 8;
+
     readonly List<byte[]> pages = new();
 
     /// <summary>Le nombre de pages de la cartouche.</summary>
@@ -42,15 +48,18 @@ public sealed class CartridgeImage
     /// <summary>Produit le contenu complet du fichier .cpr.</summary>
     public byte[] ToCprBytes()
     {
+        int count = Math.Max(pages.Count, MinPages);
+        byte[] empty = new byte[PageSize];
+        Array.Fill(empty, (byte)0xFF);
         using var ms = new MemoryStream();
         ms.Write("RIFF"u8);
-        WriteLong(ms, 4 + pages.Count * (8 + PageSize));   // tout ce qui suit cette taille
+        WriteLong(ms, 4 + count * (8 + PageSize));         // tout ce qui suit cette taille
         ms.Write("AMS!"u8);
-        for (int p = 0; p < pages.Count; p++)
+        for (int p = 0; p < count; p++)
         {
             ms.Write(Encoding.ASCII.GetBytes($"cb{p:D2}"));
             WriteLong(ms, PageSize);
-            ms.Write(pages[p]);
+            ms.Write(p < pages.Count ? pages[p] : empty);
         }
         return ms.ToArray();
     }
