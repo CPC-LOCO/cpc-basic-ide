@@ -132,9 +132,38 @@ public static class Gx4000System
         ; Le programme compilé, recopié en &4000, puis lancé
                 LD HL,PROG
                 LD DE,&4000
-                LD BC,{0}
+                LD BC,{0}               ; la partie du programme qui tient dans la page 0
                 LDIR
-                CALL &4000
+        ; la suite du programme, dans les pages suivantes (D189) : chaque page est branchée en ROM haute (&C000),
+        ; par le port &DF (&80 + numéro de page), puis recopiée à la suite ; DE avance tout seul
+                LD HL,PAGES
+                LD A,(HL)
+                INC HL
+                OR A
+                JR Z,COPFIN
+                PUSH DE
+                LD BC,&7F81             ; ROM haute branchée (MODE 1, cartouche gardée en &0000)
+                OUT (C),C
+                POP DE
+        COPP:   PUSH AF
+                LD C,(HL)               ; &80 + numéro de la page
+                INC HL
+                LD B,&DF
+                OUT (C),C
+                LD C,(HL)
+                INC HL
+                LD B,(HL)
+                INC HL                  ; BC = longueur dans cette page
+                PUSH HL
+                LD HL,&C000
+                LDIR
+                POP HL
+                POP AF
+                DEC A
+                JR NZ,COPP
+                LD BC,&7F89             ; ROM haute coupée de nouveau
+                OUT (C),C
+        COPFIN: CALL &4000
         FIN:    JR FIN                  ; programme fini : la console reste sur son écran
 
         ; ---------- SCR SET MODE (&BC0E) : A = mode ; écran effacé, curseur en haut à gauche ----------
@@ -1241,6 +1270,7 @@ public static class Gx4000System
         TOUCHES: {2}
         {5}
         POLICE: {1}
+        PAGES:  {7}
         PROG:
         """;
 
@@ -1457,8 +1487,13 @@ public static class Gx4000System
 
     /// <summary>Le système seul, pour un programme de la longueur donnée (sans le programme).</summary>
     /// <param name="withInput">Vrai si le programme utilise INPUT ou LINE INPUT : la saisie à la manette est ajoutée (D184).</param>
-    public static byte[] SystemCode(int programLength, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false)
+    /// <param name="otherPages">D189 : longueurs du programme dans les pages 1, 2... (programLength : sa longueur dans la
+    /// page 0, juste après le système).</param>
+    public static byte[] SystemCode(int programLength, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false,
+                                    IReadOnlyList<int>? otherPages = null)
     {
+        IReadOnlyList<int> others = otherPages ?? [];
+        string pages = "DEFB " + others.Count + string.Concat(others.Select((length, i) => $"\n                DEFB &{0x81 + i:X2}\n                DEFW {length}"));
         string keys = string.Join(",", BaseKeys.Concat(extraKeys ?? []).Select(k => $"{k.Key},{k.Joystick},&{k.Buttons:X2}")) + ",&FF";
         var font = new StringBuilder();
         byte[] glyphs = Gx4000Font.Bytes();
@@ -1474,7 +1509,8 @@ public static class Gx4000System
                                 .Replace("{4}", withInput ? "MOLETTE" : "ATTCAR")
                                 .Replace("{5}", withInput
                                     ? "GROUPES: DEFB " + string.Join(",0,", WheelGroups.Select(g => string.Join(",", g.Select(c => (int)c)))) + ",0,&FF"
-                                    : "");
+                                    : "")
+                                .Replace("{7}", pages);
         var emitter = new Z80Emitter(0);
         IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(source, emitter, "gx_", _ => null);
         if (errors.Count > 0)
@@ -1483,14 +1519,57 @@ public static class Gx4000System
     }
 
     /// <summary>La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000).</summary>
+    /// <summary>Mémoire pour le programme : de &amp;4000 jusqu'aux routines de la ROM simulées (&amp;B900).</summary>
+    public const int MaxProgram = 0xB900 - 0x4000;
+
+    /// <summary>
+    /// D189 : comment le programme est rangé dans la cartouche : sa longueur dans la page 0 (après le système), puis dans
+    /// les pages 1, 2... (16 Ko chacune au plus). La taille du système dépend du nombre de pages : on recalcule jusqu'à ce
+    /// qu'elle ne change plus.
+    /// </summary>
+    public static (int FirstPart, IReadOnlyList<int> OtherPages) SplitProgram(int length, IEnumerable<KeyLink>? extraKeys = null,
+                                                                               bool withInput = false)
+    {
+        List<KeyLink> keys = extraKeys?.ToList() ?? [];
+        int pages = 0;
+        for (int round = 0; round < 8; round++)
+        {
+            int system = SystemCode(0, keys, withInput, Enumerable.Repeat(0, pages).ToList()).Length;
+            int first = Math.Min(length, CartridgeImage.PageSize - system);
+            int rest = length - first;
+            int needed = (rest + CartridgeImage.PageSize - 1) / CartridgeImage.PageSize;
+            if (needed == pages)
+            {
+                var others = new List<int>();
+                for (int p = 0; p < pages; p++)
+                    others.Add(Math.Min(CartridgeImage.PageSize, rest - p * CartridgeImage.PageSize));
+                return (first, others);
+            }
+            pages = needed;
+        }
+        throw new InvalidOperationException("Rangement du programme dans la cartouche impossible.");
+    }
+
+    /// <summary>
+    /// La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000) ; ce qui ne tient
+    /// pas dans la page 0 va dans les pages suivantes (D189).
+    /// </summary>
     public static CartridgeImage Build(byte[] program, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false)
     {
-        byte[] system = SystemCode(program.Length, extraKeys, withInput);
-        if (system.Length + program.Length > CartridgeImage.PageSize)
+        if (program.Length > MaxProgram)
             throw new InvalidOperationException(
-                $"Le programme fait {program.Length} octets : pour l'instant, une cartouche en accepte {CartridgeImage.PageSize - system.Length} au plus.");
+                $"Le programme fait {program.Length} octets : sur la cartouche, la mémoire en accepte {MaxProgram} au plus.");
+        List<KeyLink> keys = extraKeys?.ToList() ?? [];
+        (int first, IReadOnlyList<int> others) = SplitProgram(program.Length, keys, withInput);
+        byte[] system = SystemCode(first, keys, withInput, others);
         var cartridge = new CartridgeImage();
-        cartridge.AddPage([.. system, .. program]);
+        cartridge.AddPage([.. system, .. program[..first]]);
+        int start = first;
+        foreach (int length in others)
+        {
+            cartridge.AddPage(program[start..(start + length)]);
+            start += length;
+        }
         return cartridge;
     }
 }

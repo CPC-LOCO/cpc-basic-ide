@@ -1444,6 +1444,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (21 nov. 2026) :** `examples\gxxor.bas` (Ctrl+F5) dans AMSpiriT : éventail en XOR puis effacé ; fenêtre graphique (CLG bleu ciel, traits coupés aux bords), trait en pointillés (MASK 170), triangle rempli (FILL) : conformes.
 - **Le dessin est complet sur la cartouche.** Restent pour la console : les fenêtres de texte (WINDOW), le son, les encres clignotantes, les programmes de plus de 16 Ko.
 
+## D189 : cartouche GX4000, programmes de plus de 16 Ko (21 nov. 2026)
+- **Constat :** jusqu'ici, le programme devait tenir dans la page 0 de la cartouche (16 Ko) avec notre système. La console a 64 Ko de mémoire vive : le programme peut y être recopié de &4000 à &B900, soit 30 976 octets au plus.
+- **Fait :** `Gx4000System.cs` : `SplitProgram` coupe le programme (la page 0 garde le système et le début, la suite va dans les pages 1, 2...) ; `Build` fabrique la cartouche entière. Au démarrage, le système recopie le début, puis branche chaque page suivante à &C000 (`OUT &DFxx`, ROM haute allumée par &7F81), la recopie à la suite, et éteint la ROM haute (&7F89). Un programme trop gros est refusé avec un message clair (« la mémoire en accepte 30976 au plus »), et aucun fichier n'est créé.
+- **Tests :** 1982 réussis (5 nouveaux : découpage pour 3 000, 20 000 et 40 000 octets ; cartouche de 30 000 octets en 3 pages, octets dans l'ordre ; refus d'un programme trop gros). Le branchement des pages n'est pas imité par les tests : vérifié dans AMSpiriT.
+- **Essai (21 nov. 2026) :** `examples\gxgrand.bas` (200 lignes, environ 24 Ko, Ctrl+F5) dans AMSpiriT : les 200 lignes s'affichent, « Lignes executees : 200 », « TOUT LE PROGRAMME A ETE RECOPIE : OK ». Le premier exemple (400 lignes, 48 431 octets) était trop gros et a été refusé proprement.
+- Restent pour la console : les fenêtres de texte (WINDOW), le son, les encres clignotantes.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -691,4 +691,49 @@ public class Gx4000SystemTests
 
         Assert.NotNull(result.Cartridge);
     }
+
+    // ---------- programmes de plus de 16 Ko (D189) ----------
+
+    static byte[] BigProgram(int length) => Enumerable.Range(0, length).Select(i => (byte)(i % 251)).ToArray();
+
+    // le contenu d'une page dans le fichier .cpr
+    static byte[] Page(byte[] cpr, int page) =>
+        cpr[(20 + page * (8 + CartridgeImage.PageSize))..(20 + page * (8 + CartridgeImage.PageSize) + CartridgeImage.PageSize)];
+
+    [Theory]
+    [InlineData(3000, 0)]
+    [InlineData(20000, 1)]
+    [InlineData(40000, 2)]
+    public void Le_programme_est_range_sur_assez_de_pages(int length, int otherPages)
+    {
+        (int first, IReadOnlyList<int> others) = Gx4000System.SplitProgram(length);
+
+        Assert.Equal(otherPages, others.Count);
+        Assert.Equal(length, first + others.Sum());
+        Assert.All(others, l => Assert.InRange(l, 1, CartridgeImage.PageSize));
+    }
+
+    [Fact]
+    public void Les_pages_contiennent_tout_le_programme_dans_l_ordre()
+    {
+        byte[] program = BigProgram(30000);
+        CartridgeImage cartridge = Gx4000System.Build(program);
+        (int first, IReadOnlyList<int> others) = Gx4000System.SplitProgram(program.Length);
+        int system = Gx4000System.SystemCode(first, null, false, others).Length;
+        byte[] cpr = cartridge.ToCprBytes();
+
+        Assert.Equal(3, cartridge.PageCount);
+        var found = new List<byte>(Page(cpr, 0)[system..(system + first)]);
+        for (int p = 0; p < others.Count; p++)
+            found.AddRange(Page(cpr, p + 1)[..others[p]]);
+        Assert.Equal(program, found.ToArray());
+    }
+
+    [Fact]
+    public void Un_programme_trop_grand_pour_la_memoire_est_refuse()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => Gx4000System.Build(new byte[Gx4000System.MaxProgram + 1]));
+
+        Assert.Contains("mémoire", error.Message);
+    }
 }
