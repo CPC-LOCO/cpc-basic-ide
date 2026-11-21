@@ -1430,6 +1430,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 1957 réussis (5 nouveaux). Les anciens tests appelaient les routines sans le démarrage : stylo 0 = papier, lettres invisibles ; ils mettent maintenant le stylo 1, comme le démarrage.
 - **Essai (21 nov. 2026) :** `examples\gxcoul.bas` (Ctrl+F5) dans AMSpiriT : MODE 0, 15 stylos de couleurs différentes sur fond noir ; MODE 1, jaune sur rouge, bleu sur vert, jaune sur bleu, bordure rouge : conformes.
 
+## D187 : cartouche GX4000, le cœur du dessin (21 nov. 2026) (découpage accepté : le cœur d'abord)
+- **Constat :** toutes les commandes de dessin passent par les routines GRA et SCR de la ROM (y compris BOX, CIRCLE, ELLIPSE, STAR, qui demandent le mode, la place d'un point et le codage d'une encre) ; aucune variable de la ROM n'est lue directement.
+- **Fait :** `Gx4000System.cs` répond à GRA MOVE / PLOT / TEST / LINE (absolus et relatifs), ASK CURSOR, SET / GET ORIGIN, GET W WIDTH / HEIGHT (tout l'écran), CLEAR WINDOW (CLG, curseur à l'origine), SET / GET PEN et PAPER graphiques, SCR GET MODE (retenue en MODE 0, zéro en MODE 1), SCR DOT POSITION, SCR INK ENCODE. Repère du CPC (640 x 400, 0,0 en bas à gauche) ; points de base selon le mode ; traits de Bresenham, les deux bouts compris ; rien hors de l'écran. Réglages par mode copiés en &BE60 par SCR SET MODE (qui remet aussi l'origine et le curseur à 0,0) ; variables du dessin en &BE40 à &BE66 ; mises à zéro de &BE00 à &BE7F ; stylo graphique 1 au démarrage. Les adresses de &B900 à &BAFF répondent aussi par un retour (avant : non préparées).
+- **Pas encore (étape 2) :** modes d'écriture (XOR, AND, OR), fenêtres graphiques, MASK, FILL, PAINT.
+- **Tests :** 1970 réussis (13 nouveaux ; une attente fausse de Claude corrigée : un trait en biais allume aussi le point voisin au bout).
+- **Essai (21 nov. 2026) :** `examples\gxdessin.bas` (Ctrl+F5) dans AMSpiriT : MODE 1, points, cadre, éventail, carrés en DRAWR et ORIGIN ; MODE 0, CLG, BOX, CIRCLE et ELLIPSE pleins, diagonale, « TEST : OK » : conformes. L'utilisateur trouve le dessin beaucoup plus rapide que sur disquette (à mesurer).
+
 ---
 
 ## Notes de fin de session (modèle)

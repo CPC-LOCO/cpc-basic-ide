@@ -18,6 +18,7 @@ public class Gx4000SystemTests
         var cpu = new MiniZ80 { UpperRomEnabled = false };
         cpu.Load(Gx4000System.SystemCode(program?.Length ?? 0), 0);
         cpu.Memory[Gx4000System.Variables + 0x13] = 1;       // stylo 1, comme au démarrage de la cartouche (D186)
+        cpu.Memory[Gx4000System.Variables + 0x48] = 1;       // stylo graphique 1 (D187)
         return cpu;
     }
 
@@ -438,5 +439,147 @@ public class Gx4000SystemTests
 
         Assert.NotNull(result.Cartridge);
         Assert.Empty(result.Notes);
+    }
+    // ---------- dessin (D187) ----------
+
+    static void Gra(MiniZ80 cpu, int address, int x = 0, int y = 0, byte a = 0)
+    {
+        cpu.D = (byte)(x >> 8);
+        cpu.E = (byte)x;
+        cpu.H = (byte)(y >> 8);
+        cpu.L = (byte)y;
+        cpu.A = a;
+        cpu.Call(EntryOf(address, cpu));
+    }
+
+    [Fact]
+    public void PLOT_0_0_est_en_bas_a_gauche()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBEA, 0, 0);                               // PLOT 0,0
+
+        // ligne 199 depuis le haut : &C000 + 7 x &800 + 24 x 80 = &FF80 ; point de gauche, stylo 1 : &80
+        Assert.Equal(0x80, cpu.Memory[0xFF80]);
+    }
+
+    [Fact]
+    public void PLOT_639_399_en_MODE_2_est_en_haut_a_droite()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 2);
+        Gra(cpu, 0xBBEA, 639, 399);
+
+        Assert.Equal(0x01, cpu.Memory[0xC04F]);
+    }
+
+    [Fact]
+    public void Un_point_hors_de_l_ecran_n_est_pas_dessine()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBEA, -10, 0);
+        Gra(cpu, 0xBBEA, 640, 0);
+        Gra(cpu, 0xBBEA, 0, 400);
+
+        Assert.All(cpu.Memory[0xC000..0x10000], b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void DRAW_horizontal_en_MODE_1()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBF6, 20, 0);                              // DRAW 20,0 depuis 0,0 : points 0 à 10
+
+        Assert.Equal(new byte[] { 0xF0, 0xF0, 0xE0, 0x00 }, cpu.Memory[0xFF80..0xFF84]);
+        Gra(cpu, 0xBBC6);                                     // le curseur est au bout
+        Assert.Equal(20, cpu.D << 8 | cpu.E);
+        Assert.Equal(0, cpu.H << 8 | cpu.L);
+    }
+
+    [Fact]
+    public void DRAW_vertical_en_MODE_2()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 2);
+        Gra(cpu, 0xBBF6, 0, 20);                              // points de base y 0 à 10
+
+        Assert.Equal(0x80, cpu.Memory[0xFF80]);               // ligne 199
+        Assert.Equal(0x80, cpu.Memory[0xEF30]);               // ligne 189
+        Assert.Equal(0x00, cpu.Memory[0xE730]);               // ligne 188 : rien
+    }
+
+    [Fact]
+    public void DRAW_en_biais_va_d_un_bout_a_l_autre()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 2);
+        Gra(cpu, 0xBBC0, 30, 20);                             // MOVE 30,20
+        Gra(cpu, 0xBBF6, 0, 0);                               // DRAW 0,0 : de (30, 10) à (0, 0), à l'envers
+
+        Assert.Equal(0x80, cpu.Memory[0xFF80] & 0x80);        // (0, 0) dessiné (le point voisin peut l'être aussi)
+        Gra(cpu, 0xBBF0, 30, 20);                             // TEST 30,20 : l'autre bout est dessiné
+        Assert.Equal(1, cpu.A);
+    }
+
+    [Fact]
+    public void TEST_rend_l_encre_du_point()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBDE, a: 3);                               // GRAPHICS PEN 3
+        Gra(cpu, 0xBBEA, 100, 100);
+        Gra(cpu, 0xBBF0, 100, 100);
+        Assert.Equal(3, cpu.A);
+        Gra(cpu, 0xBBF0, 104, 100);
+        Assert.Equal(0, cpu.A);
+    }
+
+    [Fact]
+    public void ORIGIN_decale_les_points()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBC9, 100, 100);                           // ORIGIN 100,100
+        Gra(cpu, 0xBBEA, 0, 0);                               // point de base (50, 50) : ligne 149, octet 12, point 2
+
+        Assert.Equal(0x20, cpu.Memory[0xEDAC]);
+    }
+
+    [Fact]
+    public void CLG_remplit_avec_le_papier_graphique()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBE4, a: 2);                               // GRAPHICS PAPER 2
+        Gra(cpu, 0xBBDB);                                     // CLG
+
+        Assert.Equal(0x0F, cpu.Memory[0xC000]);
+        Assert.Equal(0x0F, cpu.Memory[0xFFFF]);
+    }
+
+    [Theory]
+    [InlineData(0, true, false)]
+    [InlineData(1, false, true)]
+    [InlineData(2, false, false)]
+    public void SCR_GET_MODE_rend_le_mode_et_ses_drapeaux(byte mode, bool carry, bool zero)
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, mode);
+        Gra(cpu, 0xBC11);
+
+        Assert.Equal(mode, cpu.A);
+        Assert.Equal(carry, cpu.CarryFlag);
+        Assert.Equal(zero, cpu.ZeroFlag);
+    }
+
+    [Fact]
+    public void Un_programme_de_dessin_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 MODE 1:CLG 2:ORIGIN 320,200:PLOT 0,0,3:DRAW 100,100:MOVE -50,0:DRAWR 0,-80:BOX 10,10,60,60,1:CIRCLE 0,0,50,2");
+
+        Assert.NotNull(result.Cartridge);
     }
 }

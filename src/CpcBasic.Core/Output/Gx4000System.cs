@@ -20,8 +20,9 @@ namespace CpcBasic.Core.Output;
 /// Les routines tournent depuis la cartouche (ROM basse, toujours branchée) ; leurs variables sont en &amp;BE00.
 /// Manettes (D183) : JOY, et les touches de la table (tir 1 = espace, tir 2 = ENTRÉE, directions = flèches, plus les
 /// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Couleurs :
-/// PEN, PAPER, INK (sans clignotement), BORDER (D186). Pas encore faits : le dessin, les fenêtres, le son ; les autres
-/// adresses de la ROM répondent par un simple retour.
+/// PEN, PAPER, INK (sans clignotement), BORDER (D186). Dessin (D187) : PLOT, DRAW, MOVE (et relatifs), TEST, CLG,
+/// ORIGIN, GRAPHICS PEN / PAPER. Pas encore faits : modes d'écriture (XOR...), fenêtres, MASK, FILL, le son ; les autres
+/// adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -87,9 +88,9 @@ public static class Gx4000System
                 CP 14
                 JR NZ,CRTCL
         ; Adresses de la ROM du CPC : un simple retour partout, puis nos routines là où elles existent
-                LD HL,&BB00
-                LD DE,&BB01
-                LD BC,&02FF
+                LD HL,&B900             ; de &B900 (KL...) à &BDFF
+                LD DE,&B901
+                LD BC,&04FF
                 LD (HL),&C9
                 LDIR
                 LD HL,BRANCHE
@@ -108,7 +109,7 @@ public static class Gx4000System
                 JR BRL
         BRFIN:  LD HL,&BE00             ; variables du système à zéro
                 LD DE,&BE01
-                LD BC,63
+                LD BC,127
                 LD (HL),0
                 LDIR
         ; Encres du CPC au démarrage (D186) : les 16 stylos, puis la bordure (stylo 16)
@@ -125,6 +126,7 @@ public static class Gx4000System
                 JR NZ,ENCRE
                 LD A,1
                 LD (&BE13),A            ; stylo 1 sur papier 0
+                LD (&BE48),A            ; stylo graphique 1 (D187)
                 CALL SETMODE
         ; Le programme compilé, recopié en &4000, puis lancé
                 LD HL,PROG
@@ -155,6 +157,24 @@ public static class Gx4000System
                 LD BC,4
                 LDIR
                 CALL MAJCOUL            ; octets du stylo et du papier pour ce mode
+                LD A,(&BE06)            ; réglages du dessin pour ce mode (D187), 7 octets en &BE60
+                LD E,A
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                SUB E
+                LD E,A
+                LD D,0
+                LD HL,GMODES
+                ADD HL,DE
+                LD DE,&BE60
+                LD BC,7
+                LDIR
+                LD HL,0                 ; origine et curseur graphique en 0,0
+                LD (&BE40),HL
+                LD (&BE42),HL
+                LD (&BE44),HL
+                LD (&BE46),HL
         ; ---------- TXT CLEAR WINDOW (&BB6C) : écran effacé, curseur en haut à gauche ----------
         CLS:    LD HL,&C000
                 LD DE,&C001
@@ -612,6 +632,361 @@ public static class Gx4000System
                 OUT (C),E
                 OUT (C),A
                 RET
+        ; ---------- dessin (D187) : routines GRA et SCR du CPC ----------
+        ; &BE40 origine X, &BE42 origine Y (repère de l'écran, 0 à 639 et 0 à 399), &BE44 / &BE46 curseur graphique
+        ; (repère de l'utilisateur), &BE48 stylo graphique, &BE49 papier graphique ; &BE4A à &BE5E : calculs des traits.
+        ; Points « de base » : x en points du mode (0 à 159, 319 ou 639), y de 0 (en bas) à 199 (en haut).
+        ; &BE60 décalage x -> octet, &BE61 points par octet - 1, &BE62 masque du point de gauche, &BE63 largeur en
+        ; points, &BE65 décalage repère -> point, &BE66 nombre d'encres (copiés par SCR SET MODE depuis GMODES).
+        GMODES: DEFB 1,1,&AA,160,0,2,16
+                DEFB 2,3,&88,&40,1,1,4
+                DEFB 3,7,&80,&80,2,0,2
+        ; DE = X, HL = Y de l'utilisateur -> DE = x, HL = y de base (avec l'origine)
+        TOBASE: PUSH HL
+                LD HL,(&BE40)
+                ADD HL,DE
+                LD A,(&BE65)
+                OR A
+                JR Z,TOB2
+        TOB1:   SRA H
+                RR L
+                DEC A
+                JR NZ,TOB1
+        TOB2:   EX DE,HL
+                POP HL
+                PUSH DE
+                LD DE,(&BE42)
+                ADD HL,DE
+                SRA H
+                RR L
+                POP DE
+                RET
+        ; retenue si le point de base DE, HL est hors de l'écran
+        DEDANS: BIT 7,D
+                SCF
+                RET NZ
+                BIT 7,H
+                SCF
+                RET NZ
+                LD A,H
+                OR A
+                SCF
+                RET NZ
+                LD A,L
+                CP 200
+                CCF
+                RET C
+                PUSH HL
+                LD HL,(&BE63)
+                OR A
+                SBC HL,DE
+                POP HL
+                JR Z,DEHORS
+                RET
+        DEHORS: SCF
+                RET
+        ; SCR DOT POSITION (&BC1D) : DE = x, HL = y de base -> HL = adresse, C = masque du point, B = points par octet - 1
+        DOTPOS: LD A,199
+                SUB L
+                LD B,A                  ; ligne depuis le haut
+                AND 7
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                ADD A,&C0
+                PUSH AF
+                LD A,B
+                RRCA
+                RRCA
+                RRCA
+                AND 31
+                LD L,A
+                LD H,0
+                ADD HL,HL
+                ADD HL,HL
+                ADD HL,HL
+                ADD HL,HL
+                LD B,H
+                LD C,L
+                ADD HL,HL
+                ADD HL,HL
+                ADD HL,BC               ; (ligne / 8) x 80
+                POP AF
+                ADD A,H
+                LD H,A                  ; + &C000 + (ligne et 7) x &800
+                PUSH DE
+                LD A,(&BE60)
+        DOT1:   SRL D
+                RR E
+                DEC A
+                JR NZ,DOT1
+                ADD HL,DE               ; + x / points par octet
+                POP DE
+                LD A,(&BE61)
+                AND E                   ; rang du point dans l'octet
+                LD B,A
+                INC B
+                LD A,(&BE62)
+                JR DOT3
+        DOT2:   SRL A
+        DOT3:   DJNZ DOT2
+                LD C,A
+                LD A,(&BE61)
+                LD B,A
+                RET
+        ; un point de base DE, HL à l'encre codée en &BE5C (rien hors de l'écran)
+        POINT:  CALL DEDANS
+                RET C
+                CALL DOTPOS
+                LD A,C
+                CPL
+                AND (HL)
+                LD B,A
+                LD A,(&BE5C)
+                AND C
+                OR B
+                LD (HL),A
+                RET
+        ; GRA MOVE ABSOLUTE (&BBC0), GRA MOVE RELATIVE (&BBC3), GRA ASK CURSOR (&BBC6) : DE = X, HL = Y
+        GMOVR:  CALL GREL
+        GMOVE:  LD (&BE44),DE
+                LD (&BE46),HL
+                RET
+        GREL:   PUSH HL
+                LD HL,(&BE44)
+                ADD HL,DE
+                EX DE,HL
+                POP HL
+                PUSH DE
+                LD DE,(&BE46)
+                ADD HL,DE
+                POP DE
+                RET
+        GASK:   LD DE,(&BE44)
+                LD HL,(&BE46)
+                RET
+        ; GRA SET ORIGIN (&BBC9), GRA GET ORIGIN (&BBCC) ; fenêtre graphique : tout l'écran (&BBD5, &BBD8)
+        GSETOR: LD (&BE40),DE
+                LD (&BE42),HL
+                LD HL,0
+                LD (&BE44),HL
+                LD (&BE46),HL
+                RET
+        GGETOR: LD DE,(&BE40)
+                LD HL,(&BE42)
+                RET
+        GWWID:  LD DE,0
+                LD HL,639
+                RET
+        GWHEI:  LD DE,399
+                LD HL,0
+                RET
+        ; GRA CLEAR WINDOW (&BBDB) : CLG, écran à la couleur du papier graphique, curseur à l'origine
+        GCLR:   LD A,(&BE49)
+                CALL OCTENC
+                LD HL,&C000
+                LD DE,&C001
+                LD BC,&3FFF
+                LD (HL),A
+                LDIR
+                LD HL,0
+                LD (&BE44),HL
+                LD (&BE46),HL
+                RET
+        ; GRA SET / GET PEN (&BBDE, &BBE1), GRA SET / GET PAPER (&BBE4, &BBE7)
+        GSPEN:  AND 15
+                LD (&BE48),A
+                RET
+        GGPEN:  LD A,(&BE48)
+                RET
+        GSPAP:  AND 15
+                LD (&BE49),A
+                RET
+        GGPAP:  LD A,(&BE49)
+                RET
+        ; GRA PLOT ABSOLUTE (&BBEA), GRA PLOT RELATIVE (&BBED)
+        GPLOTR: CALL GREL
+        GPLOT:  CALL GMOVE
+                CALL TOBASE
+                PUSH DE
+                PUSH HL
+                LD A,(&BE48)
+                CALL OCTENC
+                LD (&BE5C),A
+                POP HL
+                POP DE
+                JP POINT
+        ; GRA TEST ABSOLUTE (&BBF0), GRA TEST RELATIVE (&BBF3) : A = encre du point (hors de l'écran : papier)
+        GTESTR: CALL GREL
+        GTEST:  CALL GMOVE
+                CALL TOBASE
+                CALL DEDANS
+                JR C,GTDEH
+                CALL DOTPOS
+                LD A,(HL)
+                AND C
+                LD (&BE5D),A
+                LD A,C
+                LD (&BE5E),A
+                XOR A
+        GT1:    PUSH AF
+                CALL OCTENC
+                LD B,A
+                LD A,(&BE5E)
+                AND B
+                LD B,A
+                LD A,(&BE5D)
+                CP B
+                JR Z,GT2
+                POP AF
+                INC A
+                LD HL,&BE66
+                CP (HL)
+                JR C,GT1
+        GTDEH:  LD A,(&BE49)
+                RET
+        GT2:    POP AF
+                RET
+        ; GRA LINE ABSOLUTE (&BBF6), GRA LINE RELATIVE (&BBF9) : du curseur jusqu'à DE, HL, les deux bouts compris
+        GLINER: CALL GREL
+        GLINE:  PUSH DE
+                PUSH HL
+                LD A,(&BE48)
+                CALL OCTENC
+                LD (&BE5C),A
+                CALL GASK
+                CALL TOBASE
+                LD (&BE4A),DE
+                LD (&BE4C),HL
+                POP HL
+                POP DE
+                CALL GMOVE
+                CALL TOBASE
+                LD (&BE4E),DE
+                LD (&BE50),HL
+                LD HL,(&BE4E)           ; dx et sens en x
+                LD DE,(&BE4A)
+                OR A
+                SBC HL,DE
+                LD A,1
+                BIT 7,H
+                JR Z,GL1
+                CALL NEGHL
+                LD A,&FF
+        GL1:    LD (&BE52),HL
+                LD (&BE56),A
+                LD HL,(&BE50)           ; dy et sens en y
+                LD DE,(&BE4C)
+                OR A
+                SBC HL,DE
+                LD A,1
+                BIT 7,H
+                JR Z,GL2
+                CALL NEGHL
+                LD A,&FF
+        GL2:    LD (&BE54),HL
+                LD (&BE57),A
+                LD DE,(&BE52)
+                OR A
+                SBC HL,DE
+                JR C,GLX
+                JR Z,GLX
+                LD HL,(&BE54)           ; surtout vertical
+                LD (&BE5A),HL
+                SRL H
+                RR L
+                LD (&BE58),HL
+        GLY1:   CALL GLPT
+                LD HL,(&BE5A)
+                LD A,H
+                OR L
+                RET Z
+                DEC HL
+                LD (&BE5A),HL
+                LD A,(&BE57)
+                LD HL,&BE4C
+                CALL GLADD
+                LD HL,(&BE58)
+                LD DE,(&BE52)
+                ADD HL,DE
+                LD DE,(&BE54)
+                OR A
+                SBC HL,DE
+                JR NC,GLY2
+                ADD HL,DE
+                LD (&BE58),HL
+                JR GLY1
+        GLY2:   LD (&BE58),HL
+                LD A,(&BE56)
+                LD HL,&BE4A
+                CALL GLADD
+                JR GLY1
+        GLX:    LD HL,(&BE52)           ; surtout horizontal
+                LD (&BE5A),HL
+                SRL H
+                RR L
+                LD (&BE58),HL
+        GLX1:   CALL GLPT
+                LD HL,(&BE5A)
+                LD A,H
+                OR L
+                RET Z
+                DEC HL
+                LD (&BE5A),HL
+                LD A,(&BE56)
+                LD HL,&BE4A
+                CALL GLADD
+                LD HL,(&BE58)
+                LD DE,(&BE54)
+                ADD HL,DE
+                LD DE,(&BE52)
+                OR A
+                SBC HL,DE
+                JR NC,GLX2
+                ADD HL,DE
+                LD (&BE58),HL
+                JR GLX1
+        GLX2:   LD (&BE58),HL
+                LD A,(&BE57)
+                LD HL,&BE4C
+                CALL GLADD
+                JR GLX1
+        GLPT:   LD DE,(&BE4A)
+                LD HL,(&BE4C)
+                JP POINT
+        ; (HL) sur 16 bits, plus 1 si A = 1, moins 1 sinon
+        GLADD:  LD E,(HL)
+                INC HL
+                LD D,(HL)
+                CP 1
+                JR Z,GLA1
+                DEC DE
+                DEC DE
+        GLA1:   INC DE
+                LD (HL),D
+                DEC HL
+                LD (HL),E
+                RET
+        NEGHL:  XOR A
+                SUB L
+                LD L,A
+                SBC A,A
+                SUB H
+                LD H,A
+                RET
+        ; SCR GET MODE (&BC11) : A = mode ; retenue en MODE 0, zéro en MODE 1
+        SGMODE: LD A,(&BE06)
+                CP 1
+                RET
+        ; SCR INK ENCODE (&BC2C) : A = encre -> A = octet codé ; les autres registres gardés
+        SENC:   PUSH BC
+                PUSH DE
+                PUSH HL
+                CALL OCTENC
+                POP HL
+                POP DE
+                POP BC
+                RET
         TENC0:  DEFB &00,&C0,&0C,&CC,&30,&F0,&3C,&FC,&03,&C3,&0F,&CF,&33,&F3,&3F,&FF
         TENC1:  DEFB &00,&F0,&0F,&FF
         TENC2:  DEFB &00,&FF
@@ -644,6 +1019,27 @@ public static class Gx4000System
                 DEFW &BC35,GETINK
                 DEFW &BC38,SETBORD
                 DEFW &BC3B,GETBORD
+                DEFW &BBC0,GMOVE
+                DEFW &BBC3,GMOVR
+                DEFW &BBC6,GASK
+                DEFW &BBC9,GSETOR
+                DEFW &BBCC,GGETOR
+                DEFW &BBD5,GWWID
+                DEFW &BBD8,GWHEI
+                DEFW &BBDB,GCLR
+                DEFW &BBDE,GSPEN
+                DEFW &BBE1,GGPEN
+                DEFW &BBE4,GSPAP
+                DEFW &BBE7,GGPAP
+                DEFW &BBEA,GPLOT
+                DEFW &BBED,GPLOTR
+                DEFW &BBF0,GTEST
+                DEFW &BBF3,GTESTR
+                DEFW &BBF6,GLINE
+                DEFW &BBF9,GLINER
+                DEFW &BC11,SGMODE
+                DEFW &BC1D,DOTPOS
+                DEFW &BC2C,SENC
                 DEFW 0
         TOUCHES: {2}
         {5}
