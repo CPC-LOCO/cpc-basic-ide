@@ -132,6 +132,20 @@ public static class Compiler
     }
 
     /// <summary>
+    /// Cartouche GX4000 (D182) : le programme compilé (avec chargeur : pas de disquette rebranchée au départ), précédé
+    /// de notre petit système (Gx4000System). Cartridge vaut null en cas d'erreur.
+    /// </summary>
+    public static (IReadOnlyList<Diagnostic> Diagnostics, CartridgeImage? Cartridge, int BinarySize) CompileToCartridge(
+        string source, CompilerOptions? options = null)
+    {
+        CompilerOptions settings = (options ?? CompilerOptions.Default) with { WithLoader = true };
+        (IReadOnlyList<Diagnostic> errors, byte[]? code, _, _) = CompileOne(source, settings);
+        if (errors.Count > 0)
+            return (errors, null, code?.Length ?? 0);
+        return ([], Gx4000System.Build(code!), code!.Length);
+    }
+
+    /// <summary>
     /// Copie pour la cassette d'un programme sans chargeur (D179). Au départ, ce programme rebranche la disquette si le
     /// firmware vient d'être remis à zéro (D168) : LD A,(&amp;BC77) / CP &amp;CF / JR NZ,+9 / … / CALL &amp;BCCB. Venu d'une
     /// cassette, il ne doit pas le faire (ses fichiers resteraient sinon sur la disquette) : JR NZ devient JR, toujours

@@ -1393,6 +1393,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (21 nov. 2026) :** `dotnet run --project src\CpcBasic.Cli -- --essai-gx4000 essais\gx4000.cpr`, puis SugarBox en 6128 PLUS (« Default cartridge » remplacée par la cartouche d'essai ; WinAPE n'a pas la cartouche système du Plus chez l'utilisateur) : écran conforme (bordure verte, 4 bandes). Un 6128 Plus lance une cartouche comme la GX4000.
 - **Suite prévue :** le texte (PRINT, LOCATE) avec notre propre jeu de caractères, puis la manette, puis MODE, INK, CLS, dessin, son...
 
+## D182 : cartouche GX4000, le texte avec notre jeu de caractères (21 nov. 2026)
+- **Jeu de caractères (choix A de l'utilisateur : dessiné par Claude) :** `src\CpcBasic.Core\Output\Gx4000Font.cs`, codes 32 à 126, 8 x 8 points, traits verticaux de 2 points, rien de recopié de la ROM d'Amstrad ; 7 colonnes utiles et la 8e vide (un point entre deux lettres) ; 8e ligne vide sauf g, j, p, q, y, la virgule et « _ » (gardé ainsi, choix de l'utilisateur). Approuvé sur images (« C'est parfait »). Lettres accentuées : plus tard.
+- **Méthode :** notre système installe ses routines aux adresses de la ROM du CPC (&BB5A TXT OUTPUT, &BB6C TXT CLEAR WINDOW, &BB75 TXT SET CURSOR, &BB78 TXT GET CURSOR, &BB69 TXT GET WINDOW, &BB87 TXT VALIDATE, &BC0E SCR SET MODE, &BBB4 TXT STR SELECT, clavier en attente) ; les autres adresses de &BB00 à &BDFF répondent par un retour. Le programme compilé ne change pas. Liste établie en relevant les appels de BANDE2.BIN.
+- **Fait :** `src\CpcBasic.Core\Output\Gx4000System.cs` (en assembleur, assemblé par notre assembleur) : démarrage (CRTC, encres du CPC, routines branchées, programme recopié en &4000 et lancé, écran gardé à la fin) ; texte en MODE 0, 1 et 2 (stylo 1 sur papier 0), CR, LF, CLS (code 12), gauche, droite, fin de ligne, écran qui remonte en bas ; routines dans la cartouche (ROM basse gardée), variables en &BE00, entrées fixes en &0040 pour les tests, interruption en &0038 (EI, RET). `Compiler.CompileToCartridge` ; outil en ligne de commande : `--gx4000 programme.bas [sortie.cpr]`. Limite actuelle : système et programme dans une seule page de 16 Ko.
+- **Vitesse (question de l'utilisateur) :** l'affichage devrait être plus rapide que la ROM (écriture directe, comme TYPO, D172) ; à mesurer.
+- **Pas encore faits :** la manette (KM WAIT KEY attend sans fin, KM TEST KEY « pas appuyée ») ; PEN, PAPER, INK, fenêtres, codes de contrôle à valeurs, son ; le compilateur ne signale pas encore les commandes absentes ; F5 ne fait pas encore la cartouche.
+- **Essai (21 nov. 2026) :** `examples\gxtexte.bas` (MODE 1, LOCATE, PRINT, boucle FOR) en cartouche dans SugarBox (6128 PLUS) : écran conforme. Tests : 1931 réussis (8 nouveaux, `Gx4000SystemTests` ; une erreur d'écriture dans un test corrigée).
+
 ---
 
 ## Notes de fin de session (modèle)

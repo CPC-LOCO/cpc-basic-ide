@@ -1,0 +1,8 @@
+10 REM Essai du texte sur la cartouche GX4000 (D182)
+20 MODE 1
+30 LOCATE 12,3:PRINT "BONJOUR GX4000 !"
+40 LOCATE 1,6:PRINT "Le renard brun saute le ruisseau."
+50 PRINT
+60 PRINT "0123456789 (+-*/=?)"
+70 FOR I=1 TO 5:PRINT "LIGNE";I:NEXT
+80 LOCATE 1,25:PRINT "FIN DE L ESSAI";

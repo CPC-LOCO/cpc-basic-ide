@@ -8,10 +8,12 @@ using CpcBasic.Core.Output;
 
 // Utilisation : CpcBasic.Cli programme.bas [sortie.dsk]
 //               CpcBasic.Cli --essai-gx4000 sortie.cpr   (cartouche d'essai GX4000, D181)
+//               CpcBasic.Cli --gx4000 programme.bas [sortie.cpr]   (programme sur cartouche GX4000, D182)
 if (args.Length < 1)
 {
     Console.WriteLine("Utilisation : CpcBasic.Cli programme.bas [sortie.dsk]");
     Console.WriteLine("              CpcBasic.Cli --essai-gx4000 sortie.cpr");
+    Console.WriteLine("              CpcBasic.Cli --gx4000 programme.bas [sortie.cpr]");
     return 1;
 }
 
@@ -21,6 +23,35 @@ if (args[0] == "--essai-gx4000")
     Gx4000Test.Build().Save(cprPath);
     Console.WriteLine($"{Path.GetFullPath(cprPath)} créé : cartouche d'essai GX4000 (4 bandes de couleur, bordure verte).");
     return 0;
+}
+
+if (args[0] == "--gx4000")
+{
+    if (args.Length < 2 || !File.Exists(args[1]))
+    {
+        Console.Error.WriteLine("Utilisation : CpcBasic.Cli --gx4000 programme.bas [sortie.cpr]");
+        return 1;
+    }
+    string cprOut = args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".cpr");
+    try
+    {
+        var (errors, cartridge, size) = Compiler.CompileToCartridge(File.ReadAllText(args[1]));
+        foreach (var diagnostic in errors)
+            Console.Error.WriteLine(diagnostic.Message);
+        if (cartridge is null)
+        {
+            Console.Error.WriteLine($"{errors.Count} erreur(s). Aucun fichier n'a été créé.");
+            return 1;
+        }
+        cartridge.Save(cprOut);
+        Console.WriteLine($"{Path.GetFullPath(cprOut)} créé : cartouche GX4000, programme de {size} octets.");
+        return 0;
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
 }
 
 string inputPath = args[0];
