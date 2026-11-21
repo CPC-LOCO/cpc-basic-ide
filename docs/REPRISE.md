@@ -11,7 +11,7 @@ Dossier de travail : `E:\projets amstrad ide\cpc-basic-ide`
 Auteur des commits : RetroPoke (pseudo de l'utilisateur sur les forums Amstrad).
 Documents de référence :
 - `docs\ARCHITECTURE.md` : comment c'est fait ;
-- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D176 ;
+- `docs\JOURNAL-DECISIONS.md` : toutes les décisions, D001 à D177 ;
 - `docs\COMPATIBILITE-LOCOMOTIVE.md` : la liste de tous les mots du Locomotive BASIC et leur état, avec l'ordre de travail par lots (A à J) ;
 - `docs\PROGRAMME-DE-REFERENCE-RSX.md` : le programme de l'utilisateur (commandes RSX en binaire) qui doit un jour se compiler tel quel ;
 - `docs\IDEES.md` : idées en attente ;
@@ -40,8 +40,18 @@ Documents de référence :
 - **Lire les tests :** l'utilisateur lance `dotnet test > essais\tests.txt` ; Claude lit ce fichier (lignes « réussite », « error CS », « Échoué »).
 - **Journal :** on n'efface jamais une entrée ; si une décision change, on en ajoute une nouvelle qui renvoie à l'ancienne.
 - **Mots réservés :** chaque nouveau mot-clé empêche d'utiliser ce nom comme variable ; à signaler et à noter dans le journal.
+- **La forme exacte (21 nov. 2026) :** quand l'utilisateur donne l'écriture d'une commande, la reprendre **exactement**, sans valeur en plus. Erreur à ne pas refaire : il avait écrit « FPRINT texte$ (plus de paramètres) » = plus aucune valeur, et Claude avait ajouté `[, col, lig]` (D175). En cas de doute, demander.
+- **Plus de nouvelles commandes pour l'instant (21 nov. 2026) :** « ajouter des commandes se fera après que tout soit terminé ». Ne pas proposer de nouvelles commandes de bibliothèque (FPRINT attend dans `essais\fprint\`).
+- **La vitesse d'abord (D174) :** à choix égal, garder ce qui est rapide (exemple : « / » entre deux entiers reste une division entière).
+- **Simulateur des tests :** `MiniZ80` connaît tout le Z80 (D176) ; un test qui échoue vient donc du code testé ou du test, plus d'une instruction manquante.
+- **Commandes à taper :** l'utilisateur tape les commandes dans une fenêtre CMD ouverte dans le dossier du dépôt ; donner la ligne exacte à coller (par exemple `packaging\build-release.cmd`). Attention aux redirections `>` : `dotnet test > essais\tests.txt` seulement (le 21 nov. 2026, `build-release.cmd` avait été écrasé par une sortie de tests, D177).
 
-## 3. État au moment de la reprise (20 novembre 2026, matin)
+## 3. État au moment de la reprise (21 novembre 2026, matin)
+
+- **Version 0.6.0 prête** (D177) : paquet `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e, essayé par l'utilisateur (typo.bas compilé depuis le paquet). Notes : `docs\RELEASE-NOTES-0.6.0.md`. **Reste à faire :** commit, puis la publier sur GitHub (pre-release v0.6.0, comme la 0.5.0).
+- **Depuis la 0.5.0 :** assembleur seul (D163, D164, D166) ; extension `.cmd.asm` définitive (D165) ; zone réservée au programmeur &0400 à &2FFF (D167, test `ProgrammerZoneTests`) ; programmes BASIC sans chargeur (menu Options, D168) ; valeur TEXTE dans les bibliothèques (D169) ; bibliothèque TEXTE : TYPO et DEFTYPO (D170 à D173) ; place des commandes dans la fenêtre des bibliothèques (D172) ; division entière gardée, astuce CREAL (D174) ; FPRINT écrit puis mis de côté (D175) ; Z80 complet pour les tests (D176).
+- **Tests :** 1904, tous réussis (21 nov. 2026).
+- **Idées en attente (IDEES.md) :** sortie cassette, cartouche GX4000, écrans et musique, sprites ; FPRINT et les autres commandes de bibliothèque, quand tout le reste sera terminé.
 
 ### Bibliothèques de commandes (19 et 20 nov. 2026, D144 à D161, publiées dans la 0.5.0)
 
@@ -51,11 +61,11 @@ Documents de référence :
 - **Répertoire de distribution fait (D161)** : menu Fichier, « Préparer un dossier à distribuer... ». Étapes B1 à B5 toutes faites.
 - **Reste :** autres bibliothèques du projet (texte, son...) ; idée « Assembleur seul » (IDEES.md).
 - **Assembleur seul (D163, D164, D166, après la 0.5.0) :** menu Assembleur de l'éditeur : fenêtre pour écrire un programme entièrement en assembleur (.asm), ORG obligatoire (&0400 à &A67B), RUN (lancement), WRITE acceptée sans effet, routines des bibliothèques appelées par leur nom ; F5 écrit NOM.dsk (NOM.BIN et chargeur NOM.BAS ; ou NOM.BIN seul si la case « Avec chargeur BASIC » est décochée : lancé directement, il ne doit jamais finir par RET, D166) ; essayé dans WinAPE.
-- **Tests :** 1856, tous réussis (20 nov. 2026).
+- **Tests :** 1856, tous réussis (20 nov. 2026) ; 1904 le 21 nov. 2026.
 
 ### État au 16 novembre 2026 (pour mémoire)
 
-- **Version publique :** 0.5.0 (pre-release GitHub v0.5.0, Windows 64 bits, 20 nov. 2026, commit 885ded1 ; D162) ; avant : 0.4.0 (19 nov. 2026, D143). Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
+- **Version publique :** 0.6.0 préparée le 21 nov. 2026 (D177, à publier) ; avant : 0.5.0 (pre-release GitHub v0.5.0, Windows 64 bits, 20 nov. 2026, commit 885ded1 ; D162) ; avant : 0.4.0 (19 nov. 2026, D143). Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
 - **Dernier commit sur GitHub :** « Version 0.4.0 (D143) » (19 nov. 2026, **1673 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
@@ -164,4 +174,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md, et seulement les fichiers utiles ensuite. Les bibliothèques de commandes (D144 à D161) et l'assembleur seul (D163, D164) sont faits ; 1856 tests passent. La version publiée est 0.5.0 (20 nov. 2026). Propose-moi la suite (Répertoire de distribution, IDEES.md), une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md (surtout les chapitres 2 et 3), et seulement les fichiers utiles ensuite. La version 0.6.0 est prête (D177) ; 1904 tests passent. Pas de nouvelles commandes de bibliothèque pour l'instant. Propose-moi la suite (publier la 0.6.0 si ce n'est pas fait, puis IDEES.md : cassette, cartouche GX4000...), une étape à la fois, une seule action par message.

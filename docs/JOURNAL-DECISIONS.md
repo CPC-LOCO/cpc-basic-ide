@@ -1352,6 +1352,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Gardé :** l'imitation du firmware, reprise sans réécriture dans `CallTo` (CALL, et maintenant aussi CALL cc) et `JumpTo` (JP) ; MiniZ80.cs ne garde que la mémoire, la pile et le firmware (1592 -> 1083 lignes).
 - **Résultat :** les 1896 tests passent du premier coup (les 8 tests de FPRINT sont rangés avec lui, D175) ; `Z80CoreTests` (8) vérifie des indicateurs et des instructions connus (DAA, SBC HL, IXH / IYL, DDCB, EXX, CPIR, RLD, NEG).
 
+## D177 : préparation de la version 0.6.0 (21 nov. 2026) (demandée par l'utilisateur)
+- **Contenu :** assembleur seul (D163, D164, D166), lancement sans chargeur BASIC (D168), zone réservée au programmeur (D167), valeur TEXTE des bibliothèques (D169), place des commandes (D172), bibliothèque TEXTE : TYPO et DEFTYPO (D170 à D173), astuce CREAL (D174) ; notes dans `docs\RELEASE-NOTES-0.6.0.md`.
+- **Fichiers :** version 0.6.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (titre, menu Assembleur, réglage chargeur, nouveau point 7 « Assembleur seul », points suivants renumérotés) ; README et TESTEURS.md.
+- **Incident :** `packaging\build-release.cmd` avait été remplacé par la sortie d'une série de tests (redirection) ; remis depuis le commit 885ded1, avec la version 0.6.0 et des fins de ligne Windows.
+- **Paquet construit (21 nov. 2026) :** `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e (même somme chez l'utilisateur et ici) ; contenu vérifié : bibliothèques GRAPHIQUE (STAR) et TEXTE (TYPO, DEFTYPO, TYPO_ADRESSE, TYPO_FONTE), 83 exemples dont typo.bas, pas de ROM, pas de FPRINT.
+
 ---
 
 ## Notes de fin de session (modèle)

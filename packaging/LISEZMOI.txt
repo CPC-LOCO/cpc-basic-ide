@@ -1,4 +1,4 @@
-CPC BASIC IDE - version 0.5.0 (version de test)
+CPC BASIC IDE - version 0.6.0 (version de test)
 ================================================
 
 Un editeur colore et un compilateur pour un BASIC evolue, derive du
@@ -28,7 +28,10 @@ Barre de menus (touche Alt, puis la lettre soulignee) :
   Compiler  Compiler le programme (F5), Verifier sans enregistrer
             (Maj+F5), Liste des variables (F4)
   Bibliotheques  Liste des bibliotheques (Maj+F4)
-  Options   reglages F8, F9, F11, lignes longues, contraste eleve (Ctrl+H),
+  Assembleur  Nouveau programme assembleur, Ouvrir un programme
+            assembleur (voir le point 7)
+  Options   reglages F8, F9, F11, chargeur BASIC, lignes longues,
+            contraste eleve (Ctrl+H),
             taille du texte (Ctrl et +, Ctrl et -, Ctrl et 0)
   Aide      Raccourcis clavier (F1), A propos
 
@@ -118,8 +121,8 @@ GRAPHIQUE, voir le point 6).
 Pas encore disponible : sortie cassette, cartouche GX4000, sprites.
 
 
-6. BIBLIOTHEQUES DE COMMANDES (nouveau dans la 0.5.0)
------------------------------------------------------
+6. BIBLIOTHEQUES DE COMMANDES (depuis la 0.5.0)
+-----------------------------------------------
 Vous pouvez ajouter vos propres commandes et fonctions au BASIC, ecrites
 en assembleur Z80 (comme pour l'assembleur de WinAPE), rangees dans des
 bibliotheques. Le compilateur n'ajoute a un programme que celles qu'il
@@ -155,7 +158,21 @@ DEFTYPO "x", l1, l2, l3 redessine un petit caractere, comme SYMBOL
 (3 nombres de 0 a 255, deux lignes de 4 points chacun).
 
 
-7. ANTIVIRUS ET WINDOWS
+7. ASSEMBLEUR SEUL (nouveau dans la 0.6.0)
+------------------------------------------
+Menu Assembleur : une fenetre pour ecrire un programme entierement en
+assembleur Z80, comme dans WinAPE, enregistre en .asm.
+- ORG &xxxx est obligatoire au debut (adresse de chargement, de &0400 a
+  &A67B) ; RUN etiquette donne l'adresse de depart ; WRITE est accepte
+  sans effet. Les routines des bibliotheques s'appellent par leur nom.
+- F5 : enregistre le .asm et ecrit NOM.dsk a cote (NOM.BIN et son petit
+  chargeur NOM.BAS). Maj+F5 : verifie sans rien ecrire.
+- Case "Avec chargeur BASIC" decochee : NOM.BIN seul, lance par RUN"NOM".
+  Le BASIC est alors abandonne : le programme ne doit jamais finir par
+  RET (le CPC redemarrerait), comme un jeu qui tourne sans fin.
+
+
+8. ANTIVIRUS ET WINDOWS
 -----------------------
 Le programme n'est pas signe numeriquement. Windows (SmartScreen) ou votre
 antivirus peut le signaler, ou bloquer son demarrage : c'est une fausse
@@ -166,14 +183,14 @@ alerte frequente pour les programmes libres non signes.
 - Si votre antivirus bloque le programme, ajoutez le dossier aux exclusions.
 
 
-8. VOS RETOURS
+9. VOS RETOURS
 --------------
 Tests, problemes, idees, conseils sur le Z80 et le firmware du CPC :
 ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
 
 
-9. LICENCE
-----------
+10. LICENCE
+-----------
 Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
 Les routines Z80 copiees dans vos programmes sont sous GPL v3 avec une
 exception de liaison, en vigueur depuis la version 0.4.0 : les jeux que
