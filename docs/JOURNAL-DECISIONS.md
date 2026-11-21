@@ -1359,6 +1359,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Paquet construit (21 nov. 2026) :** `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e (même somme chez l'utilisateur et ici) ; contenu vérifié : bibliothèques GRAPHIQUE (STAR) et TEXTE (TYPO, DEFTYPO, TYPO_ADRESSE, TYPO_FONTE), 83 exemples dont typo.bas, pas de ROM, pas de FPRINT.
 - **Publiée (21 nov. 2026) :** pre-release GitHub v0.6.0, « CPC BASIC IDE 0.6.0 (version de test) », commit 250ab58.
 
+## D178 : sortie cassette, fichier .cdt (21 nov. 2026) (choix de l'utilisateur : la cassette avant la cartouche GX4000)
+- **Pourquoi d'abord la cassette :** le programme compilé garde la ROM du CPC (affichage, clavier, calculs à virgule, son) ; seule la sortie change. La GX4000 n'a pas cette ROM : chantier bien plus gros, après.
+- **Fait :** `src\CpcBasic.Core\Output\TapeImage.cs` écrit une cassette au format .cdt (TZX 1.20, blocs n° &11), comme le firmware : fichier coupé en morceaux de 2 Ko ; chaque morceau = un en-tête (octet &2C, 64 octets complétés à 256 : nom sur 16 caractères, numéro, premier / dernier morceau, type, longueur, adresses) et les données (octet &16) ; paquets de 256 octets suivis de leur somme de contrôle (CRC-16 CCITT, départ &FFFF, inversée, octet fort d'abord) ; amorce de 2048 bits à 1, un bit à 0, 32 bits à 1 de fin ; vitesse de SPEED WRITE 1 (2000 bauds).
+- **Noms sur la bande :** avec chargeur, `NOM` (le chargeur BASIC, lu par RUN"") puis `NOM.BIN` ; sans chargeur (D168), `NOM` seul (le programme).
+- **Silences (corrigé après essai) :** entre deux morceaux, le CPC arrête le moteur, le remet en marche et attend environ 2 secondes avant d'écouter ; avec 0,1 s de silence, le morceau 2 était perdu (essai `CAT` : « block 1 Ok » puis plus rien). Maintenant : 2,5 s de silence au début de la bande et après chaque morceau ; 20 ms entre l'en-tête et ses données (le moteur ne s'arrête pas).
+- **Éditeur :** F5 écrit aussi `NOM.cdt` à côté de `NOM.dsk`, avec le message : sur un 464, RUN"" ; sur un 664 ou un 6128, ùTAPE (|TAPE en version anglaise) puis RUN"". Pas de réglage nouveau. Aucun mot réservé ajouté.
+- **Incident :** le premier envoi de la correction des silences n'était pas arrivé dans le dépôt (fichier resté dans sa première version) ; renvoyé et vérifié par la taille. Rappel : `dotnet test` ne reconstruit pas l'éditeur ; le relancer avec `dotnet run --project src\CpcIde` pour essayer un changement du compilateur.
+- **Essais (21 nov. 2026) :** `examples\cassette.bas` (3279 octets, 2 morceaux) chargé depuis la cassette et conforme dans Caprice Forever (CPC 464 sans lecteur de disquette, environ 31 s) et dans WinAPE (6128, ùTAPE). Tests : 1913 réussis (9 nouveaux : `TapeImageTests`).
+- **Reste (étapes suivantes de la cassette) :** programme sans chargeur sur cassette (aujourd'hui il rebranche la disquette au départ quand le firmware a été remis à zéro, D168 : à éviter pour la cassette) ; compilation en chaîne RUN "nom" (D087) et fichiers (OPENOUT...) sur cassette ; essai sur un vrai CPC.
+
 ---
 
 ## Notes de fin de session (modèle)

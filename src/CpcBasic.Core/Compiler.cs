@@ -25,6 +25,9 @@ public sealed record CompileResult(
 
     /// <summary>Les programmes lancés par RUN "nom" qui n'ont pas été trouvés (D087).</summary>
     public IReadOnlyList<string> Missing { get; init; } = [];
+
+    /// <summary>Les mêmes programmes sur une cassette (.cdt, D178) ; null en cas d'erreur.</summary>
+    public TapeImage? Tape { get; init; }
 }
 
 /// <summary>Un programme trouvé pour RUN "nom" : son texte et ses réglages (D087).</summary>
@@ -96,19 +99,25 @@ public static class Compiler
             return new CompileResult(diagnostics, null, mainSize, mainModules) { Missing = missing };
 
         var disk = new DiskImage();
+        var tape = new TapeImage();
         foreach ((string name, byte[] code, bool withLoader) in compiled)
         {
             if (withLoader)   // sans chargeur (D168) : NOM.BIN seul, RUN"NOM" le trouve
             {
                 byte[] loader = BasicLoader.Build($"{name}.BIN", LoadAddress - 1, LoadAddress);
                 disk.AddFile(name, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
+                tape.AddFile(name, AmsdosFileType.Basic, 0x0170, 0x0000, loader);   // D178 : RUN"" lit d'abord le chargeur
+                tape.AddFile($"{name}.BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
             }
+            else
+                tape.AddFile(name, AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
             disk.AddFile(name, "BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
         }
         return new CompileResult([], disk, mainSize, mainModules)
         {
             Linked = compiled.Skip(1).Select(c => new LinkedProgram(c.Name, c.Code.Length)).ToList(),
-            Missing = missing
+            Missing = missing,
+            Tape = tape
         };
     }
 

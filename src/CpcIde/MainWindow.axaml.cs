@@ -1060,6 +1060,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        // D178 : les mêmes programmes sur une cassette, NOM.cdt, à côté de la disquette
+        string cdtPath = Path.ChangeExtension(path, ".cdt");
+        string tapeNote;
+        try
+        {
+            result.Tape!.Save(cdtPath);
+            string bar = settings.CpcVersion == CpcLanguage.French ? "ù" : "|";   // ce que montre le CPC choisi (D133)
+            tapeNote = $"Cassette aussi : {cdtPath}. Dans l'émulateur, insérez la cassette ; sur un 464, tapez RUN\"\" ; " +
+                       $"sur un 664 ou un 6128, tapez d'abord {bar}TAPE puis RUN\"\".";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            tapeNote = $"La cassette n'a pas pu être écrite ({cdtPath}) : elle est sans doute ouverte dans votre émulateur. " +
+                       "La disquette, elle, est prête.";
+        }
+
         // « GRAPHIQUE:STAR » : commande de bibliothèque (D148) ; les autres sont les modules du compilateur
         List<string> ownModules = result.Modules.Where(m => !m.Contains(':')).ToList();
         string modules = ownModules.Count == 0 ? "aucun" : string.Join(", ", ownModules);
@@ -1092,6 +1108,7 @@ public partial class MainWindow : Window
                 ? "Priorité place (F3) : les CIRCLE passent par ELLIPSE (environ 750 octets de moins, ronds plus lents, mêmes points)."
                 : "Priorité vitesse (F3) : CIRCLE garde sa routine rapide (environ 750 octets de plus qu'avec la priorité place).", 0));
         done.Add(new MessageItem($"Dans l'émulateur : insérez le disque dans le lecteur A, puis tapez RUN\"{name}\"", 0));
+        done.Add(new MessageItem(tapeNote, 0));
         done.Add(new MessageItem("Avant de recompiler le même programme, fermez l'émulateur : il garde le fichier .dsk ouvert.", 0));
         done.AddRange(LibraryProblems());
         ShowMessages(done);
