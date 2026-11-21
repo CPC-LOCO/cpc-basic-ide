@@ -1369,6 +1369,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essais (21 nov. 2026) :** `examples\cassette.bas` (3279 octets, 2 morceaux) chargé depuis la cassette et conforme dans Caprice Forever (CPC 464 sans lecteur de disquette, environ 31 s) et dans WinAPE (6128, ùTAPE). Tests : 1913 réussis (9 nouveaux : `TapeImageTests`).
 - **Reste (étapes suivantes de la cassette) :** programme sans chargeur sur cassette (aujourd'hui il rebranche la disquette au départ quand le firmware a été remis à zéro, D168 : à éviter pour la cassette) ; compilation en chaîne RUN "nom" (D087) et fichiers (OPENOUT...) sur cassette ; essai sur un vrai CPC.
 
+## D179 : programme sans chargeur sur cassette (21 nov. 2026) (accord de l'utilisateur : « fais pour le mieux »)
+- **Problème :** sans chargeur (D168), le programme rebranche la disquette au départ quand le firmware vient d'être remis à zéro (LD A,(&BC77) / CP &CF / JR NZ,+9 / … / CALL &BCCB). Venu d'une cassette sur un 664 ou un 6128, ses fichiers seraient partis sur la disquette.
+- **Fait :** un seul programme compilé ; la disquette garde l'original, la cassette reçoit une copie (`Compiler.TapeCopy`) où JR NZ (&20) devient JR (&18) : le rebranchement est toujours sauté, les fichiers restent sur la cassette, comme sur un 464. Copie inchangée pour un programme avec chargeur. Aucun réglage ni mot nouveau.
+- **Exemple :** `examples\cassette.bas` attend maintenant aussi la barre d'espace à la fin (règle D130 oubliée au départ : sans chargeur, le programme fini fait redémarrer le CPC et « FIN DE L ESSAI » s'effaçait aussitôt).
+- **Essais (21 nov. 2026) :** sans chargeur, cassette lue par ùTAPE puis RUN"" dans WinAPE (6128) : écran conforme, « FIN DE L ESSAI » affiché jusqu'à la barre d'espace. Tests : 1917 réussis (4 nouveaux dans `TapeImageTests`).
+- **Reste pour la cassette :** compilation en chaîne RUN "nom" (D087) et fichiers (OPENOUT...) sur cassette ; essai sur un vrai CPC.
+
 ---
 
 ## Notes de fin de session (modèle)

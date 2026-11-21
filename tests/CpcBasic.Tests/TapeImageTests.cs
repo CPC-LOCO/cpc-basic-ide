@@ -5,6 +5,8 @@
 
 using System.Text;
 using CpcBasic.Core;
+using CpcBasic.Core.Codegen;
+using CpcBasic.Core.Language;
 using CpcBasic.Core.Output;
 using Xunit;
 
@@ -142,5 +144,50 @@ public class TapeImageTests
         CompileResult result = Compiler.CompileToDisk("10 PRINT (", "jeu");
 
         Assert.Null(result.Tape);
+    }
+    // D179 : programme sans chargeur venu de la cassette : il ne rebranche pas la disquette au départ
+    static byte[] NoLoaderCode() =>
+        CodeGenerator.Generate(BasicAnalyzer.Analyze("10 PRINT \"A\"").Program, Compiler.LoadAddress,
+                               new CompilerOptions(WithLoader: false)).Code;
+
+    [Fact]
+    public void Sans_chargeur_la_copie_de_la_cassette_saute_toujours_le_rebranchement()
+    {
+        byte[] code = NoLoaderCode();
+        byte[] copy = Compiler.TapeCopy(code);
+
+        Assert.Equal(0x20, code[5]);                          // disquette : JR NZ (inchangé)
+        Assert.Equal(0x18, copy[5]);                          // cassette : JR, toujours pris
+        Assert.Equal(code[6..], copy[6..]);
+    }
+
+    [Fact]
+    public void Sans_chargeur_la_cassette_contient_la_copie_et_la_disquette_l_original()
+    {
+        CompileResult result = Compiler.CompileToDisk("10 PRINT \"A\"", "jeu", new CompilerOptions(WithLoader: false));
+        byte[] data = Blocks(result.Tape!.ToCdtBytes())[1].Data;
+
+        Assert.Equal(0x18, data[1 + 5]);
+    }
+
+    [Fact]
+    public void Sans_chargeur_la_copie_de_la_cassette_marche_firmware_remis_a_zero()
+    {
+        var cpu = new MiniZ80();
+        cpu.Load(Compiler.TapeCopy(NoLoaderCode()), Compiler.LoadAddress);
+        cpu.Memory[0xBB18] = 0xC9;
+        cpu.Memory[0xBC77] = 0xCF;                          // firmware remis à zéro, comme après RUN"" d'un binaire
+        cpu.Call(Compiler.LoadAddress);
+
+        Assert.Equal("A\r\n", cpu.Output.ToString());
+    }
+
+    [Fact]
+    public void Avec_chargeur_la_copie_ne_change_rien()
+    {
+        byte[] code = CodeGenerator.Generate(BasicAnalyzer.Analyze("10 PRINT \"A\"").Program, Compiler.LoadAddress,
+                                             new CompilerOptions()).Code;
+
+        Assert.Equal(code, Compiler.TapeCopy(code));
     }
 }

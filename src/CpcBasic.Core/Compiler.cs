@@ -110,7 +110,7 @@ public static class Compiler
                 tape.AddFile($"{name}.BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
             }
             else
-                tape.AddFile(name, AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
+                tape.AddFile(name, AmsdosFileType.Binary, LoadAddress, LoadAddress, TapeCopy(code));
             disk.AddFile(name, "BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
         }
         return new CompileResult([], disk, mainSize, mainModules)
@@ -119,6 +119,21 @@ public static class Compiler
             Missing = missing,
             Tape = tape
         };
+    }
+
+    /// <summary>
+    /// Copie pour la cassette d'un programme sans chargeur (D179). Au départ, ce programme rebranche la disquette si le
+    /// firmware vient d'être remis à zéro (D168) : LD A,(&amp;BC77) / CP &amp;CF / JR NZ,+9 / … / CALL &amp;BCCB. Venu d'une
+    /// cassette, il ne doit pas le faire (ses fichiers resteraient sinon sur la disquette) : JR NZ devient JR, toujours
+    /// pris. Le programme de la disquette ne change pas.
+    /// </summary>
+    public static byte[] TapeCopy(byte[] code)
+    {
+        byte[] copy = (byte[])code.Clone();
+        if (copy.Length > 6 && copy[0] == 0x3A && copy[1] == 0x77 && copy[2] == 0xBC && copy[3] == 0xFE && copy[4] == 0xCF
+            && copy[5] == 0x20)
+            copy[5] = 0x18;
+        return copy;
     }
 
     /// <summary>Les programmes lancés par RUN "nom" écrit en clair (sans point, ou en .BIN), en majuscules.</summary>
