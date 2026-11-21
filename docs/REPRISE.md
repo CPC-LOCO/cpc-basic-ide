@@ -48,7 +48,7 @@ Documents de référence :
 
 ## 3. État au moment de la reprise (21 novembre 2026, matin)
 
-- **Version 0.6.0 prête** (D177) : paquet `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e, essayé par l'utilisateur (typo.bas compilé depuis le paquet). Notes : `docs\RELEASE-NOTES-0.6.0.md`. **Reste à faire :** commit, puis la publier sur GitHub (pre-release v0.6.0, comme la 0.5.0).
+- **Version 0.6.0 publiée** (D177) : paquet `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e, essayé par l'utilisateur (typo.bas compilé depuis le paquet). Notes : `docs\RELEASE-NOTES-0.6.0.md`. **Publiée** le 21 nov. 2026 : pre-release GitHub v0.6.0, commit 250ab58.
 - **Depuis la 0.5.0 :** assembleur seul (D163, D164, D166) ; extension `.cmd.asm` définitive (D165) ; zone réservée au programmeur &0400 à &2FFF (D167, test `ProgrammerZoneTests`) ; programmes BASIC sans chargeur (menu Options, D168) ; valeur TEXTE dans les bibliothèques (D169) ; bibliothèque TEXTE : TYPO et DEFTYPO (D170 à D173) ; place des commandes dans la fenêtre des bibliothèques (D172) ; division entière gardée, astuce CREAL (D174) ; FPRINT écrit puis mis de côté (D175) ; Z80 complet pour les tests (D176).
 - **Tests :** 1904, tous réussis (21 nov. 2026).
 - **Idées en attente (IDEES.md) :** sortie cassette, cartouche GX4000, écrans et musique, sprites ; FPRINT et les autres commandes de bibliothèque, quand tout le reste sera terminé.
@@ -65,7 +65,7 @@ Documents de référence :
 
 ### État au 16 novembre 2026 (pour mémoire)
 
-- **Version publique :** 0.6.0 préparée le 21 nov. 2026 (D177, à publier) ; avant : 0.5.0 (pre-release GitHub v0.5.0, Windows 64 bits, 20 nov. 2026, commit 885ded1 ; D162) ; avant : 0.4.0 (19 nov. 2026, D143). Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
+- **Version publique :** 0.6.0 (pre-release GitHub v0.6.0, 21 nov. 2026, commit 250ab58 ; D177) ; avant : 0.5.0 (pre-release GitHub v0.5.0, Windows 64 bits, 20 nov. 2026, commit 885ded1 ; D162) ; avant : 0.4.0 (19 nov. 2026, D143). Le numéro de version vient de `Directory.Build.props` (racine) et de `VERSION` dans `packaging\build-release.cmd` : garder les deux identiques.
 - **Dernier commit sur GitHub :** « Version 0.4.0 (D143) » (19 nov. 2026, **1673 tests**, tous réussis).
 - **Règle de l'utilisateur :** 100 % compatible avec le Locomotive BASIC ; finir l'inventaire avant toute commande nouvelle (CIRCLE, ELLIPSE, STAR, POLYGON, 3D… attendent).
 - **Grande étape du 16 nov. 2026 :** le programme de référence de l'utilisateur (`docs\PROGRAMME-DE-REFERENCE-RSX.md`) **se compile et donne le bon dessin** dans WinAPE (D089).
@@ -174,4 +174,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md (surtout les chapitres 2 et 3), et seulement les fichiers utiles ensuite. La version 0.6.0 est prête (D177) ; 1904 tests passent. Pas de nouvelles commandes de bibliothèque pour l'instant. Propose-moi la suite (publier la 0.6.0 si ce n'est pas fait, puis IDEES.md : cassette, cartouche GX4000...), une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md (surtout les chapitres 2 et 3), et seulement les fichiers utiles ensuite. La version 0.6.0 est publiée (D177) ; 1904 tests passent. Pas de nouvelles commandes de bibliothèque pour l'instant. Propose-moi la suite (IDEES.md : cassette, cartouche GX4000...), une étape à la fois, une seule action par message.

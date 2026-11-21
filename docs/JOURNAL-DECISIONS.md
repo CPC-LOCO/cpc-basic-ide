@@ -1357,6 +1357,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Fichiers :** version 0.6.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (titre, menu Assembleur, réglage chargeur, nouveau point 7 « Assembleur seul », points suivants renumérotés) ; README et TESTEURS.md.
 - **Incident :** `packaging\build-release.cmd` avait été remplacé par la sortie d'une série de tests (redirection) ; remis depuis le commit 885ded1, avec la version 0.6.0 et des fins de ligne Windows.
 - **Paquet construit (21 nov. 2026) :** `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e (même somme chez l'utilisateur et ici) ; contenu vérifié : bibliothèques GRAPHIQUE (STAR) et TEXTE (TYPO, DEFTYPO, TYPO_ADRESSE, TYPO_FONTE), 83 exemples dont typo.bas, pas de ROM, pas de FPRINT.
+- **Publiée (21 nov. 2026) :** pre-release GitHub v0.6.0, « CPC BASIC IDE 0.6.0 (version de test) », commit 250ab58.
 
 ---
 
