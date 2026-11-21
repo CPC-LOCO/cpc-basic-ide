@@ -19,6 +19,7 @@ public class Gx4000SystemTests
         cpu.Load(Gx4000System.SystemCode(program?.Length ?? 0), 0);
         cpu.Memory[Gx4000System.Variables + 0x13] = 1;       // stylo 1, comme au démarrage de la cartouche (D186)
         cpu.Memory[Gx4000System.Variables + 0x48] = 1;       // stylo graphique 1 (D187)
+        InstallScrWrite(cpu);
         return cpu;
     }
 
@@ -556,7 +557,7 @@ public class Gx4000SystemTests
         Gra(cpu, 0xBBDB);                                     // CLG
 
         Assert.Equal(0x0F, cpu.Memory[0xC000]);
-        Assert.Equal(0x0F, cpu.Memory[0xFFFF]);
+        Assert.Equal(0x0F, cpu.Memory[0xFFCF]);               // dernier octet visible (D188 : seulement ce qui se voit)
     }
 
     [Theory]
@@ -579,6 +580,114 @@ public class Gx4000SystemTests
     {
         CartridgeResult result = Compiler.CompileToCartridge(
             "10 MODE 1:CLG 2:ORIGIN 320,200:PLOT 0,0,3:DRAW 100,100:MOVE -50,0:DRAWR 0,-80:BOX 10,10,60,60,1:CIRCLE 0,0,50,2");
+
+        Assert.NotNull(result.Cartridge);
+    }
+
+    // ---------- XOR, AND, OR, fenêtres graphiques (D188) ----------
+
+    // SCR WRITE (&BDE8) : comme au démarrage de la cartouche, un saut vers notre routine
+    static void InstallScrWrite(MiniZ80 cpu)
+    {
+        int target = EntryOf(0xBDE8, cpu);
+        cpu.Memory[0xBDE8] = 0xC3;
+        cpu.Memory[0xBDE9] = (byte)target;
+        cpu.Memory[0xBDEA] = (byte)(target >> 8);
+    }
+
+    [Fact]
+    public void PLOT_en_XOR_efface_un_point_deja_allume()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 2);
+        Gra(cpu, 0xBBEA, 0, 0);
+        Assert.Equal(0x80, cpu.Memory[0xFF80]);
+        Gra(cpu, 0xBC59, a: 1);                               // SCR ACCESS 1 : XOR
+        Gra(cpu, 0xBBEA, 0, 0);
+        Assert.Equal(0x00, cpu.Memory[0xFF80]);
+    }
+
+    [Fact]
+    public void PLOT_en_AND_et_en_OR()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBEA, 0, 0);                               // encre 1 : &80
+        Gra(cpu, 0xBC59, a: 3);                               // OR avec l'encre 2 : encre 3
+        Gra(cpu, 0xBBDE, a: 2);
+        Gra(cpu, 0xBBEA, 0, 0);
+        Assert.Equal(0x88, cpu.Memory[0xFF80]);
+        Gra(cpu, 0xBC59, a: 2);                               // AND avec l'encre 1 : encre 1
+        Gra(cpu, 0xBBDE, a: 1);
+        Gra(cpu, 0xBBEA, 0, 0);
+        Assert.Equal(0x80, cpu.Memory[0xFF80]);
+    }
+
+    [Fact]
+    public void MODE_remet_l_ecriture_normale()
+    {
+        MiniZ80 cpu = Cpu();
+        Gra(cpu, 0xBC59, a: 1);
+        Mode(cpu, 2);
+        Gra(cpu, 0xBBEA, 0, 0);
+        Gra(cpu, 0xBBEA, 0, 0);                               // normal : le point reste allumé
+
+        Assert.Equal(0x80, cpu.Memory[0xFF80]);
+    }
+
+    // fenêtre graphique : x de 100 à 199, y de 100 à 299 (repère de l'écran), en MODE 1
+    static MiniZ80 Window()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Gra(cpu, 0xBBCF, 199, 100);                           // dans le désordre : rangés par la routine
+        Gra(cpu, 0xBBD2, 100, 299);
+        return cpu;
+    }
+
+    [Fact]
+    public void Une_fenetre_graphique_est_arrondie_a_l_octet()
+    {
+        MiniZ80 cpu = Window();
+        Gra(cpu, 0xBBD5);                                     // GRA GET W WIDTH
+
+        Assert.Equal(96, cpu.D << 8 | cpu.E);                 // point 50 -> début de son octet : 48
+        Assert.Equal(198, cpu.H << 8 | cpu.L);                // point 99 : déjà en fin d'octet
+        Gra(cpu, 0xBBD8);                                     // GRA GET W HEIGHT
+        Assert.Equal(298, cpu.D << 8 | cpu.E);
+        Assert.Equal(100, cpu.H << 8 | cpu.L);
+    }
+
+    [Fact]
+    public void Rien_n_est_dessine_hors_de_la_fenetre()
+    {
+        MiniZ80 cpu = Window();
+        Gra(cpu, 0xBBEA, 50, 150);                            // à gauche de la fenêtre
+        Gra(cpu, 0xBBEA, 150, 150);                           // dedans : point de base (75, 75)
+
+        Assert.Equal(0x00, cpu.Memory[0xE4B6]);
+        Assert.Equal(0x10, cpu.Memory[0xE4C2]);
+        Gra(cpu, 0xBBF0, 50, 150);                            // TEST hors de la fenêtre : le papier
+        Assert.Equal(0, cpu.A);
+    }
+
+    [Fact]
+    public void CLG_ne_remplit_que_la_fenetre()
+    {
+        MiniZ80 cpu = Window();
+        Gra(cpu, 0xBBE4, a: 2);
+        Gra(cpu, 0xBBDB);
+
+        Assert.Equal(0x0F, cpu.Memory[0xE4BC]);               // ligne 124, octet 12 (points 48 à 51) : dedans
+        Assert.Equal(0x00, cpu.Memory[0xE4BB]);               // octet 11 : dehors
+        Assert.Equal(0x00, cpu.Memory[0xFF80]);               // en bas de l'écran : dehors
+    }
+
+    [Fact]
+    public void Un_programme_avec_XOR_MASK_et_FILL_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 MODE 1:ORIGIN 0,0,100,500,350,50:CLG 2:MASK 170:DRAW 400,300,3,1:MOVE 200,200:FILL 1:PLOT 10,10,1,2:FRAME");
 
         Assert.NotNull(result.Cartridge);
     }

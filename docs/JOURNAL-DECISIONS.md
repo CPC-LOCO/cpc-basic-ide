@@ -1437,6 +1437,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 1970 réussis (13 nouveaux ; une attente fausse de Claude corrigée : un trait en biais allume aussi le point voisin au bout).
 - **Essai (21 nov. 2026) :** `examples\gxdessin.bas` (Ctrl+F5) dans AMSpiriT : MODE 1, points, cadre, éventail, carrés en DRAWR et ORIGIN ; MODE 0, CLG, BOX, CIRCLE et ELLIPSE pleins, diagonale, « TEST : OK » : conformes. L'utilisateur trouve le dessin beaucoup plus rapide que sur disquette (à mesurer).
 
+## D188 : cartouche GX4000, la fin du dessin : XOR, AND, OR, fenêtres graphiques, MASK, FILL (21 nov. 2026)
+- **Constat :** sur le CPC, chaque point d'un tracé passe par l'entrée détournable SCR WRITE (&BDE8), selon SCR ACCESS ; notre MASK (D110) la détourne. FILL et PAINT (D107) n'utilisent que GRA et SCR, plus KL U ROM DISABLE / KL ROM RESTORE (un simple retour suffit sur la cartouche).
+- **Fait :** `Gx4000System.cs` : SCR WRITE (&BDE8, un saut vers notre routine posé au démarrage ; chaque point de PLOT et DRAW y passe) avec les modes 0 normal, 1 XOR, 2 AND, 3 OR ; SCR ACCESS (&BC59) ; le mode dure jusqu'à MODE (règle de l'utilisateur). Fenêtres graphiques : GRA WIN WIDTH (&BBCF) et WIN HEIGHT (&BBD2), bords dans n'importe quel ordre, gardés dans l'écran, gauche et droite arrondis à l'octet ; GET W WIDTH / HEIGHT les rendent ; rien n'est dessiné hors de la fenêtre ; TEST hors de la fenêtre rend le papier ; CLG ne remplit que la fenêtre (ligne par ligne, seulement les octets visibles). MODE remet la fenêtre à tout l'écran. MC WAIT FLYBACK (&BD19, FRAME) attend le retour du balayage (port B du PPI). Variables &BE67 à &BE6F.
+- **Tests :** 1977 réussis (7 nouveaux ; un ancien test de CLG vérifiait un octet jamais affiché, corrigé). Les tests posent le saut de SCR WRITE comme le démarrage.
+- **Essai (21 nov. 2026) :** `examples\gxxor.bas` (Ctrl+F5) dans AMSpiriT : éventail en XOR puis effacé ; fenêtre graphique (CLG bleu ciel, traits coupés aux bords), trait en pointillés (MASK 170), triangle rempli (FILL) : conformes.
+- **Le dessin est complet sur la cartouche.** Restent pour la console : les fenêtres de texte (WINDOW), le son, les encres clignotantes, les programmes de plus de 16 Ko.
+
 ---
 
 ## Notes de fin de session (modèle)

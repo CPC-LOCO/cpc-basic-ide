@@ -21,7 +21,8 @@ namespace CpcBasic.Core.Output;
 /// Manettes (D183) : JOY, et les touches de la table (tir 1 = espace, tir 2 = ENTRÉE, directions = flèches, plus les
 /// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Couleurs :
 /// PEN, PAPER, INK (sans clignotement), BORDER (D186). Dessin (D187) : PLOT, DRAW, MOVE (et relatifs), TEST, CLG,
-/// ORIGIN, GRAPHICS PEN / PAPER. Pas encore faits : modes d'écriture (XOR...), fenêtres, MASK, FILL, le son ; les autres
+/// ORIGIN, GRAPHICS PEN / PAPER ; modes d'écriture XOR, AND, OR, fenêtres graphiques, SCR WRITE (&BDE8) pour MASK, FILL
+/// et PAINT, FRAME (D188). Pas encore faits : les fenêtres de texte, le son ; les autres
 /// adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
@@ -175,6 +176,15 @@ public static class Gx4000System
                 LD (&BE42),HL
                 LD (&BE44),HL
                 LD (&BE46),HL
+                LD (&BE68),HL           ; fenêtre graphique : tout l'écran (D188)
+                LD (&BE6C),HL
+                LD HL,(&BE63)
+                DEC HL
+                LD (&BE6A),HL
+                LD HL,199
+                LD (&BE6E),HL
+                XOR A
+                LD (&BE67),A            ; écriture normale (le mode XOR... dure jusqu'à MODE)
         ; ---------- TXT CLEAR WINDOW (&BB6C) : écran effacé, curseur en haut à gauche ----------
         CLS:    LD HL,&C000
                 LD DE,&C001
@@ -661,29 +671,46 @@ public static class Gx4000System
                 RR L
                 POP DE
                 RET
-        ; retenue si le point de base DE, HL est hors de l'écran
+        ; retenue si le point de base DE, HL est hors de la fenêtre graphique (&BE68 gauche, &BE6A droite,
+        ; &BE6C bas, &BE6E haut, en points de base ; D188)
         DEDANS: BIT 7,D
                 SCF
                 RET NZ
                 BIT 7,H
                 SCF
                 RET NZ
-                LD A,H
-                OR A
-                SCF
-                RET NZ
-                LD A,L
-                CP 200
-                CCF
-                RET C
                 PUSH HL
-                LD HL,(&BE63)
+                LD HL,(&BE68)
                 OR A
                 SBC HL,DE
+                JR Z,DD1
+                JR NC,DDOUT             ; à gauche de la fenêtre
+        DD1:    LD HL,(&BE6A)
+                OR A
+                SBC HL,DE
+                JR C,DDOUT              ; à droite
                 POP HL
-                JR Z,DEHORS
+                PUSH DE
+                EX DE,HL
+                LD HL,(&BE6C)
+                OR A
+                SBC HL,DE
+                JR Z,DD2
+                JR NC,DDOUT2            ; en dessous
+        DD2:    LD HL,(&BE6E)
+                OR A
+                SBC HL,DE
+                JR C,DDOUT2             ; au-dessus
+                EX DE,HL
+                POP DE
+                OR A
                 RET
-        DEHORS: SCF
+        DDOUT2: EX DE,HL
+                POP DE
+                SCF
+                RET
+        DDOUT:  POP HL
+                SCF
                 RET
         ; SCR DOT POSITION (&BC1D) : DE = x, HL = y de base -> HL = adresse, C = masque du point, B = points par octet - 1
         DOTPOS: LD A,199
@@ -738,14 +765,55 @@ public static class Gx4000System
         POINT:  CALL DEDANS
                 RET C
                 CALL DOTPOS
-                LD A,C
+                LD A,(&BE5C)
+                LD B,A
+                JP &BDE8                ; par l'entrée SCR WRITE, comme le firmware (MASK la détourne, D110)
+        ; SCR WRITE (&BDE8 -> SCRWR) : HL = adresse, C = masque du point, B = encre codée ; selon SCR ACCESS (&BE67)
+        SCRWR:  LD A,(&BE67)
+                OR A
+                JR NZ,SW1
+                LD A,C                  ; normal
                 CPL
                 AND (HL)
-                LD B,A
-                LD A,(&BE5C)
-                AND C
-                OR B
                 LD (HL),A
+                LD A,B
+                AND C
+                OR (HL)
+                LD (HL),A
+                RET
+        SW1:    DEC A
+                JR NZ,SW2
+                LD A,B                  ; XOR
+                AND C
+                XOR (HL)
+                LD (HL),A
+                RET
+        SW2:    DEC A
+                JR NZ,SW3
+                LD A,C                  ; AND
+                CPL
+                OR B
+                AND (HL)
+                LD (HL),A
+                RET
+        SW3:    LD A,B                  ; OR
+                AND C
+                OR (HL)
+                LD (HL),A
+                RET
+        ; SCR ACCESS (&BC59) : A = mode d'écriture (0 normal, 1 XOR, 2 AND, 3 OR)
+        SACC:   AND 3
+                LD (&BE67),A
+                RET
+        ; MC WAIT FLYBACK (&BD19) : FRAME, attend le retour du balayage
+        FLYB:   PUSH AF
+                PUSH BC
+                LD B,&F5
+        FLY1:   IN A,(C)
+                RRA
+                JR NC,FLY1
+                POP BC
+                POP AF
                 RET
         ; GRA MOVE ABSOLUTE (&BBC0), GRA MOVE RELATIVE (&BBC3), GRA ASK CURSOR (&BBC6) : DE = X, HL = Y
         GMOVR:  CALL GREL
@@ -775,21 +843,145 @@ public static class Gx4000System
         GGETOR: LD DE,(&BE40)
                 LD HL,(&BE42)
                 RET
-        GWWID:  LD DE,0
-                LD HL,639
+        ; GRA GET W WIDTH (&BBD5) : DE = gauche, HL = droite ; GRA GET W HEIGHT (&BBD8) : DE = haut, HL = bas
+        ; (repère de l'écran)
+        GWWID:  LD HL,(&BE68)
+                CALL X2STD
+                EX DE,HL
+                LD HL,(&BE6A)
+                JP X2STD
+        X2STD:  LD A,(&BE65)
+                OR A
+                RET Z
+        XS1:    ADD HL,HL
+                DEC A
+                JR NZ,XS1
                 RET
-        GWHEI:  LD DE,399
+        GWHEI:  LD HL,(&BE6E)
+                ADD HL,HL
+                EX DE,HL
+                LD HL,(&BE6C)
+                ADD HL,HL
+                RET
+        ; GRA WIN WIDTH (&BBCF) : DE, HL = bords gauche et droit (repère de l'écran, dans n'importe quel ordre) ;
+        ; gardés dans l'écran et arrondis à l'octet (gauche au début de son octet, droite à la fin du sien)
+        GWINW:  CALL ORDRE
+                PUSH HL
+                EX DE,HL
+                CALL STD2X
+                LD A,(&BE61)
+                CPL
+                AND L
+                LD L,A
+                LD (&BE68),HL
+                POP HL
+                CALL STD2X
+                LD A,(&BE61)
+                OR L
+                LD L,A
+                LD (&BE6A),HL
+                RET
+        ; GRA WIN HEIGHT (&BBD2) : DE, HL = bords haut et bas (repère de l'écran, dans n'importe quel ordre)
+        GWINH:  CALL ORDRE
+                PUSH HL
+                EX DE,HL
+                CALL STD2Y
+                LD (&BE6C),HL
+                POP HL
+                CALL STD2Y
+                LD (&BE6E),HL
+                RET
+        ; DE <= HL (nombres signés) : échangés si besoin
+        ORDRE:  PUSH HL
+                PUSH DE
+                LD A,H
+                XOR &80
+                LD H,A
+                LD A,D
+                XOR &80
+                LD D,A
+                OR A
+                SBC HL,DE
+                POP DE
+                POP HL
+                RET NC
+                EX DE,HL
+                RET
+        ; HL (repère de l'écran) -> x de base, de 0 à largeur - 1
+        STD2X:  LD A,(&BE65)
+                OR A
+                JR Z,SX2
+        SX1:    SRA H
+                RR L
+                DEC A
+                JR NZ,SX1
+        SX2:    BIT 7,H
+                JR Z,SX3
                 LD HL,0
+                RET
+        SX3:    PUSH DE
+                LD DE,(&BE63)
+                DEC DE
+                PUSH HL
+                OR A
+                SBC HL,DE
+                POP HL
+                JR C,SX4
+                EX DE,HL
+        SX4:    POP DE
+                RET
+        ; HL (repère de l'écran) -> y de base, de 0 à 199
+        STD2Y:  SRA H
+                RR L
+                BIT 7,H
+                JR Z,SY1
+                LD HL,0
+                RET
+        SY1:    LD A,H
+                OR A
+                JR NZ,SY2
+                LD A,L
+                CP 200
+                RET C
+        SY2:    LD HL,199
                 RET
         ; GRA CLEAR WINDOW (&BBDB) : CLG, écran à la couleur du papier graphique, curseur à l'origine
-        GCLR:   LD A,(&BE49)
+        GCLR:   LD A,(&BE49)            ; la fenêtre graphique seulement (bords à l'octet)
                 CALL OCTENC
-                LD HL,&C000
-                LD DE,&C001
-                LD BC,&3FFF
-                LD (HL),A
-                LDIR
-                LD HL,0
+                LD (&BE5C),A
+                LD HL,(&BE6C)
+                LD (&BE4C),HL
+        GC1:    LD DE,(&BE68)
+                LD HL,(&BE4C)
+                CALL DOTPOS
+                PUSH HL
+                LD HL,(&BE6A)
+                LD DE,(&BE68)
+                OR A
+                SBC HL,DE
+                LD A,(&BE60)
+        GC2:    SRL H
+                RR L
+                DEC A
+                JR NZ,GC2
+                LD B,L
+                INC B                   ; octets de la ligne
+                POP HL
+                LD A,(&BE5C)
+        GC3:    LD (HL),A
+                INC HL
+                DJNZ GC3
+                LD HL,(&BE4C)
+                LD DE,(&BE6E)
+                OR A
+                PUSH HL
+                SBC HL,DE
+                POP HL
+                JR Z,GC4
+                INC HL
+                LD (&BE4C),HL
+                JR GC1
+        GC4:    LD HL,0
                 LD (&BE44),HL
                 LD (&BE46),HL
                 RET
@@ -1040,6 +1232,11 @@ public static class Gx4000System
                 DEFW &BC11,SGMODE
                 DEFW &BC1D,DOTPOS
                 DEFW &BC2C,SENC
+                DEFW &BDE8,SCRWR
+                DEFW &BC59,SACC
+                DEFW &BBCF,GWINW
+                DEFW &BBD2,GWINH
+                DEFW &BD19,FLYB
                 DEFW 0
         TOUCHES: {2}
         {5}
