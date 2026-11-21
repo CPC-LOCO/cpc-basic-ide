@@ -1385,6 +1385,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Idée de l'utilisateur pour plus tard (notée dans IDEES.md) :** un « ! » devant le nom du fichier sur cassette (comme RUN"!NOM") supprime les messages du firmware (« Press PLAY then any key »...).
 - **Sortie cassette terminée (D178 à D180).** Reste seulement l'essai sur un vrai CPC.
 
+## D181 : cartouche GX4000, chemin A et première cartouche d'essai (21 nov. 2026) (choix de l'utilisateur)
+- **Questions de l'utilisateur avant de choisir :** les conversions de jeux pour GX4000 passent surtout par NoCart (Kevin Thacker) : la cartouche contient les ROM du 6128 (OS, BASIC, AMSDOS retouché pour lire la cartouche) et l'image de la disquette ; les touches sont ensuite remplacées à la main par la manette. Droits : Amstrad (Cliff Lawson, 1999) autorise la redistribution de ses ROM en gardant le message de droit d'auteur, même modifiées ; une partie est à Locomotive Software ; certains lisent l'accord comme limité aux émulateurs. Réécrire soi-même les routines, sans recopier le code, est permis en principe (Claude n'est pas juriste). D016 rappelée : ne pas redistribuer les ROM.
+- **Idée d'un émulateur CPC et GX4000 pour nos essais (question de l'utilisateur) :** possible (1 mois à 1 mois et demi estimé), **abandonnée** par l'utilisateur : trop long pour le gain.
+- **Choix (chemin A) :** notre propre petit système dans la cartouche (écran, texte avec notre jeu de caractères, couleurs, manette, son ; nombres à virgule plus tard) : aucune ROM d'Amstrad, jeux librement distribuables. Le chemin B (ROM du CPC dans la cartouche, comme NoCart) est écarté. Le compilateur dira ce qui ne marche pas encore sur GX4000.
+- **Fait (étape 1) :** `src\CpcBasic.Core\Output\CartridgeImage.cs` (fichier .cpr : RIFF, « AMS! », une partie « cbNN » de 16 Ko par page, complétée par des &FF) ; `src\CpcBasic.Core\Output\Gx4000Test.cs` : cartouche d'essai en assembleur (notre assembleur, D145) qui tourne en &0000 : Gate Array en MODE 1 (ROM haute coupée), 14 registres du CRTC, encres, 4 bandes verticales (bleu, jaune, bleu ciel, rouge) et bordure verte ; `src\CpcBasic.Cli\Program.cs` : `--essai-gx4000 fichier.cpr`. Tests : 1923 réussis (4 nouveaux, `CartridgeImageTests`).
+- **Essai (21 nov. 2026) :** `dotnet run --project src\CpcBasic.Cli -- --essai-gx4000 essais\gx4000.cpr`, puis SugarBox en 6128 PLUS (« Default cartridge » remplacée par la cartouche d'essai ; WinAPE n'a pas la cartouche système du Plus chez l'utilisateur) : écran conforme (bordure verte, 4 bandes). Un 6128 Plus lance une cartouche comme la GX4000.
+- **Suite prévue :** le texte (PRINT, LOCATE) avec notre propre jeu de caractères, puis la manette, puis MODE, INK, CLS, dessin, son...
+
 ---
 
 ## Notes de fin de session (modèle)

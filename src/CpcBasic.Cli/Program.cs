@@ -4,12 +4,23 @@
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
 using CpcBasic.Core;
+using CpcBasic.Core.Output;
 
 // Utilisation : CpcBasic.Cli programme.bas [sortie.dsk]
+//               CpcBasic.Cli --essai-gx4000 sortie.cpr   (cartouche d'essai GX4000, D181)
 if (args.Length < 1)
 {
     Console.WriteLine("Utilisation : CpcBasic.Cli programme.bas [sortie.dsk]");
+    Console.WriteLine("              CpcBasic.Cli --essai-gx4000 sortie.cpr");
     return 1;
+}
+
+if (args[0] == "--essai-gx4000")
+{
+    string cprPath = args.Length >= 2 ? args[1] : "essai-gx4000.cpr";
+    Gx4000Test.Build().Save(cprPath);
+    Console.WriteLine($"{Path.GetFullPath(cprPath)} créé : cartouche d'essai GX4000 (4 bandes de couleur, bordure verte).");
+    return 0;
 }
 
 string inputPath = args[0];
