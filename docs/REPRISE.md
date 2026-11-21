@@ -50,8 +50,8 @@ Documents de référence :
 
 - **Version 0.6.0 publiée** (D177) : paquet `release\CpcBasic-0.6.0-win-x64.zip`, SHA256 25cefaff6132f91416253f66db2d694a1fa043ac3d05fd1b9ffdbbb3e01e055e, essayé par l'utilisateur (typo.bas compilé depuis le paquet). Notes : `docs\RELEASE-NOTES-0.6.0.md`. **Publiée** le 21 nov. 2026 : pre-release GitHub v0.6.0, commit 250ab58.
 - **Depuis la 0.5.0 :** assembleur seul (D163, D164, D166) ; extension `.cmd.asm` définitive (D165) ; zone réservée au programmeur &0400 à &2FFF (D167, test `ProgrammerZoneTests`) ; programmes BASIC sans chargeur (menu Options, D168) ; valeur TEXTE dans les bibliothèques (D169) ; bibliothèque TEXTE : TYPO et DEFTYPO (D170 à D173) ; place des commandes dans la fenêtre des bibliothèques (D172) ; division entière gardée, astuce CREAL (D174) ; FPRINT écrit puis mis de côté (D175) ; Z80 complet pour les tests (D176).
-- **Après la 0.6.0 : sortie cassette (D178)** : F5 écrit aussi NOM.cdt ; essayée dans Caprice (464) et WinAPE (6128). Sans chargeur sur cassette fait (D179). Restent : RUN "nom" et fichiers sur cassette. Ensuite : cartouche GX4000.
-- **Tests :** 1917, tous réussis (21 nov. 2026).
+- **Après la 0.6.0 : sortie cassette (D178)** : F5 écrit aussi NOM.cdt ; essayée dans Caprice (464) et WinAPE (6128). Sans chargeur sur cassette fait (D179) ; RUN "nom" sur cassette fait (D180) : **sortie cassette terminée** (reste un essai sur un vrai CPC). Ensuite : cartouche GX4000.
+- **Tests :** 1919, tous réussis (21 nov. 2026).
 - **Idées en attente (IDEES.md) :** sortie cassette, cartouche GX4000, écrans et musique, sprites ; FPRINT et les autres commandes de bibliothèque, quand tout le reste sera terminé.
 
 ### Bibliothèques de commandes (19 et 20 nov. 2026, D144 à D161, publiées dans la 0.5.0)

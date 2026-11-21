@@ -1376,6 +1376,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essais (21 nov. 2026) :** sans chargeur, cassette lue par ùTAPE puis RUN"" dans WinAPE (6128) : écran conforme, « FIN DE L ESSAI » affiché jusqu'à la barre d'espace. Tests : 1917 réussis (4 nouveaux dans `TapeImageTests`).
 - **Reste pour la cassette :** compilation en chaîne RUN "nom" (D087) et fichiers (OPENOUT...) sur cassette ; essai sur un vrai CPC.
 
+## D180 : RUN "nom" sur cassette (21 nov. 2026) (accord de l'utilisateur : « fais pour le mieux »)
+- **Constat :** RUN "nom" passe par le firmware (CAS IN OPEN sur NOM.BIN, D086) : il marche donc aussi sur cassette, à condition que le programme lancé s'appelle NOM.BIN sur la bande.
+- **Fait :** sur la cassette, chaque programme lancé par RUN "nom" (compilation en chaîne, D087) est mis seul après le programme principal, sous le nom `NOM.BIN`, sans chargeur BASIC (inutile, et du temps de bande en moins) ; sans chargeur, c'est la copie de la cassette (D179). Le programme principal et la disquette ne changent pas.
+- **Fichiers (OPENOUT, OPENIN...) :** rien à changer, ils passent par le firmware et vont sur la cassette comme avec le vrai BASIC. Limite, la même que sur un 464 : la bande ne se rembobine pas toute seule (un programme qui se relance, comme enchaine.bas, demande de rembobiner à la main).
+- **Exemples :** `examples\bande1.bas` (lance BANDE2 après la barre d'espace) et `examples\bande2.bas` (MODE 0, attend la barre d'espace) ; partie1 / partie2 gardés tels quels (leur fichier SCORE demanderait d'enregistrer sur la bande).
+- **Essai (21 nov. 2026) :** Caprice Forever (464), RUN"" : BANDE1 puis, après la barre d'espace, « Press PLAY then any key: » puis BANDE2 chargé et lancé ; écrans conformes. Tests : 1919 réussis (2 nouveaux dans `TapeImageTests`).
+- **Idée de l'utilisateur pour plus tard (notée dans IDEES.md) :** un « ! » devant le nom du fichier sur cassette (comme RUN"!NOM") supprime les messages du firmware (« Press PLAY then any key »...).
+- **Sortie cassette terminée (D178 à D180).** Reste seulement l'essai sur un vrai CPC.
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -190,4 +190,29 @@ public class TapeImageTests
 
         Assert.Equal(code, Compiler.TapeCopy(code));
     }
+    // D180 : un programme lancé par RUN "nom" est seul sur la cassette, sous le nom NOM.BIN
+    static ProgramSource? Suite(string name) =>
+        name == "SUITE" ? new ProgramSource("10 PRINT \"B\"", CompilerOptions.Default) : null;
+
+    [Fact]
+    public void Avec_chargeur_le_programme_lance_par_RUN_est_seul_en_NOM_BIN()
+    {
+        CompileResult result = Compiler.CompileWithLinked("10 RUN \"SUITE\"", "jeu", null, Suite);
+
+        Assert.Equal(new[] { "JEU", "JEU.BIN", "SUITE.BIN" }, result.Tape!.FileNames);
+        Assert.Equal(new[] { "JEU.BAS", "JEU.BIN", "SUITE.BAS", "SUITE.BIN" }, result.Disk!.FileNames);   // disquette inchangée
+    }
+
+    [Fact]
+    public void Sans_chargeur_le_programme_lance_par_RUN_garde_aussi_le_nom_NOM_BIN()
+    {
+        static ProgramSource? NoLoader(string name) =>
+            name == "SUITE" ? new ProgramSource("10 PRINT \"B\"", new CompilerOptions(WithLoader: false)) : null;
+        CompileResult result = Compiler.CompileWithLinked("10 RUN \"SUITE\"", "jeu", new CompilerOptions(WithLoader: false), NoLoader);
+
+        Assert.Equal(new[] { "JEU", "SUITE.BIN" }, result.Tape!.FileNames);
+        var blocks = Blocks(result.Tape.ToCdtBytes());
+        int header = blocks.FindIndex(b => b.Data[0] == 0x2C && Encoding.ASCII.GetString(b.Data, 1, 9) == "SUITE.BIN");
+        Assert.Equal(0x18, blocks[header + 1].Data[1 + 5]); // copie de la cassette : la disquette n'est pas rebranchée
+    }
 }

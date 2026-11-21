@@ -100,18 +100,28 @@ public static class Compiler
 
         var disk = new DiskImage();
         var tape = new TapeImage();
+        bool first = true;   // le programme de l'éditeur
         foreach ((string name, byte[] code, bool withLoader) in compiled)
         {
             if (withLoader)   // sans chargeur (D168) : NOM.BIN seul, RUN"NOM" le trouve
             {
                 byte[] loader = BasicLoader.Build($"{name}.BIN", LoadAddress - 1, LoadAddress);
                 disk.AddFile(name, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
+            }
+            disk.AddFile(name, "BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
+
+            byte[] tapeCode = withLoader ? code : TapeCopy(code);   // D179 : pas de disquette rebranchée
+            if (!first)       // D180 : lancé par RUN "nom", qui cherche NOM.BIN : seul, sans chargeur
+                tape.AddFile($"{name}.BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, tapeCode);
+            else if (withLoader)
+            {
+                byte[] loader = BasicLoader.Build($"{name}.BIN", LoadAddress - 1, LoadAddress);
                 tape.AddFile(name, AmsdosFileType.Basic, 0x0170, 0x0000, loader);   // D178 : RUN"" lit d'abord le chargeur
                 tape.AddFile($"{name}.BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
             }
             else
-                tape.AddFile(name, AmsdosFileType.Binary, LoadAddress, LoadAddress, TapeCopy(code));
-            disk.AddFile(name, "BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
+                tape.AddFile(name, AmsdosFileType.Binary, LoadAddress, LoadAddress, tapeCode);
+            first = false;
         }
         return new CompileResult([], disk, mainSize, mainModules)
         {

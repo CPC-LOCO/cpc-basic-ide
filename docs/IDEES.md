@@ -35,6 +35,10 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Messages d'incompatibilité (idée de l'utilisateur, D111, 17 nov. 2026) : un programme compilé marche toujours sur tous les CPC ; quand une commande ne peut pas marcher partout, le compilateur le dit (par exemple : mémoire en plus du 6128, commandes du CPC Plus ou de la GX4000, rappel que les fichiers vont sur la cassette sur un 464 sans lecteur de disquette). Aujourd'hui, aucune commande n'est dans ce cas.
 - Barre de titre avec le dossier du fichier ouvert (essai de la 0.3.0, 18 nov. 2026 : la fenêtre « Ouvrir » de Windows reprend le dernier dossier et ne montre pas le début du chemin ; on ne voyait pas qu'on avait ouvert l'exemple du projet et non celui du paquet). Par exemple : « CPC BASIC IDE - formats.bas (E:\...\examples) ».
 
+### Cassette (suites de D178 à D180)
+- Messages de la cassette (idée de l'utilisateur, 21 nov. 2026) : un « ! » devant le nom du fichier sur cassette (comme RUN"!NOM" ou LOAD"!NOM.BIN") supprime les messages du firmware (« Press PLAY then any key », « Loading... »). À étudier : dans le chargeur BASIC, pour RUN "nom" (la compilation en chaîne devra alors reconnaître le nom sans le « ! »), peut-être un réglage.
+- Essai de la cassette sur un vrai CPC.
+
 ## Faites (gardées pour mémoire)
 - **Fait (D038, D039)** — Fonctions de calcul : ABS, SGN, MIN, MAX (existent dans le Locomotive), HIBYTE, LOBYTE, CLAMP, RANDOM, RANDOMIZE.
 - **Fait (D054, D058, D060, D062, D068)** — Conditions sans comparaison (IF a THEN), NOT, GOTO et GOSUB, tableaux, chaînes, réels.
