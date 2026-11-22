@@ -1,0 +1,2 @@
+10 DEFINT a-z:INK 0,RND*27:FOR a=1 TO 15:INK a,ASC(MID$("J=036?HE9:;D>5A",a,1))-48:NEXT:MODE 0:c=RND*319:l=RND*199:d=l:m=c:x1=4+RND*8:y1=2+RND*4:p=y1:WHILE INKEY(47) AND f<400:f=f+1:p=(p-((RND*25)<2)) MOD 15:c=c+x1:l=l+y1:MOVE c,l:DRAW d,m,p+1:'Illusion
+20 MOVE 639-c,399-l:DRAW 639-d,399-m:MOVE 639-c,l:DRAW 639-d,m:MOVE c,399-l:DRAW d,399-m:x1=x1*(1+2*(c>639 OR c<0 OR RND*99<2)):x2=y1*3:y1=y1*(1+2*(l>399 OR l<0 OR RND*99<2)):y2=x1*2:d=MIN(639,MAX(0,d+x2)):m=MIN(399,MAX(0,m+y2)):WEND:RUN: 'P.M.

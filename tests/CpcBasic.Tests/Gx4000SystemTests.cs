@@ -671,6 +671,90 @@ public class Gx4000SystemTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Les_traits_rapides_du_CPC_donnent_les_memes_points_que_GRA_LINE(byte mode)
+    {
+        // D204 : le module LineRuntime (DRAW et DRAWR des programmes) appelle les routines du firmware ; ici, celles de
+        // notre système de la cartouche (mêmes entrées). Comparé à GRA LINE de ce système, sur des traits au hasard :
+        // origine, fenêtre graphique, XOR, bouts hors de l'écran (la ROM s'en charge), DRAWR.
+        var random = new Random(90 + mode);
+        var emitter = new Z80Emitter(0x4000);
+        foreach (RuntimeModule m in Linker.Resolve([RuntimeLibrary.LineName]))
+            m.Emit(emitter);
+        int line = emitter.AddressOf(LineRuntime.LineLabel), relative = emitter.AddressOf(LineRuntime.RelativeLabel);
+        MiniZ80 fast = Cpu(), slow = Cpu();
+        var entries = new Dictionary<int, int>();
+        int Entry(int firmware) => entries.TryGetValue(firmware, out int e) ? e : entries[firmware] = EntryOf(firmware, fast);
+        foreach (MiniZ80 c in new[] { fast, slow })
+        {
+            c.UseInstalledFirmware = true;
+            c.Load(emitter.ToBytes(), 0x4000);
+            foreach (int firmware in new[] { 0xBBC6, 0xBBCC, 0xBC0B, 0xBC11, 0xBBD5, 0xBBD8, 0xBBE1, 0xBC2C, 0xBBC0, 0xBC1D,
+                                             0xBBF6 })
+            {
+                c.Memory[firmware] = 0xC3;                    // les sauts du firmware, comme au démarrage de la cartouche
+                c.Memory[firmware + 1] = (byte)Entry(firmware);
+                c.Memory[firmware + 2] = (byte)(Entry(firmware) >> 8);
+            }
+            Mode(c, mode);
+        }
+        void Go(MiniZ80 cpu, int address, int x = 0, int y = 0, byte a = 0)
+        {
+            cpu.D = (byte)(x >> 8);
+            cpu.E = (byte)x;
+            cpu.H = (byte)(y >> 8);
+            cpu.L = (byte)y;
+            cpu.A = a;
+            cpu.Call(address);
+        }
+        for (int round = 0; round < 80; round++)
+        {
+            byte pen = (byte)random.Next(1, 16);
+            var decor = new byte[0x4000];
+            random.NextBytes(decor);
+            bool window = round % 4 == 0;
+            int ox = round % 3 == 0 ? random.Next(-50, 300) : 0, oy = round % 3 == 0 ? random.Next(-50, 200) : 0;
+            int x1 = random.Next(-60, 700), y1 = random.Next(-40, 440), x2 = random.Next(-60, 700), y2 = random.Next(-40, 440);
+            if (round % 5 == 1)
+                y2 = y1;                                       // horizontal
+            if (round % 5 == 2)
+                x2 = x1;                                       // vertical
+            bool rel = round % 2 == 0;
+            foreach (MiniZ80 c in new[] { fast, slow })
+            {
+                decor.CopyTo(c.Memory, 0xC000);
+                Go(c, Entry(0xBBC9), ox, oy);                 // ORIGIN
+                Go(c, Entry(0xBBCF), window ? 100 : 0, window ? 500 : 639);
+                Go(c, Entry(0xBBD2), window ? 350 : 399, window ? 50 : 0);
+                Go(c, Entry(0xBBDE), a: pen);
+                Go(c, Entry(0xBC59), a: (byte)(round % 3 == 1 ? 1 : 0));
+                Go(c, Entry(0xBBC0), x1, y1);
+            }
+            if (rel)
+            {
+                Go(fast, relative, x2 - x1, y2 - y1);
+                Go(slow, Entry(0xBBF9), x2 - x1, y2 - y1);
+            }
+            else
+            {
+                Go(fast, line, x2, y2);
+                Go(slow, Entry(0xBBF6), x2, y2);
+            }
+
+            string gaps = string.Join(" ", Enumerable.Range(0xC000, 0x4000).Where(i => slow.Memory[i] != fast.Memory[i]).Take(8)
+                .Select(i => $"{i:X4}:{decor[i - 0xC000]:X2}/{slow.Memory[i]:X2}/{fast.Memory[i]:X2}"));
+            Assert.True(gaps.Length == 0,
+                        $"MODE {mode}, essai {round} : de ({x1}, {y1}) à ({x2}, {y2}), origine ({ox}, {oy}), " +
+                        $"fenêtre {window}, relatif {rel}, stylo {pen} ; écarts (décor/ROM/rapide) : {gaps}");
+            Go(fast, Entry(0xBBC6));
+            Assert.Equal(x2, (short)(fast.D << 8 | fast.E));
+            Assert.Equal(y2, (short)(fast.H << 8 | fast.L));
+        }
+    }
+
     [Fact]
     public void TEST_rend_l_encre_du_point()
     {

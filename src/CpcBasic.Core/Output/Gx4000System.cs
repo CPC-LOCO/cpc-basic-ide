@@ -4479,6 +4479,10 @@ public static class Gx4000System
                 SUB H
                 LD H,A
                 RET
+        ; SCR GET LOCATION (&BC0B) : écran en &C000, jamais décalé (le texte défile par recopie) ; D204
+        SGLOC:  LD A,&C0
+                LD HL,0
+                RET
         ; SCR GET MODE (&BC11) : A = mode ; retenue en MODE 0, zéro en MODE 1
         SGMODE: LD A,(&BE06)
                 CP 1
@@ -4583,6 +4587,7 @@ public static class Gx4000System
                 DEFW &BBF6,GLINE
                 DEFW &BBF9,GLINER
                 DEFW &BC11,SGMODE
+                DEFW &BC0B,SGLOC
                 DEFW &BC1D,DOTPOS
                 DEFW &BC2C,SENC
                 DEFW &BDE8,SCRWR

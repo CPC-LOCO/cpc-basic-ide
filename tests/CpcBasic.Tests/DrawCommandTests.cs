@@ -126,12 +126,34 @@ public class DrawCommandTests
     [InlineData("MOVER", 0xC3, 0xBB)]
     [InlineData("PLOT", 0xEA, 0xBB)]
     [InlineData("PLOTR", 0xED, 0xBB)]
-    [InlineData("DRAW", 0xF6, 0xBB)]
-    [InlineData("DRAWR", 0xF9, 0xBB)]
     public void Chaque_commande_appelle_sa_routine_du_firmware(string command, byte low, byte high)
     {
         AssertStartsWith(Code($"10 {command} 1, 2"),
             0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5, 0xE1, 0xD1, 0xCD, low, high);
+    }
+
+    [Theory]
+    [InlineData("DRAW", LineRuntime.LineLabel)]
+    [InlineData("DRAWR", LineRuntime.RelativeLabel)]
+    public void DRAW_et_DRAWR_appellent_nos_traits_rapides(string command, string label)
+    {
+        // D204 : le module des traits à la place de GRA LINE (&BBF6, &BBF9) de la ROM
+        GeneratedProgram program = CodeGenerator.Generate(Parse($"10 {command} 1, 2"), 0x4000);
+        int target = program.Code[11] | program.Code[12] << 8;
+
+        AssertStartsWith(program.Code, 0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5, 0xE1, 0xD1, 0xCD);
+        Assert.Contains(RuntimeLibrary.LineName, program.Modules);
+        Assert.NotEqual(command == "DRAW" ? 0xBBF6 : 0xBBF9, target);
+        Assert.True(target > 0x4000);
+    }
+
+    [Fact]
+    public void Avec_MASK_DRAW_garde_la_ROM()
+    {
+        // D204 : le motif de MASK suit l'ordre des points de la ROM (D110)
+        GeneratedProgram program = CodeGenerator.Generate(Parse("10 MASK 170\n20 DRAW 1, 2"), 0x4000);
+
+        Assert.DoesNotContain(RuntimeLibrary.LineName, program.Modules);
     }
 
     [Fact]
@@ -151,7 +173,7 @@ public class DrawCommandTests
         AssertStartsWith(Code("10 DRAW 1, 2, , 1"),
             0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5,
             0x21, 0x01, 0x00, 0x7D, 0xCD, 0x59, 0xBC,
-            0xE1, 0xD1, 0xCD, 0xF6, 0xBB);
+            0xE1, 0xD1, 0xCD);                                 // puis nos traits rapides (D204)
     }
 
     [Fact]
@@ -161,7 +183,7 @@ public class DrawCommandTests
             0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5,
             0x21, 0x03, 0x00, 0x7D, 0xCD, 0xDE, 0xBB,
             0x21, 0x01, 0x00, 0x7D, 0xCD, 0x59, 0xBC,
-            0xE1, 0xD1, 0xCD, 0xF6, 0xBB);
+            0xE1, 0xD1, 0xCD);
     }
 
     [Fact]
@@ -186,10 +208,10 @@ public class DrawCommandTests
     }
 
     [Fact]
-    public void Un_programme_de_trace_sans_texte_ne_lie_aucun_module()
+    public void Un_programme_de_trace_sans_texte_ne_lie_que_le_module_des_traits()
     {
         GeneratedProgram program = CodeGenerator.Generate(Parse("10 CLG\n20 MOVE 0, 0\n30 DRAW 639, 399, 1"), 0x4000);
 
-        Assert.Empty(program.Modules);
+        Assert.Equal(new[] { RuntimeLibrary.LineName }, program.Modules);   // D204 : DRAW rapide
     }
 }

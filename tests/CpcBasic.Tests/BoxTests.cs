@@ -460,6 +460,6 @@ public class BoxCommandTests
     {
         GeneratedProgram program = Generate("10 MODE 1\n20 PLOT 1, 1\n30 DRAW 5, 5");
 
-        Assert.Empty(program.Modules);
+        Assert.Equal(new[] { RuntimeLibrary.LineName }, program.Modules);   // seulement les traits rapides de DRAW (D204)
     }
 }

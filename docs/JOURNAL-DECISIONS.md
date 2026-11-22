@@ -1557,6 +1557,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2052 (1 nouveau, en 3 MODE : 180 traits en biais au hasard, comparés à PLOT des points du même calcul, décor au hasard, fenêtre graphique, XOR, bouts dehors). Un ancien test supposait qu'un programme de 40 000 octets tient sur 2 pages en plus : le système dépasse maintenant 9 Ko, il en faut 3 ; ramené à 30 000 octets (de toute façon, 30 464 au plus).
 - Essai (22 nov. 2026) : `examples\gxdessin.bas` en cartouche dans AMSpiriT : dessin identique, « c'est très rapide ».
 
+## D204 : DRAW et DRAWR rapides sur CPC (22 nov. 2026) (« le projet est de compiler pour justement rendre plus rapide ! »)
+
+- Constat : `examples\illusion.bas` (programme de concours de l'utilisateur, 2 lignes) allait à la même vitesse compilé qu'en BASIC : 400 tours en 63 s compilé, 58 s en BASIC (`examples\illtemps.bas`, chronomètre ; les traits changent à chaque lancement à cause de RND). Presque tout le temps passe dans GRA LINE de la ROM, la même routine pour les deux.
+- Fait : `Codegen\LineRuntime.cs` (nouveau) : DRAW et DRAWR appellent notre module au lieu de &BBF6 / &BBF9. Il lit les réglages du firmware (GRA ASK CURSOR, GRA GET ORIGIN, GRA GET PEN + SCR INK ENCODE, GRA GET W WIDTH / HEIGHT, SCR GET MODE, SCR DOT POSITION), puis trace avec le calcul de la cartouche (D202, D203 : adresse et masque suivis d'un point au suivant, horizontaux octet par octet) ; chaque écriture passe par SCR WRITE (&BDE8, donc XOR, AND, OR respectés) ; curseur mis au bout par GRA MOVE ABSOLUTE. La ROM garde : un bout hors de la fenêtre graphique, écran décalé ou ailleurs qu'en &C000 (SCR GET LOCATION, &BC0B ; ajouté à la cartouche : toujours &C000), et tout programme avec MASK (le motif suit l'ordre des points de la ROM, D110).
+- Piège (essai dans WinAPE : écran rempli de couleur, programme qui repart) : SCR WRITE est une routine de la ROM basse appelée directement ; il faut brancher la ROM basse (KL L ROM ENABLE) et débrancher la haute (KL U ROM DISABLE) pendant le tracé, puis KL ROM RESTORE. Les simulateurs ne le voyaient pas.
+- Piège des tests : MiniZ80 ne connaît pas CCF ; INSIDE réécrit avec des comparaisons simples. MiniZ80 : réglage UseInstalledFirmware (les sauts posés par le test passent avant le firmware simulé).
+- Tests : 2056 (comparaison avec GRA LINE de notre système sur 240 traits au hasard : origine, fenêtre, XOR, DRAWR, bouts dehors ; DRAW et DRAWR appellent le module ; avec MASK, la ROM). Les points sont ceux de notre calcul : pas encore comparés point par point avec ceux de la vraie ROM (à l'œil, dans WinAPE : « tout me semblait normal »).
+- Essai (22 nov. 2026) : illtemps.bas : 37,8 s dans WinAPE (6128), 33,7 s en cartouche dans AMSpiriT (au lieu de 58 à 63 s) ; « c'est très joli en étant plus rapide ».
+- Suite possible : écrire directement dans l'écran au lieu de SCR WRITE (en écriture normale), et faire passer BOX, CIRCLE, ELLIPSE par le module.
+
 ---
 
 ## Notes de fin de session (modèle)

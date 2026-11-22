@@ -2055,7 +2055,13 @@ public static class CodeGenerator
             bool masked = usesMask && draw.Command is "DRAW" or "DRAWR";
             if (masked)
                 emitter.CallLabel(RuntimeLibrary.MaskBeginLabel);   // MASK et fond transparent pendant la ligne (D110)
-            emitter.CallAddress(address);
+            if (!usesMask && draw.Command is "DRAW" or "DRAWR")
+            {
+                required.Add(RuntimeLibrary.LineName);              // D204 : nos traits rapides (avec MASK : la ROM)
+                emitter.CallLabel(draw.Command == "DRAW" ? LineRuntime.LineLabel : LineRuntime.RelativeLabel);
+            }
+            else
+                emitter.CallAddress(address);
             if (masked)
                 emitter.CallLabel(RuntimeLibrary.MaskEndLabel);
         }

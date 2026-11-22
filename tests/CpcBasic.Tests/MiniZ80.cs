@@ -326,6 +326,9 @@ internal sealed partial class MiniZ80
     /// </summary>
     public bool UpperRomEnabled = true;
 
+    /// <summary>D204 : les entrées du firmware où le test a posé un saut (JP) vont à ce saut, avant le firmware simulé.</summary>
+    public bool UseInstalledFirmware;
+
     /// <summary>Lecture d'un octet de la mémoire, avec le masque de la ROM haute.</summary>
     byte ReadMemory(int address) =>
         UpperRomEnabled && address >= 0xC000 ? (byte)(0xA5 ^ address) : Memory[address & 0xFFFF];
@@ -596,6 +599,11 @@ internal sealed partial class MiniZ80
     {
         do
         {
+            if (UseInstalledFirmware && target >= 0xB900 && Memory[target] == 0xC3)
+            {
+                pc = target;
+                break;
+            }
             if (target >= 0xB900 && Memory[target] == 0xC3)
             {
                 pc = target;                                       // entrée du firmware détournée (PRINT #9, D084)
@@ -654,6 +662,12 @@ internal sealed partial class MiniZ80
     {
         do
         {
+            if (UseInstalledFirmware && address >= 0xB900 && Memory[address] == 0xC3)
+            {
+                Push((ushort)pc);                                  // D204 : les sauts posés par le test passent avant
+                pc = address;
+                break;
+            }
             if (address is 0xBB39 or 0xBB27 or 0xBB2D or 0xBB33)
             {
                 KeyCalls.Add((address, A, B));                     // KM SET REPEAT / TRANSLATE / SHIFT / CONTROL (D092)
