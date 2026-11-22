@@ -3164,15 +3164,20 @@ public static class CodeGenerator
                     required.Add(RuntimeLibrary.SpriteName);
                     string data = $"spr_{labelCount++}";
                     string background = $"spr_{labelCount++}";
+                    string shifted = $"spr_{labelCount++}";
                     string skip = $"spr_{labelCount++}";
-                    (byte[] blocks, int backgroundSize) = SpriteRuntime.Build(spriteDef.Rows);
+                    (byte[] blocks, int backgroundSize, int cacheSize) = SpriteRuntime.Build(spriteDef.Rows);
                     emitter.JpLabel(skip);
                     emitter.Label(data);
                     emitter.Bytes((byte)spriteDef.Rows[0].Length, (byte)spriteDef.Rows.Count);
                     emitter.Word(background);
+                    emitter.Word(shifted);                          // D199 : images décalées, MODE (&FF : aucun), prêtes
+                    emitter.Bytes(0xFF, 0);
                     emitter.Bytes(blocks);
                     emitter.Label(background);
                     emitter.Reserve(backgroundSize);
+                    emitter.Label(shifted);
+                    emitter.Reserve(cacheSize);
                     emitter.Label(skip);
                     emitter.LdHlLabel(data);
                     emitter.LdAImm(spriteDef.Number);

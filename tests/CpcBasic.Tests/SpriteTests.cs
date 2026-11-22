@@ -50,7 +50,7 @@ public class SpriteTests
     [Fact]
     public void L_image_est_preparee_pour_les_trois_MODE()
     {
-        (byte[] blocks, int background) = SpriteRuntime.Build(["3."]);
+        (byte[] blocks, int background, int cache) = SpriteRuntime.Build(["3."]);
 
         // MODE 0 : 1 octet ; stylo 3 au point de gauche = &88, le décor garde le point de droite (&55)
         Assert.Equal(new byte[] { 1, 0x88, 0x55 }, blocks[0..3]);
@@ -58,6 +58,7 @@ public class SpriteTests
         Assert.Equal(new byte[] { 1, 0x88, 0x77 }, blocks[3..6]);
         Assert.Equal(new byte[] { 1, 0x80, 0x7F }, blocks[6..9]);
         Assert.Equal(2, background);                          // (1 octet + 1) x 1 ligne
+        Assert.Equal(28, cache);                              // MODE 2 : 7 décalages x 2 octets x 1 ligne x 2
     }
 
     // le module seul, sur le mini-Z80, avec une description posée en &8000 (décor gardé en &8800)
@@ -72,8 +73,8 @@ public class SpriteTests
                 m.Emit(Emitter);
             Cpu.Load(Emitter.ToBytes(), 0x4000);
             Cpu.ScreenMode = mode;
-            (byte[] blocks, _) = SpriteRuntime.Build(rows);
-            byte[] description = [(byte)rows[0].Length, (byte)rows.Count, 0x00, 0x88, .. blocks];
+            (byte[] blocks, _, _) = SpriteRuntime.Build(rows);
+            byte[] description = [(byte)rows[0].Length, (byte)rows.Count, 0x00, 0x88, 0x00, 0x90, 0xFF, 0, .. blocks];
             description.CopyTo(Cpu.Memory, 0x8000);
             var random = new Random(5);
             for (int address = 0xC000; address < 0x10000; address++)
@@ -151,6 +152,27 @@ public class SpriteTests
         machine.Show(320, 10);                                // dépasse à droite (octet 80)
         machine.Show(10, 200);                                // dépasse en bas
 
+        Assert.Equal(before, machine.Screen());
+    }
+
+    [Fact]
+    public void Le_sprite_se_place_au_point_pres()
+    {
+        var machine = new Machine(1, ["33"]);
+        byte[] before = machine.Screen();
+        int first = Address(0, 0), second = Address(1, 0);
+        byte decor1 = machine.Cpu.Memory[first], decor2 = machine.Cpu.Memory[second];
+
+        machine.Show(3, 0);                                   // MODE 1 : points 3 et 4 -> à cheval sur deux octets
+
+        Assert.Equal((decor1 & 0xEE) | 0x11, machine.Cpu.Memory[first]);    // dernier point du 1er octet
+        Assert.Equal((decor2 & 0x77) | 0x88, machine.Cpu.Memory[second]);   // premier point du 2e octet
+        machine.Show(5, 0);                                   // décalé d'un point : points 5 et 6 dans le 2e octet
+        Assert.Equal(before[0], machine.Cpu.Memory[first]);
+        Assert.Equal((decor2 & 0x99) | 0x66, machine.Cpu.Memory[second]);
+        machine.Show(3, 0);                                   // de nouveau : l'image décalée gardée ressert
+        Assert.Equal((decor1 & 0xEE) | 0x11, machine.Cpu.Memory[first]);
+        machine.Hide();
         Assert.Equal(before, machine.Screen());
     }
 }

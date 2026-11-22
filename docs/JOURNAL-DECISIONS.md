@@ -1519,6 +1519,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\sprite.bas` dans WinAPE (F5) et dans AMSpiriT (Ctrl+F5) : l'envahisseur traverse le décor sans l'abîmer, puis disparaît (« C'est ok »).
 - **Suite prévue :** position au point près en largeur (étape 2), COLLIDE (étape 3), sprites qui se croisent (étape 4).
 
+## D199 : sprites, étape 2 : la position au point près (22 nov. 2026)
+- **Fait :** `SpriteRuntime.cs` : quand x n'est pas au début d'un octet, l'image est décalée de s points vers la droite (un octet de plus par ligne) ; chaque image décalée est préparée une seule fois, à sa première utilisation, puis gardée (réserve prévue par le compilateur derrière chaque DEFSPR : 1, 3 ou 7 décalages selon le MODE ; environ 200 octets pour un 8 x 8, 670 pour un 16 x 16) ; un changement de MODE les fait refaire. La description d'un sprite gagne 4 octets (adresse des images décalées, leur MODE, celles qui sont prêtes).
+- **Vérification avant envoi :** simulateur Python : 4 dessins, 3 MODE, positions 0 à 19 et bords de l'écran, image au point près et décor rendu.
+- **Tests :** 2043 réussis (1 nouveau, 1 complété).
+- **Essai (22 nov. 2026) :** `examples\sprite.bas` : mouvement fluide de 2 points par image ; une petite saccade vers les trois quarts du trajet (« ça passe bien ») : sans doute le rythme de l'émulateur, à regarder si elle revient ailleurs.
+
 ---
 
 ## Notes de fin de session (modèle)
