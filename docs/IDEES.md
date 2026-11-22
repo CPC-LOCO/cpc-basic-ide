@@ -37,7 +37,6 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 
 ### Cassette (suites de D178 à D180)
 - Messages de la cassette (idée de l'utilisateur, 21 nov. 2026) : un « ! » devant le nom du fichier sur cassette (comme RUN"!NOM" ou LOAD"!NOM.BIN") supprime les messages du firmware (« Press PLAY then any key », « Loading... »). À étudier : dans le chargeur BASIC, pour RUN "nom" (la compilation en chaîne devra alors reconnaître le nom sans le « ! »), peut-être un réglage.
-- Essai de la cassette sur un vrai CPC.
 ### Saisie limitée (idée de l'utilisateur, 21 nov. 2026, à lui rappeler quand on fera de nouvelles commandes)
 - Une forme d'INPUT qui n'accepte que certains caractères : `INPUT "0123456789"+CHR$(13); "Votre âge : "; A$` (premier texte = les caractères permis, puis la question, puis la variable). `INPUT "Question : "; A$` reste la forme normale du Locomotive. Le premier texte peut être une expression (le Locomotive n'accepte qu'un texte écrit en clair après INPUT, donc pas de conflit avec ses programmes).
 - Sur CPC : les autres touches sont ignorées pendant la saisie. Sur la cartouche GX4000 : la saisie à la manette (D184) ne fait défiler que ces caractères.

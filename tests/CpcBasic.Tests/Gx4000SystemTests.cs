@@ -736,4 +736,167 @@ public class Gx4000SystemTests
 
         Assert.Contains("mémoire", error.Message);
     }
+
+    // ---------- fenêtres de texte (D190) ----------
+
+    // TXT WIN ENABLE : gauche, droite, haut, bas (à partir de 0)
+    static void Win(MiniZ80 cpu, byte left, byte right, byte top, byte bottom)
+    {
+        cpu.H = left;
+        cpu.D = right;
+        cpu.L = top;
+        cpu.E = bottom;
+        cpu.Call(EntryOf(0xBB66, cpu));
+    }
+
+    // TXT STR SELECT : rend le flux d'avant
+    static byte Stream(MiniZ80 cpu, byte stream)
+    {
+        cpu.A = stream;
+        cpu.Call(EntryOf(0xBBB4, cpu));
+        return cpu.A;
+    }
+
+    static void Locate(MiniZ80 cpu, byte column, byte row)
+    {
+        cpu.H = column;
+        cpu.L = row;
+        cpu.Call(Gx4000System.SetCursorEntry);
+    }
+
+    static (int Left, int Right, int Top, int Bottom) GetWindow(MiniZ80 cpu)
+    {
+        cpu.Call(EntryOf(0xBB69, cpu));
+        return (cpu.H, cpu.D, cpu.L, cpu.E);
+    }
+
+    // MODE 1, fenêtre colonnes 10 à 19, lignes 5 à 9 (WINDOW 10,19,5,9) : son coin en haut à gauche est en &C000 + 4 x 80 + 9 x 2
+    const int WindowCorner = 0xC000 + 4 * 80 + 9 * 2;
+
+    static MiniZ80 TextWindow()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Win(cpu, 18, 9, 8, 4);                                // dans le désordre : rangés par la routine
+        return cpu;
+    }
+
+    [Fact]
+    public void WINDOW_place_le_texte_dans_la_fenetre()
+    {
+        MiniZ80 cpu = TextWindow();
+        Assert.Equal((9, 18, 4, 8), GetWindow(cpu));
+        Print(cpu, "A");
+
+        Assert.Equal(new byte[] { 0x30, 0x80 }, cpu.Memory[WindowCorner..(WindowCorner + 2)]);
+        cpu.Call(Gx4000System.GetCursorEntry);
+        Assert.Equal(2, cpu.H);                               // colonne et ligne comptées dans la fenêtre
+        Assert.Equal(1, cpu.L);
+    }
+
+    [Fact]
+    public void Au_bout_de_la_fenetre_on_passe_a_la_ligne()
+    {
+        MiniZ80 cpu = TextWindow();
+        Print(cpu, new string('A', 11));                      // la fenêtre a 10 colonnes
+
+        Assert.Equal(1, cpu.Memory[Gx4000System.Variables + 1]);
+        Assert.Equal(0x30, cpu.Memory[WindowCorner + 80]);    // le 11e A : ligne suivante, au bord gauche de la fenêtre
+        Assert.Equal(0x00, cpu.Memory[WindowCorner + 20]);    // rien à droite de la fenêtre
+    }
+
+    [Fact]
+    public void Seule_la_fenetre_remonte()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Print(cpu, "A");                                      // hors de la fenêtre, en haut à gauche de l'écran
+        Win(cpu, 9, 18, 4, 8);
+        Locate(cpu, 1, 2);
+        Print(cpu, "A");                                      // deuxième ligne de la fenêtre
+        Locate(cpu, 1, 5);
+        Print(cpu, "\n");                                     // en bas de la fenêtre : elle remonte d'une ligne
+
+        Assert.Equal(0x30, cpu.Memory[WindowCorner]);         // le A est monté sur la première ligne
+        Assert.Equal(0x00, cpu.Memory[WindowCorner + 80]);
+        Assert.Equal(0x30, cpu.Memory[0xC000]);               // le A hors de la fenêtre n'a pas bougé
+        Assert.Equal(4, cpu.Memory[Gx4000System.Variables + 1]);   // le curseur reste sur la dernière ligne
+    }
+
+    [Fact]
+    public void CLS_n_efface_que_la_fenetre()
+    {
+        MiniZ80 cpu = TextWindow();
+        Firmware(cpu, 0xBB96, 2);                             // PAPER 2 : octet &0F
+        cpu.A = 12;
+        cpu.Call(Gx4000System.TxtOutputEntry);
+
+        Assert.Equal(0x0F, cpu.Memory[WindowCorner]);
+        Assert.Equal(0x0F, cpu.Memory[WindowCorner + 19]);    // dernier octet de la ligne de la fenêtre
+        Assert.Equal(0x00, cpu.Memory[WindowCorner + 20]);    // juste à droite
+        Assert.Equal(0x00, cpu.Memory[WindowCorner - 1]);     // juste à gauche
+        Assert.Equal(0x0F, cpu.Memory[WindowCorner + 4 * 80 + 0x3800]);   // dernière ligne de points de la fenêtre
+        Assert.Equal(0x00, cpu.Memory[WindowCorner + 5 * 80 + 0x3800]);   // dessous
+    }
+
+    [Fact]
+    public void Chaque_flux_garde_sa_fenetre_son_curseur_et_ses_couleurs()
+    {
+        MiniZ80 cpu = Cpu();
+        Mode(cpu, 1);
+        Assert.Equal(0, Stream(cpu, 1));                      // #1
+        Win(cpu, 9, 18, 4, 8);
+        Firmware(cpu, 0xBB90, 3);                             // PEN #1,3
+        Print(cpu, "A");
+
+        Assert.Equal(1, Stream(cpu, 0));                      // retour à #0 : tout l'écran, stylo 1
+        Assert.Equal((0, 39, 0, 24), GetWindow(cpu));
+        Firmware(cpu, 0xBB93, 0);
+        Assert.Equal(1, cpu.A);
+        Print(cpu, "A");
+        Assert.Equal(0x30, cpu.Memory[0xC000]);
+
+        Stream(cpu, 1);                                       // #1 retrouvé
+        Assert.Equal((9, 18, 4, 8), GetWindow(cpu));
+        Firmware(cpu, 0xBB93, 0);
+        Assert.Equal(3, cpu.A);
+        Assert.Equal(1, cpu.Memory[Gx4000System.Variables]);  // son curseur, après le A
+    }
+
+    [Fact]
+    public void WINDOW_SWAP_echange_deux_flux_et_MODE_remet_tout_l_ecran()
+    {
+        MiniZ80 cpu = TextWindow();                           // #0 : la fenêtre
+        cpu.B = 0;
+        cpu.C = 1;
+        cpu.Call(EntryOf(0xBBB7, cpu));                       // WINDOW SWAP 0,1
+
+        Assert.Equal((0, 39, 0, 24), GetWindow(cpu));         // #0 a pris la fenêtre de #1 : tout l'écran
+        Stream(cpu, 1);
+        Assert.Equal((9, 18, 4, 8), GetWindow(cpu));
+        Mode(cpu, 1);
+        Assert.Equal((0, 39, 0, 24), GetWindow(cpu));
+    }
+
+    [Fact]
+    public void TXT_VALIDATE_passe_a_la_ligne_apres_la_fin_de_la_fenetre()
+    {
+        MiniZ80 cpu = TextWindow();
+        cpu.H = 11;                                           // juste après la 10e colonne
+        cpu.L = 1;
+        cpu.Call(EntryOf(0xBB87, cpu));
+
+        Assert.Equal(1, cpu.H);
+        Assert.Equal(2, cpu.L);
+    }
+
+    [Fact]
+    public void Un_programme_avec_des_fenetres_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 MODE 1:WINDOW #1,10,30,5,15:PAPER #1,2:CLS #1:PRINT #1,\"BONJOUR\":WINDOW SWAP 0,1:PRINT \"FIN\"");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
 }

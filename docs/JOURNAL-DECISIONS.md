@@ -1451,6 +1451,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (21 nov. 2026) :** `examples\gxgrand.bas` (200 lignes, environ 24 Ko, Ctrl+F5) dans AMSpiriT : les 200 lignes s'affichent, « Lignes executees : 200 », « TOUT LE PROGRAMME A ETE RECOPIE : OK ». Le premier exemple (400 lignes, 48 431 octets) était trop gros et a été refusé proprement.
 - Restent pour la console : les fenêtres de texte (WINDOW), le son, les encres clignotantes.
 
+## D190 : cartouche GX4000, les fenêtres de texte (22 nov. 2026) (« fais pour le mieux » : les fenêtres avant les encres clignotantes et le son)
+- **Fait :** `Gx4000System.cs` : TXT WIN ENABLE (&BB66, WINDOW : bords remis dans l'ordre et ramenés dans l'écran, curseur en haut à gauche), TXT GET WINDOW (&BB69), TXT STR SELECT (&BBB4 : les 8 flux #0 à #7, chacun avec son curseur, sa fenêtre, son stylo et son papier, rangés en &BE80 + flux x 8), TXT SWAP STREAMS (&BBB7, WINDOW SWAP), TXT VALIDATE (&BB87 : après la fin de la ligne, début de la ligne suivante ; sous la fenêtre, sa dernière ligne). Le curseur est compté dans la fenêtre ; CLS n'efface que la fenêtre (tout l'écran : d'un seul coup comme avant) ; en bas de la fenêtre, seule la fenêtre remonte. MODE remet toutes les fenêtres sur l'écran entier (stylos et papiers gardés). Variables du système : &BE00 à &BEFF mises à zéro au démarrage.
+- Le message de Ctrl+F5 devient : « Pas encore sur la console : le son, les encres clignotantes. »
+- **Tests :** 1990 réussis (8 nouveaux : texte dans la fenêtre, passage à la ligne, défilement de la fenêtre seule, CLS, les flux, WINDOW SWAP et MODE, TXT VALIDATE, un programme compilé).
+- **Essai (22 nov. 2026) :** `examples\gxfenetre.bas` (Ctrl+F5) dans AMSpiriT : deux fenêtres colorées qui défilent chacune de leur côté, puis WINDOW SWAP 0,1 et CLS dans la fenêtre seule.
+- Restent pour la console : les encres clignotantes, le son.
+
 ---
 
 ## Notes de fin de session (modèle)

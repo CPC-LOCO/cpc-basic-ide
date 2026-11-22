@@ -22,8 +22,9 @@ namespace CpcBasic.Core.Output;
 /// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Couleurs :
 /// PEN, PAPER, INK (sans clignotement), BORDER (D186). Dessin (D187) : PLOT, DRAW, MOVE (et relatifs), TEST, CLG,
 /// ORIGIN, GRAPHICS PEN / PAPER ; modes d'écriture XOR, AND, OR, fenêtres graphiques, SCR WRITE (&BDE8) pour MASK, FILL
-/// et PAINT, FRAME (D188). Pas encore faits : les fenêtres de texte, le son ; les autres
-/// adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
+/// et PAINT, FRAME (D188). Fenêtres de texte (D190) : WINDOW, les 8 flux #0 à #7 (chacun son curseur, sa fenêtre,
+/// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Pas encore faits : le son,
+/// les encres clignotantes ; les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -108,9 +109,9 @@ public static class Gx4000System
                 LDI
                 LDI
                 JR BRL
-        BRFIN:  LD HL,&BE00             ; variables du système à zéro
+        BRFIN:  LD HL,&BE00             ; variables du système à zéro (&BE00 à &BEFF)
                 LD DE,&BE01
-                LD BC,127
+                LD BC,255
                 LD (HL),0
                 LDIR
         ; Encres du CPC au démarrage (D186) : les 16 stylos, puis la bordure (stylo 16)
@@ -128,6 +129,12 @@ public static class Gx4000System
                 LD A,1
                 LD (&BE13),A            ; stylo 1 sur papier 0
                 LD (&BE48),A            ; stylo graphique 1 (D187)
+                LD HL,&BE86             ; les 8 flux : stylo 1 sur papier 0 (D190)
+                LD DE,8
+                LD B,E
+        STYLOS: LD (HL),A
+                ADD HL,DE
+                DJNZ STYLOS
                 CALL SETMODE
         ; Le programme compilé, recopié en &4000, puis lancé
                 LD HL,PROG
@@ -212,16 +219,38 @@ public static class Gx4000System
                 LD (&BE6A),HL
                 LD HL,199
                 LD (&BE6E),HL
+                CALL PLEIN              ; fenêtres de texte : tout l'écran, pour les 8 flux (D190)
                 XOR A
                 LD (&BE67),A            ; écriture normale (le mode XOR... dure jusqu'à MODE)
-        ; ---------- TXT CLEAR WINDOW (&BB6C) : écran effacé, curseur en haut à gauche ----------
-        CLS:    LD HL,&C000
+        ; ---------- TXT CLEAR WINDOW (&BB6C) : fenêtre effacée, curseur en haut à gauche ----------
+        CLS:    LD A,(&BE1D)
+                LD B,A
+                LD A,(&BE03)
+                CP B
+                JR NZ,CLSF              ; pas toute la largeur
+                LD A,(&BE1E)
+                CP 24
+                JR NZ,CLSF              ; pas toute la hauteur
+                LD HL,&C000             ; tout l'écran : d'un seul coup
                 LD DE,&C001
                 LD BC,&3FFF
                 LD A,(&BE14)            ; l'écran prend la couleur du papier
                 LD (HL),A
                 LDIR
-                XOR A
+                JR CLSC
+        CLSF:   LD A,(&BE1B)            ; une fenêtre : ligne après ligne
+                LD C,A
+                LD A,(&BE1E)
+                INC A
+                LD B,A
+        CLSF1:  PUSH BC
+                LD A,C
+                CALL RADR
+                CALL VIDLIG
+                POP BC
+                INC C
+                DJNZ CLSF1
+        CLSC:   XOR A
                 LD (&BE00),A
                 LD (&BE01),A
                 RET
@@ -350,35 +379,82 @@ public static class Gx4000System
                 POP AF
                 RET
 
-        ; au bout de la ligne : début de la ligne suivante
-        WRAP:   LD A,(&BE03)
+        ; au bout de la ligne de la fenêtre : début de la ligne suivante ; sous la fenêtre (LOCATE plus bas) : la
+        ; fenêtre remonte d'une ligne et l'on écrit sur sa dernière ligne (D190)
+        WRAP:   LD A,(&BE1D)
                 LD B,A
                 LD A,(&BE00)
                 CP B
-                RET C
+                JR C,WRAP2
                 XOR A
                 LD (&BE00),A
-        ; ligne suivante ; en bas de l'écran, tout remonte d'une ligne
-        BAS:    LD HL,&BE01
+                CALL BAS
+        WRAP2:  LD A,(&BE1E)
+                LD B,A
+                LD A,(&BE01)
+                CP B
+                RET C
+                RET Z
+                LD A,B
+                LD (&BE01),A
+                JR MONTE
+        ; ligne suivante ; en bas de la fenêtre, toute la fenêtre remonte d'une ligne
+        BAS:    LD A,(&BE1E)
+                LD B,A
+                LD HL,&BE01
                 LD A,(HL)
-                CP 24
-                JR NC,MONTE
+                CP B
+                JR NC,BAS2
                 INC (HL)
                 RET
-        MONTE:  LD HL,&C050
-                LD DE,&C000
-                LD A,8
-        MONTE1: PUSH AF
+        BAS2:   LD (HL),B
+        MONTE:  LD A,(&BE1E)
+                OR A
+                JR Z,MONTEF             ; une seule ligne : elle est effacée
+                LD B,A                  ; lignes à recopier
+                LD A,(&BE1B)
+        MONTE1: PUSH BC
+                PUSH AF
+                INC A
+                CALL RADR               ; HL = la ligne d'en dessous
+                POP AF
+                PUSH AF
+                PUSH HL
+                CALL RADR
+                EX DE,HL                ; DE = cette ligne
+                POP HL
+                CALL COPLIG
+                POP AF
+                INC A
+                POP BC
+                DJNZ MONTE1
+        MONTEF: LD A,(&BE1C)            ; la dernière ligne de la fenêtre, effacée
+                CALL RADR
+        ; efface une ligne de caractères de la fenêtre (HL = son début) avec le papier
+        VIDLIG: LD B,8
+        VIDL1:  PUSH BC
+                PUSH HL
+                LD A,(&BE1F)
+                LD B,A
+                LD A,(&BE14)
+        VIDL2:  LD (HL),A
+                INC HL
+                DJNZ VIDL2
+                POP HL
+                LD A,H
+                ADD A,8                 ; ligne de points suivante : +&800
+                LD H,A
+                POP BC
+                DJNZ VIDL1
+                RET
+        ; recopie une ligne de caractères de la fenêtre : HL -> DE (les 8 lignes de points)
+        COPLIG: LD B,8
+        COPL1:  PUSH BC
                 PUSH HL
                 PUSH DE
-                LD BC,1920
-                LDIR
-                LD H,D
-                LD L,E
-                INC DE
-                LD A,(&BE14)
-                LD (HL),A
-                LD BC,79
+                LD A,(&BE1F)
+                LD C,A
+                LD B,0
                 LDIR
                 POP DE
                 POP HL
@@ -388,14 +464,13 @@ public static class Gx4000System
                 LD A,D
                 ADD A,8
                 LD D,A
-                POP AF
-                DEC A
-                JR NZ,MONTE1
+                POP BC
+                DJNZ COPL1
                 RET
 
-        ; HL = adresse dans l'écran du curseur : &C000 + ligne x 80 + colonne x octets par caractère
-        ADDR:   LD A,(&BE01)
-                LD L,A
+        ; A = ligne de l'écran (à partir de 0) -> HL = &C000 + ligne x 80 + gauche de la fenêtre x octets par caractère
+        ; (DE et A changés, BC gardé)
+        RADR:   LD L,A
                 LD H,0
                 ADD HL,HL
                 ADD HL,HL
@@ -406,15 +481,33 @@ public static class Gx4000System
                 ADD HL,HL
                 ADD HL,HL
                 ADD HL,DE
+                LD DE,&C000
+                ADD HL,DE
+                LD A,(&BE19)
+                OR A
+                RET Z
+                LD E,A
+                LD D,0
+                LD A,(&BE02)
+        RADR1:  ADD HL,DE
+                DEC A
+                JR NZ,RADR1
+                RET
+
+        ; HL = adresse dans l'écran du curseur (colonne et ligne comptées dans la fenêtre ; BC gardé)
+        ADDR:   LD HL,&BE1B
+                LD A,(&BE01)
+                ADD A,(HL)
+                CALL RADR
                 LD A,(&BE00)
+                OR A
+                RET Z
                 LD E,A
                 LD D,0
                 LD A,(&BE02)
         ADDR1:  ADD HL,DE
                 DEC A
                 JR NZ,ADDR1
-                LD DE,&C000
-                ADD HL,DE
                 RET
 
         ; ---------- TXT SET CURSOR (&BB75) : H = colonne, L = ligne (à partir de 1) ----------
@@ -436,16 +529,233 @@ public static class Gx4000System
                 LD L,A
                 XOR A
                 RET
-        ; ---------- TXT GET WINDOW (&BB69) : tout l'écran ----------
-        FENETRE: LD A,(&BE03)
-                DEC A
+        ; ---------- fenêtres de texte (D190) ----------
+        ; fenêtre du flux actuel : &BE19 gauche, &BE1A droite, &BE1B haut, &BE1C bas (colonnes et lignes de l'écran, à
+        ; partir de 0) ; &BE1D largeur, &BE1E hauteur - 1, &BE1F largeur en octets ; &BE18 numéro du flux actuel.
+        ; Les 8 flux ont chacun 8 octets en &BE80 + flux x 8 : colonne, ligne, gauche, droite, haut, bas, stylo, papier
+        ; (la case du flux actuel n'est remise à jour que quand on change de flux).
+        ; TXT GET WINDOW (&BB69) : H = gauche, D = droite, L = haut, E = bas
+        FENETRE: LD A,(&BE19)
+                LD H,A
+                LD A,(&BE1A)
                 LD D,A
-                LD HL,0
-                LD E,24
+                LD A,(&BE1B)
+                LD L,A
+                LD A,(&BE1C)
+                LD E,A
                 OR A
                 RET
-        ; ---------- TXT VALIDATE (&BB87) : la position convient ----------
-        VALIDE: SCF
+        ; TXT WIN ENABLE (&BB66) : H = gauche, D = droite, L = haut, E = bas ; remis dans l'ordre, ramenés dans l'écran ;
+        ; curseur en haut à gauche de la fenêtre
+        FENON:  PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                LD A,(&BE03)
+                DEC A
+                LD B,A                  ; dernière colonne de l'écran
+                LD A,H
+                CP B
+                JR C,FEN1
+                LD H,B
+        FEN1:   LD A,D
+                CP B
+                JR C,FEN2
+                LD D,B
+        FEN2:   LD A,L
+                CP 25
+                JR C,FEN3
+                LD L,24
+        FEN3:   LD A,E
+                CP 25
+                JR C,FEN4
+                LD E,24
+        FEN4:   LD A,D
+                CP H
+                JR NC,FEN5
+                LD D,H                  ; gauche et droite échangées
+                LD H,A
+        FEN5:   LD A,E
+                CP L
+                JR NC,FEN6
+                LD E,L                  ; haut et bas échangés
+                LD L,A
+        FEN6:   LD A,H
+                LD (&BE19),A
+                LD A,D
+                LD (&BE1A),A
+                LD A,L
+                LD (&BE1B),A
+                LD A,E
+                LD (&BE1C),A
+                XOR A
+                LD (&BE00),A
+                LD (&BE01),A
+                CALL WINCALC
+                POP HL
+                POP DE
+                POP BC
+                POP AF
+                RET
+        ; largeur, hauteur - 1 et largeur en octets de la fenêtre actuelle
+        WINCALC: LD A,(&BE19)
+                LD B,A
+                LD A,(&BE1A)
+                SUB B
+                INC A
+                LD (&BE1D),A
+                LD B,A
+                LD A,(&BE02)
+                LD C,A
+                XOR A
+        WINC1:  ADD A,C
+                DJNZ WINC1
+                LD (&BE1F),A
+                LD A,(&BE1B)
+                LD B,A
+                LD A,(&BE1C)
+                SUB B
+                LD (&BE1E),A
+                RET
+        ; MODE : toutes les fenêtres de texte couvrent l'écran, curseurs en haut à gauche (stylos et papiers gardés)
+        PLEIN:  LD HL,&BE80
+                LD A,(&BE03)
+                DEC A
+                LD C,A
+                LD B,8
+        PLEIN1: XOR A
+                LD (HL),A               ; colonne
+                INC HL
+                LD (HL),A               ; ligne
+                INC HL
+                LD (HL),A               ; gauche
+                INC HL
+                LD (HL),C               ; droite
+                INC HL
+                LD (HL),A               ; haut
+                INC HL
+                LD (HL),24              ; bas
+                INC HL
+                INC HL                  ; stylo et papier gardés
+                INC HL
+                DJNZ PLEIN1
+                XOR A
+                LD (&BE19),A
+                LD (&BE1B),A
+                LD A,C
+                LD (&BE1A),A
+                LD A,24
+                LD (&BE1C),A
+                JR WINCALC
+        ; TXT STR SELECT (&BBB4) : A = flux (0 à 7) -> A = flux d'avant ; les autres registres gardés
+        FLUX:   PUSH BC
+                PUSH DE
+                PUSH HL
+                AND 7
+                LD C,A
+                LD A,(&BE18)
+                CP C
+                JR Z,FLUXF              ; le même flux : rien à changer
+                PUSH AF
+                PUSH BC
+                CALL RANGE              ; le flux actuel est noté dans sa case
+                POP BC
+                LD A,C
+                LD (&BE18),A
+                CALL REPREND            ; le nouveau flux est repris de sa case
+                POP AF
+        FLUXF:  POP HL
+                POP DE
+                POP BC
+                RET
+        ; TXT SWAP STREAMS (&BBB7) : B, C = deux flux, échangés (curseurs, fenêtres, stylos, papiers)
+        ECHANGE: PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                PUSH BC
+                CALL RANGE
+                POP BC
+                LD A,B
+                AND 7
+                CALL CASEA
+                PUSH HL
+                LD A,C
+                AND 7
+                CALL CASEA
+                POP DE
+                LD B,8
+        ECH1:   LD A,(DE)
+                LD C,(HL)
+                LD (HL),A
+                LD A,C
+                LD (DE),A
+                INC HL
+                INC DE
+                DJNZ ECH1
+                CALL REPREND
+                POP HL
+                POP DE
+                POP BC
+                POP AF
+                RET
+        ; HL = case du flux actuel (CASE) ou du flux A (CASEA)
+        CASE:   LD A,(&BE18)
+        CASEA:  ADD A,A
+                ADD A,A
+                ADD A,A
+                ADD A,&80
+                LD L,A
+                LD H,&BE
+                RET
+        ; le flux actuel est noté dans sa case
+        RANGE:  CALL CASE
+                EX DE,HL
+                LD HL,&BE00
+                LDI                     ; colonne
+                LDI                     ; ligne
+                LD HL,&BE19
+                LDI                     ; gauche
+                LDI                     ; droite
+                LDI                     ; haut
+                LDI                     ; bas
+                LD A,(&BE13)
+                LD (DE),A               ; stylo
+                INC DE
+                LD A,(&BE16)
+                LD (DE),A               ; papier
+                RET
+        ; le flux actuel est repris de sa case
+        REPREND: CALL CASE
+                LD DE,&BE00
+                LDI
+                LDI
+                LD DE,&BE19
+                LDI
+                LDI
+                LDI
+                LDI
+                LD A,(HL)
+                LD (&BE13),A
+                INC HL
+                LD A,(HL)
+                LD (&BE16),A
+                CALL MAJCOUL
+                JP WINCALC
+        ; ---------- TXT VALIDATE (&BB87) : H = colonne, L = ligne (à partir de 1, dans la fenêtre) -> la position où
+        ; s'écrira le caractère suivant (après la fin de la ligne : début de la ligne suivante ; sous la fenêtre : sa
+        ; dernière ligne) ----------
+        VALIDE: LD A,(&BE1D)
+                CP H
+                JR NC,VALID1
+                LD H,1
+                INC L
+        VALID1: LD A,(&BE1E)
+                INC A
+                CP L
+                JR NC,VALID2
+                LD L,A
+        VALID2: SCF
                 RET
         ; ---------- manettes (D183) : lues comme le CPC, par la grille du clavier (lignes 9 et 6) ----------
         ; &BE07 = manette 1, &BE08 = manette 2 : bit à 1 = appuyé (0 haut, 1 bas, 2 gauche, 3 droite, 4 tir 1, 5 tir 2 ;
@@ -559,8 +869,6 @@ public static class Gx4000System
                 RET
         ATTCLE: CALL LITCLE
                 JR NC,ATTCLE
-                RET
-        FLUX:   XOR A                   ; TXT STR SELECT : flux 0
                 RET
 
         ; ---------- couleurs (D186) : &BE13 stylo, &BE16 papier, &BE17 / &BE14 leurs octets pour le mode, ----------
@@ -1231,6 +1539,8 @@ public static class Gx4000System
                 DEFW &BB06,{4}
                 DEFW &BB18,ATTCLE
                 DEFW &BBB4,FLUX
+                DEFW &BB66,FENON
+                DEFW &BBB7,ECHANGE
                 DEFW &BC0E,SETMODE
                 DEFW &BB90,SETPEN
                 DEFW &BB93,GETPEN
@@ -1460,7 +1770,7 @@ public static class Gx4000System
         EFFACE: LD A,32
                 LD B,0
         DESSINE: LD C,A
-                LD A,(&BE03)
+                LD A,(&BE1D)            ; largeur de la fenêtre (D190)
                 LD D,A
                 LD A,(&BE00)
                 CP D
