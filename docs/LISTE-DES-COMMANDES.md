@@ -27,7 +27,8 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 | `TRON`, `TROFF` | suivre les numéros de ligne | Oui | Oui |
 | `DEBUG` ★ | montrer les variables (mise au point, F2) | Oui | Oui |
 | `CALL` | lancer une routine en langage machine | Oui | Oui pour vos routines ; les adresses de la ROM du CPC sont presque toutes sans effet |
-| `RUN "nom"`, `CHAIN`, `CHAIN MERGE`, `MERGE` | lancer un autre programme | Oui | Non |
+| `RUN`, `RUN ligne` | recommencer le programme (au début ou à une ligne) | Oui | Oui |
+| `RUN "nom"`, `CHAIN`, `CHAIN MERGE`, `MERGE` | lancer un autre programme | Oui | Non (prévu : chercher le programme dans la cartouche, voir IDEES.md) |
 
 ## 2. Variables, données et mémoire
 
