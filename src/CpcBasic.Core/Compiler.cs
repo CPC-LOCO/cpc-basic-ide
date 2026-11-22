@@ -147,17 +147,14 @@ public static class Compiler
     public static CartridgeResult CompileToCartridge(string source, CompilerOptions? options = null)
     {
         CompilerOptions settings = (options ?? CompilerOptions.Default) with { WithLoader = true };
-        (IReadOnlyList<Diagnostic> errors, byte[]? code, IReadOnlyList<string> modules, BasicProgram? program) = CompileOne(source, settings);
+        if (settings.Target == TargetMachine.Cpc464)                // D196 : nos calculs à virgule sont aux adresses du 664 / 6128
+            settings = settings with { Target = TargetMachine.AllCpc };
+        (IReadOnlyList<Diagnostic> errors, byte[]? code, _, BasicProgram? program) = CompileOne(source, settings);
         if (errors.Count > 0)
             return new CartridgeResult(errors, null, code?.Length ?? 0, [], []);
 
         var notes = new List<string>();
         var problems = new List<string>();
-        // D194 : les nombres à virgule passent par les routines de calcul de la ROM du CPC, absente de la console
-        if (modules.Contains(RuntimeLibrary.RealOpsName))
-            problems.Add("Le programme utilise des nombres à virgule : sur la console, ils ne marchent pas encore (leurs calculs " +
-                         "sont dans la ROM du CPC). Gardez seulement des nombres entiers : pas de nombre avec un point (comme 0.5), " +
-                         "pas de variable terminée par !, pas de SIN, COS, SQR..., pas de PRINT USING avec des nombres.");
         var links = new List<Gx4000System.KeyLink>();
         var placed = new HashSet<int>(Gx4000System.BaseKeys.Select(k => k.Key));
         bool withInput = false;

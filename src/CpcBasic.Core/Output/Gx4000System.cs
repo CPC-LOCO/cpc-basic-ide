@@ -26,7 +26,8 @@ namespace CpcBasic.Core.Output;
 /// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Encres clignotantes (D191) :
 /// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Son (D192) : SOUND sur les
 /// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; enveloppes ENV et ENT (D193) ; sons retenus,
-/// RELEASE et rendez-vous entre canaux (D195). Temps et événements (D194) : TIME, AFTER, EVERY, ON SQ GOSUB, ON BREAK. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
+/// RELEASE et rendez-vous entre canaux (D195). Nombres à virgule (D196) : nos propres calculs (opérations, conversions,
+/// SQR, LOG, EXP, puissance, SIN, COS, TAN, ATN) aux adresses de la ROM du 664 / 6128, travail en &amp;B700. Temps et événements (D194) : TIME, AFTER, EVERY, ON SQ GOSUB, ON BREAK. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -2103,6 +2104,1511 @@ public static class Gx4000System
                 LD (HL),A
                 EX DE,HL
                 JP KICK
+        ; ---------- nombres à virgule (D196) : nos propres calculs, à la place de ceux de la ROM du CPC ----------
+        ; Même format que le Locomotive BASIC : 5 octets, mantisse sur 32 bits (octet de poids faible d'abord, bit 7
+        ; de l'octet 3 = signe, 1 de tête sous-entendu), puis exposant + 128 (0 : le nombre zéro).
+        ; Deux accumulateurs de 7 octets : FA en &B700, FB en &B708 : +0 garde (8 bits de plus, pour arrondir),
+        ; +1 à +4 mantisse (le 1 de tête écrit, bit 7 de +4), +5 exposant (0 : zéro), +6 signe (0 ou &80).
+        ; &B720 : mode des angles ;
+        ; &B721 : adresse du résultat ; &B726 : exposant sur 16 bits.
+        ; Routines appelées par le programme aux adresses du 664 / 6128 : HL = adresse du résultat en sortie,
+        ; retenue à 1 si tout va bien (0 : nombre trop grand, ou division par zéro).
+        ; (HL) -> accumulateur DE (FA ou FB) ; HL avance de 4
+        FUNP:   XOR A
+                LD (DE),A
+                INC DE
+                LD A,(HL)
+                LD (DE),A
+                INC HL
+                INC DE
+                LD A,(HL)
+                LD (DE),A
+                INC HL
+                INC DE
+                LD A,(HL)
+                LD (DE),A
+                INC HL
+                INC DE
+                LD A,(HL)
+                LD C,A
+                OR &80
+                LD (DE),A
+                INC HL
+                INC DE
+                LD A,(HL)
+                LD (DE),A
+                INC DE
+                LD A,C
+                AND &80
+                LD (DE),A
+                RET
+        ; FA -> (HL), arrondi ; retenue à 0 si l'arrondi rend le nombre trop grand
+        FPACK:  LD A,(&B705)
+                OR A
+                JR Z,FPZERO
+                LD A,(&B700)
+                ADD A,A                 ; retenue = bit 7 de la garde : on arrondit vers le haut
+                JR NC,FPK1
+                LD DE,&B701
+                LD B,4
+        FPR1:   LD A,(DE)
+                ADC A,0
+                LD (DE),A
+                INC DE
+                DJNZ FPR1
+                JR NC,FPK1
+                LD A,&80                ; la mantisse a débordé : 1 de tête, exposant + 1
+                LD (&B704),A
+                LD A,(&B705)
+                INC A
+                JR Z,FPOVF
+                LD (&B705),A
+        FPK1:   LD DE,&B701
+                LD A,(DE)
+                LD (HL),A
+                INC HL
+                INC DE
+                LD A,(DE)
+                LD (HL),A
+                INC HL
+                INC DE
+                LD A,(DE)
+                LD (HL),A
+                INC HL
+                INC DE
+                LD A,(DE)
+                AND &7F
+                LD C,A
+                LD A,(&B706)
+                OR C
+                LD (HL),A
+                INC HL
+                LD A,(&B705)
+                LD (HL),A
+                SCF
+                RET
+        FPZERO: XOR A
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                SCF
+                RET
+        FPOVF:  OR A
+                RET
+        ; FA normalisé : le bit 7 de +4 à 1 (sinon décalé à gauche, exposant - 1) ; mantisse nulle : FA = 0
+        FNORM:  LD HL,&B700
+                LD A,(HL)
+                INC HL
+                OR (HL)
+                INC HL
+                OR (HL)
+                INC HL
+                OR (HL)
+                INC HL
+                OR (HL)
+                JR Z,FNZ
+        FNL:    LD A,(&B704)
+                OR A
+                JR NZ,FNB
+                LD A,(&B705)            ; octet du haut à 0 : un octet d'un coup
+                SUB 8
+                JR C,FNZ
+                JR Z,FNZ
+                LD (&B705),A
+                LD HL,&B703
+                LD DE,&B704
+                LD BC,4
+                LDDR
+                XOR A
+                LD (&B700),A
+                JR FNL
+        FNB:    BIT 7,A
+                RET NZ
+                CALL FASL
+                LD HL,&B705
+                DEC (HL)
+                JR NZ,FNL
+                RET                     ; trop petit : zéro
+        FNZ:    XOR A
+                LD (&B705),A
+                RET
+        ; mantisse et garde de FA décalées d'un cran à gauche
+        FASL:   LD HL,&B700
+                SLA (HL)
+                INC HL
+                RL (HL)
+                INC HL
+                RL (HL)
+                INC HL
+                RL (HL)
+                INC HL
+                RL (HL)
+                RET
+        ; 5 octets décalés d'un cran à droite ; HL = le plus fort (+4)
+        FSR:    SRL (HL)
+                DEC HL
+                RR (HL)
+                DEC HL
+                RR (HL)
+                DEC HL
+                RR (HL)
+                DEC HL
+                RR (HL)
+                RET
+        ; FA et FB échangés
+        FSWAP:  LD HL,&B700
+                LD DE,&B708
+                LD B,7
+        FSW1:   LD A,(DE)
+                LD C,(HL)
+                LD (HL),A
+                LD A,C
+                LD (DE),A
+                INC HL
+                INC DE
+                DJNZ FSW1
+                RET
+        ; FA = FB
+        FBTOA:  LD HL,&B708
+                LD DE,&B700
+                LD BC,7
+                LDIR
+                RET
+        ; FB = 10
+        F10B:   LD HL,FDIX
+                LD DE,&B708
+                LD BC,7
+                LDIR
+                RET
+        FDIX:   DEFB 0,0,0,0,&A0,132,0
+        ; FA = FA + FB
+        FADD:   LD A,(&B70D)
+                OR A
+                JP Z,FADOK
+                LD A,(&B705)
+                OR A
+                JR NZ,FAD1
+                CALL FBTOA
+                JR FADOK
+        FAD1:   LD B,A
+                LD A,(&B70D)
+                CP B
+                JR C,FAD2
+                JR Z,FAD2
+                CALL FSWAP              ; FA a le plus grand exposant
+        FAD2:   LD A,(&B70D)
+                LD C,A
+                LD A,(&B705)
+                SUB C
+                CP 41
+                JR NC,FADOK             ; FB trop petit pour compter
+                LD B,A
+        FAD3B:  LD A,B                  ; décalage de FB : par octets, puis par bits
+                CP 8
+                JR C,FAD3C
+                LD HL,&B709
+                LD DE,&B708
+                PUSH BC
+                LD BC,4
+                LDIR
+                POP BC
+                XOR A
+                LD (&B70C),A
+                LD A,B
+                SUB 8
+                LD B,A
+                JR FAD3B
+        FAD3C:  OR A
+                JR Z,FAD4
+        FAD3:   PUSH BC
+                LD HL,&B70C
+                CALL FSR
+                POP BC
+                DJNZ FAD3
+        FAD4:   LD A,(&B706)
+                LD C,A
+                LD A,(&B70E)
+                XOR C
+                JR NZ,FADSUB
+                LD HL,&B700             ; même signe : les mantisses s'ajoutent
+                LD DE,&B708
+                LD B,5
+                OR A
+        FAD5:   LD A,(DE)
+                ADC A,(HL)
+                LD (HL),A
+                INC HL
+                INC DE
+                DJNZ FAD5
+                JR NC,FADOK
+                LD HL,&B704             ; débordement : un cran à droite, la retenue entre en haut
+                RR (HL)
+                DEC HL
+                RR (HL)
+                DEC HL
+                RR (HL)
+                DEC HL
+                RR (HL)
+                DEC HL
+                RR (HL)
+                LD HL,&B705
+                INC (HL)
+                JR Z,FADOVF
+        FADOK:  SCF
+                RET
+        FADOVF: OR A
+                RET
+        FADSUB: LD HL,&B700             ; signes différents : FA - FB
+                LD DE,&B708
+                LD B,5
+                OR A
+        FAD6:   LD A,(DE)
+                LD C,A
+                LD A,(HL)
+                SBC A,C
+                LD (HL),A
+                INC HL
+                INC DE
+                DJNZ FAD6
+                JR NC,FAD7
+                LD HL,&B700             ; FB était plus grand : on change le signe du résultat
+                LD B,5
+                OR A
+        FAD8:   LD A,0
+                SBC A,(HL)
+                LD (HL),A
+                INC HL
+                DJNZ FAD8
+                LD A,(&B70E)
+                LD (&B706),A
+        FAD7:   CALL FNORM
+                SCF
+                RET
+        ; FA = FA x FB
+        FMUL:   LD A,(&B705)
+                OR A
+                JP Z,FMZ
+                LD A,(&B70D)
+                OR A
+                JP Z,FMZERO
+                LD A,(&B706)
+                LD C,A
+                LD A,(&B70E)
+                XOR C
+                LD (&B706),A
+                LD A,(&B705)
+                LD L,A
+                LD H,0
+                LD A,(&B70D)
+                LD E,A
+                LD D,0
+                ADD HL,DE
+                LD DE,&FF80
+                ADD HL,DE               ; exposant : ea + eb - 128
+                LD (&B726),HL
+                PUSH IX                 ; produit : les 40 bits du haut, dans C D E H L (C en haut)
+                LD IX,&B700             ; multiplicande : garde et mantisse de FA
+                LD HL,0
+                LD DE,0
+                LD C,0
+                LD A,(&B709)            ; multiplicateur : mantisse de FB, octet par octet, en commençant en bas
+                CALL FMOCT
+                LD A,(&B70A)
+                CALL FMOCT
+                LD A,(&B70B)
+                CALL FMOCT
+                LD A,(&B70C)
+                CALL FMOCT
+                POP IX
+                LD A,L
+                LD (&B700),A
+                LD A,H
+                LD (&B701),A
+                LD A,E
+                LD (&B702),A
+                LD A,D
+                LD (&B703),A
+                LD A,C
+                LD (&B704),A
+        FEXPN:  LD A,(&B704)            ; un cran à gauche si besoin
+                BIT 7,A
+                JR NZ,FEXP
+                CALL FASL
+                LD HL,(&B726)
+                DEC HL
+                LD (&B726),HL
+        FEXP:   LD HL,(&B726)           ; exposant de 1 à 255 : bon ; moins : zéro ; plus : trop grand
+                LD A,H
+                OR A
+                JR NZ,FEXP2
+                LD A,L
+                OR A
+                JP Z,FMZERO
+                LD (&B705),A
+                SCF
+                RET
+        FEXP2:  BIT 7,H
+                JR NZ,FMZERO
+                OR A
+                RET
+        FMZERO: XOR A
+                LD (&B705),A
+        FMZ:    SCF
+                RET
+        ; un octet A du multiplicateur : pour chacun de ses bits (le plus bas d'abord), C D E H L + le multiplicande
+        ; si le bit est à 1, puis le tout décalé d'un cran à droite (les bits du bas sont perdus)
+        FMOCT:  OR A
+                JR NZ,FMOC1
+                LD L,H                  ; octet à 0 : décalage de 8 bits d'un coup
+                LD H,E
+                LD E,D
+                LD D,C
+                LD C,A
+                RET
+        FMOC1:  LD B,A                  ; B : les bits restants, avec un 1 en plus en haut pour savoir quand s'arrêter
+                SCF
+                RR B
+        FMOC2:  JR NC,FMOC3
+                LD A,L
+                ADD A,(IX+0)
+                LD L,A
+                LD A,H
+                ADC A,(IX+1)
+                LD H,A
+                LD A,E
+                ADC A,(IX+2)
+                LD E,A
+                LD A,D
+                ADC A,(IX+3)
+                LD D,A
+                LD A,C
+                ADC A,(IX+4)
+                LD C,A
+        FMOC3:  RR C
+                RR D
+                RR E
+                RR H
+                RR L
+                SRL B
+                JR NZ,FMOC2
+                RET
+        ; FA = FA / FB ; retenue à 0 si FB = 0
+        FDIV:   LD A,(&B70D)
+                OR A
+                JR NZ,FDV1
+                OR A
+                RET
+        FDV1:   LD A,(&B705)
+                OR A
+                JP Z,FMZ
+                LD A,(&B706)
+                LD C,A
+                LD A,(&B70E)
+                XOR C
+                LD (&B706),A
+                LD A,(&B705)
+                LD L,A
+                LD H,0
+                LD DE,129
+                ADD HL,DE
+                LD A,(&B70D)
+                LD E,A
+                LD D,0
+                OR A
+                SBC HL,DE               ; exposant : ea - eb + 129
+                LD (&B726),HL
+                PUSH IX
+                EXX                     ; les registres secondaires sont gardés
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                LD HL,0                 ; quotient (40 bits) dans C' D' E' H' L', compteur dans B'
+                LD DE,0
+                LD BC,&2800
+                EXX
+                LD IX,&B708             ; diviseur : garde et mantisse de FB
+                LD HL,(&B700)           ; reste (sur 48 bits, signé) : B C D E H L = garde et mantisse de FA
+                LD DE,(&B702)
+                LD A,(&B704)
+                LD C,A
+                LD B,0
+        FDL:    BIT 7,B                 ; reste positif : - diviseur ; négatif : + diviseur
+                JR NZ,FDLA
+                LD A,L
+                SUB (IX+0)
+                LD L,A
+                LD A,H
+                SBC A,(IX+1)
+                LD H,A
+                LD A,E
+                SBC A,(IX+2)
+                LD E,A
+                LD A,D
+                SBC A,(IX+3)
+                LD D,A
+                LD A,C
+                SBC A,(IX+4)
+                LD C,A
+                LD A,B
+                SBC A,0
+                LD B,A
+                JR FDLQ
+        FDLA:   LD A,L
+                ADD A,(IX+0)
+                LD L,A
+                LD A,H
+                ADC A,(IX+1)
+                LD H,A
+                LD A,E
+                ADC A,(IX+2)
+                LD E,A
+                LD A,D
+                ADC A,(IX+3)
+                LD D,A
+                LD A,C
+                ADC A,(IX+4)
+                LD C,A
+                LD A,B
+                ADC A,0
+                LD B,A
+        FDLQ:   LD A,B                  ; chiffre du quotient : 1 si le reste est positif
+                CPL
+                RLA
+                EXX
+                RL L
+                RL H
+                RL E
+                RL D
+                RL C
+                DEC B
+                EXX
+                JR Z,FDLF
+                SLA L                   ; reste x 2
+                RL H
+                RL E
+                RL D
+                RL C
+                RL B
+                JR FDL
+        FDLF:   EXX                     ; quotient dans FA
+                LD A,L
+                LD (&B700),A
+                LD A,H
+                LD (&B701),A
+                LD A,E
+                LD (&B702),A
+                LD A,D
+                LD (&B703),A
+                LD A,C
+                LD (&B704),A
+                POP HL
+                POP DE
+                POP BC
+                EXX
+                POP IX
+                JP FEXPN
+        ; FA comparé à FB : A = 1 (plus grand), 0 (égal), &FF (plus petit) ; &B727 : signe de FA
+        FCMP:   LD A,(&B705)
+                OR A
+                LD A,(&B706)
+                JR NZ,FCM0
+                XOR A                   ; zéro : sans signe
+        FCM0:   LD (&B727),A
+                LD C,A
+                LD A,(&B70D)
+                OR A
+                LD A,(&B70E)
+                JR NZ,FCM5
+                XOR A
+        FCM5:   CP C
+                JR Z,FCM1
+                LD A,C                  ; signes différents : le positif est le plus grand
+                OR A
+                LD A,1
+                RET Z
+                LD A,&FF
+                RET
+        FCM1:   LD A,(&B70D)            ; même signe : exposants, puis mantisses
+                LD B,A
+                LD A,(&B705)
+                CP B
+                JR NZ,FCM2
+                LD HL,&B704
+                LD DE,&B70C
+                LD B,4
+        FCM3:   LD A,(DE)
+                LD C,A
+                LD A,(HL)
+                CP C
+                JR NZ,FCM2
+                DEC HL
+                DEC DE
+                DJNZ FCM3
+                XOR A
+                RET
+        FCM2:   LD A,1                  ; retenue : FA plus petit (en valeur absolue)
+                JR NC,FCM4
+                LD A,&FF
+        FCM4:   LD B,A
+                LD A,(&B727)
+                OR A
+                LD A,B
+                RET Z
+                NEG                     ; deux négatifs : c'est l'inverse
+                RET
+        ; ---- les routines du firmware ----
+        ; (HL) -> FA, (DE) -> FB ; &B721 = HL
+        EDEUX:  LD (&B721),HL
+                PUSH DE
+                LD DE,&B700
+                CALL FUNP
+                POP HL
+                LD DE,&B708
+                JP FUNP
+        ; FA -> (&B721) si la retenue est à 1 ; HL = &B721
+        EFIN:   LD HL,(&B721)
+                RET NC
+                PUSH HL
+                CALL FPACK
+                POP HL
+                RET
+        ; REAL ADDITION (&BD7C) : (HL) = (HL) + (DE)
+        EADD:   CALL EDEUX
+                CALL FADD
+                JR EFIN
+        ; REAL REVERSE SUBTRACTION (&BD82) : (HL) = (DE) - (HL)
+        ERSUB:  CALL EDEUX
+                LD A,(&B706)
+                XOR &80
+                LD (&B706),A
+                CALL FADD
+                JR EFIN
+        ; REAL MULTIPLICATION (&BD85) : (HL) = (HL) x (DE)
+        EMUL:   CALL EDEUX
+                CALL FMUL
+                JR EFIN
+        ; REAL DIVISION (&BD88) : (HL) = (HL) / (DE)
+        EDIV:   CALL EDEUX
+                CALL FDIV
+                JR EFIN
+        ; REAL COMPARISON (&BD8E) : A = 1, 0 ou &FF
+        ECMP:   CALL EDEUX
+                CALL FCMP
+                LD HL,(&B721)
+                RET
+        ; REAL UNARY MINUS (&BD91) : (HL) = -(HL)
+        ENEG:   PUSH HL
+                INC HL
+                INC HL
+                INC HL
+                INC HL
+                LD A,(HL)
+                OR A
+                JR Z,ENEG1
+                DEC HL
+                LD A,(HL)
+                XOR &80
+                LD (HL),A
+        ENEG1:  POP HL
+                SCF
+                RET
+        ; REAL SIGNUM (&BD94) : A = 1, 0 ou &FF
+        ESGN:   PUSH HL
+                INC HL
+                INC HL
+                INC HL
+                INC HL
+                LD A,(HL)
+                OR A
+                JR Z,ESGN1
+                DEC HL
+                LD A,(HL)
+                RLA
+                LD A,1
+                JR NC,ESGN1
+                LD A,&FF
+        ESGN1:  POP HL
+                RET
+        ; INTEGER TO REAL (&BD64) : HL = entier sans signe, A bit 7 = signe, DE = où ranger -> HL = DE
+        EI2R:   PUSH DE
+                AND &80
+                LD (&B706),A
+                XOR A
+                LD (&B700),A
+                LD (&B701),A
+                LD (&B702),A
+                LD A,L
+                LD (&B703),A
+                LD A,H
+                LD (&B704),A
+                LD A,144
+                LD (&B705),A
+                CALL FNORM
+                POP HL
+                PUSH HL
+                CALL FPACK
+                POP HL
+                RET
+        ; BINARY TO REAL (&BD67) : (HL) = entier sans signe de 4 octets, A bit 7 = signe -> (HL) = nombre
+        EB2R:   AND &80
+                LD (&B706),A
+                PUSH HL
+                LD DE,&B701
+                LD BC,4
+                LDIR
+                XOR A
+                LD (&B700),A
+                LD A,160
+                LD (&B705),A
+                CALL FNORM
+                POP HL
+                PUSH HL
+                CALL FPACK
+                POP HL
+                RET
+        ; REAL TO INTEGER (&BD6A) : (HL) -> HL = valeur sans signe arrondie ; retenue à 0 au-delà de 65535
+        ER2I:   LD DE,&B700
+                CALL FUNP
+                LD A,(&B705)
+                CP 128
+                JR C,ER2IZ              ; moins de 0.5 : 0
+                CP 145
+                JR NC,ER2IO             ; 65536 ou plus
+                LD B,A
+                LD A,159
+                SUB B
+                LD B,A                  ; décalage : 159 - exposant (2 x la valeur)
+        ER2I0:  LD A,B                  ; par octets, puis par bits
+                CP 8
+                JR C,ER2I2
+                LD HL,&B701
+                LD DE,&B700
+                PUSH BC
+                LD BC,4
+                LDIR
+                POP BC
+                XOR A
+                LD (&B704),A
+                LD A,B
+                SUB 8
+                LD B,A
+                JR ER2I0
+        ER2I2:  OR A
+                JR Z,ER2I3
+        ER2I1:  PUSH BC
+                LD HL,&B704
+                CALL FSR
+                POP BC
+                DJNZ ER2I1
+        ER2I3:  LD HL,(&B701)
+                LD A,(&B703)
+                LD DE,1
+                ADD HL,DE               ; + 0.5, puis divisé par 2
+                ADC A,0
+                SRL A
+                RR H
+                RR L
+                OR A
+                RET NZ                  ; plus de 65535 : retenue à 0 (OR A)
+                SCF
+                RET
+        ER2IZ:  LD HL,0
+                SCF
+                RET
+        ER2IO:  OR A
+                RET
+        ; REAL FIX (&BD70) : (HL) = partie entière (vers zéro) en 4 octets sans signe, B = signe ; HL gardé
+        EFIX:   PUSH HL
+                LD DE,&B700
+                CALL FUNP
+                POP HL
+                LD A,(&B706)
+                LD B,A
+                LD A,(&B705)
+                CP 129
+                JR C,EFIXZ              ; moins de 1
+                CP 161
+                JR NC,EFIXO             ; 2^32 ou plus
+                LD C,A
+                LD A,160
+                SUB C
+                JR Z,EFIX2
+                PUSH BC
+                LD B,A
+        EFIX1:  PUSH BC
+                PUSH HL
+                LD HL,&B704
+                CALL FSR
+                POP HL
+                POP BC
+                DJNZ EFIX1
+                POP BC
+        EFIX2:  PUSH HL
+                PUSH BC
+                EX DE,HL
+                LD HL,&B701
+                LD BC,4
+                LDIR
+                POP BC
+                POP HL
+                SCF
+                RET
+        EFIXZ:  PUSH HL
+                XOR A
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                INC HL
+                LD (HL),A
+                POP HL
+                SCF
+                RET
+        EFIXO:  OR A
+                RET
+        ; REAL *10^A (&BD79) : (HL) = (HL) x 10^A, A de -128 à 127
+        EX10:   LD (&B721),HL
+                LD B,A
+                LD DE,&B700
+                CALL FUNP
+                LD A,B
+                OR A
+                SCF
+                JR Z,EX10F
+                BIT 7,A
+                JR NZ,EX10D
+                LD B,A
+        EX10M:  PUSH BC
+                CALL F10B
+                CALL FMUL
+                POP BC
+                JR NC,EX10F
+                DJNZ EX10M
+                JR EX10F
+        EX10D:  NEG
+                LD B,A
+        EX10V:  PUSH BC
+                CALL F10B
+                CALL FDIV
+                POP BC
+                DJNZ EX10V
+                SCF
+        EX10F:  JP EFIN
+        ; SET ANGLE MODE (&BD97) : A = 0 radians, sinon degrés
+        EANGLE: LD (&B720),A
+                RET
+        ; PI (&BD9A) : (HL) = pi
+        EPI:    PUSH HL
+                EX DE,HL
+                LD HL,FPI
+                LD BC,5
+                LDIR
+                POP HL
+                SCF
+                RET
+        FPI:    DEFB &A2,&DA,&0F,&49,&82
+        ; ---- les fonctions (D196) : nombres de travail de 5 octets T0 &B730, T1 &B735, T2 &B73A, T3 &B73F,
+        ; T4 &B744, T5 &B749, T6 &B74E, T7 &B753 ; &B72C à &B72F : petites variables ----
+        ; 5 octets de (HL) vers (DE)
+        MOV5:   LD BC,5
+                LDIR
+                RET
+        ; T2 = polynôme de T1 ; HL = table : nombre de coefficients, puis les coefficients (le plus haut degré d'abord) ;
+        ; le calcul reste dans FA (40 bits), sans repasser par la mémoire
+        POLY:   LD B,(HL)
+                INC HL
+                PUSH BC
+                LD DE,&B700
+                CALL FUNP               ; FA = le premier coefficient
+                INC HL
+                POP BC
+                DEC B
+                JR Z,POLYF
+        POLY1:  PUSH BC
+                PUSH HL
+                LD HL,&B735
+                LD DE,&B708
+                CALL FUNP               ; FB = x
+                CALL FMUL
+                POP HL
+                PUSH HL
+                LD DE,&B708
+                CALL FUNP               ; FB = coefficient suivant
+                CALL FADD
+                POP HL
+                LD BC,5
+                ADD HL,BC
+                POP BC
+                DJNZ POLY1
+        POLYF:  LD HL,&B73A
+                JP FPACK
+        ; (DE) = l'entier signé A (de -128 à 127)
+        SI2R:   LD H,0
+                LD L,A
+                BIT 7,A
+                LD A,0
+                JR Z,SI2R1
+                LD A,L
+                NEG
+                LD L,A
+                LD A,&80
+        SI2R1:  JP EI2R
+        ; SQR (&BD9D) : (HL) = racine carrée de (HL) (le programme a vérifié qu'il n'est pas négatif)
+        ESQR:   PUSH HL
+                LD DE,&B730
+                CALL MOV5               ; T0 = x = m x 2^E
+                LD A,(&B734)
+                OR A
+                JR Z,ESQRF              ; racine de 0 : 0
+                SUB 128
+                LD B,A
+                SRA A
+                BIT 0,B
+                JR Z,ESQR0
+                INC A                   ; E impair : v = m / 2, k = (E + 1) / 2
+        ESQR0:  LD (&B72C),A            ; k
+                PUSH BC
+                LD HL,&B730
+                LD DE,&B735
+                CALL MOV5
+                POP BC
+                LD A,128
+                BIT 0,B
+                JR Z,ESQR2
+                DEC A
+        ESQR2:  LD (&B739),A            ; T1 = v, de 0.25 à 1
+                LD HL,&B735             ; premier essai : 0.343 + 0.686 v (à 3 % près), x 2^k
+                LD DE,KSQB
+                CALL EMUL
+                LD HL,&B735
+                LD DE,KSQA
+                CALL EADD
+                LD A,(&B72C)
+                LD B,A
+                LD A,(&B739)
+                ADD A,B
+                LD (&B739),A
+                LD B,4
+        ESQR1:  PUSH BC                 ; T1 = (T1 + T0 / T1) / 2, 4 fois
+                LD HL,&B730
+                LD DE,&B73A
+                CALL MOV5
+                LD HL,&B73A
+                LD DE,&B735
+                CALL EDIV
+                LD HL,&B735
+                LD DE,&B73A
+                CALL EADD
+                LD HL,&B739
+                DEC (HL)
+                POP BC
+                DJNZ ESQR1
+                POP DE
+                PUSH DE
+                LD HL,&B735
+                CALL MOV5
+        ESQRF:  POP HL
+                SCF
+                RET
+        ; T3 = ln (HL) (plus grand que 0)
+        LNX:    LD DE,&B730
+                CALL MOV5               ; T0 = x = m x 2^E
+                LD A,(&B734)
+                SUB 128
+                LD (&B72C),A            ; E
+                LD A,128
+                LD (&B734),A            ; T0 = m, de 0.5 à 1
+                LD HL,&B730
+                LD DE,KRAC2
+                CALL ECMP
+                CP &FF
+                JR NZ,LNX1
+                LD HL,&B734             ; m plus petit que racine de 1/2 : m x 2, E - 1
+                INC (HL)
+                LD HL,&B72C
+                DEC (HL)
+        LNX1:   LD HL,&B730             ; T4 = z = (m - 1) / (m + 1)
+                LD DE,&B744
+                CALL MOV5
+                LD HL,&B744
+                LD DE,KUN
+                CALL ERSUB
+                LD HL,&B744
+                CALL ENEG
+                LD HL,&B730
+                LD DE,KUN
+                CALL EADD
+                LD HL,&B744
+                LD DE,&B730
+                CALL EDIV
+                LD HL,&B744             ; T1 = z^2
+                LD DE,&B735
+                CALL MOV5
+                LD HL,&B735
+                LD DE,&B744
+                CALL EMUL
+                LD HL,PLN
+                CALL POLY               ; T2 = 1 + z^2/3 + ...
+                LD HL,&B73A
+                LD DE,&B744
+                CALL EMUL               ; T2 = z x (...)
+                LD A,(&B73E)
+                OR A
+                JR Z,LNX2
+                INC A                   ; x 2
+                LD (&B73E),A
+        LNX2:   LD A,(&B72C)            ; T3 = E x ln 2 + T2
+                LD DE,&B73F
+                CALL SI2R
+                LD HL,&B73F
+                LD DE,KLN2
+                CALL EMUL
+                LD HL,&B73F
+                LD DE,&B73A
+                JP EADD
+        ; LOG (&BDA3) : (HL) = ln (HL) ; LOG10 (&BDA6) : (HL) = log (HL) en base 10
+        ELOG:   PUSH HL
+                CALL LNX
+                JR ELOGF
+        ELOG10: PUSH HL
+                CALL LNX
+                LD HL,&B73F
+                LD DE,KILN10
+                CALL EMUL
+        ELOGF:  POP DE
+                PUSH DE
+                LD HL,&B73F
+                CALL MOV5
+                POP HL
+                SCF
+                RET
+        ; T2 = e^(HL) ; retenue à 0 si trop grand
+        EXPX:   LD DE,&B730
+                CALL MOV5               ; T0 = x
+                LD HL,&B730
+                LD DE,K89
+                CALL ECMP
+                CP 1
+                JP Z,EXPOVF
+                LD HL,&B730
+                LD DE,KM89
+                CALL ECMP
+                CP &FF
+                JP Z,EXPZ
+                LD HL,&B730             ; n = x / ln 2, arrondi
+                LD DE,&B735
+                CALL MOV5
+                LD HL,&B735
+                LD DE,KLN2
+                CALL EDIV
+                LD A,(&B738)
+                AND &80
+                LD (&B72D),A            ; signe de n
+                LD HL,&B735
+                CALL ER2I               ; HL = |n|
+                LD A,L
+                LD (&B72C),A
+                LD A,(&B72D)
+                LD DE,&B73F
+                CALL EI2R               ; T3 = n
+                LD HL,&B73F             ; r = (x - n x C1) - n x C2
+                LD DE,&B744
+                CALL MOV5
+                LD HL,&B73F
+                LD DE,KC1
+                CALL EMUL
+                LD HL,&B73F
+                LD DE,&B730
+                CALL ERSUB
+                LD HL,&B744
+                LD DE,KC2
+                CALL EMUL
+                LD HL,&B744
+                LD DE,&B73F
+                CALL ERSUB
+                LD HL,&B744
+                LD DE,&B735
+                CALL MOV5               ; T1 = r
+                LD HL,PEXP
+                CALL POLY               ; T2 = e^r
+                LD A,(&B72C)            ; exposant + n
+                LD B,A
+                LD A,(&B72D)
+                OR A
+                LD A,(&B73E)
+                JR NZ,EXPNEG
+                ADD A,B
+                JR C,EXPOVF
+                JR EXPST
+        EXPNEG: SUB B
+                JR C,EXPZ
+                JP Z,EXPZ
+        EXPST:  LD (&B73E),A
+                SCF
+                RET
+        EXPZ:   XOR A
+                LD (&B73E),A
+                SCF
+                RET
+        EXPOVF: OR A
+                RET
+        ; EXP (&BDA9) : (HL) = e^(HL)
+        EEXP:   PUSH HL
+                CALL EXPX
+                POP HL
+                RET NC
+        ESTT2:  PUSH HL                 ; T2 -> (HL)
+                EX DE,HL
+                LD HL,&B73A
+                CALL MOV5
+                POP HL
+                SCF
+                RET
+        ; REAL POWER (&BDA0) : (HL) = (HL) ^ (DE)
+        EPOW:   PUSH HL
+                PUSH DE
+                LD DE,&B749
+                CALL MOV5               ; T5 = x
+                POP HL
+                LD DE,&B74E
+                CALL MOV5               ; T6 = y
+                LD A,(&B752)
+                OR A
+                JR NZ,EPOW1
+                LD HL,KUN               ; y = 0 : 1
+                LD DE,&B73A
+                CALL MOV5
+                JP EPOWF
+        EPOW1:  LD A,(&B74D)
+                OR A
+                JR NZ,EPOW2
+                LD A,(&B751)            ; x = 0 : 0 si y > 0, sinon trop grand
+                RLA
+                JP C,EPOWE
+                POP HL
+                JP EFIXZ1
+        EPOW2:  XOR A
+                LD (&B72F),A            ; signe du résultat
+                LD HL,&B74E             ; y entier ?
+                LD DE,&B753
+                CALL MOV5
+                LD HL,&B753
+                CALL EFIX
+                JP NC,EPOWR             ; très grand : par ln et exp
+                LD A,(&B753)
+                LD (&B72E),A            ; octet bas de |y|
+                LD A,(&B754)
+                LD C,A
+                LD A,(&B755)
+                OR C
+                LD C,A
+                LD A,(&B756)
+                OR C
+                LD (&B72C),A            ; 0 : |y| < 256
+                LD A,B
+                LD HL,&B753
+                CALL EB2R
+                LD HL,&B753
+                LD DE,&B74E
+                CALL ECMP
+                OR A
+                JR NZ,EPOWR             ; pas entier
+                LD A,(&B74C)            ; x négatif et y impair : résultat négatif
+                AND &80
+                JR Z,EPOW3
+                LD A,(&B72E)
+                RRA
+                JR NC,EPOW3
+                LD A,&80
+                LD (&B72F),A
+        EPOW3:  LD A,(&B74C)            ; |x|
+                AND &7F
+                LD (&B74C),A
+                LD A,(&B72C)
+                OR A
+                JR NZ,EPOWL             ; |y| de 256 ou plus : par ln et exp
+                LD HL,KUN               ; T4 = 1 ; puissance par carrés
+                LD DE,&B744
+                CALL MOV5
+                LD A,(&B72E)
+        EPOW4:  LD (&B72E),A
+                RRA
+                JR NC,EPOW5
+                LD HL,&B744
+                LD DE,&B749
+                CALL EMUL
+                JR NC,EPOWE
+        EPOW5:  LD A,(&B72E)
+                SRL A
+                JR Z,EPOW6
+                PUSH AF
+                LD HL,&B749
+                LD DE,&B749
+                CALL EMUL
+                POP BC
+                JR NC,EPOWE
+                LD A,B
+                JR EPOW4
+        EPOW6:  LD A,(&B751)            ; y négatif : 1 / T4
+                RLA
+                JR NC,EPOW7
+                LD HL,KUN
+                LD DE,&B73A
+                CALL MOV5
+                LD HL,&B73A
+                LD DE,&B744
+                CALL EDIV
+                JR NC,EPOWE
+                JR EPOW8
+        EPOW7:  LD HL,&B744
+                LD DE,&B73A
+                CALL MOV5
+                JR EPOW8
+        EPOWR:  LD A,(&B74C)            ; y pas entier : x doit être positif
+                RLA
+                JP C,EPOWE
+        EPOWL:  LD HL,&B749             ; e^(y x ln x)
+                CALL LNX
+                LD HL,&B73F
+                LD DE,&B74E
+                CALL EMUL
+                JR NC,EPOWE
+                LD HL,&B73F
+                CALL EXPX
+                JR NC,EPOWE
+        EPOW8:  LD A,(&B73E)            ; le signe
+                OR A
+                JR Z,EPOWF
+                LD A,(&B72F)
+                LD B,A
+                LD A,(&B73D)
+                OR B
+                LD (&B73D),A
+        EPOWF:  POP HL
+                JP ESTT2
+        EPOWE:  POP HL
+                OR A
+                RET
+        ; (HL) = 0 (pour POWER)
+        EFIXZ1: PUSH HL
+                XOR A
+                LD B,5
+        EFZ1:   LD (HL),A
+                INC HL
+                DJNZ EFZ1
+                POP HL
+                SCF
+                RET
+        ; T2 = sin (HL) (A = 0) ou cos (HL) (A = 1) ; retenue à 0 si le nombre est trop grand
+        SCX:    LD (&B72E),A
+                LD DE,&B730
+                CALL MOV5               ; T0 = x
+                LD HL,&B730             ; k = x / (pi / 2) (en degrés : x / 90), arrondi
+                LD DE,&B735
+                CALL MOV5
+                LD HL,&B735
+                LD DE,KPI2
+                LD A,(&B720)
+                OR A
+                JR Z,SCX1
+                LD DE,K90
+        SCX1:   CALL EDIV
+                LD A,(&B738)
+                AND &80
+                LD (&B72D),A
+                LD HL,&B735
+                CALL ER2I
+                RET NC
+                BIT 7,H
+                JP NZ,SCXOVF            ; plus de 32767 quarts de tour : trop grand
+                LD A,L
+                LD (&B72C),A            ; octet bas de |k|
+                LD A,(&B72D)
+                LD DE,&B73F
+                CALL EI2R               ; T3 = k
+                LD A,(&B720)
+                OR A
+                JR Z,SCX4
+                LD HL,&B73F             ; en degrés : r = (x - 90 k) x pi / 180
+                LD DE,K90
+                CALL EMUL
+                LD HL,&B73F
+                LD DE,&B730
+                CALL ERSUB
+                LD HL,&B73F
+                LD DE,&B744
+                CALL MOV5
+                LD HL,&B744
+                LD DE,KDEG
+                CALL EMUL
+                JR SCX5
+        SCX4:   LD HL,&B73F             ; r = (x - k x P1) - k x P2
+                LD DE,&B744
+                CALL MOV5
+                LD HL,&B73F
+                LD DE,KP1
+                CALL EMUL
+                LD HL,&B73F
+                LD DE,&B730
+                CALL ERSUB
+                LD HL,&B744
+                LD DE,KP2
+                CALL EMUL
+                LD HL,&B744
+                LD DE,&B73F
+                CALL ERSUB              ; T4 = r
+        SCX5:   LD A,(&B72C)            ; quart de tour : k modulo 4 (k négatif : 4 - |k| modulo 4)
+                AND 3
+                LD B,A
+                LD A,(&B72D)
+                OR A
+                LD A,B
+                JR Z,SCX2
+                NEG
+                AND 3
+        SCX2:   LD B,A
+                LD A,(&B72E)
+                ADD A,B
+                AND 3
+                LD (&B72C),A
+                LD HL,&B744             ; T1 = r^2
+                LD DE,&B735
+                CALL MOV5
+                LD HL,&B735
+                LD DE,&B744
+                CALL EMUL
+                LD A,(&B72C)
+                RRA
+                JR C,SCXC
+                LD HL,PSIN              ; sin r = r x (...)
+                CALL POLY
+                LD HL,&B73A
+                LD DE,&B744
+                CALL EMUL
+                JR SCX3
+        SCXC:   LD HL,PCOS              ; cos r
+                CALL POLY
+        SCX3:   LD A,(&B72C)            ; quarts de tour 2 et 3 : signe changé
+                AND 2
+                SCF
+                RET Z
+                LD HL,&B73A
+                JP ENEG
+        SCXOVF: OR A
+                RET
+        ; SIN (&BDAC), COS (&BDAF) : (HL) = sin (HL), cos (HL)
+        ESIN:   XOR A
+                JR ESC
+        ECOS:   LD A,1
+        ESC:    PUSH HL
+                CALL SCX
+                POP HL
+                RET NC
+                JP ESTT2
+        ; TAN (&BDB2) : (HL) = tan (HL)
+        ETAN:   PUSH HL
+                XOR A
+                CALL SCX
+                JR NC,ETANE
+                LD HL,&B73A
+                LD DE,&B74E
+                CALL MOV5               ; T6 = sin
+                POP HL
+                PUSH HL
+                LD A,1
+                CALL SCX                ; T2 = cos
+                JR NC,ETANE
+                LD HL,&B74E
+                LD DE,&B73A
+                CALL EDIV
+                JR NC,ETANE
+                POP DE
+                PUSH DE
+                LD HL,&B74E
+                CALL MOV5
+                POP HL
+                SCF
+                RET
+        ETANE:  POP HL
+                OR A
+                RET
+        ; ATN (&BDB5) : (HL) = arc tangente de (HL)
+        EATN:   PUSH HL
+                LD DE,&B730
+                CALL MOV5               ; T0 = x
+                LD A,(&B733)
+                AND &80
+                LD (&B72D),A            ; signe
+                LD A,(&B733)
+                AND &7F
+                LD (&B733),A            ; |x|
+                XOR A
+                LD (&B72E),A            ; 1 : 1 / x
+                LD (&B72F),A            ; 1 : pi / 6 en plus
+                LD HL,&B730
+                LD DE,KUN
+                CALL ECMP
+                CP 1
+                JR NZ,EATN1
+                LD HL,KUN               ; plus grand que 1 : atn x = pi / 2 - atn (1 / x)
+                LD DE,&B735
+                CALL MOV5
+                LD HL,&B735
+                LD DE,&B730
+                CALL EDIV
+                LD HL,&B735
+                LD DE,&B730
+                CALL MOV5
+                LD A,1
+                LD (&B72E),A
+        EATN1:  LD HL,&B730
+                LD DE,KT15
+                CALL ECMP
+                CP 1
+                JR NZ,EATN2
+                LD HL,&B730             ; plus grand que tan (pi / 12) : t' = (t x racine 3 - 1) / (t + racine 3)
+                LD DE,&B73F
+                CALL MOV5
+                LD HL,&B73F
+                LD DE,KR3
+                CALL EMUL
+                LD HL,&B73F
+                LD DE,KUN
+                CALL ERSUB
+                LD HL,&B73F
+                CALL ENEG
+                LD HL,&B730
+                LD DE,KR3
+                CALL EADD
+                LD HL,&B73F
+                LD DE,&B730
+                CALL EDIV
+                LD HL,&B73F
+                LD DE,&B730
+                CALL MOV5
+                LD A,1
+                LD (&B72F),A
+        EATN2:  LD HL,&B730             ; T1 = t^2
+                LD DE,&B735
+                CALL MOV5
+                LD HL,&B735
+                LD DE,&B730
+                CALL EMUL
+                LD HL,PATN
+                CALL POLY
+                LD HL,&B73A
+                LD DE,&B730
+                CALL EMUL               ; T2 = atn t
+                LD A,(&B72F)
+                OR A
+                JR Z,EATN3
+                LD HL,&B73A
+                LD DE,KPI6
+                CALL EADD
+        EATN3:  LD A,(&B72E)
+                OR A
+                JR Z,EATN4
+                LD HL,&B73A
+                LD DE,KPI2
+                CALL ERSUB
+        EATN4:  LD A,(&B73E)            ; le signe
+                OR A
+                JR Z,EATN5
+                LD A,(&B72D)
+                LD B,A
+                LD A,(&B73D)
+                OR B
+                LD (&B73D),A
+        EATN5:  LD A,(&B720)
+                OR A
+                JR Z,EATN6
+                LD HL,&B73A             ; en degrés
+                LD DE,KRAD
+                CALL EMUL
+        EATN6:  POP HL
+                JP ESTT2
+        ; constantes des fonctions (D196)
+        KUN:    DEFB &00,&00,&00,&00,&81   ; 1
+        KSQA:   DEFB &2D,&B2,&9D,&2F,&7F   ; racine : premier essai
+        KSQB:   DEFB &2D,&B2,&9D,&2F,&80   ; racine : premier essai
+        KRAC2:  DEFB &34,&F3,&04,&35,&80   ; racine de 1/2
+        KLN2:   DEFB &F8,&17,&72,&31,&80   ; ln 2
+        KILN10: DEFB &A9,&D8,&5B,&5E,&7F   ; 1 / ln 10
+        K89:    DEFB &F4,&17,&72,&31,&87   ; plus grand x pour EXP
+        KM89:   DEFB &25,&FC,&D4,&B2,&87   ; plus petit x pour EXP
+        KC1:    DEFB &00,&00,&72,&31,&80   ; ln 2, partie haute (16 bits)
+        KC2:    DEFB &7C,&8E,&BE,&3F,&6D   ; ln 2, le reste
+        KPI2:   DEFB &A2,&DA,&0F,&49,&81   ; pi / 2
+        KP1:    DEFB &00,&00,&10,&49,&81   ; pi / 2, partie haute (16 bits)
+        KP2:    DEFB &5D,&7A,&77,&95,&6F   ; pi / 2, le reste
+        KDEG:   DEFB &13,&35,&FA,&0E,&7B   ; degrés -> radians
+        K90:    DEFB &00,&00,&00,&34,&87   ; 90
+        KRAD:   DEFB &D3,&E0,&2E,&65,&86   ; radians -> degrés
+        KPI6:   DEFB &C1,&91,&0A,&06,&80   ; pi / 6
+        KR3:    DEFB &43,&D7,&B3,&5D,&81   ; racine de 3
+        KT15:   DEFB &F5,&A2,&30,&09,&7F   ; tan(pi / 12)
+        ; ln : 1 + w/3 + w^2/5 + ... + w^5/11 (w = z^2)
+        PLN: DEFB 6
+                DEFB &A3,&8B,&2E,&3A,&7D
+                DEFB &E4,&38,&8E,&63,&7D
+                DEFB &92,&24,&49,&12,&7E
+                DEFB &CD,&CC,&CC,&4C,&7E
+                DEFB &AB,&AA,&AA,&2A,&7F
+                DEFB &00,&00,&00,&00,&81
+        ; exp : 1 + r + r^2/2! + ... + r^10/10!
+        PEXP: DEFB 11
+                DEFB &BC,&7D,&F2,&13,&6B
+                DEFB &2B,&1D,&EF,&38,&6E
+                DEFB &D0,&00,&0D,&50,&71
+                DEFB &D0,&00,&0D,&50,&74
+                DEFB &B6,&60,&0B,&36,&77
+                DEFB &89,&88,&88,&08,&7A
+                DEFB &AB,&AA,&AA,&2A,&7C
+                DEFB &AB,&AA,&AA,&2A,&7E
+                DEFB &00,&00,&00,&00,&80
+                DEFB &00,&00,&00,&00,&81
+                DEFB &00,&00,&00,&00,&81
+        ; sin r / r : 1 - w/3! + ... + w^6/13!
+        PSIN: DEFB 7
+                DEFB &9D,&30,&92,&30,&60
+                DEFB &40,&2B,&32,&D7,&67
+                DEFB &2B,&1D,&EF,&38,&6E
+                DEFB &D0,&00,&0D,&D0,&74
+                DEFB &89,&88,&88,&08,&7A
+                DEFB &AB,&AA,&AA,&AA,&7E
+                DEFB &00,&00,&00,&00,&81
+        ; cos r : 1 - w/2! + ... - w^7/14!
+        PCOS: DEFB 8
+                DEFB &46,&A5,&CB,&C9,&5C
+                DEFB &80,&C7,&76,&0F,&64
+                DEFB &BC,&7D,&F2,&93,&6B
+                DEFB &D0,&00,&0D,&50,&71
+                DEFB &B6,&60,&0B,&B6,&77
+                DEFB &AB,&AA,&AA,&2A,&7C
+                DEFB &00,&00,&00,&80,&80
+                DEFB &00,&00,&00,&00,&81
+        ; atn t / t : 1 - w/3 + w^2/5 - ... - w^7/15
+        PATN: DEFB 8
+                DEFB &89,&88,&88,&88,&7D
+                DEFB &9E,&D8,&89,&1D,&7D
+                DEFB &A3,&8B,&2E,&BA,&7D
+                DEFB &E4,&38,&8E,&63,&7D
+                DEFB &92,&24,&49,&92,&7E
+                DEFB &CD,&CC,&CC,&4C,&7E
+                DEFB &AB,&AA,&AA,&AA,&7F
+                DEFB &00,&00,&00,&00,&81
+        ; KL PROBE ROM (&B915) : H = 4, comme un CPC Plus (le programme choisit alors les adresses du 664 / 6128 pour
+        ; les calculs à virgule, D196)
+        PROBE:  LD HL,&0400
+                XOR A
+                RET
         ; ---------- dessin (D187) : routines GRA et SCR du CPC ----------
         ; &BE40 origine X, &BE42 origine Y (repère de l'écran, 0 à 639 et 0 à 399), &BE44 / &BE46 curseur graphique
         ; (repère de l'utilisateur), &BE48 stylo graphique, &BE49 papier graphique ; &BE4A à &BE5E : calculs des traits.
@@ -2676,6 +4182,30 @@ public static class Gx4000System
                 DEFW &BCEC,DELTICK
                 DEFW &BCB0,ARMEV
                 DEFW &BCB3,SREL
+                DEFW &BD64,EI2R
+                DEFW &BD67,EB2R
+                DEFW &BD6A,ER2I
+                DEFW &BD70,EFIX
+                DEFW &BD79,EX10
+                DEFW &BD7C,EADD
+                DEFW &BD82,ERSUB
+                DEFW &BD85,EMUL
+                DEFW &BD88,EDIV
+                DEFW &BD8E,ECMP
+                DEFW &BD91,ENEG
+                DEFW &BD94,ESGN
+                DEFW &BD97,EANGLE
+                DEFW &BD9A,EPI
+                DEFW &BD9D,ESQR
+                DEFW &BDA0,EPOW
+                DEFW &BDA3,ELOG
+                DEFW &BDA6,ELOG10
+                DEFW &BDA9,EEXP
+                DEFW &BDAC,ESIN
+                DEFW &BDAF,ECOS
+                DEFW &BDB2,ETAN
+                DEFW &BDB5,EATN
+                DEFW &B915,PROBE
                 DEFW &BC3E,SETCLI
                 DEFW &BC41,GETCLI
                 DEFW &BBB7,ECHANGE
@@ -2968,10 +4498,10 @@ public static class Gx4000System
 
     /// <summary>La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000).</summary>
     /// <summary>
-    /// Mémoire pour le programme : de &amp;4000 jusqu'aux variables du son (&amp;B800, D192), sous les routines de la ROM
-    /// simulées (&amp;B900).
+    /// Mémoire pour le programme : de &amp;4000 jusqu'aux nombres de travail des calculs à virgule (&amp;B700, D196), sous les
+    /// variables du son (&amp;B800, D192) et les routines de la ROM simulées (&amp;B900).
     /// </summary>
-    public const int MaxProgram = 0xB800 - 0x4000;
+    public const int MaxProgram = 0xB700 - 0x4000;
 
     /// <summary>
     /// D189 : comment le programme est rangé dans la cartouche : sa longueur dans la page 0 (après le système), puis dans

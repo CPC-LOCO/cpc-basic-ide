@@ -1497,6 +1497,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\gxrdv.bas` (Ctrl+F5) dans AMSpiriT : son retenu jusqu'au tir 1, 3 notes puis accord avec C, B seul puis A et B ensemble (« oui ça correspond »).
 - **Le son de la console est complet.** Reste pour la console : les nombres à virgule.
 
+## D196 : cartouche GX4000, les nombres à virgule (22 nov. 2026) (choix de l'utilisateur : finir les nombres avant de publier)
+- **Fait :** `Gx4000System.cs` : nos propres routines de calcul, au format du Locomotive BASIC (5 octets), branchées aux adresses de la ROM du 664 / 6128 : INTEGER TO REAL, BINARY TO REAL, REAL TO INTEGER, REAL FIX, REAL *10^A, addition, soustraction à l'envers, multiplication, division, comparaison, changement de signe, signe, mode des angles, PI, SQR, puissance, LOG, LOG10, EXP, SIN, COS, TAN, ATN. KL PROBE ROM (&B915) répond H = 4 (CPC Plus) : le programme prend les adresses du 664 / 6128. Une cartouche demandée pour le 464 (F7) est compilée pour tous les CPC. Calcul interne sur 40 bits (8 bits de garde, arrondi au rangement). Fonctions : réduction puis polynômes (ln par z = (m - 1) / (m + 1), exp par 2^n x e^r avec ln 2 en deux parties, sin et cos par quarts de tour avec pi / 2 en deux parties, en degrés par 90, atn par 1 / x et pi / 6, puissance entière exacte par carrés). Travail en &B700 à &B7FF : le programme peut faire 30 464 octets au plus. Le refus de D194 est retiré.
+- **Vérification avant envoi :** un petit simulateur de Z80 écrit en Python (hors du projet) a comparé des milliers de calculs aux bonnes valeurs : écart relatif sous 5E-10 (le CPC affiche 9 chiffres).
+- **Vitesse (essai de l'utilisateur, exemple du cercle, 126 points avec SIN et COS) :** 13 secondes d'abord ; puis multiplication et division dans les registres du Z80 (octets à zéro sautés, division sans retour en arrière), polynômes dans l'accumulateur, décalages par octets, premier essai de SQR à 3 % près : **8 secondes**.
+- **Tests :** 2029 réussis (19 nouveaux : les quatre opérations, division par zéro et comparaison, entiers et 10^A, les fonctions, degrés et puissance, un programme compilé ; le test du refus retiré).
+- **Essai (22 nov. 2026) :** `examples\gxreel.bas` (Ctrl+F5) dans AMSpiriT : toutes les valeurs justes au dernier chiffre (3.75, 3.375, 3.33333333, 1.41421356, 3.14159265, 0.841470985, 0.540302306, 2.71828183, 2.30258509, 1024, 0.5, 45), cercle dessiné. Rappel : sans signe, une variable est entière dans notre compilateur ; l'exemple utilise A!, B!, T!.
+- **La console fait maintenant tout ce que fait le CPC** dans nos programmes (sauf la disquette et la cassette, qu'elle n'a pas).
+
 ---
 
 ## Notes de fin de session (modèle)

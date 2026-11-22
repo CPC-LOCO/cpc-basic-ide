@@ -42,8 +42,8 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Sur CPC : les autres touches sont ignorées pendant la saisie. Sur la cartouche GX4000 : la saisie à la manette (D184) ne fait défiler que ces caractères.
 - À préciser avec l'utilisateur : le rôle de CHR$(13) dans la liste, LINE INPUT, la forme exacte de l'écriture.
 
-### Cartouche GX4000 (suites de D181 à D195)
-- Nombres à virgule sur la console : aujourd'hui refusés (D194), leurs calculs étant dans la ROM du CPC. Il faudrait nos propres routines (addition, multiplication, division, conversions, affichage, SIN, COS...) : gros chantier.
+### Cartouche GX4000 (suites de D181 à D196)
+- Nombres à virgule sur la console (faits, D196) : encore plus rapides si besoin. Pistes : multiplication par une table de carrés (a x b = ((a + b)^2 - (a - b)^2) / 4), SIN et COS sans division (x 2 / pi), polynômes plus courts.
 - Place libre dans la cartouche (question de l'utilisateur, 22 nov. 2026) : 128 Ko au moins, 512 Ko au plus, mais le programme est limité à 30 720 octets (il est recopié dans les 64 Ko de la console). Le reste pourrait garder des écrans dessinés ou de la musique, lus dans la cartouche au moment voulu (rejoint « écrans et musique »).
 
 ## Faites (gardées pour mémoire)

@@ -4,6 +4,7 @@
 // Il est distribué sans aucune garantie. Voir le fichier LICENSE.
 
 using CpcBasic.Core;
+using CpcBasic.Core.Codegen;
 using CpcBasic.Core.Output;
 using Xunit;
 
@@ -1216,17 +1217,6 @@ public class Gx4000SystemTests
         Assert.NotNull(result.Cartridge);
     }
 
-    [Fact]
-    public void Les_nombres_a_virgule_sont_refuses_sur_la_cartouche()
-    {
-        CartridgeResult result = Compiler.CompileToCartridge("10 PRINT (TIME-5)/300+0.5");
-
-        Assert.Null(result.Cartridge);
-        Assert.Single(result.Problems);
-        Assert.Contains("nombres entiers", result.Problems[0]);
-        Assert.NotNull(Compiler.CompileToCartridge("10 A=TIME\\300:PRINT A").Cartridge);
-    }
-
     // ---------- sons retenus et rendez-vous (D195) ----------
 
     [Fact]
@@ -1279,6 +1269,127 @@ public class Gx4000SystemTests
             "10 SOUND 1+16,478,50:SOUND 2+8,239,50:SOUND 4+64,319,50:RELEASE 4:PRINT SQ(4)");
 
         Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
+
+    // ---------- nombres à virgule (D196) ----------
+
+    const int RealA = 0x9000, RealB = 0x9010;
+
+    static void PutReal(MiniZ80 cpu, int address, double value) => LocoReal.Encode(value)!.CopyTo(cpu.Memory, address);
+
+    static double GetReal(MiniZ80 cpu, int address) => LocoReal.Decode(cpu.Memory.AsSpan(address, 5));
+
+    // une routine de calcul : HL = RealA (résultat), DE = RealB
+    static bool RealCall(MiniZ80 cpu, int firmware, double a, double b = 0, byte accumulator = 0)
+    {
+        PutReal(cpu, RealA, a);
+        PutReal(cpu, RealB, b);
+        cpu.H = RealA >> 8;
+        cpu.L = RealA & 0xFF;
+        cpu.D = RealB >> 8;
+        cpu.E = RealB & 0xFF;
+        cpu.A = accumulator;
+        cpu.Call(EntryOf(firmware, cpu));
+        return cpu.CarryFlag;
+    }
+
+    static void Close(double expected, double actual, double tolerance = 1e-8) =>
+        Assert.True(Math.Abs(actual - expected) <= tolerance * Math.Max(1, Math.Abs(expected)), $"{actual} au lieu de {expected}");
+
+    [Theory]
+    [InlineData(0xBD7C, 1.5, 2.25, 3.75)]                    // addition
+    [InlineData(0xBD7C, 1e10, -1e10, 0)]
+    [InlineData(0xBD82, 1.5, 10, 8.5)]                        // soustraction à l'envers : (DE) - (HL)
+    [InlineData(0xBD85, -3.5, 2, -7)]                         // multiplication
+    [InlineData(0xBD85, 1e20, 1e-25, 1e-5)]
+    [InlineData(0xBD88, 1, 3, 0.333333333333)]                // division
+    [InlineData(0xBD88, -22, 7, -3.14285714286)]
+    public void Les_quatre_operations(int firmware, double a, double b, double expected)
+    {
+        MiniZ80 cpu = Cpu();
+        Assert.True(RealCall(cpu, firmware, a, b));
+        Close(expected, GetReal(cpu, RealA));
+    }
+
+    [Fact]
+    public void Division_par_zero_et_comparaison()
+    {
+        MiniZ80 cpu = Cpu();
+        Assert.False(RealCall(cpu, 0xBD88, 1, 0));            // division par zéro : retenue à 0
+        RealCall(cpu, 0xBD8E, 2.5, 2.4);
+        Assert.Equal(1, cpu.A);
+        RealCall(cpu, 0xBD8E, -2.5, 2.4);
+        Assert.Equal(0xFF, cpu.A);
+        RealCall(cpu, 0xBD8E, 7, 7);
+        Assert.Equal(0, cpu.A);
+    }
+
+    [Fact]
+    public void Entiers_et_nombres_a_virgule()
+    {
+        MiniZ80 cpu = Cpu();
+        cpu.H = 0x30;                                         // INTEGER TO REAL : 12345, négatif
+        cpu.L = 0x39;
+        cpu.A = 0x80;
+        cpu.D = RealA >> 8;
+        cpu.E = RealA & 0xFF;
+        cpu.Call(EntryOf(0xBD64, cpu));
+        Assert.Equal(-12345, GetReal(cpu, RealA));
+
+        Assert.True(RealCall(cpu, 0xBD6A, 2.5));              // REAL TO INTEGER : arrondi
+        Assert.Equal(3, cpu.H << 8 | cpu.L);
+        Assert.False(RealCall(cpu, 0xBD6A, 70000));           // plus de 65535
+
+        Assert.True(RealCall(cpu, 0xBD79, 1.25, 0, 3));       // x 10^3
+        Close(1250, GetReal(cpu, RealA));
+        Assert.True(RealCall(cpu, 0xBD79, 1.25, 0, 0xFE));    // x 10^-2
+        Close(0.0125, GetReal(cpu, RealA));
+    }
+
+    [Theory]
+    [InlineData(0xBD9D, 2, 1.41421356237)]                    // SQR
+    [InlineData(0xBDA3, 10, 2.30258509299)]                   // LOG
+    [InlineData(0xBDA6, 1000, 3)]                             // LOG10
+    [InlineData(0xBDA9, 1, 2.71828182846)]                    // EXP
+    [InlineData(0xBDAC, 1, 0.841470984808)]                   // SIN
+    [InlineData(0xBDAF, 3, -0.9899924966)]                    // COS
+    [InlineData(0xBDB2, 0.5, 0.546302489844)]                 // TAN
+    [InlineData(0xBDB5, 2, 1.10714871779)]                    // ATN
+    public void Les_fonctions(int firmware, double x, double expected)
+    {
+        MiniZ80 cpu = Cpu();
+        Assert.True(RealCall(cpu, firmware, x));
+        Close(expected, GetReal(cpu, RealA));
+    }
+
+    [Fact]
+    public void Les_degres_et_la_puissance()
+    {
+        MiniZ80 cpu = Cpu();
+        cpu.A = 1;
+        cpu.Call(EntryOf(0xBD97, cpu));                       // DEG
+        Assert.True(RealCall(cpu, 0xBDAC, 30));
+        Close(0.5, GetReal(cpu, RealA));
+        Assert.True(RealCall(cpu, 0xBDB5, 1));
+        Close(45, GetReal(cpu, RealA));
+
+        Assert.True(RealCall(cpu, 0xBDA0, 2, 10));            // 2^10 : exact
+        Assert.Equal(1024, GetReal(cpu, RealA));
+        Assert.True(RealCall(cpu, 0xBDA0, -2, 3));
+        Assert.Equal(-8, GetReal(cpu, RealA));
+        Assert.True(RealCall(cpu, 0xBDA0, 9, 0.5));
+        Close(3, GetReal(cpu, RealA));
+        Assert.False(RealCall(cpu, 0xBDA0, -8, 0.5));         // racine d'un négatif : impossible
+    }
+
+    [Fact]
+    public void Un_programme_avec_des_nombres_a_virgule_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 A=1.5:B=SIN(A)*SQR(2)/3:PRINT A,B;PI;2^0.5");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(result.Problems);
         Assert.NotNull(result.Cartridge);
     }
 }
