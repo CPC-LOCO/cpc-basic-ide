@@ -42,6 +42,11 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Sur CPC : les autres touches sont ignorées pendant la saisie. Sur la cartouche GX4000 : la saisie à la manette (D184) ne fait défiler que ces caractères.
 - À préciser avec l'utilisateur : le rôle de CHR$(13) dans la liste, LINE INPUT, la forme exacte de l'écriture.
 
+### Cartouche GX4000 (suites de D181 à D192)
+- Son, étapes 2 et 3 : les enveloppes ENV et ENT, puis RELEASE, les sons retenus, les rendez-vous entre canaux, ON SQ GOSUB.
+- TIME, AFTER et EVERY ne marchent pas encore sur la console (les routines du firmware qu'ils appellent répondent par un simple retour) ; l'interruption de D191 pourrait les faire avancer.
+- Place libre dans la cartouche (question de l'utilisateur, 22 nov. 2026) : 128 Ko au moins, 512 Ko au plus, mais le programme est limité à 30 720 octets (il est recopié dans les 64 Ko de la console). Le reste pourrait garder des écrans dessinés ou de la musique, lus dans la cartouche au moment voulu (rejoint « écrans et musique »).
+
 ## Faites (gardées pour mémoire)
 - **Fait (D038, D039)** — Fonctions de calcul : ABS, SGN, MIN, MAX (existent dans le Locomotive), HIBYTE, LOBYTE, CLAMP, RANDOM, RANDOMIZE.
 - **Fait (D054, D058, D060, D062, D068)** — Conditions sans comparaison (IF a THEN), NOT, GOTO et GOSUB, tableaux, chaînes, réels.

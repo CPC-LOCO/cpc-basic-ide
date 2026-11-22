@@ -24,8 +24,9 @@ namespace CpcBasic.Core.Output;
 /// ORIGIN, GRAPHICS PEN / PAPER ; modes d'écriture XOR, AND, OR, fenêtres graphiques, SCR WRITE (&BDE8) pour MASK, FILL
 /// et PAINT, FRAME (D188). Fenêtres de texte (D190) : WINDOW, les 8 flux #0 à #7 (chacun son curseur, sa fenêtre,
 /// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Encres clignotantes (D191) :
-/// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Pas encore fait : le son ;
-/// les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
+/// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Son (D192) : SOUND sur les
+/// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; pas encore les enveloppes (ENV, ENT), les
+/// rendez-vous, RELEASE. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -114,6 +115,12 @@ public static class Gx4000System
                 LD BC,255
                 LD (HL),0
                 LDIR
+                LD HL,&B800             ; son (D192) : variables de &B800 à &B8FF à zéro
+                LD DE,&B801
+                LD BC,255
+                LD (HL),0
+                LDIR
+                CALL SRESET             ; puce de son muette
                 LD A,10                 ; encres clignotantes (D191) : SPEED INK 10,10 comme le CPC
                 LD (&BE33),A
                 LD (&BE34),A
@@ -766,7 +773,8 @@ public static class Gx4000System
         ; ---------- manettes (D183) : lues comme le CPC, par la grille du clavier (lignes 9 et 6) ----------
         ; &BE07 = manette 1, &BE08 = manette 2 : bit à 1 = appuyé (0 haut, 1 bas, 2 gauche, 3 droite, 4 tir 1, 5 tir 2 ;
         ; tir 1 = le bouton principal, valeur 16 de JOY, comme le bouton unique des manettes du CPC, D184)
-        LIRE:   LD BC,&F40E
+        LIRE:   DI                      ; l'interruption écrit dans la puce de son par les mêmes ports (D192)
+                LD BC,&F40E
                 OUT (C),C
                 LD BC,&F6C0
                 OUT (C),C
@@ -792,6 +800,7 @@ public static class Gx4000System
                 OUT (C),C
                 LD BC,&F600
                 OUT (C),C
+                EI
                 RET
         ; ---------- KM GET JOYSTICK (&BB24) : H = manette 1, L = manette 2, A = manette 1 ----------
         JOYST:  PUSH BC
@@ -1004,21 +1013,26 @@ public static class Gx4000System
         ; &BE32 : 0 = premières couleurs, 1 = secondes ; &BE33 : images restantes ; &BE34, &BE35 : durées de SPEED INK.
         ; Seule l'interruption du retour du balayage (début d'une image, 50 fois par seconde) compte : les couleurs
         ; changent pendant que rien n'est affiché, sans décalage dans l'image (essai de l'utilisateur)
+        ; Le son (D192) avance toutes les 3 interruptions : 100 fois par seconde, l'unité des durées de SOUND.
         INTER:  PUSH AF
                 PUSH BC
-                LD BC,&F500             ; PPI, port B : bit 0 = retour du balayage
+                PUSH DE
+                PUSH HL
+                LD HL,&B890
+                DEC (HL)
+                JR NZ,INT1
+                LD (HL),3
+                CALL SONTIC
+        INT1:   LD BC,&F500             ; PPI, port B : bit 0 = retour du balayage
                 IN A,(C)
                 RRA
                 JR NC,INTFIN
-                PUSH HL
                 LD HL,&BE33
                 DEC (HL)
-                JR NZ,INTF2
-                PUSH DE
-                CALL CLIGNE
+                CALL Z,CLIGNE
+        INTFIN: POP HL
                 POP DE
-        INTF2:  POP HL
-        INTFIN: POP BC
+                POP BC
                 POP AF
                 EI
                 RET
@@ -1058,6 +1072,332 @@ public static class Gx4000System
                 LD H,A
                 LD A,(&BE35)
                 LD L,A
+                RET
+        ; ---------- son (D192) ----------
+        ; Pour chaque canal (A, B, C : 0, 1, 2), 48 octets en &B800 + canal x 48 : +0 sons en attente (0 à 4), +1 place
+        ; du prochain son dans la file, +2 son en cours (1) ou non (0), +3 et +4 centièmes de seconde restants ; +9 : la
+        ; file, 4 blocs de 9 octets comme ceux de SOUND QUEUE (état, enveloppes de volume et de ton, période (2), bruit,
+        ; volume, durée (2)). &B890 : interruptions avant le prochain centième ; &B891 : registre 7 de la puce (bits à 1 :
+        ; ton puis bruit coupés) ; &B892 : canal traité ; &B893, &B894 : calculs ; &B895 : adresse du bloc reçu.
+        ; Un centième de seconde (interruption) : chaque canal avance
+        SONTIC: PUSH IX
+                LD IX,&B800
+                XOR A
+                LD (&B892),A
+        SONT1:  LD A,(IX+2)
+                OR A
+                JR Z,SONT2              ; pas de son en cours
+                LD L,(IX+3)
+                LD H,(IX+4)
+                DEC HL
+                LD (IX+3),L
+                LD (IX+4),H
+                LD A,H
+                OR L
+                JR NZ,SONTS             ; le son continue
+                LD (IX+2),A             ; le son est fini
+                LD A,(IX+0)
+                OR A
+                JR NZ,SONT3             ; le suivant commence
+                CALL SILENCE
+                JR SONTS
+        SONT2:  LD A,(IX+0)
+                OR A
+                JR Z,SONTS
+        SONT3:  CALL DEBUT
+        SONTS:  LD DE,48
+                ADD IX,DE
+                LD HL,&B892
+                INC (HL)
+                LD A,(HL)
+                CP 3
+                JR NZ,SONT1
+                POP IX
+                RET
+        ; le canal IX (&B892) commence le premier son de sa file
+        DEBUT:  LD A,(IX+1)
+                LD E,A
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                ADD A,E
+                ADD A,9
+                LD E,A
+                LD D,0
+                PUSH IX
+                POP HL
+                ADD HL,DE               ; HL = le bloc du son
+                LD A,(IX+1)
+                INC A
+                AND 3
+                LD (IX+1),A
+                DEC (IX+0)
+                INC HL
+                INC HL
+                INC HL
+                LD E,(HL)               ; période du ton
+                INC HL
+                LD D,(HL)
+                INC HL
+                PUSH HL
+                LD A,D
+                OR E
+                LD (&B893),A            ; 0 : pas de ton
+                LD A,(&B892)
+                ADD A,A                 ; registres 0 et 1 (canal A), 2 et 3, 4 et 5
+                CALL PSGW
+                INC A
+                LD E,D
+                CALL PSGW
+                CALL MASQUE
+                LD A,(&B893)
+                OR A
+                CALL MIXB               ; ton coupé ou non
+                POP HL
+                LD A,(HL)               ; bruit (période, 0 : pas de bruit)
+                INC HL
+                PUSH HL
+                AND 31
+                LD E,A
+                PUSH AF
+                JR Z,DEBUT2
+                LD A,6
+                CALL PSGW
+        DEBUT2: CALL MASQUE
+                SLA B
+                SLA B
+                SLA B
+                POP AF
+                CALL MIXB               ; bruit coupé ou non
+                LD A,(&B891)
+                LD E,A
+                LD A,7
+                CALL PSGW
+                POP HL
+                LD A,(HL)               ; volume
+                INC HL
+                AND 15
+                LD E,A
+                LD A,(&B892)
+                ADD A,8
+                CALL PSGW
+                LD E,(HL)               ; durée en centièmes ; 0 ou moins : 2 secondes (pas encore d'enveloppes)
+                INC HL
+                LD D,(HL)
+                BIT 7,D
+                JR NZ,DEBUT3
+                LD A,D
+                OR E
+                JR NZ,DEBUT4
+        DEBUT3: LD DE,200
+        DEBUT4: LD (IX+3),E
+                LD (IX+4),D
+                LD (IX+2),1
+                RET
+        ; le canal &B892 se tait : volume 0, ton et bruit coupés
+        SILENCE: LD E,0
+                LD A,(&B892)
+                ADD A,8
+                CALL PSGW
+                CALL MASQUE
+                LD A,B
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                OR B
+                LD B,A
+                LD A,(&B891)
+                OR B
+                LD (&B891),A
+                LD E,A
+                LD A,7
+                JP PSGW
+        ; B = 1, 2 ou 4 selon le canal &B892
+        MASQUE: LD A,(&B892)
+                LD B,1
+                OR A
+                RET Z
+        MASQ1:  SLA B
+                DEC A
+                JR NZ,MASQ1
+                RET
+        ; B = bit du registre 7 ; Z : coupé (bit à 1), sinon allumé (bit à 0)
+        MIXB:   LD A,(&B891)
+                JR NZ,MIXON
+                OR B
+                JR MIXFIN
+        MIXON:  LD C,A
+                LD A,B
+                CPL
+                AND C
+        MIXFIN: LD (&B891),A
+                RET
+        ; écrit E dans le registre A de la puce de son (par le PPI) ; A et DE gardés, BC changé
+        PSGW:   LD B,&F4
+                OUT (C),A
+                LD BC,&F6C0
+                OUT (C),C
+                LD BC,&F600
+                OUT (C),C
+                LD B,&F4
+                OUT (C),E
+                LD BC,&F680
+                OUT (C),C
+                LD BC,&F600
+                OUT (C),C
+                RET
+        ; IX = canal A (0 à 2), noté en &B892 ; DE gardé
+        CANAL:  LD (&B892),A
+                LD IX,&B800
+                OR A
+                RET Z
+                PUSH DE
+                LD DE,48
+        CANAL1: ADD IX,DE
+                DEC A
+                JR NZ,CANAL1
+                POP DE
+                RET
+        ; SOUND RESET (&BCA7) : files vidées, tout se tait
+        SRESET: PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                DI
+                LD HL,&B800
+                LD DE,&B801
+                LD BC,143
+                LD (HL),0
+                LDIR
+                LD A,3
+                LD (&B890),A
+                LD A,&3F
+                LD (&B891),A
+                LD E,A
+                LD A,7
+                CALL PSGW
+                LD E,0
+                LD A,8
+                CALL PSGW
+                INC A
+                CALL PSGW
+                INC A
+                CALL PSGW
+                EI
+                POP HL
+                POP DE
+                POP BC
+                POP AF
+                RET
+        ; SOUND QUEUE (&BCAA) : HL = bloc de 9 octets ; retenue : le son est dans la file de chaque canal choisi ;
+        ; sinon une de ces files est pleine (rien n'est fait). Bit 7 de l'état : files vidées d'abord, son en cours arrêté.
+        SQUEUE: PUSH BC
+                PUSH DE
+                PUSH HL
+                PUSH IX
+                DI
+                LD (&B895),HL
+                LD A,(HL)
+                LD (&B894),A
+                BIT 7,A
+                JR Z,SQ2
+                LD D,A                  ; vider les files choisies
+                XOR A
+        SQF:    RR D
+                JR NC,SQF2
+                PUSH AF
+                CALL CANAL
+                XOR A
+                LD (IX+0),A
+                LD (IX+1),A
+                LD (IX+2),A
+                CALL SILENCE
+                POP AF
+        SQF2:   INC A
+                CP 3
+                JR NZ,SQF
+        SQ2:    LD A,(&B894)            ; une place dans chaque file choisie ?
+                LD D,A
+                XOR A
+        SQR:    RR D
+                JR NC,SQR2
+                PUSH AF
+                CALL CANAL
+                POP AF
+                LD E,A
+                LD A,(IX+0)
+                CP 4
+                LD A,E
+                JR NC,SQPLEIN
+        SQR2:   INC A
+                CP 3
+                JR NZ,SQR
+                LD A,(&B894)            ; le son au bout de chaque file choisie
+                LD D,A
+                XOR A
+        SQA:    RR D
+                JR NC,SQA2
+                PUSH AF
+                CALL CANAL
+                LD A,(IX+1)
+                ADD A,(IX+0)
+                AND 3
+                LD E,A
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                ADD A,E
+                ADD A,9
+                PUSH DE
+                LD E,A
+                LD D,0
+                PUSH IX
+                POP HL
+                ADD HL,DE
+                EX DE,HL
+                LD HL,(&B895)
+                LD BC,9
+                LDIR
+                POP DE
+                INC (IX+0)
+                POP AF
+        SQA2:   INC A
+                CP 3
+                JR NZ,SQA
+                SCF
+                JR SQFIN
+        SQPLEIN: OR A
+        SQFIN:  EI
+                POP IX
+                POP HL
+                POP DE
+                POP BC
+                RET
+        ; SOUND CHECK (&BCAD) : A = canal (1, 2 ou 4) -> A = places libres dans sa file, + &80 si un son est en cours
+        SCHECK: PUSH BC
+                PUSH DE
+                PUSH HL
+                PUSH IX
+                LD E,0
+                BIT 0,A
+                JR NZ,SCH1
+                INC E
+                BIT 1,A
+                JR NZ,SCH1
+                INC E
+        SCH1:   LD A,E
+                DI
+                CALL CANAL
+                LD A,4
+                SUB (IX+0)
+                BIT 0,(IX+2)
+                JR Z,SCH2
+                OR &80
+        SCH2:   EI
+                POP IX
+                POP HL
+                POP DE
+                POP BC
                 RET
         ; ---------- dessin (D187) : routines GRA et SCR du CPC ----------
         ; &BE40 origine X, &BE42 origine Y (repère de l'écran, 0 à 639 et 0 à 399), &BE44 / &BE46 curseur graphique
@@ -1620,6 +1960,9 @@ public static class Gx4000System
                 DEFW &BB18,ATTCLE
                 DEFW &BBB4,FLUX
                 DEFW &BB66,FENON
+                DEFW &BCA7,SRESET
+                DEFW &BCAA,SQUEUE
+                DEFW &BCAD,SCHECK
                 DEFW &BC3E,SETCLI
                 DEFW &BC41,GETCLI
                 DEFW &BBB7,ECHANGE
@@ -1911,8 +2254,11 @@ public static class Gx4000System
     }
 
     /// <summary>La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000).</summary>
-    /// <summary>Mémoire pour le programme : de &amp;4000 jusqu'aux routines de la ROM simulées (&amp;B900).</summary>
-    public const int MaxProgram = 0xB900 - 0x4000;
+    /// <summary>
+    /// Mémoire pour le programme : de &amp;4000 jusqu'aux variables du son (&amp;B800, D192), sous les routines de la ROM
+    /// simulées (&amp;B900).
+    /// </summary>
+    public const int MaxProgram = 0xB800 - 0x4000;
 
     /// <summary>
     /// D189 : comment le programme est rangé dans la cartouche : sa longueur dans la page 0 (après le système), puis dans

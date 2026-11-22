@@ -950,4 +950,105 @@ public class Gx4000SystemTests
         Assert.Empty(result.Diagnostics);
         Assert.NotNull(result.Cartridge);
     }
+
+    // ---------- son (D192) ----------
+
+    const int SoundBlock = 0x9000;
+
+    // SOUND QUEUE avec le bloc de 9 octets du compilateur : état (canaux), enveloppes, période, bruit, volume, durée
+    static bool Queue(MiniZ80 cpu, byte state, int period, int duration, byte volume = 12, byte noise = 0)
+    {
+        byte[] block = [state, 0, 0, (byte)period, (byte)(period >> 8), noise, volume, (byte)duration, (byte)(duration >> 8)];
+        block.CopyTo(cpu.Memory, SoundBlock);
+        cpu.H = SoundBlock >> 8;
+        cpu.L = SoundBlock & 0xFF;
+        cpu.Call(EntryOf(0xBCAA, cpu));
+        return cpu.CarryFlag;
+    }
+
+    static byte Check(MiniZ80 cpu, byte channel)
+    {
+        cpu.A = channel;
+        cpu.Call(EntryOf(0xBCAD, cpu));
+        return cpu.A;
+    }
+
+    // un centième de seconde : 3 interruptions
+    static void Hundredth(MiniZ80 cpu, int count = 1)
+    {
+        for (int i = 0; i < 3 * count; i++)
+            cpu.Call(0x0038);
+    }
+
+    static MiniZ80 SoundCpu()
+    {
+        MiniZ80 cpu = Cpu();
+        cpu.Call(EntryOf(0xBCA7, cpu));                       // SOUND RESET, comme au démarrage
+        return cpu;
+    }
+
+    [Fact]
+    public void La_file_d_un_canal_garde_4_sons()
+    {
+        MiniZ80 cpu = SoundCpu();
+        for (int i = 0; i < 4; i++)
+            Assert.True(Queue(cpu, 1, 478, 50));
+
+        Assert.False(Queue(cpu, 1, 478, 50));                 // pleine : le compilateur attend une place
+        Assert.Equal(0, Check(cpu, 1));                       // plus de place, pas encore de son en cours
+        Assert.Equal(4, Check(cpu, 2));                       // le canal B est libre
+    }
+
+    [Fact]
+    public void Un_son_dure_le_temps_demande_puis_le_suivant_commence()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Queue(cpu, 1, 478, 2);
+        Queue(cpu, 1, 239, 3);
+
+        Hundredth(cpu);                                       // le premier commence
+        Assert.Equal(0x80 | 3, Check(cpu, 1));                // en cours, 3 places libres
+        Hundredth(cpu, 2);                                    // 2 centièmes plus tard : le second commence
+        Assert.Equal(0x80 | 4, Check(cpu, 1));
+        Assert.Equal(3, cpu.Memory[0xB803]);                  // il lui reste 3 centièmes
+        Hundredth(cpu, 3);
+        Assert.Equal(4, Check(cpu, 1));                       // fini : tout se tait
+        Assert.Equal(0x3F, cpu.Memory[0xB891]);               // ton et bruit coupés partout
+    }
+
+    [Fact]
+    public void Un_son_sur_deux_canaux_et_le_bruit()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Queue(cpu, 1 | 4, 100, 10, noise: 15);                // canaux A et C, avec du bruit
+        Hundredth(cpu);
+
+        Assert.Equal(0x80 | 4, Check(cpu, 1));
+        Assert.Equal(4, Check(cpu, 2));
+        Assert.Equal(0x80 | 4, Check(cpu, 4));
+        Assert.Equal(0x3F & ~(0x01 | 0x04 | 0x08 | 0x20), cpu.Memory[0xB891]);   // ton et bruit de A et C
+    }
+
+    [Fact]
+    public void Le_bit_7_vide_la_file_d_abord()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Queue(cpu, 1, 478, 50);
+        Queue(cpu, 1, 478, 50);
+        Queue(cpu, 0x81, 239, 10);                            // le son passe devant tout
+
+        Assert.Equal(3, Check(cpu, 1));
+        Hundredth(cpu);
+        Assert.Equal(10, cpu.Memory[0xB803]);
+    }
+
+    [Fact]
+    public void Un_programme_avec_du_son_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 SOUND 1,478,50,12:SOUND 2,0,20,15,0,0,10\n20 IF SQ(1)<128 THEN PRINT \"FINI\"");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
 }

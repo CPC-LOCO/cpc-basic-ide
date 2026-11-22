@@ -1466,6 +1466,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\gxclign.bas` (Ctrl+F5) dans AMSpiriT : textes rouge et jaune, bleu et blanc qui clignotent, puis SPEED INK 3,3 et la bordure qui clignote, sans décalage.
 - Reste pour la console : le son.
 
+## D192 : cartouche GX4000, le son, étape 1 (22 nov. 2026) (découpage en 3 étapes ; « tu codes, alors tu décides pour le mieux »)
+- **Fait :** `Gx4000System.cs` : SOUND QUEUE (&BCAA, le bloc de 9 octets du compilateur), SOUND CHECK (&BCAD, SQ), SOUND RESET (&BCA7). Trois canaux, le bruit (registre 6 et registre 7 de la puce), une file de 4 sons par canal ; le bit 7 de l'état vide d'abord les files. Les sons avancent 100 fois par seconde (une interruption sur 3) ; durée 0 ou négative : 2 secondes en attendant les enveloppes. La puce est écrite par le PPI ; la lecture des manettes (LIRE) se fait sans interruption, puisqu'elle passe par les mêmes ports. Variables du son en &B800 à &B8FF : le programme peut faire 30 720 octets au plus (au lieu de 30 976).
+- Le message de Ctrl+F5 devient : « Pas encore sur la console : les enveloppes du son (ENV, ENT), RELEASE, les rendez-vous entre canaux. »
+- **Tests :** 1998 réussis (5 nouveaux : file de 4 sons, durée puis son suivant, deux canaux et bruit, bit 7, un programme compilé).
+- **Essai (22 nov. 2026) :** `examples\gxson.bas` (Ctrl+F5) dans AMSpiriT : gamme, accord sur 3 canaux, explosion, long son de 3 secondes avec SQ(1) à 132 pendant le son. Le premier SQ(1) vaut 3 : le son commence au centième suivant. La boucle d'attente de l'exemple était trop courte pour voir la fin du son : remplacée par FRAME.
+- Restent pour le son : les enveloppes (étape 2), RELEASE, les sons retenus, les rendez-vous, ON SQ GOSUB (étape 3).
+
 ---
 
 ## Notes de fin de session (modèle)
