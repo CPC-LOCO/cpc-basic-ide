@@ -1551,6 +1551,12 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Essai (22 nov. 2026) : croise.bas en cartouche dans AMSpiriT : « c'est largement mieux ».
 - Reste (IDEES) : les traits en biais, et les ronds d'ELLIPSE, toujours point par point.
 
+## D203 : cartouche GX4000, traits en biais rapides (22 nov. 2026) (choix de l'utilisateur)
+
+- Fait : `Gx4000System.cs`, GRA LINE : quand les deux bouts sont dans la fenêtre graphique (donc tout le trait), le même calcul que le chemin normal donne les mêmes points, mais l'adresse dans l'écran et le masque du point suivent d'un point au suivant (un point à droite ou à gauche, une ligne de l'écran plus haut ou plus bas) au lieu d'être recalculés, et sans vérifier la fenêtre à chaque point. Un bout dehors : chemin normal. Les points passent par SCR WRITE (&BDE8) dans le même ordre qu'avant : MASK marche pareil. Masque du point de droite d'un octet gardé en &BE70.
+- Tests : 2052 (1 nouveau, en 3 MODE : 180 traits en biais au hasard, comparés à PLOT des points du même calcul, décor au hasard, fenêtre graphique, XOR, bouts dehors). Un ancien test supposait qu'un programme de 40 000 octets tient sur 2 pages en plus : le système dépasse maintenant 9 Ko, il en faut 3 ; ramené à 30 000 octets (de toute façon, 30 464 au plus).
+- Essai (22 nov. 2026) : `examples\gxdessin.bas` en cartouche dans AMSpiriT : dessin identique, « c'est très rapide ».
+
 ---
 
 ## Notes de fin de session (modèle)

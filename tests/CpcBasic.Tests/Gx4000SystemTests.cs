@@ -590,6 +590,87 @@ public class Gx4000SystemTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Les_traits_en_biais_rapides_donnent_les_memes_points_que_PLOT(byte mode)
+    {
+        // D203 : DRAW en biais comparé à PLOT des points du même calcul (celui du chemin normal), sur un décor au
+        // hasard, avec ou sans fenêtre graphique, en écriture normale ou XOR, bouts dans l'écran ou dehors
+        var random = new Random(70 + mode);
+        int unit = mode == 0 ? 4 : mode == 1 ? 2 : 1;
+        int width = 640 / unit;
+        MiniZ80 fast = Cpu(), slow = Cpu();
+        Mode(fast, mode);
+        Mode(slow, mode);
+        var entries = new Dictionary<int, int>();
+        void Go(MiniZ80 cpu, int firmware, int x = 0, int y = 0, byte a = 0)
+        {
+            if (!entries.TryGetValue(firmware, out int entry))
+                entries[firmware] = entry = EntryOf(firmware, cpu);
+            cpu.D = (byte)(x >> 8);
+            cpu.E = (byte)x;
+            cpu.H = (byte)(y >> 8);
+            cpu.L = (byte)y;
+            cpu.A = a;
+            cpu.Call(entry);
+        }
+        for (int round = 0; round < 60; round++)
+        {
+            byte pen = (byte)random.Next(1, 16);
+            byte access = (byte)(round % 2);
+            var decor = new byte[0x4000];
+            random.NextBytes(decor);
+            bool window = round % 4 == 0;
+            foreach (MiniZ80 c in new[] { fast, slow })
+            {
+                decor.CopyTo(c.Memory, 0xC000);
+                Go(c, 0xBBCF, window ? 100 : 0, window ? 500 : 639);
+                Go(c, 0xBBD2, window ? 350 : 399, window ? 50 : 0);
+                Go(c, 0xBBDE, a: pen);
+                Go(c, 0xBC59, a: access);
+            }
+            bool outside = round % 5 == 0;                    // un bout hors de l'écran : le chemin normal
+            int x1 = random.Next(outside ? -30 : 0, width), y1 = random.Next(0, 200);
+            int x2 = random.Next(0, width + (outside ? 30 : 0)), y2 = random.Next(0, 200);
+
+            Go(fast, 0xBBC0, x1 * unit, y1 * 2);
+            Go(fast, 0xBBF6, x2 * unit, y2 * 2);
+            int dx = Math.Abs(x2 - x1), dy = Math.Abs(y2 - y1), sx = x2 < x1 ? -1 : 1, sy = y2 < y1 ? -1 : 1;
+            int x = x1, y = y1;
+            bool alongY = dy > dx;
+            int count = alongY ? dy : dx, error = count >> 1;
+            while (true)
+            {
+                Go(slow, 0xBBEA, x * unit, y * 2);
+                if (count-- == 0)
+                    break;
+                if (alongY)
+                {
+                    y += sy;
+                    error += dx - dy;
+                    if (error >= 0)
+                        x += sx;
+                    else
+                        error += dy;
+                }
+                else
+                {
+                    x += sx;
+                    error += dy - dx;
+                    if (error >= 0)
+                        y += sy;
+                    else
+                        error += dx;
+                }
+            }
+
+            Assert.True(slow.Memory[0xC000..].SequenceEqual(fast.Memory[0xC000..]),
+                        $"MODE {mode}, essai {round} : de ({x1}, {y1}) à ({x2}, {y2}) en points");
+        }
+    }
+
     [Fact]
     public void TEST_rend_l_encre_du_point()
     {
@@ -769,7 +850,7 @@ public class Gx4000SystemTests
     [Theory]
     [InlineData(3000, 0)]
     [InlineData(20000, 1)]
-    [InlineData(40000, 2)]
+    [InlineData(30000, 2)]               // (40 000 : 3 pages depuis que le système dépasse 9 Ko, D203)
     public void Le_programme_est_range_sur_assez_de_pages(int length, int otherPages)
     {
         (int first, IReadOnlyList<int> others) = Gx4000System.SplitProgram(length);

@@ -4052,6 +4052,8 @@ public static class Gx4000System
                 LD A,H
                 OR L
                 JP Z,GLV
+                CALL GLDIN              ; en biais, les deux bouts dans la fenêtre : chemin rapide (D203)
+                JP NC,GLD
         GLN:    LD HL,(&BE54)
                 LD DE,(&BE52)
                 OR A
@@ -4321,6 +4323,145 @@ public static class Gx4000System
                 ADC A,&C0
                 LD H,A
                 JR GLV6
+        ; ---- traits en biais rapides (D203) : les deux bouts dans la fenêtre graphique, donc tout le trait ; mêmes
+        ; points que le chemin normal (même calcul), mais l'adresse et le masque suivent d'un point au suivant ----
+        GLDIN:  LD DE,(&BE4A)           ; NC si les deux bouts sont dans la fenêtre
+                LD HL,(&BE4C)
+                CALL DEDANS
+                RET C
+                LD DE,(&BE4E)
+                LD HL,(&BE50)
+                JP DEDANS
+        GLD:    LD A,(&BE61)            ; masque du point de droite d'un octet, en &BE70
+                LD B,A
+                LD A,(&BE62)
+        GLD0:   SRL A
+                DJNZ GLD0
+                LD (&BE70),A
+                LD DE,(&BE4A)
+                LD HL,(&BE4C)
+                CALL DOTPOS             ; HL = adresse, C = masque du premier point
+                LD A,(&BE5C)
+                LD B,A
+                PUSH HL
+                LD HL,(&BE54)
+                LD DE,(&BE52)
+                OR A
+                SBC HL,DE
+                POP HL
+                JR C,GDX
+                JR Z,GDX
+                LD DE,(&BE54)           ; surtout vertical
+                LD (&BE5A),DE
+                SRL D
+                RR E
+                LD (&BE58),DE
+        GDY1:   PUSH BC
+                PUSH HL
+                CALL &BDE8
+                POP HL
+                POP BC
+                PUSH HL
+                LD HL,(&BE5A)
+                LD A,H
+                OR L
+                DEC HL
+                LD (&BE5A),HL
+                POP HL
+                RET Z
+                CALL GSTY
+                PUSH HL
+                LD HL,(&BE58)
+                LD DE,(&BE52)
+                ADD HL,DE
+                LD DE,(&BE54)
+                OR A
+                SBC HL,DE
+                JR NC,GDY2
+                ADD HL,DE
+                LD (&BE58),HL
+                POP HL
+                JR GDY1
+        GDY2:   LD (&BE58),HL
+                POP HL
+                CALL GSTX
+                JR GDY1
+        GDX:    LD DE,(&BE52)           ; surtout horizontal
+                LD (&BE5A),DE
+                SRL D
+                RR E
+                LD (&BE58),DE
+        GDX1:   PUSH BC
+                PUSH HL
+                CALL &BDE8
+                POP HL
+                POP BC
+                PUSH HL
+                LD HL,(&BE5A)
+                LD A,H
+                OR L
+                DEC HL
+                LD (&BE5A),HL
+                POP HL
+                RET Z
+                CALL GSTX
+                PUSH HL
+                LD HL,(&BE58)
+                LD DE,(&BE54)
+                ADD HL,DE
+                LD DE,(&BE52)
+                OR A
+                SBC HL,DE
+                JR NC,GDX2
+                ADD HL,DE
+                LD (&BE58),HL
+                POP HL
+                JR GDX1
+        GDX2:   LD (&BE58),HL
+                POP HL
+                CALL GSTY
+                JR GDX1
+        ; un point à droite (&BE56 = 1) ou à gauche : masque C et adresse HL
+        GSTX:   LD A,(&BE56)
+                DEC A
+                JR NZ,GSXL
+                LD A,(&BE70)
+                CP C
+                JR Z,GSXR
+                SRL C
+                RET
+        GSXR:   LD A,(&BE62)
+                LD C,A
+                INC HL
+                RET
+        GSXL:   LD A,(&BE62)
+                CP C
+                JR Z,GSXL2
+                SLA C
+                RET
+        GSXL2:  LD A,(&BE70)
+                LD C,A
+                DEC HL
+                RET
+        ; un point vers le haut (&BE57 = 1 : ligne de l'écran d'avant) ou vers le bas
+        GSTY:   LD A,(&BE57)
+                DEC A
+                JR NZ,GSYD
+                LD A,H
+                SUB 8
+                LD H,A
+                CP &C0
+                RET NC
+                LD DE,&3FB0
+                ADD HL,DE
+                RET
+        GSYD:   LD A,H
+                ADD A,8
+                LD H,A
+                RET NC
+                LD DE,&C050
+                ADD HL,DE
+                RET
         ; NZ si SCR WRITE (&BDE8) est détourné (MASK, D110)
         DETOUR: PUSH HL
                 PUSH DE
