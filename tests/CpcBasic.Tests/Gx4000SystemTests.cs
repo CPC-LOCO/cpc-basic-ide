@@ -1226,4 +1226,59 @@ public class Gx4000SystemTests
         Assert.Contains("nombres entiers", result.Problems[0]);
         Assert.NotNull(Compiler.CompileToCartridge("10 A=TIME\\300:PRINT A").Cartridge);
     }
+
+    // ---------- sons retenus et rendez-vous (D195) ----------
+
+    [Fact]
+    public void Un_son_retenu_attend_RELEASE()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Queue(cpu, 1 | 0x40, 478, 10);                        // canal A, retenu
+
+        Hundredth(cpu, 2);
+        Assert.Equal(0x40 | 3, Check(cpu, 1));                // il attend : retenu, 3 places libres
+        cpu.A = 1;
+        cpu.Call(EntryOf(0xBCB3, cpu));                       // RELEASE 1
+        Hundredth(cpu);
+        Assert.Equal(0x80 | 4, Check(cpu, 1));
+    }
+
+    [Fact]
+    public void Un_rendez_vous_attend_l_autre_canal_puis_ils_partent_ensemble()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Queue(cpu, 1 | 0x20, 478, 10);                        // canal A, rendez-vous avec C
+
+        Hundredth(cpu, 2);
+        Assert.Equal(0x20 | 3, Check(cpu, 1));                // il attend C
+        Queue(cpu, 4 | 0x08, 239, 10);                        // canal C, rendez-vous avec A
+        Hundredth(cpu);
+        Assert.Equal(0x80 | 4, Check(cpu, 1));
+        Assert.Equal(0x80 | 4, Check(cpu, 4));
+    }
+
+    [Fact]
+    public void Un_son_sur_deux_canaux_attend_que_les_deux_soient_libres()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Queue(cpu, 2, 300, 20);                               // le canal B est occupé
+        Hundredth(cpu);
+        Queue(cpu, 1 | 2, 478, 10);                           // A et B ensemble
+
+        Hundredth(cpu);
+        Assert.Equal(0x10 | 3, Check(cpu, 1));                // A attend B
+        Hundredth(cpu, 20);                                   // B a fini son premier son : les deux partent
+        Assert.Equal(0x80 | 4, Check(cpu, 1));
+        Assert.Equal(0x80 | 4, Check(cpu, 2));
+    }
+
+    [Fact]
+    public void Un_programme_avec_RELEASE_et_des_rendez_vous_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 SOUND 1+16,478,50:SOUND 2+8,239,50:SOUND 4+64,319,50:RELEASE 4:PRINT SQ(4)");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
 }

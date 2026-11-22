@@ -25,8 +25,8 @@ namespace CpcBasic.Core.Output;
 /// et PAINT, FRAME (D188). Fenêtres de texte (D190) : WINDOW, les 8 flux #0 à #7 (chacun son curseur, sa fenêtre,
 /// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Encres clignotantes (D191) :
 /// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Son (D192) : SOUND sur les
-/// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; enveloppes ENV et ENT (D193) ; pas encore les
-/// rendez-vous, RELEASE. Temps et événements (D194) : TIME, AFTER, EVERY, ON SQ GOSUB, ON BREAK. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
+/// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; enveloppes ENV et ENT (D193) ; sons retenus,
+/// RELEASE et rendez-vous entre canaux (D195). Temps et événements (D194) : TIME, AFTER, EVERY, ON SQ GOSUB, ON BREAK. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -1129,15 +1129,11 @@ public static class Gx4000System
                 JR SONTS
         SONFIN: XOR A                   ; le son est fini
                 LD (IX+2),A
-                LD A,(IX+0)
-                OR A
-                JR NZ,SONT3             ; le suivant commence
                 CALL SILENCE
-                JR SONTS
         SONT2:  LD A,(IX+0)
                 OR A
                 JR Z,SONTS
-        SONT3:  CALL DEBUT
+                CALL LANCE              ; le suivant commence, s'il n'attend rien (D195)
         SONTS:  CALL SQEV
                 LD DE,62
                 ADD IX,DE
@@ -1648,6 +1644,17 @@ public static class Gx4000System
                 JR NC,SQA2
                 PUSH AF
                 CALL CANAL
+                CALL MASQUE             ; un son sur plusieurs canaux : rendez-vous avec les autres (D195)
+                LD A,B
+                CPL
+                LD B,A
+                LD A,(&B8BE)
+                AND 7
+                AND B
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                LD (&B8C1),A
                 LD A,(IX+1)
                 ADD A,(IX+0)
                 AND 3
@@ -1667,6 +1674,12 @@ public static class Gx4000System
                 LD HL,(&B8BF)
                 LD BC,9
                 LDIR
+                EX DE,HL
+                LD DE,&FFF7             ; -9 : l'état du son copié
+                ADD HL,DE
+                LD A,(&B8C1)
+                OR (HL)
+                LD (HL),A
                 POP DE
                 INC (IX+0)
                 POP AF
@@ -1699,14 +1712,174 @@ public static class Gx4000System
                 CALL CANAL
                 LD A,4
                 SUB (IX+0)
+                LD C,A
                 BIT 0,(IX+2)
+                JR Z,SCH3
+                SET 7,C                 ; un son en cours
+                JR SCH2
+        SCH3:   LD A,(IX+0)
+                OR A
                 JR Z,SCH2
-                OR &80
-        SCH2:   EI
+                CALL TETE               ; le premier son attend : rendez-vous (bits 3 à 5), retenu (bit 6)
+                LD A,(HL)
+                AND &78
+                OR C
+                LD C,A
+        SCH2:   LD A,C
+                EI
                 POP IX
                 POP HL
                 POP DE
                 POP BC
+                RET
+        ; ---------- sons retenus et rendez-vous (D195) ----------
+        ; État d'un son : bits 3 à 5 = rendez-vous avec les canaux A, B, C ; bit 6 = retenu jusqu'à RELEASE.
+        ; Le canal IX essaie de commencer le premier son de sa file ; ceux du rendez-vous commencent avec lui
+        LANCE:  CALL PRET
+                RET NZ                  ; il attend encore
+                CALL TETE
+                LD A,(HL)
+                AND &38
+                PUSH AF
+                CALL DEBUT
+                POP AF
+                RET Z                   ; pas de rendez-vous
+                LD C,A
+                LD A,(&B8BC)
+                PUSH AF
+                PUSH IX
+                LD D,0
+        LANC1:  BIT 3,C
+                JR Z,LANC2
+                PUSH BC
+                PUSH DE
+                LD A,D
+                CALL CANAL
+                CALL DEBUT
+                POP DE
+                POP BC
+        LANC2:  SRL C
+                INC D
+                LD A,D
+                CP 3
+                JR NZ,LANC1
+                POP IX
+                POP AF
+                LD (&B8BC),A
+                RET
+        ; le premier son de la file du canal IX peut-il commencer ? Z : oui (pas retenu, et chaque canal du rendez-vous
+        ; attend lui aussi ce canal, sans son en cours)
+        PRET:   CALL TETE
+                LD A,(HL)
+                BIT 6,A
+                RET NZ
+                AND &38
+                RET Z
+                LD C,A
+                CALL MASQUE
+                SLA B
+                SLA B
+                SLA B                   ; le bit de rendez-vous de ce canal
+                LD D,0
+        PRET1:  BIT 3,C
+                JR Z,PRET2
+                PUSH BC
+                PUSH DE
+                LD A,D
+                CALL TETEP
+                POP DE
+                POP BC
+                RET NZ
+                LD A,(HL)
+                BIT 6,A
+                RET NZ
+                AND B
+                JR Z,PRETNON
+        PRET2:  SRL C
+                INC D
+                LD A,D
+                CP 3
+                JR NZ,PRET1
+                XOR A
+                RET
+        PRETNON: OR 1
+                RET
+        ; HL = premier son de la file du canal IX (DE et A changés)
+        TETE:   PUSH IX
+                POP HL
+                LD A,(IX+1)
+                LD E,A
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                ADD A,E
+                ADD A,26
+                LD E,A
+                LD D,0
+                ADD HL,DE
+                RET
+        ; A = canal -> HL = premier son de sa file (Z) ; Z faux s'il n'a rien en attente ou un son en cours
+        TETEP:  LD HL,&B800
+                LD DE,62
+                OR A
+                JR Z,TETP2
+        TETP1:  ADD HL,DE
+                DEC A
+                JR NZ,TETP1
+        TETP2:  LD A,(HL)
+                OR A
+                JR Z,TETPNON
+                INC HL
+                LD E,(HL)
+                INC HL
+                LD A,(HL)
+                OR A
+                JR NZ,TETPNON
+                DEC HL
+                DEC HL
+                LD A,E
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                ADD A,E
+                ADD A,26
+                LD E,A
+                LD D,0
+                ADD HL,DE
+                XOR A
+                RET
+        TETPNON: OR 1
+                RET
+        ; SOUND RELEASE (&BCB3) : A = canaux (1, 2, 4...) : leur premier son retenu peut commencer
+        SREL:   PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                PUSH IX
+                DI
+                LD C,A
+                XOR A
+        SREL1:  RR C
+                JR NC,SREL2
+                PUSH AF
+                PUSH BC
+                CALL CANAL
+                LD A,(IX+0)
+                OR A
+                JR Z,SREL3
+                CALL TETE
+                RES 6,(HL)
+        SREL3:  POP BC
+                POP AF
+        SREL2:  INC A
+                CP 3
+                JR NZ,SREL1
+                EI
+                POP IX
+                POP HL
+                POP DE
+                POP BC
+                POP AF
                 RET
         ; ---------- temps et événements (D194) ----------
         ; &BE36 à &BE39 : temps en 1/300 de seconde (TIME) ; &BED8 à &BEDF : les 4 minuteries (adresses de leurs blocs,
@@ -2502,6 +2675,7 @@ public static class Gx4000System
                 DEFW &BCE9,AJTICK
                 DEFW &BCEC,DELTICK
                 DEFW &BCB0,ARMEV
+                DEFW &BCB3,SREL
                 DEFW &BC3E,SETCLI
                 DEFW &BC41,GETCLI
                 DEFW &BBB7,ECHANGE

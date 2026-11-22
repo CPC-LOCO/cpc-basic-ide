@@ -1490,6 +1490,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 2007 réussis (5 nouveaux : TIME, une minuterie (départ, recharge, retrait), ON SQ une seule fois, un programme compilé avec TIME, AFTER, EVERY, ON SQ, le refus des nombres à virgule).
 - **Essai (22 nov. 2026) :** `examples\gxtemps.bas` (Ctrl+F5) dans AMSpiriT : un point par seconde, AFTER au bout de 5 secondes, « TIME A MESURE : 5 SECONDES », mélodie qui tourne en boucle (« ok ça marche »). À la fin d'un programme, une touche relance la cartouche (comme le CPC qui redémarre).
 
+## D195 : cartouche GX4000, le son, étape 3 : sons retenus, RELEASE, rendez-vous (22 nov. 2026)
+- **Fait :** `Gx4000System.cs` : le premier son d'une file ne commence que s'il n'est pas retenu (bit 6 de l'état) et si chaque canal de son rendez-vous (bits 3 à 5) l'attend aussi, sans son en cours ; ils commencent alors ensemble. SOUND RELEASE (&BCB3) libère le son retenu des canaux donnés. Un son donné pour plusieurs canaux (SOUND 3,...) reçoit dans chaque file un rendez-vous avec les autres, comme le CPC : il attend que tous ses canaux soient libres. SOUND CHECK rend aussi les bits 3 à 6 du son qui attend. À la fin d'un son, le canal se tait avant que le suivant commence.
+- Le message de Ctrl+F5 devient : « Pas encore sur la console : les nombres à virgule. »
+- **Tests :** 2011 réussis (4 nouveaux : son retenu et RELEASE, rendez-vous entre A et C, son sur deux canaux qui attend, un programme compilé).
+- **Essai (22 nov. 2026) :** `examples\gxrdv.bas` (Ctrl+F5) dans AMSpiriT : son retenu jusqu'au tir 1, 3 notes puis accord avec C, B seul puis A et B ensemble (« oui ça correspond »).
+- **Le son de la console est complet.** Reste pour la console : les nombres à virgule.
+
 ---
 
 ## Notes de fin de session (modèle)
