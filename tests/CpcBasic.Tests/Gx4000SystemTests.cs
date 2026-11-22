@@ -54,7 +54,7 @@ public class Gx4000SystemTests
         byte[] code = Gx4000System.SystemCode(0);
 
         Assert.Equal(0xF3, code[0]);                            // DI
-        Assert.Equal(new byte[] { 0xFB, 0xC9 }, code[0x38..0x3A]);   // interruption : EI, RET
+        Assert.Equal(0xC3, code[0x38]);                         // interruption : un saut (encres clignotantes, D191)
         foreach (int entry in new[] { Gx4000System.TxtOutputEntry, Gx4000System.SetModeEntry,
                                       Gx4000System.SetCursorEntry, Gx4000System.GetCursorEntry })
             Assert.Equal(0xC3, code[entry]);
@@ -895,6 +895,57 @@ public class Gx4000SystemTests
     {
         CartridgeResult result = Compiler.CompileToCartridge(
             "10 MODE 1:WINDOW #1,10,30,5,15:PAPER #1,2:CLS #1:PRINT #1,\"BONJOUR\":WINDOW SWAP 0,1:PRINT \"FIN\"");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
+
+    // ---------- encres clignotantes (D191) ----------
+
+    [Fact]
+    public void INK_note_les_deux_couleurs()
+    {
+        MiniZ80 cpu = Cpu();
+        cpu.C = 24;
+        Firmware(cpu, 0xBC32, 1, 6);                          // INK 1,6,24
+        Firmware(cpu, 0xBC35, 1);
+
+        Assert.Equal(6, cpu.B);
+        Assert.Equal(24, cpu.C);
+    }
+
+    [Fact]
+    public void L_interruption_change_de_couleurs_au_rythme_de_SPEED_INK()
+    {
+        MiniZ80 cpu = Cpu();
+        cpu.H = 2;                                            // SPEED INK 2,3
+        cpu.L = 3;
+        cpu.Call(EntryOf(0xBC3E, cpu));
+        cpu.Memory[0xBE33] = 1;                               // la prochaine image change les couleurs
+        cpu.Ports[0xF500] = 0x01;                             // interruption pendant le retour du balayage
+
+        cpu.Call(0x0038);
+        Assert.Equal(1, cpu.Memory[0xBE32]);                  // secondes couleurs...
+        Assert.Equal(3, cpu.Memory[0xBE33]);                  // ... pour 3 images
+
+        cpu.Ports[0xF500] = 0x00;                             // les 5 autres interruptions de l'image : rien
+        for (int i = 0; i < 5; i++)
+            cpu.Call(0x0038);
+        Assert.Equal(3, cpu.Memory[0xBE33]);
+
+        cpu.Ports[0xF500] = 0x01;
+        for (int i = 0; i < 3; i++)
+            cpu.Call(0x0038);
+        Assert.Equal(0, cpu.Memory[0xBE32]);                  // retour aux premières couleurs, pour 2 images
+        Assert.Equal(2, cpu.Memory[0xBE33]);
+        cpu.Call(EntryOf(0xBC41, cpu));
+        Assert.Equal(0x0203, cpu.H << 8 | cpu.L);
+    }
+
+    [Fact]
+    public void Un_programme_avec_des_encres_clignotantes_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 MODE 1:INK 1,6,24:BORDER 2,26:SPEED INK 5,20:PRINT \"A\"");
 
         Assert.Empty(result.Diagnostics);
         Assert.NotNull(result.Cartridge);

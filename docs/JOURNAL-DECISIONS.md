@@ -1458,6 +1458,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\gxfenetre.bas` (Ctrl+F5) dans AMSpiriT : deux fenêtres colorées qui défilent chacune de leur côté, puis WINDOW SWAP 0,1 et CLS dans la fenêtre seule.
 - Restent pour la console : les encres clignotantes, le son.
 
+## D191 : cartouche GX4000, les encres clignotantes (22 nov. 2026)
+- **Fait :** `Gx4000System.cs` : l'interruption (&0038, 300 fois par seconde) n'est plus ignorée ; les interruptions sont permises avant de lancer le programme. SCR SET INK (&BC32) et SCR SET BORDER (&BC38) notent les deux couleurs (&BE20 et &BEC0 + stylo, la bordure étant le stylo 16) ; SCR GET INK rend les deux ; SCR SET FLASHING (&BC3E, SPEED INK) et SCR GET FLASHING (&BC41) ; 10,10 au démarrage, comme le CPC. Le choix du stylo et sa couleur sont envoyés au Gate Array sans interruption entre les deux.
+- **Constat (essai de l'utilisateur) :** en changeant les couleurs sur n'importe quelle interruption, la bordure changeait parfois au milieu de l'image (un léger décalage). **Corrigé :** seule l'interruption du retour du balayage compte (PPI, port B, bit 0, lu en &F500), comme le firmware du CPC : les couleurs changent quand rien n'est affiché.
+- Le message de Ctrl+F5 devient : « Pas encore sur la console : le son. »
+- **Tests :** 1993 réussis (3 nouveaux : INK à deux couleurs, le rythme de SPEED INK image par image, un programme compilé ; le test des entrées fixes attend maintenant un saut en &0038).
+- **Essai (22 nov. 2026) :** `examples\gxclign.bas` (Ctrl+F5) dans AMSpiriT : textes rouge et jaune, bleu et blanc qui clignotent, puis SPEED INK 3,3 et la bordure qui clignote, sans décalage.
+- Reste pour la console : le son.
+
 ---
 
 ## Notes de fin de session (modèle)

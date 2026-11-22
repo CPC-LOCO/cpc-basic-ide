@@ -20,11 +20,12 @@ namespace CpcBasic.Core.Output;
 /// Les routines tournent depuis la cartouche (ROM basse, toujours branchée) ; leurs variables sont en &amp;BE00.
 /// Manettes (D183) : JOY, et les touches de la table (tir 1 = espace, tir 2 = ENTRÉE, directions = flèches, plus les
 /// touches d'INKEY placées par le compilateur). INPUT et LINE INPUT : saisie à la manette (D184). Couleurs :
-/// PEN, PAPER, INK (sans clignotement), BORDER (D186). Dessin (D187) : PLOT, DRAW, MOVE (et relatifs), TEST, CLG,
+/// PEN, PAPER, INK, BORDER (D186). Dessin (D187) : PLOT, DRAW, MOVE (et relatifs), TEST, CLG,
 /// ORIGIN, GRAPHICS PEN / PAPER ; modes d'écriture XOR, AND, OR, fenêtres graphiques, SCR WRITE (&BDE8) pour MASK, FILL
 /// et PAINT, FRAME (D188). Fenêtres de texte (D190) : WINDOW, les 8 flux #0 à #7 (chacun son curseur, sa fenêtre,
-/// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Pas encore faits : le son,
-/// les encres clignotantes ; les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
+/// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Encres clignotantes (D191) :
+/// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Pas encore fait : le son ;
+/// les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -62,10 +63,9 @@ public static class Gx4000System
                 DI
                 JP DEPART
                 DEFS 52                 ; jusqu'à &0038
-        ; &0038 : interruption (si le programme en autorise) : rien à faire
-                EI
-                RET
-                DEFS 6                  ; jusqu'à &0040
+        ; &0038 : interruption, 300 fois par seconde : encres clignotantes (D191)
+                JP INTER
+                DEFS 5                  ; jusqu'à &0040
         ; &0040 : entrées fixes (tests)
                 JP TXTOUT
                 JP SETMODE
@@ -114,10 +114,15 @@ public static class Gx4000System
                 LD BC,255
                 LD (HL),0
                 LDIR
+                LD A,10                 ; encres clignotantes (D191) : SPEED INK 10,10 comme le CPC
+                LD (&BE33),A
+                LD (&BE34),A
+                LD (&BE35),A
         ; Encres du CPC au démarrage (D186) : les 16 stylos, puis la bordure (stylo 16)
                 LD HL,ENCRES
                 LD E,0
         ENCRE:  LD B,(HL)
+                LD C,B                  ; pas de seconde couleur
                 INC HL
                 PUSH HL
                 CALL ENCRE1
@@ -170,7 +175,8 @@ public static class Gx4000System
                 JR NZ,COPP
                 LD BC,&7F89             ; ROM haute coupée de nouveau
                 OUT (C),C
-        COPFIN: CALL &4000
+        COPFIN: EI                      ; interruptions permises : les encres clignotent (D191)
+                CALL &4000
         FIN:    JR FIN                  ; programme fini : la console reste sur son écran
 
         ; ---------- SCR SET MODE (&BC0E) : A = mode ; écran effacé, curseur en haut à gauche ----------
@@ -925,7 +931,7 @@ public static class Gx4000System
                 ADD HL,DE
                 LD A,(HL)
                 RET
-        ; SCR SET INK (&BC32) : A = stylo, B = couleur (la seconde couleur, clignotante, n'est pas encore faite)
+        ; SCR SET INK (&BC32) : A = stylo, B = couleur, C = seconde couleur (clignotante si elle est différente)
         SETINK: PUSH BC
                 PUSH DE
                 PUSH HL
@@ -936,7 +942,7 @@ public static class Gx4000System
                 POP DE
                 POP BC
                 RET
-        ; SCR SET BORDER (&BC38) : B = couleur
+        ; SCR SET BORDER (&BC38) : B = couleur, C = seconde couleur
         SETBORD: PUSH BC
                 PUSH DE
                 PUSH HL
@@ -957,16 +963,31 @@ public static class Gx4000System
                 LD HL,&BE20
                 ADD HL,DE
                 LD B,(HL)
-                LD C,B
+                LD HL,&BEC0
+                ADD HL,DE
+                LD C,(HL)
                 POP DE
                 POP HL
                 RET
-        ; E = stylo (16 = bordure), B = couleur du CPC (0 à 26) : notée, puis envoyée au Gate Array
+        ; E = stylo (16 = bordure), B = couleur, C = seconde couleur (0 à 26) : notées (&BE20 et &BEC0 + stylo), puis
+        ; la couleur du moment envoyée au Gate Array, sans interruption entre le choix du stylo et la couleur (D191)
         ENCRE1: LD D,0
                 LD HL,&BE20
                 ADD HL,DE
                 LD (HL),B
-                LD A,B
+                LD HL,&BEC0
+                ADD HL,DE
+                LD (HL),C
+                LD A,(&BE32)
+                OR A
+                JR Z,ENCR2
+                LD B,C                  ; c'est le moment de la seconde couleur
+        ENCR2:  DI
+                CALL ENVOI
+                EI
+                RET
+        ; E = stylo, B = couleur du CPC : envoyée au Gate Array
+        ENVOI:  LD A,B
                 CP 27
                 JR C,ENC2
                 LD A,26
@@ -978,6 +999,65 @@ public static class Gx4000System
                 LD BC,&7F00
                 OUT (C),E
                 OUT (C),A
+                RET
+        ; ---------- encres clignotantes (D191) ----------
+        ; &BE32 : 0 = premières couleurs, 1 = secondes ; &BE33 : images restantes ; &BE34, &BE35 : durées de SPEED INK.
+        ; Seule l'interruption du retour du balayage (début d'une image, 50 fois par seconde) compte : les couleurs
+        ; changent pendant que rien n'est affiché, sans décalage dans l'image (essai de l'utilisateur)
+        INTER:  PUSH AF
+                PUSH BC
+                LD BC,&F500             ; PPI, port B : bit 0 = retour du balayage
+                IN A,(C)
+                RRA
+                JR NC,INTFIN
+                PUSH HL
+                LD HL,&BE33
+                DEC (HL)
+                JR NZ,INTF2
+                PUSH DE
+                CALL CLIGNE
+                POP DE
+        INTF2:  POP HL
+        INTFIN: POP BC
+                POP AF
+                EI
+                RET
+        ; l'autre couleur de chaque encre, pour la durée qui lui correspond
+        CLIGNE: LD A,(&BE32)
+                XOR 1
+                LD (&BE32),A
+                LD HL,&BE34
+                JR Z,CLIG1
+                INC HL
+        CLIG1:  LD A,(HL)
+                LD (&BE33),A
+                LD HL,&BE20
+                LD A,(&BE32)
+                OR A
+                JR Z,CLIG2
+                LD HL,&BEC0
+        CLIG2:  LD E,0
+        CLIG3:  LD B,(HL)
+                INC HL
+                PUSH HL
+                CALL ENVOI
+                POP HL
+                INC E
+                LD A,E
+                CP 17
+                JR NZ,CLIG3
+                RET
+        ; SCR SET FLASHING (&BC3E) : H = durée de la première couleur, L = de la seconde (en 1/50 de seconde) ;
+        ; SCR GET FLASHING (&BC41)
+        SETCLI: LD A,H
+                LD (&BE34),A
+                LD A,L
+                LD (&BE35),A
+                RET
+        GETCLI: LD A,(&BE34)
+                LD H,A
+                LD A,(&BE35)
+                LD L,A
                 RET
         ; ---------- dessin (D187) : routines GRA et SCR du CPC ----------
         ; &BE40 origine X, &BE42 origine Y (repère de l'écran, 0 à 639 et 0 à 399), &BE44 / &BE46 curseur graphique
@@ -1540,6 +1620,8 @@ public static class Gx4000System
                 DEFW &BB18,ATTCLE
                 DEFW &BBB4,FLUX
                 DEFW &BB66,FENON
+                DEFW &BC3E,SETCLI
+                DEFW &BC41,GETCLI
                 DEFW &BBB7,ECHANGE
                 DEFW &BC0E,SETMODE
                 DEFW &BB90,SETPEN
