@@ -1509,6 +1509,7 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Contenu :** sortie cassette (D178 à D180) et cartouche GX4000 complète (D181 à D196) ; notes dans `docs\RELEASE-NOTES-0.7.0.md`.
 - **Fichiers :** version 0.7.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (cassette au point 4, nouveau point 8 « Cartouche GX4000 », points suivants renumérotés) ; README et TESTEURS.md.
 - **Paquet construit (22 nov. 2026) :** `release\CpcBasic-0.7.0-win-x64.zip`, SHA256 bdeafc67d16851f3c1d7b3f6de40917fa9050a2616ecd9e2e7a955b694566fbf (calculée ici, la fenêtre de build-release.cmd s'étant fermée avant la copie) ; contenu vérifié : 336 fichiers, 100 exemples dont les 14 `gx*.bas`, bibliothèques GRAPHIQUE et TEXTE, pas de ROM, pas de .dsk, .cdt ni .cpr.
+- **Publiée (22 nov. 2026) :** pre-release GitHub v0.7.0, « CPC BASIC IDE 0.7.0 (version de test) », commit fed48dd.
 
 ---
 
