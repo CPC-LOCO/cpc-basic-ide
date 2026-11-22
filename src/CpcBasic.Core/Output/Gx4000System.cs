@@ -26,7 +26,7 @@ namespace CpcBasic.Core.Output;
 /// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Encres clignotantes (D191) :
 /// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Son (D192) : SOUND sur les
 /// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; enveloppes ENV et ENT (D193) ; pas encore les
-/// rendez-vous, RELEASE. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
+/// rendez-vous, RELEASE. Temps et événements (D194) : TIME, AFTER, EVERY, ON SQ GOSUB, ON BREAK. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
 {
@@ -800,6 +800,9 @@ public static class Gx4000System
                 OUT (C),C
                 LD BC,&F600
                 OUT (C),C
+                LD A,(&BE31)            ; appelée pendant l'interruption (événement) : on n'y touche pas (D194 ; pas
+                OR A                    ; LD A,I, faussé quand une interruption arrive juste à ce moment)
+                RET NZ
                 EI
                 RET
         ; ---------- KM GET JOYSTICK (&BB24) : H = manette 1, L = manette 2, A = manette 1 ----------
@@ -1018,7 +1021,20 @@ public static class Gx4000System
                 PUSH BC
                 PUSH DE
                 PUSH HL
-                LD HL,&B8BA
+                LD A,1
+                LD (&BE31),A            ; dans l'interruption (LIRE n'y remet pas les interruptions, D194)
+                LD HL,&BE36             ; TIME (D194) : 300 fois par seconde, sur 32 bits
+                INC (HL)
+                JR NZ,INT0
+                INC HL
+                INC (HL)
+                JR NZ,INT0
+                INC HL
+                INC (HL)
+                JR NZ,INT0
+                INC HL
+                INC (HL)
+        INT0:   LD HL,&B8BA
                 DEC (HL)
                 JR NZ,INT1
                 LD (HL),3
@@ -1030,7 +1046,10 @@ public static class Gx4000System
                 LD HL,&BE33
                 DEC (HL)
                 CALL Z,CLIGNE
-        INTFIN: POP HL
+                CALL TICKS              ; minuteries (AFTER, EVERY), 50 fois par seconde (D194)
+        INTFIN: XOR A
+                LD (&BE31),A
+                POP HL
                 POP DE
                 POP BC
                 POP AF
@@ -1119,7 +1138,8 @@ public static class Gx4000System
                 OR A
                 JR Z,SONTS
         SONT3:  CALL DEBUT
-        SONTS:  LD DE,62
+        SONTS:  CALL SQEV
+                LD DE,62
                 ADD IX,DE
                 LD HL,&B8BC
                 INC (HL)
@@ -1528,6 +1548,11 @@ public static class Gx4000System
                 LD BC,253
                 LD (HL),0
                 LDIR
+                LD HL,&BED2             ; événements des canaux (ON SQ) oubliés (D194)
+                LD B,6
+        SRES1:  LD (HL),0
+                INC HL
+                DJNZ SRES1
                 LD A,3
                 LD (&B8BA),A
                 LD A,&3F
@@ -1683,6 +1708,228 @@ public static class Gx4000System
                 POP DE
                 POP BC
                 RET
+        ; ---------- temps et événements (D194) ----------
+        ; &BE36 à &BE39 : temps en 1/300 de seconde (TIME) ; &BED8 à &BEDF : les 4 minuteries (adresses de leurs blocs,
+        ; 0 : libre) ; &BED2 à &BED7 : événement attendu par chaque canal du son (ON SQ, 0 : aucun). Loin de la pile
+        ; (&BFF0 et en dessous), qui pourrait les écraser.
+        ; Bloc de minuterie (KL ADD TICKER) : +0 et +1 libres, +2 et +3 compte, +4 et +5 recharge, puis son bloc
+        ; d'événement (KL INIT EVENT) : +0 et +1 libres, +2 compte, +3 classe, +4 et +5 routine, +6 ROM.
+        ; KL TIME PLEASE (&BD0D) : DEHL = temps
+        TEMPS:  DI
+                LD HL,(&BE36)
+                LD DE,(&BE38)
+                EI
+                RET
+        ; KL TIME SET (&BD10) : DEHL = temps
+        TEMPSM: DI
+                LD (&BE36),HL
+                LD (&BE38),DE
+                EI
+                RET
+        ; KL INIT EVENT (&BCEF) : HL = bloc, B = classe, C = ROM, DE = routine -> HL = bloc + 7
+        INITEV: PUSH AF
+                INC HL
+                INC HL
+                XOR A
+                LD (HL),A
+                INC HL
+                LD (HL),B
+                INC HL
+                LD (HL),E
+                INC HL
+                LD (HL),D
+                INC HL
+                LD (HL),C
+                INC HL
+                POP AF
+                RET
+        ; KL ADD TICKER (&BCE9) : HL = bloc de minuterie, DE = compte, BC = recharge (en 1/50 de seconde)
+        AJTICK: PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                DI
+                PUSH HL
+                INC HL
+                INC HL
+                LD (HL),E
+                INC HL
+                LD (HL),D
+                INC HL
+                LD (HL),C
+                INC HL
+                LD (HL),B
+                POP DE
+                CALL CHERCHE
+                JR Z,AJTFIN             ; déjà dans la liste
+                PUSH DE
+                LD DE,0
+                CALL CHERCHE            ; une place libre
+                POP DE
+                JR NZ,AJTFIN            ; plus de place
+                LD (HL),E
+                INC HL
+                LD (HL),D
+        AJTFIN: EI
+                POP HL
+                POP DE
+                POP BC
+                POP AF
+                RET
+        ; KL DEL TICKER (&BCEC) : HL = bloc de minuterie, retiré de la liste
+        DELTICK: PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                DI
+                EX DE,HL
+                CALL CHERCHE
+                JR NZ,DELTF
+                XOR A
+                LD (HL),A
+                INC HL
+                LD (HL),A
+        DELTF:  EI
+                POP HL
+                POP DE
+                POP BC
+                POP AF
+                RET
+        ; DE = bloc -> HL = sa place dans la liste des minuteries (Z) ; sinon Z faux
+        CHERCHE: LD HL,&BED8
+                LD B,4
+        CHER1:  LD A,(HL)
+                INC HL
+                CP E
+                JR NZ,CHER2
+                LD A,(HL)
+                CP D
+                JR NZ,CHER2
+                DEC HL
+                RET
+        CHER2:  INC HL
+                DJNZ CHER1
+                OR 1
+                RET
+        ; 1/50 de seconde (interruption) : chaque minuterie compte ; à 0, elle est rechargée et son événement arrive
+        TICKS:  LD HL,&BED8
+                LD B,4
+        TICK1:  PUSH BC
+                PUSH HL
+                LD E,(HL)
+                INC HL
+                LD D,(HL)
+                LD A,D
+                OR E
+                JR Z,TICK2
+                EX DE,HL
+                INC HL
+                INC HL                  ; compte
+                LD E,(HL)
+                INC HL
+                LD D,(HL)
+                DEC DE
+                LD A,D
+                OR E
+                JR NZ,TICK3
+                INC HL                  ; à 0 : la recharge
+                LD E,(HL)
+                INC HL
+                LD D,(HL)
+                DEC HL
+                DEC HL
+                LD (HL),D
+                DEC HL
+                LD (HL),E
+                INC HL
+                INC HL
+                INC HL
+                INC HL                  ; le bloc d'événement
+                CALL KICK
+                JR TICK2
+        TICK3:  LD (HL),D
+                DEC HL
+                LD (HL),E
+        TICK2:  POP HL
+                INC HL
+                INC HL
+                POP BC
+                DJNZ TICK1
+                RET
+        ; HL = bloc d'événement : sa routine est appelée tout de suite (événements express) ; tous les registres gardés
+        KICK:   PUSH AF
+                PUSH BC
+                PUSH DE
+                PUSH HL
+                PUSH IX
+                PUSH IY
+                INC HL
+                INC HL
+                INC HL
+                INC HL
+                LD E,(HL)
+                INC HL
+                LD D,(HL)
+                LD HL,KICKR
+                PUSH HL
+                EX DE,HL
+                JP (HL)
+        KICKR:  POP IY
+                POP IX
+                POP HL
+                POP DE
+                POP BC
+                POP AF
+                RET
+        ; SOUND ARM EVENT (&BCB0) : A = canal (1, 2 ou 4), HL = bloc d'événement : il arrivera une fois, dès qu'une
+        ; place sera libre dans la file du canal
+        ARMEV:  PUSH AF
+                PUSH DE
+                PUSH HL
+                LD E,0
+                BIT 0,A
+                JR NZ,ARM1
+                INC E
+                BIT 1,A
+                JR NZ,ARM1
+                INC E
+        ARM1:   SLA E
+                LD D,0
+                PUSH HL
+                LD HL,&BED2
+                ADD HL,DE
+                POP DE
+                DI
+                LD (HL),E
+                INC HL
+                LD (HL),D
+                EI
+                POP HL
+                POP DE
+                POP AF
+                RET
+        ; le canal IX (&B8BC) a une place libre : son événement attendu arrive
+        SQEV:   LD A,(IX+0)
+                CP 4
+                RET NC
+                LD A,(&B8BC)
+                ADD A,A
+                LD E,A
+                LD D,0
+                LD HL,&BED2
+                ADD HL,DE
+                LD E,(HL)
+                INC HL
+                LD D,(HL)
+                LD A,D
+                OR E
+                RET Z
+                XOR A
+                LD (HL),A
+                DEC HL
+                LD (HL),A
+                EX DE,HL
+                JP KICK
         ; ---------- dessin (D187) : routines GRA et SCR du CPC ----------
         ; &BE40 origine X, &BE42 origine Y (repère de l'écran, 0 à 639 et 0 à 399), &BE44 / &BE46 curseur graphique
         ; (repère de l'utilisateur), &BE48 stylo graphique, &BE49 papier graphique ; &BE4A à &BE5E : calculs des traits.
@@ -2249,6 +2496,12 @@ public static class Gx4000System
                 DEFW &BCAD,SCHECK
                 DEFW &BCBC,SENVA
                 DEFW &BCBF,SENVT
+                DEFW &BD0D,TEMPS
+                DEFW &BD10,TEMPSM
+                DEFW &BCEF,INITEV
+                DEFW &BCE9,AJTICK
+                DEFW &BCEC,DELTICK
+                DEFW &BCB0,ARMEV
                 DEFW &BC3E,SETCLI
                 DEFW &BC41,GETCLI
                 DEFW &BBB7,ECHANGE

@@ -1119,4 +1119,111 @@ public class Gx4000SystemTests
         Assert.Empty(result.Diagnostics);
         Assert.NotNull(result.Cartridge);
     }
+
+    // ---------- temps et événements (D194) ----------
+
+    // une petite routine en &9400 qui met 1 en &9500 : la marque qu'un événement est arrivé
+    static void EventRoutine(MiniZ80 cpu, int routine = 0x9400)
+    {
+        new byte[] { 0x3E, 0x01, 0x32, 0x00, 0x95, 0xC9 }.CopyTo(cpu.Memory, routine);   // LD A,1 : LD (&9500),A : RET
+        cpu.Memory[0x9500] = 0;
+    }
+
+    static void InitEvent(MiniZ80 cpu, int block, int routine)
+    {
+        cpu.H = (byte)(block >> 8);
+        cpu.L = (byte)block;
+        cpu.D = (byte)(routine >> 8);
+        cpu.E = (byte)routine;
+        cpu.B = 0xC1;
+        cpu.C = 0;
+        cpu.Call(EntryOf(0xBCEF, cpu));
+    }
+
+    [Fact]
+    public void TIME_compte_les_interruptions()
+    {
+        MiniZ80 cpu = Cpu();
+        for (int i = 0; i < 6; i++)
+            cpu.Call(0x0038);
+        cpu.Call(EntryOf(0xBD0D, cpu));                       // KL TIME PLEASE
+
+        Assert.Equal(6, cpu.H << 8 | cpu.L);
+        Assert.Equal(0, cpu.D << 8 | cpu.E);
+    }
+
+    [Fact]
+    public void Une_minuterie_appelle_son_evenement_puis_recommence()
+    {
+        MiniZ80 cpu = Cpu();
+        EventRoutine(cpu);
+        InitEvent(cpu, 0x9316, 0x9400);                       // le bloc d'événement suit le bloc de minuterie
+        cpu.H = 0x93;
+        cpu.L = 0x10;
+        cpu.D = 0;
+        cpu.E = 3;                                            // dans 3 cinquantièmes...
+        cpu.B = 0;
+        cpu.C = 5;                                            // ... puis tous les 5
+        cpu.Call(EntryOf(0xBCE9, cpu));                       // KL ADD TICKER
+
+        cpu.Call(0x0038);                                     // chaque interruption de ce test est un début d'image
+        cpu.Call(0x0038);
+        Assert.Equal(0, cpu.Memory[0x9500]);
+        cpu.Call(0x0038);
+        Assert.Equal(1, cpu.Memory[0x9500]);
+
+        cpu.Memory[0x9500] = 0;
+        for (int i = 0; i < 4; i++)
+            cpu.Call(0x0038);
+        Assert.Equal(0, cpu.Memory[0x9500]);
+        cpu.Call(0x0038);
+        Assert.Equal(1, cpu.Memory[0x9500]);
+
+        cpu.H = 0x93;
+        cpu.L = 0x10;
+        cpu.Call(EntryOf(0xBCEC, cpu));                       // KL DEL TICKER
+        cpu.Memory[0x9500] = 0;
+        for (int i = 0; i < 10; i++)
+            cpu.Call(0x0038);
+        Assert.Equal(0, cpu.Memory[0x9500]);
+    }
+
+    [Fact]
+    public void ON_SQ_arrive_une_fois_quand_la_file_a_une_place()
+    {
+        MiniZ80 cpu = SoundCpu();
+        EventRoutine(cpu);
+        InitEvent(cpu, 0x9300, 0x9400);
+        cpu.A = 1;
+        cpu.H = 0x93;
+        cpu.L = 0x00;
+        cpu.Call(EntryOf(0xBCB0, cpu));                       // SOUND ARM EVENT, canal A
+
+        Hundredth(cpu);
+        Assert.Equal(1, cpu.Memory[0x9500]);                  // la file est vide : tout de suite
+        cpu.Memory[0x9500] = 0;
+        Hundredth(cpu, 3);
+        Assert.Equal(0, cpu.Memory[0x9500]);                  // une seule fois
+    }
+
+    [Fact]
+    public void Un_programme_avec_TIME_AFTER_EVERY_et_ON_SQ_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 T=TIME:EVERY 50 GOSUB 100:AFTER 200,1 GOSUB 200:ON SQ(1) GOSUB 300\n20 GOTO 20\n100 PRINT \"E\":RETURN\n200 PRINT \"A\":RETURN\n300 SOUND 1,200,10:RETURN");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
+
+    [Fact]
+    public void Les_nombres_a_virgule_sont_refuses_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 PRINT (TIME-5)/300+0.5");
+
+        Assert.Null(result.Cartridge);
+        Assert.Single(result.Problems);
+        Assert.Contains("nombres entiers", result.Problems[0]);
+        Assert.NotNull(Compiler.CompileToCartridge("10 A=TIME\\300:PRINT A").Cartridge);
+    }
 }

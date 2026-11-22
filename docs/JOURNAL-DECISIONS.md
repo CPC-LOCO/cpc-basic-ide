@@ -1480,6 +1480,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\gxenv.bas` (Ctrl+F5) dans AMSpiriT : son qui monte puis descend, sirène, tir laser, cloche 3 fois ; « les sons représentent bien ce que tu décris ».
 - Restent pour le son : RELEASE, les sons retenus, les rendez-vous entre canaux, ON SQ GOSUB (étape 3).
 
+## D194 : cartouche GX4000, TIME, AFTER, EVERY, ON SQ ; les nombres à virgule refusés (22 nov. 2026) (avant RELEASE et les rendez-vous : plus utiles dans les jeux)
+- **Fait :** `Gx4000System.cs` : un petit noyau d'événements. KL TIME PLEASE (&BD0D) et KL TIME SET (&BD10) : temps sur 32 bits, +1 à chaque interruption (300 fois par seconde). KL INIT EVENT (&BCEF), KL ADD TICKER (&BCE9), KL DEL TICKER (&BCEC) : 4 minuteries, qui comptent à chaque début d'image (50 fois par seconde) et appellent leur événement (express, tout de suite). SOUND ARM EVENT (&BCB0) : l'événement arrive une fois, quand la file du canal a une place (ON SQ GOSUB) ; SOUND RESET l'oublie. Variables en &BE36 (temps), &BED2 (événements des canaux), &BED8 (minuteries).
+- **Constats et corrections :**
+  - Dans les tests, la pile (&BF00) écrasait ces variables, d'abord rangées en &BEE0 : déplacées loin de la pile (8 tests en échec).
+  - Essai de l'utilisateur : « Overflow » et un son continu. Les nombres à virgule passent par les routines de calcul de la ROM du CPC, absente de la console (ici le +0.5 de la ligne 70) ; ces appels ont abîmé la mémoire. **Ctrl+F5 refuse maintenant un programme qui en a besoin**, avec un message clair (garder des nombres entiers ; rappel : notre compilateur garde entières les variables sans signe et la division / entre entiers, D174).
+  - Essai suivant : la mélodie s'arrêtait sur la 3e note, qui ne finissait plus. LIRE (manettes) gardait l'état des interruptions avec LD A,I, que le Z80 fausse quand une interruption arrive à ce moment-là : les interruptions restaient coupées. Remplacé par une marque en &BE31, posée par l'interruption elle-même.
+- Le message de Ctrl+F5 devient : « Pas encore sur la console : RELEASE et les rendez-vous entre canaux. »
+- **Tests :** 2007 réussis (5 nouveaux : TIME, une minuterie (départ, recharge, retrait), ON SQ une seule fois, un programme compilé avec TIME, AFTER, EVERY, ON SQ, le refus des nombres à virgule).
+- **Essai (22 nov. 2026) :** `examples\gxtemps.bas` (Ctrl+F5) dans AMSpiriT : un point par seconde, AFTER au bout de 5 secondes, « TIME A MESURE : 5 SECONDES », mélodie qui tourne en boucle (« ok ça marche »). À la fin d'un programme, une touche relance la cartouche (comme le CPC qui redémarre).
+
 ---
 
 ## Notes de fin de session (modèle)
