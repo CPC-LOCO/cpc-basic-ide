@@ -1505,6 +1505,11 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\gxreel.bas` (Ctrl+F5) dans AMSpiriT : toutes les valeurs justes au dernier chiffre (3.75, 3.375, 3.33333333, 1.41421356, 3.14159265, 0.841470985, 0.540302306, 2.71828183, 2.30258509, 1024, 0.5, 45), cercle dessiné. Rappel : sans signe, une variable est entière dans notre compilateur ; l'exemple utilise A!, B!, T!.
 - **La console fait maintenant tout ce que fait le CPC** dans nos programmes (sauf la disquette et la cassette, qu'elle n'a pas).
 
+## D197 : préparation de la version 0.7.0 (22 nov. 2026) (choix de l'utilisateur : publier une fois les nombres finis)
+- **Contenu :** sortie cassette (D178 à D180) et cartouche GX4000 complète (D181 à D196) ; notes dans `docs\RELEASE-NOTES-0.7.0.md`.
+- **Fichiers :** version 0.7.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (cassette au point 4, nouveau point 8 « Cartouche GX4000 », points suivants renumérotés) ; README et TESTEURS.md.
+- **Paquet construit (22 nov. 2026) :** `release\CpcBasic-0.7.0-win-x64.zip`, SHA256 bdeafc67d16851f3c1d7b3f6de40917fa9050a2616ecd9e2e7a955b694566fbf (calculée ici, la fenêtre de build-release.cmd s'étant fermée avant la copie) ; contenu vérifié : 336 fichiers, 100 exemples dont les 14 `gx*.bas`, bibliothèques GRAPHIQUE et TEXTE, pas de ROM, pas de .dsk, .cdt ni .cpr.
+
 ---
 
 ## Notes de fin de session (modèle)

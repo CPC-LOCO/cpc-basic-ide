@@ -1,10 +1,10 @@
 # CPC BASIC IDE (nom provisoire)
 
-Un éditeur coloré et un compilateur pour un **BASIC évolué**, dérivé du Locomotive BASIC, qui crée des jeux pour **Amstrad CPC** : disquettes `.dsk` aujourd'hui, cassettes et cartouches GX4000 à venir.
+Un éditeur coloré et un compilateur pour un **BASIC évolué**, dérivé du Locomotive BASIC, qui crée des jeux pour **Amstrad CPC** : disquettes `.dsk`, cassettes `.cdt` et cartouches GX4000 `.cpr`.
 
 Pensé pour celles et ceux qui veulent créer des jeux sans bien connaître la programmation, avec une bible d'instructions illustrée d'exemples réels.
 
-> **État du projet : version de test 0.6.0.** Presque tout le Locomotive BASIC est compilé en langage machine (l'inventaire est terminé : voir [`docs/COMPATIBILITE-LOCOMOTIVE.md`](docs/COMPATIBILITE-LOCOMOTIVE.md)), avec des commandes en plus (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG, STAR, TYPO...), des **bibliothèques de commandes** que chacun peut écrire en assembleur Z80 (Maj+F4) et un **assembleur seul** (menu Assembleur). Sorties cassette et cartouche GX4000, sprites : pas encore. Téléchargement : onglet **Releases** ; aide pour les testeurs : [`.github/TESTEURS.md`](.github/TESTEURS.md).
+> **État du projet : version de test 0.7.0.** Presque tout le Locomotive BASIC est compilé en langage machine (l'inventaire est terminé : voir [`docs/COMPATIBILITE-LOCOMOTIVE.md`](docs/COMPATIBILITE-LOCOMOTIVE.md)), avec des commandes en plus (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG, STAR, TYPO...), des **bibliothèques de commandes** que chacun peut écrire en assembleur Z80 (Maj+F4), un **assembleur seul** (menu Assembleur), la **cassette** et la **cartouche GX4000** (Ctrl+F5, notre propre petit système, aucune ROM d'Amstrad). Sprites : pas encore. Téléchargement : onglet **Releases** ; aide pour les testeurs : [`.github/TESTEURS.md`](.github/TESTEURS.md).
 
 ## Ce qui fonctionne aujourd'hui
 
@@ -87,6 +87,6 @@ Le code de l'éditeur et du compilateur est publié sous licence **GNU GPL v3**.
 
 ## In English
 
-An editor and compiler for an enhanced BASIC dialect derived from Locomotive BASIC, aimed at making Amstrad CPC games: `.dsk` disk images today, tape files and GX4000 cartridges planned. Designed for beginners, with a documented command reference.
+An editor and compiler for an enhanced BASIC dialect derived from Locomotive BASIC, aimed at making Amstrad CPC games: `.dsk` disk images, `.cdt` tape files and GX4000 `.cpr` cartridges. Designed for beginners, with a documented command reference.
 
-**Status:** test version 0.6.0. Almost all of Locomotive BASIC is compiled to machine code (the inventory is complete), plus extra commands (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG, STAR, TYPO...), user command libraries written in Z80 assembly (Shift+F4) and a standalone Z80 assembler (Assembleur menu). Compiled programs run on the 464, 664 and 6128. Tape and GX4000 cartridge output, sprites: not yet. The documentation is currently in French. Feedback from the CPC community is very welcome through the repository's Issues tab. Licensed under GPL v3; the games you create belong to you (runtime library exception, see `docs/RUNTIME-EXCEPTION.md`).
+**Status:** test version 0.7.0. Almost all of Locomotive BASIC is compiled to machine code (the inventory is complete), plus extra commands (CIRCLE, ELLIPSE, ISIN, ICOS, BOX, PAINT, DEBUG, STAR, TYPO...), user command libraries written in Z80 assembly (Shift+F4) and a standalone Z80 assembler (Assembleur menu). Compiled programs run on the 464, 664 and 6128, from disk or tape, and on the GX4000 console as cartridges (Ctrl+F5, our own small system, no Amstrad ROM). Sprites: not yet. The documentation is currently in French. Feedback from the CPC community is very welcome through the repository's Issues tab. Licensed under GPL v3; the games you create belong to you (runtime library exception, see `docs/RUNTIME-EXCEPTION.md`).

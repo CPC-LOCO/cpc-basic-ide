@@ -18,6 +18,7 @@ Presque tout le Locomotive BASIC est maintenant compilé : textes, nombres à vi
 - **Vos anciens programmes BASIC :** c'est l'essai le plus utile. Collez-les dans l'éditeur, compilez avec F5 et comparez avec le vrai BASIC. Le réglage F11 met aussi le texte sur la disquette (`LOAD"NOM.TXT"` puis `RUN`) pour comparer dans le même émulateur.
 - **Les exemples** du dossier `examples` : ouvrez-les, compilez-les avec F5, lancez le `.dsk` dans un émulateur (WinAPE, Caprice32, SugarBox...) avec `RUN"NOM"`.
 - **Le nouvel éditeur :** barre de menus (touche Alt), panneau des messages, et les commandes du CPC tapées sans numéro puis Entrée : `NEW`, `AUTO`, `EDIT 20`, `RENUM`, `DELETE 10-50`, `LIST`, et un numéro seul pour effacer une ligne. F1 affiche les raccourcis.
+- **Les nouveautés de la 0.7.0 :** la cassette (F5 crée aussi `NOM.cdt` : `RUN""` sur un 464, `|TAPE` puis `RUN""` sur un 664 ou un 6128) et la cartouche GX4000 (Ctrl+F5, `NOM.cpr`, à essayer dans AMSpiriT ou SugarBox : manettes, saisie à la manette, couleurs, dessin, son, nombres à virgule ; exemples `gx*.bas`). Sur un vrai CPC ou une vraie GX4000, vos essais nous aideraient beaucoup.
 - **Les nouveautés de la 0.6.0 :** l'assembleur seul (menu Assembleur, programme `.asm` vers `.dsk`), le lancement sans chargeur BASIC (menu Options, `RUN"NOM"` lance directement `NOM.BIN`), la zone de mémoire réservée au programmeur (&0400 à &2FFF), la bibliothèque TEXTE avec `TYPO` et `DEFTYPO` (petits caractères, exemple `typo.bas`), la place de chaque commande dans la fenêtre des bibliothèques.
 - **Les nouveautés de la 0.5.0 :** les bibliothèques de commandes (Maj+F4 : liste, nouvelle commande, éditeur d'assembleur, modifier, effacer ; Fichier, Préparer un dossier à distribuer) et la commande `STAR` (exemple `etoiles.bas`).
 - **Les nouveautés de la 0.4.0 :** `CIRCLE` et `ELLIPSE` (exemples `cercles.bas`, `ovales.bas`, `moniteur.bas`), `ISIN` et `ICOS` (exemple `angles.bas`), `DEBUG` avec le réglage F2 (exemples `debug.bas`, `debugvar.bas`, `debugtab.bas`), la liste des variables (F4), les lettres accentuées (F7).
@@ -27,7 +28,7 @@ Presque tout le Locomotive BASIC est maintenant compilé : textes, nombres à vi
 
 **Astuce : le réglage F8 et les boucles rapides.** Avec le réglage F8 (menu Options, « Variables sans signe : à virgule »), toutes les variables sans signe deviennent des nombres à virgule, comme sur le vrai CPC. Une boucle d'attente comme `FOR K = 1 TO 30000` devient alors beaucoup plus lente, car les calculs à virgule passent par la ROM. Pour la garder rapide, écrivez le compteur avec le signe des entiers : `FOR K% = 1 TO 30000`.
 
-Pas encore là, inutile de les tester : sortie cassette, cartouche GX4000, sprites.
+Pas encore là, inutile de les tester : les sprites.
 
 Si l'éditeur affiche « Problème interne », joignez à votre message le fichier `%APPDATA%\CpcBasicIde\erreurs.txt`.
 

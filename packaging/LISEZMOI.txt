@@ -1,9 +1,10 @@
-CPC BASIC IDE - version 0.6.0 (version de test)
+CPC BASIC IDE - version 0.7.0 (version de test)
 ================================================
 
 Un editeur colore et un compilateur pour un BASIC evolue, derive du
 Locomotive BASIC, qui cree des programmes en langage machine pour
-Amstrad CPC (464, 664 et 6128).
+Amstrad CPC (464, 664 et 6128), en disquette, en cassette, et en cartouche
+pour la console GX4000 (nouveau dans la 0.7.0).
 
 C'est une version de test, publiee pour recueillir des retours. Presque
 tout le Locomotive BASIC est maintenant compile : textes, nombres a virgule,
@@ -25,8 +26,8 @@ Barre de menus (touche Alt, puis la lettre soulignee) :
             distribuer, Quitter
   Edition   Annuler (Ctrl+Z), Retablir (Ctrl+Y), Couper, Copier, Coller,
             Tout selectionner
-  Compiler  Compiler le programme (F5), Verifier sans enregistrer
-            (Maj+F5), Liste des variables (F4)
+  Compiler  Compiler le programme (F5), Cartouche GX4000 (Ctrl+F5),
+            Verifier sans enregistrer (Maj+F5), Liste des variables (F4)
   Bibliotheques  Liste des bibliotheques (Maj+F4)
   Assembleur  Nouveau programme assembleur, Ouvrir un programme
             assembleur (voir le point 7)
@@ -72,6 +73,9 @@ Ctrl+Z annule RENUM, DELETE et LIST.
   le lecteur A, puis tapez : RUN"NOM"   (NOM = le nom du fichier .bas)
 - Avant de recompiler le meme programme, fermez l'emulateur : il garde le
   fichier .dsk ouvert et l'editeur ne peut plus l'ecrire.
+- Cassette (nouveau dans la 0.7.0) : F5 cree aussi NOM.cdt. Sur un 464,
+  tapez RUN"" ; sur un 664 ou un 6128, |TAPE (uTAPE sur un CPC francais,
+  avec le u accent grave) puis RUN"". RUN "nom" marche aussi sur cassette.
 
 Le nom du fichier .bas donne le nom sur la disquette : 8 caracteres au plus.
 Un programme compile marche sur tous les CPC : il reconnait la machine au
@@ -118,7 +122,7 @@ IF ... END IF sur plusieurs lignes, BOX, PAINT, CLAMP, RANDOM, HIBYTE,
 LOBYTE, CIRCLE, ELLIPSE, ISIN, ICOS, DEBUG, et STAR (bibliotheque
 GRAPHIQUE, voir le point 6).
 
-Pas encore disponible : sortie cassette, cartouche GX4000, sprites.
+Pas encore disponible : sprites.
 
 
 6. BIBLIOTHEQUES DE COMMANDES (depuis la 0.5.0)
@@ -172,7 +176,31 @@ assembleur Z80, comme dans WinAPE, enregistre en .asm.
   RET (le CPC redemarrerait), comme un jeu qui tourne sans fin.
 
 
-8. ANTIVIRUS ET WINDOWS
+8. CARTOUCHE GX4000 (nouveau dans la 0.7.0)
+-------------------------------------------
+Ctrl+F5 (menu Compiler) cree NOM.cpr a cote du programme : une cartouche
+pour la console GX4000 (et les CPC 464+ et 6128+). Aucune ROM d'Amstrad
+n'y est copiee : la cartouche contient notre propre petit systeme.
+- Essai : un emulateur qui accepte les cartouches (AMSpiriT, SugarBox),
+  machine GX4000 ou CPC Plus ; choisissez le fichier .cpr, puis
+  reinitialisez.
+- Manettes : tir 1 = ESPACE (INKEY(47)), tir 2 = ENTREE, directions =
+  fleches ; JOY(0) et JOY(1). Une autre touche d'INKEY recoit un bouton
+  libre : le message de Ctrl+F5 dit lequel.
+- INPUT et LINE INPUT : saisie a la manette. Haut et bas changent de
+  lettre, le tir 2 change de groupe (majuscules, minuscules, chiffres,
+  signes), droite ecrit la lettre, gauche efface, le tir 1 valide.
+- Comme sur le CPC : texte, fenetres (WINDOW), couleurs et encres
+  clignotantes, dessin, son (enveloppes, rendez-vous, RELEASE), TIME,
+  AFTER, EVERY, ON SQ, nombres a virgule (plus lents que sur le CPC).
+- La console n'a ni disquette ni cassette : pas de fichiers, pas de
+  RUN "nom". Un programme peut faire 30 464 octets au plus.
+- A la fin du programme, une touche relance la cartouche.
+- Les jeux en cartouche ne peuvent rien sauvegarder : pour reprendre un
+  niveau, donnez un code a noter, a taper ensuite avec INPUT.
+
+
+9. ANTIVIRUS ET WINDOWS
 -----------------------
 Le programme n'est pas signe numeriquement. Windows (SmartScreen) ou votre
 antivirus peut le signaler, ou bloquer son demarrage : c'est une fausse
@@ -183,13 +211,13 @@ alerte frequente pour les programmes libres non signes.
 - Si votre antivirus bloque le programme, ajoutez le dossier aux exclusions.
 
 
-9. VOS RETOURS
---------------
+10. VOS RETOURS
+---------------
 Tests, problemes, idees, conseils sur le Z80 et le firmware du CPC :
 ouvrez un ticket dans l'onglet "Issues" du depot GitHub.
 
 
-10. LICENCE
+11. LICENCE
 -----------
 Logiciel libre, licence GNU GPL v3 (voir le fichier LICENSE).
 Les routines Z80 copiees dans vos programmes sont sous GPL v3 avec une
