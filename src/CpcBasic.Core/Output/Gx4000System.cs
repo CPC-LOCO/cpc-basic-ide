@@ -25,7 +25,7 @@ namespace CpcBasic.Core.Output;
 /// et PAINT, FRAME (D188). Fenêtres de texte (D190) : WINDOW, les 8 flux #0 à #7 (chacun son curseur, sa fenêtre,
 /// son stylo et son papier), WINDOW SWAP, CLS dans la fenêtre, défilement de la fenêtre. Encres clignotantes (D191) :
 /// INK et BORDER à deux couleurs, SPEED INK, par l'interruption (300 fois par seconde). Son (D192) : SOUND sur les
-/// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; pas encore les enveloppes (ENV, ENT), les
+/// trois canaux, avec le bruit et une file de 4 sons par canal, SQ ; enveloppes ENV et ENT (D193) ; pas encore les
 /// rendez-vous, RELEASE. Les autres adresses de la ROM (de &B900 à &BDFF) répondent par un simple retour.
 /// </summary>
 public static class Gx4000System
@@ -1018,7 +1018,7 @@ public static class Gx4000System
                 PUSH BC
                 PUSH DE
                 PUSH HL
-                LD HL,&B890
+                LD HL,&B8BA
                 DEC (HL)
                 JR NZ,INT1
                 LD (HL),3
@@ -1073,20 +1073,29 @@ public static class Gx4000System
                 LD A,(&BE35)
                 LD L,A
                 RET
-        ; ---------- son (D192) ----------
-        ; Pour chaque canal (A, B, C : 0, 1, 2), 48 octets en &B800 + canal x 48 : +0 sons en attente (0 à 4), +1 place
-        ; du prochain son dans la file, +2 son en cours (1) ou non (0), +3 et +4 centièmes de seconde restants ; +9 : la
-        ; file, 4 blocs de 9 octets comme ceux de SOUND QUEUE (état, enveloppes de volume et de ton, période (2), bruit,
-        ; volume, durée (2)). &B890 : interruptions avant le prochain centième ; &B891 : registre 7 de la puce (bits à 1 :
-        ; ton puis bruit coupés) ; &B892 : canal traité ; &B893, &B894 : calculs ; &B895 : adresse du bloc reçu.
+        ; ---------- son (D192, enveloppes D193) ----------
+        ; Pour chaque canal (A, B, C : 0, 1, 2), 62 octets en &B800 + canal x 62 (IX) :
+        ;  +0 sons en attente (0 à 4), +1 place du prochain dans la file, +2 son en cours (1) ou non (0),
+        ;  +3 et +4 centièmes restants (durée donnée), +5 volume, +6 enveloppe de volume, +7 répétitions de l'enveloppe
+        ;  de volume qui restent (0 : la durée est donnée par SOUND), +8 et +9 section suivante de l'enveloppe de volume
+        ;  (0 : pas d'enveloppe en cours), +10 sections restantes, +11 pas restants, +12 centièmes avant le pas
+        ;  suivant, +13 taille du pas, +14 pause entre deux pas ; +15 enveloppe de ton (+ &80 : elle se répète),
+        ;  +16 à +22 : la même chose pour l'enveloppe de ton ; +24 et +25 période du ton ; +26 : la file, 4 blocs de
+        ;  9 octets comme ceux de SOUND QUEUE (état, enveloppes de volume et de ton, période (2), bruit, volume, durée (2)).
+        ; &B8BA : interruptions avant le prochain centième ; &B8BB : registre 7 de la puce (bits à 1 : ton puis bruit
+        ; coupés) ; &B8BC : canal traité ; &B8BD, &B8BE : calculs ; &B8BF : adresse du bloc reçu ; &B8C2 : adresses des
+        ; 15 enveloppes de volume (ENV), &B8E0 : des 15 enveloppes de ton (ENT), notées par le programme.
         ; Un centième de seconde (interruption) : chaque canal avance
         SONTIC: PUSH IX
                 LD IX,&B800
                 XOR A
-                LD (&B892),A
+                LD (&B8BC),A
         SONT1:  LD A,(IX+2)
                 OR A
                 JR Z,SONT2              ; pas de son en cours
+                LD A,(IX+7)
+                OR A
+                JR NZ,SONT0             ; la durée est celle de l'enveloppe
                 LD L,(IX+3)
                 LD H,(IX+4)
                 DEC HL
@@ -1094,8 +1103,13 @@ public static class Gx4000System
                 LD (IX+4),H
                 LD A,H
                 OR L
-                JR NZ,SONTS             ; le son continue
-                LD (IX+2),A             ; le son est fini
+                JR Z,SONFIN
+        SONT0:  CALL AMPTIC
+                JR C,SONFIN
+                CALL TONTIC
+                JR SONTS
+        SONFIN: XOR A                   ; le son est fini
+                LD (IX+2),A
                 LD A,(IX+0)
                 OR A
                 JR NZ,SONT3             ; le suivant commence
@@ -1105,23 +1119,23 @@ public static class Gx4000System
                 OR A
                 JR Z,SONTS
         SONT3:  CALL DEBUT
-        SONTS:  LD DE,48
+        SONTS:  LD DE,62
                 ADD IX,DE
-                LD HL,&B892
+                LD HL,&B8BC
                 INC (HL)
                 LD A,(HL)
                 CP 3
                 JR NZ,SONT1
                 POP IX
                 RET
-        ; le canal IX (&B892) commence le premier son de sa file
+        ; le canal IX (&B8BC) commence le premier son de sa file
         DEBUT:  LD A,(IX+1)
                 LD E,A
                 ADD A,A
                 ADD A,A
                 ADD A,A
                 ADD A,E
-                ADD A,9
+                ADD A,26
                 LD E,A
                 LD D,0
                 PUSH IX
@@ -1133,24 +1147,27 @@ public static class Gx4000System
                 LD (IX+1),A
                 DEC (IX+0)
                 INC HL
+                LD A,(HL)
+                LD (IX+6),A             ; enveloppe de volume
                 INC HL
+                LD A,(HL)
+                AND 15
+                LD (IX+15),A            ; enveloppe de ton
                 INC HL
-                LD E,(HL)               ; période du ton
+                LD E,(HL)               ; période du ton (0 : pas de ton)
                 INC HL
                 LD D,(HL)
                 INC HL
+                LD (IX+24),E
+                LD (IX+25),D
                 PUSH HL
                 LD A,D
                 OR E
-                LD (&B893),A            ; 0 : pas de ton
-                LD A,(&B892)
-                ADD A,A                 ; registres 0 et 1 (canal A), 2 et 3, 4 et 5
-                CALL PSGW
-                INC A
-                LD E,D
-                CALL PSGW
+                LD (&B8BD),A
+                EX DE,HL
+                CALL TONECR
                 CALL MASQUE
-                LD A,(&B893)
+                LD A,(&B8BD)
                 OR A
                 CALL MIXB               ; ton coupé ou non
                 POP HL
@@ -1169,7 +1186,7 @@ public static class Gx4000System
                 SLA B
                 POP AF
                 CALL MIXB               ; bruit coupé ou non
-                LD A,(&B891)
+                LD A,(&B8BB)
                 LD E,A
                 LD A,7
                 CALL PSGW
@@ -1177,26 +1194,268 @@ public static class Gx4000System
                 LD A,(HL)               ; volume
                 INC HL
                 AND 15
-                LD E,A
-                LD A,(&B892)
-                ADD A,8
-                CALL PSGW
-                LD E,(HL)               ; durée en centièmes ; 0 ou moins : 2 secondes (pas encore d'enveloppes)
+                LD (IX+5),A
+                LD E,(HL)               ; durée en centièmes
                 INC HL
                 LD D,(HL)
-                BIT 7,D
-                JR NZ,DEBUT3
                 LD A,D
                 OR E
-                JR NZ,DEBUT4
-        DEBUT3: LD DE,200
-        DEBUT4: LD (IX+3),E
+                JR Z,DEBZ
+                BIT 7,D
+                JR NZ,DEBNEG
+                XOR A                   ; durée donnée par SOUND
+                JR DEBFIX
+        DEBZ:   INC A                   ; 0 : la durée de l'enveloppe de volume, une fois
+                JR DEBENV
+        DEBNEG: XOR A                   ; négative : l'enveloppe de volume, répétée
+                SUB E
+                JR NZ,DEBENV
+                DEC A
+        DEBENV: LD DE,0
+        DEBFIX: LD (IX+7),A
+                LD (IX+3),E
                 LD (IX+4),D
                 LD (IX+2),1
+                LD A,(IX+6)
+                CALL AMPDEB
+                CALL AMPPAS             ; premier pas : le volume est écrit
+                CALL TONDEB
+                LD A,(IX+16)
+                OR (IX+17)
+                RET Z
+                JP TONPAS
+        ; enveloppe de volume du canal IX : un centième ; retenue : le son est fini (durée donnée par l'enveloppe)
+        AMPTIC: LD A,(IX+8)
+                OR (IX+9)
+                RET Z
+                DEC (IX+12)
+                RET NZ
+        AMPPAS: LD A,(IX+11)
+                OR A
+                JR NZ,AMPP2
+                CALL AMPSEC
+                JR NC,AMPP2
+                LD A,(IX+7)             ; l'enveloppe est finie
+                OR A
+                JR Z,AMPTEN             ; durée donnée par SOUND : le volume reste
+                DEC (IX+7)
+                SCF
+                RET Z                   ; plus de répétition : le son est fini
+                LD A,(IX+6)
+                CALL AMPDEB             ; l'enveloppe recommence
+                JR AMPPAS
+        AMPTEN: LD (IX+8),A
+                LD (IX+9),A
                 RET
-        ; le canal &B892 se tait : volume 0, ton et bruit coupés
+        AMPP2:  DEC (IX+11)
+                LD A,(IX+14)
+                LD (IX+12),A            ; pause avant le pas suivant (0 : 256)
+                LD A,(IX+5)
+                CP 16
+                JR Z,AMPP3              ; enveloppe de la puce : le volume n'est pas touché
+                ADD A,(IX+13)
+                AND 15
+                LD (IX+5),A
+                LD E,A
+                LD A,(&B8BC)
+                ADD A,8
+                CALL PSGW
+        AMPP3:  OR A
+                RET
+        ; section suivante de l'enveloppe de volume ; retenue : il n'y en a plus
+        AMPSEC: LD A,(IX+10)
+                OR A
+                SCF
+                RET Z
+                DEC (IX+10)
+                LD L,(IX+8)
+                LD H,(IX+9)
+                LD A,(HL)               ; nombre de pas, ou &80 + forme (enveloppe de la puce)
+                INC HL
+                BIT 7,A
+                JR NZ,AMPHARD
+                LD (IX+11),A
+                LD A,(HL)
+                INC HL
+                LD (IX+13),A            ; taille du pas
+                LD A,(HL)
+                INC HL
+                LD (IX+14),A            ; pause
+                LD (IX+8),L
+                LD (IX+9),H
+                LD A,(IX+11)
+                OR A
+                RET NZ
+                LD A,(IX+13)            ; 0 pas : le volume est donné tel quel
+                AND 15
+                LD (IX+5),A
+                LD (IX+13),0
+                LD (IX+11),1
+                OR A
+                RET
+        AMPHARD: AND 15                 ; enveloppe de la puce : forme, puis période
+                LD E,A
+                LD A,13
+                CALL PSGW
+                LD E,(HL)
+                INC HL
+                LD A,11
+                CALL PSGW
+                LD E,(HL)
+                INC HL
+                LD A,12
+                CALL PSGW
+                LD (IX+8),L
+                LD (IX+9),H
+                LD (IX+5),16
+                LD E,16
+                LD A,(&B8BC)
+                ADD A,8
+                CALL PSGW               ; volume suivi par l'enveloppe de la puce
+                JR AMPSEC               ; elle ne dure pas : section suivante tout de suite
+        ; l'enveloppe de volume A (0 ou pas notée : 2 secondes au même volume) commence
+        AMPDEB: LD HL,&B8C2
+                CALL ENVADR
+                LD A,H
+                OR L
+                JR NZ,AMPD1
+                LD HL,ENV0
+        AMPD1:  LD A,(HL)
+                AND &7F
+                LD (IX+10),A
+                INC HL
+                LD (IX+8),L
+                LD (IX+9),H
+                XOR A
+                LD (IX+11),A
+                RET
+        ENV0:   DEFB 1,1,0,200
+        ; HL = table, A = numéro (1 à 15) -> HL = adresse de l'enveloppe notée (0 : aucune) ; DE changé
+        ENVADR: AND 15
+                JR Z,ENVA0
+                DEC A
+                ADD A,A
+                LD E,A
+                LD D,0
+                ADD HL,DE
+                LD A,(HL)
+                INC HL
+                LD H,(HL)
+                LD L,A
+                RET
+        ENVA0:  LD H,A
+                LD L,A
+                RET
+        ; enveloppe de ton du canal IX : un centième
+        TONTIC: LD A,(IX+16)
+                OR (IX+17)
+                RET Z
+                DEC (IX+20)
+                RET NZ
+        TONPAS: LD A,(IX+18)
+                OR A
+                JR NZ,TONP2
+                CALL TONSEC
+                JR NC,TONP2
+                BIT 7,(IX+15)           ; finie : elle recommence si elle se répète (ENT négatif)
+                JR Z,TONTEN
+                CALL TONDEB
+                JR TONPAS
+        TONTEN: XOR A
+                LD (IX+16),A
+                LD (IX+17),A
+                RET
+        TONP2:  DEC (IX+18)
+                LD A,(IX+22)
+                LD (IX+20),A
+                LD L,(IX+24)
+                LD H,(IX+25)
+                LD A,(IX+21)            ; pas, de -128 à 127
+                LD E,A
+                RLA
+                SBC A,A
+                LD D,A
+                ADD HL,DE
+                LD A,H
+                AND 15
+                LD H,A
+                LD (IX+24),L
+                LD (IX+25),H
+        ; HL = période du ton du canal &B8BC : écrite dans la puce
+        TONECR: LD E,L
+                LD A,(&B8BC)
+                ADD A,A
+                CALL PSGW
+                INC A
+                LD E,H
+                JP PSGW
+        ; section suivante de l'enveloppe de ton ; retenue : il n'y en a plus
+        TONSEC: LD A,(IX+19)
+                OR A
+                SCF
+                RET Z
+                DEC (IX+19)
+                LD L,(IX+16)
+                LD H,(IX+17)
+                LD A,(HL)               ; nombre de pas, ou &F0 + haut de la période (période donnée)
+                INC HL
+                CP &F0
+                JR NC,TONABS
+                LD (IX+18),A
+                LD A,(HL)
+                INC HL
+                LD (IX+21),A
+                LD A,(HL)
+                INC HL
+                LD (IX+22),A
+                LD (IX+16),L
+                LD (IX+17),H
+                LD A,(IX+18)
+                OR A
+                RET NZ
+                LD (IX+18),1            ; 0 pas : un pas de 0
+                LD (IX+21),0
+                RET
+        TONABS: AND 15
+                LD D,A
+                LD E,(HL)
+                INC HL
+                LD A,(HL)
+                INC HL
+                LD (IX+22),A
+                LD (IX+16),L
+                LD (IX+17),H
+                LD (IX+24),E
+                LD (IX+25),D
+                LD (IX+18),1
+                LD (IX+21),0
+                OR A
+                RET
+        ; l'enveloppe de ton (+15) commence ; aucune : +16 et +17 à 0
+        TONDEB: LD A,(IX+15)
+                LD HL,&B8E0
+                CALL ENVADR
+                LD (IX+16),L
+                LD (IX+17),H
+                LD A,H
+                OR L
+                RET Z
+                LD A,(HL)
+                AND &80
+                OR (IX+15)
+                LD (IX+15),A            ; + &80 : elle se répète
+                LD A,(HL)
+                AND &7F
+                LD (IX+19),A
+                INC HL
+                LD (IX+16),L
+                LD (IX+17),H
+                XOR A
+                LD (IX+18),A
+                RET
+        ; le canal &B8BC se tait : volume 0, ton et bruit coupés
         SILENCE: LD E,0
-                LD A,(&B892)
+                LD A,(&B8BC)
                 ADD A,8
                 CALL PSGW
                 CALL MASQUE
@@ -1206,14 +1465,14 @@ public static class Gx4000System
                 ADD A,A
                 OR B
                 LD B,A
-                LD A,(&B891)
+                LD A,(&B8BB)
                 OR B
-                LD (&B891),A
+                LD (&B8BB),A
                 LD E,A
                 LD A,7
                 JP PSGW
-        ; B = 1, 2 ou 4 selon le canal &B892
-        MASQUE: LD A,(&B892)
+        ; B = 1, 2 ou 4 selon le canal &B8BC
+        MASQUE: LD A,(&B8BC)
                 LD B,1
                 OR A
                 RET Z
@@ -1222,7 +1481,7 @@ public static class Gx4000System
                 JR NZ,MASQ1
                 RET
         ; B = bit du registre 7 ; Z : coupé (bit à 1), sinon allumé (bit à 0)
-        MIXB:   LD A,(&B891)
+        MIXB:   LD A,(&B8BB)
                 JR NZ,MIXON
                 OR B
                 JR MIXFIN
@@ -1230,9 +1489,9 @@ public static class Gx4000System
                 LD A,B
                 CPL
                 AND C
-        MIXFIN: LD (&B891),A
+        MIXFIN: LD (&B8BB),A
                 RET
-        ; écrit E dans le registre A de la puce de son (par le PPI) ; A et DE gardés, BC changé
+        ; écrit E dans le registre A de la puce de son (par le PPI) ; A, DE et HL gardés, BC changé
         PSGW:   LD B,&F4
                 OUT (C),A
                 LD BC,&F6C0
@@ -1246,19 +1505,19 @@ public static class Gx4000System
                 LD BC,&F600
                 OUT (C),C
                 RET
-        ; IX = canal A (0 à 2), noté en &B892 ; DE gardé
-        CANAL:  LD (&B892),A
+        ; IX = canal A (0 à 2), noté en &B8BC ; DE gardé
+        CANAL:  LD (&B8BC),A
                 LD IX,&B800
                 OR A
                 RET Z
                 PUSH DE
-                LD DE,48
+                LD DE,62
         CANAL1: ADD IX,DE
                 DEC A
                 JR NZ,CANAL1
                 POP DE
                 RET
-        ; SOUND RESET (&BCA7) : files vidées, tout se tait
+        ; SOUND RESET (&BCA7) : files vidées, enveloppes oubliées, tout se tait
         SRESET: PUSH AF
                 PUSH BC
                 PUSH DE
@@ -1266,13 +1525,13 @@ public static class Gx4000System
                 DI
                 LD HL,&B800
                 LD DE,&B801
-                LD BC,143
+                LD BC,253
                 LD (HL),0
                 LDIR
                 LD A,3
-                LD (&B890),A
+                LD (&B8BA),A
                 LD A,&3F
-                LD (&B891),A
+                LD (&B8BB),A
                 LD E,A
                 LD A,7
                 CALL PSGW
@@ -1289,6 +1548,31 @@ public static class Gx4000System
                 POP BC
                 POP AF
                 RET
+        ; SOUND AMPL ENVELOPE (&BCBC), SOUND TONE ENVELOPE (&BCBF) : A = numéro (1 à 15), HL = bloc de 16 octets
+        ; (gardé dans le programme : seule son adresse est notée)
+        SENVA:  PUSH DE
+                LD DE,&B8C2
+                JR SENV
+        SENVT:  PUSH DE
+                LD DE,&B8E0
+        SENV:   PUSH AF
+                AND 15
+                JR Z,SENVF
+                DEC A
+                ADD A,A
+                ADD A,E
+                LD E,A
+                DI
+                EX DE,HL
+                LD (HL),E
+                INC HL
+                LD (HL),D
+                DEC HL
+                EX DE,HL
+                EI
+        SENVF:  POP AF
+                POP DE
+                RET
         ; SOUND QUEUE (&BCAA) : HL = bloc de 9 octets ; retenue : le son est dans la file de chaque canal choisi ;
         ; sinon une de ces files est pleine (rien n'est fait). Bit 7 de l'état : files vidées d'abord, son en cours arrêté.
         SQUEUE: PUSH BC
@@ -1296,9 +1580,9 @@ public static class Gx4000System
                 PUSH HL
                 PUSH IX
                 DI
-                LD (&B895),HL
+                LD (&B8BF),HL
                 LD A,(HL)
-                LD (&B894),A
+                LD (&B8BE),A
                 BIT 7,A
                 JR Z,SQ2
                 LD D,A                  ; vider les files choisies
@@ -1316,7 +1600,7 @@ public static class Gx4000System
         SQF2:   INC A
                 CP 3
                 JR NZ,SQF
-        SQ2:    LD A,(&B894)            ; une place dans chaque file choisie ?
+        SQ2:    LD A,(&B8BE)            ; une place dans chaque file choisie ?
                 LD D,A
                 XOR A
         SQR:    RR D
@@ -1332,7 +1616,7 @@ public static class Gx4000System
         SQR2:   INC A
                 CP 3
                 JR NZ,SQR
-                LD A,(&B894)            ; le son au bout de chaque file choisie
+                LD A,(&B8BE)            ; le son au bout de chaque file choisie
                 LD D,A
                 XOR A
         SQA:    RR D
@@ -1347,7 +1631,7 @@ public static class Gx4000System
                 ADD A,A
                 ADD A,A
                 ADD A,E
-                ADD A,9
+                ADD A,26
                 PUSH DE
                 LD E,A
                 LD D,0
@@ -1355,7 +1639,7 @@ public static class Gx4000System
                 POP HL
                 ADD HL,DE
                 EX DE,HL
-                LD HL,(&B895)
+                LD HL,(&B8BF)
                 LD BC,9
                 LDIR
                 POP DE
@@ -1963,6 +2247,8 @@ public static class Gx4000System
                 DEFW &BCA7,SRESET
                 DEFW &BCAA,SQUEUE
                 DEFW &BCAD,SCHECK
+                DEFW &BCBC,SENVA
+                DEFW &BCBF,SENVT
                 DEFW &BC3E,SETCLI
                 DEFW &BC41,GETCLI
                 DEFW &BBB7,ECHANGE

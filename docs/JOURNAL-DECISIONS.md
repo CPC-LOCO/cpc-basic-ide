@@ -1473,6 +1473,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Essai (22 nov. 2026) :** `examples\gxson.bas` (Ctrl+F5) dans AMSpiriT : gamme, accord sur 3 canaux, explosion, long son de 3 secondes avec SQ(1) à 132 pendant le son. Le premier SQ(1) vaut 3 : le son commence au centième suivant. La boucle d'attente de l'exemple était trop courte pour voir la fin du son : remplacée par FRAME.
 - Restent pour le son : les enveloppes (étape 2), RELEASE, les sons retenus, les rendez-vous, ON SQ GOSUB (étape 3).
 
+## D193 : cartouche GX4000, le son, étape 2 : les enveloppes ENV et ENT (22 nov. 2026)
+- **Fait :** `Gx4000System.cs` : SOUND AMPL ENVELOPE (&BCBC) et SOUND TONE ENVELOPE (&BCBF) notent l'adresse du bloc de 16 octets du compilateur (gardé dans le programme ; tables en &B8C2 et &B8E0, vidées par SOUND RESET, donc aussi par RUN "nom"). ENV : pas de volume (de -128 à 127, volume pris modulo 16 comme le CPC), pause (0 = 256 centièmes), section à 0 pas = volume donné tel quel, enveloppe de la puce (=forme,période : registres 11 à 13, volume 16). ENT : pas de période, période donnée (=période,pause), ENT négatif qui recommence tant que le son dure. Durée de SOUND : positive = donnée (le volume reste à la fin de l'enveloppe) ; 0 = celle de l'enveloppe de volume ; négative = l'enveloppe répétée. Sans enveloppe : 2 secondes au même volume (enveloppe par défaut, comme le CPC). Chaque canal a maintenant 62 octets (&B800 à &B8B9), les variables communes sont en &B8BA à &B8C1.
+- Le message de Ctrl+F5 devient : « Pas encore sur la console : RELEASE et les rendez-vous entre canaux, TIME, AFTER, EVERY. »
+- **Tests :** 2002 réussis (4 nouveaux : ENV et sa durée, durée donnée et volume qui reste, ENT, un programme compilé avec ENV, ENT négatif et période donnée).
+- **Essai (22 nov. 2026) :** `examples\gxenv.bas` (Ctrl+F5) dans AMSpiriT : son qui monte puis descend, sirène, tir laser, cloche 3 fois ; « les sons représentent bien ce que tu décris ».
+- Restent pour le son : RELEASE, les sons retenus, les rendez-vous entre canaux, ON SQ GOSUB (étape 3).
+
 ---
 
 ## Notes de fin de session (modèle)

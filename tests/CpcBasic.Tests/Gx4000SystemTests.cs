@@ -956,9 +956,10 @@ public class Gx4000SystemTests
     const int SoundBlock = 0x9000;
 
     // SOUND QUEUE avec le bloc de 9 octets du compilateur : état (canaux), enveloppes, période, bruit, volume, durée
-    static bool Queue(MiniZ80 cpu, byte state, int period, int duration, byte volume = 12, byte noise = 0)
+    static bool Queue(MiniZ80 cpu, byte state, int period, int duration, byte volume = 12, byte noise = 0,
+                      byte volumeEnvelope = 0, byte toneEnvelope = 0)
     {
-        byte[] block = [state, 0, 0, (byte)period, (byte)(period >> 8), noise, volume, (byte)duration, (byte)(duration >> 8)];
+        byte[] block = [state, volumeEnvelope, toneEnvelope, (byte)period, (byte)(period >> 8), noise, volume, (byte)duration, (byte)(duration >> 8)];
         block.CopyTo(cpu.Memory, SoundBlock);
         cpu.H = SoundBlock >> 8;
         cpu.L = SoundBlock & 0xFF;
@@ -1013,7 +1014,7 @@ public class Gx4000SystemTests
         Assert.Equal(3, cpu.Memory[0xB803]);                  // il lui reste 3 centièmes
         Hundredth(cpu, 3);
         Assert.Equal(4, Check(cpu, 1));                       // fini : tout se tait
-        Assert.Equal(0x3F, cpu.Memory[0xB891]);               // ton et bruit coupés partout
+        Assert.Equal(0x3F, cpu.Memory[0xB8BB]);               // ton et bruit coupés partout
     }
 
     [Fact]
@@ -1026,7 +1027,7 @@ public class Gx4000SystemTests
         Assert.Equal(0x80 | 4, Check(cpu, 1));
         Assert.Equal(4, Check(cpu, 2));
         Assert.Equal(0x80 | 4, Check(cpu, 4));
-        Assert.Equal(0x3F & ~(0x01 | 0x04 | 0x08 | 0x20), cpu.Memory[0xB891]);   // ton et bruit de A et C
+        Assert.Equal(0x3F & ~(0x01 | 0x04 | 0x08 | 0x20), cpu.Memory[0xB8BB]);   // ton et bruit de A et C
     }
 
     [Fact]
@@ -1047,6 +1048,73 @@ public class Gx4000SystemTests
     {
         CartridgeResult result = Compiler.CompileToCartridge(
             "10 SOUND 1,478,50,12:SOUND 2,0,20,15,0,0,10\n20 IF SQ(1)<128 THEN PRINT \"FINI\"");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Cartridge);
+    }
+
+    // ---------- enveloppes du son (D193) ----------
+
+    // ENV ou ENT : le bloc de 16 octets du compilateur (nombre de sections, puis 3 octets par section), noté par le système
+    static void Envelope(MiniZ80 cpu, int firmware, byte number, int address, params byte[] block)
+    {
+        block.CopyTo(cpu.Memory, address);
+        cpu.A = number;
+        cpu.H = (byte)(address >> 8);
+        cpu.L = (byte)address;
+        cpu.Call(EntryOf(firmware, cpu));
+    }
+
+    [Fact]
+    public void ENV_change_le_volume_pas_a_pas_et_donne_la_duree()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Envelope(cpu, 0xBCBC, 1, 0x9100, 1, 3, 2, 1);        // ENV 1,3,2,1 : 3 pas de +2, un centième chacun
+        Queue(cpu, 1, 478, 0, volume: 5, volumeEnvelope: 1);  // durée 0 : celle de l'enveloppe
+
+        Hundredth(cpu);
+        Assert.Equal(7, cpu.Memory[0xB805]);                  // premier pas dès le début
+        Hundredth(cpu, 2);
+        Assert.Equal(11, cpu.Memory[0xB805]);
+        Assert.Equal(0x80 | 4, Check(cpu, 1));                // encore en cours
+        Hundredth(cpu);
+        Assert.Equal(4, Check(cpu, 1));                       // l'enveloppe est finie : le son aussi
+    }
+
+    [Fact]
+    public void Avec_une_duree_donnee_le_volume_reste_a_la_fin_de_l_enveloppe()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Envelope(cpu, 0xBCBC, 2, 0x9100, 1, 2, 0xFF, 1);     // ENV 2,2,-1,1
+        Queue(cpu, 1, 478, 10, volume: 10, volumeEnvelope: 2);
+
+        Hundredth(cpu, 5);
+        Assert.Equal(8, cpu.Memory[0xB805]);
+        Assert.Equal(0x80 | 4, Check(cpu, 1));
+        Hundredth(cpu, 6);
+        Assert.Equal(4, Check(cpu, 1));                       // fini : les 10 centièmes demandés, après le départ
+    }
+
+    [Fact]
+    public void ENT_fait_glisser_la_note()
+    {
+        MiniZ80 cpu = SoundCpu();
+        Envelope(cpu, 0xBCBF, 1, 0x9200, 1, 2, 0xF6, 1);     // ENT 1,2,-10,1
+        Queue(cpu, 1, 500, 20, toneEnvelope: 1);
+
+        Hundredth(cpu);
+        Assert.Equal(490, cpu.Memory[0xB818] | cpu.Memory[0xB819] << 8);
+        Hundredth(cpu);
+        Assert.Equal(480, cpu.Memory[0xB818] | cpu.Memory[0xB819] << 8);
+        Hundredth(cpu, 3);
+        Assert.Equal(480, cpu.Memory[0xB818] | cpu.Memory[0xB819] << 8);   // l'enveloppe finie, la note reste
+    }
+
+    [Fact]
+    public void Un_programme_avec_ENV_et_ENT_va_sur_la_cartouche()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge(
+            "10 ENV 1,10,1,5,10,-1,5:ENT -2,5,2,1,5,-2,1:ENT 3,=500,10\n20 SOUND 1,478,0,5,1,2:SOUND 2,200,-3,0,1,3");
 
         Assert.Empty(result.Diagnostics);
         Assert.NotNull(result.Cartridge);
