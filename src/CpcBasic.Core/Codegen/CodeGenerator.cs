@@ -178,6 +178,10 @@ public static class CodeGenerator
         // MASK ou GRAPHICS PEN stylo, mode : SCR WRITE est détourné pendant DRAW (D110)
         bool usesMask = program.Statements.Any(st => st is ScreenStatement { Command: "MASK" or "MASK FIRST" }
                                                          or ScreenStatement { Command: "GRAPHICS PEN", Arguments.Count: 2 });
+        // D205 : le mode d'écriture ne change jamais (pas de 4e valeur à DRAW, PLOT..., ni CALL, ni commande de bibliothèque) :
+        // DRAW écrit ses points directement dans l'écran
+        bool directLines = !program.Statements.Any(st => st is DrawStatement { Mode: not null } or ExternalCallStatement
+                                                             or LibraryCallStatement);
         bool usesHeap = arrays.Count > 0 || usesStrings
                         || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }))
                         || program.Statements.Any(st => st is ScreenStatement { Command: "FILL" or "PAINT" });   // pile du remplissage (D107)
@@ -2058,7 +2062,9 @@ public static class CodeGenerator
             if (!usesMask && draw.Command is "DRAW" or "DRAWR")
             {
                 required.Add(RuntimeLibrary.LineName);              // D204 : nos traits rapides (avec MASK : la ROM)
-                emitter.CallLabel(draw.Command == "DRAW" ? LineRuntime.LineLabel : LineRuntime.RelativeLabel);
+                emitter.CallLabel(draw.Command == "DRAW"
+                    ? directLines ? LineRuntime.DirectLabel : LineRuntime.LineLabel
+                    : directLines ? LineRuntime.DirectRelativeLabel : LineRuntime.RelativeLabel);
             }
             else
                 emitter.CallAddress(address);

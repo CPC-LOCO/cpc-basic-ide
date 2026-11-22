@@ -1567,6 +1567,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Essai (22 nov. 2026) : illtemps.bas : 37,8 s dans WinAPE (6128), 33,7 s en cartouche dans AMSpiriT (au lieu de 58 à 63 s) ; « c'est très joli en étant plus rapide ».
 - Suite possible : écrire directement dans l'écran au lieu de SCR WRITE (en écriture normale), et faire passer BOX, CIRCLE, ELLIPSE par le module.
 
+## D205 : DRAW encore plus rapide : écriture directe dans l'écran (22 nov. 2026)
+
+- Fait : `LineRuntime.cs` : nouvelles entrées LINEN et LINERN, choisies par le compilateur quand le programme ne change jamais le mode d'écriture (aucune 4e valeur à DRAW, PLOT..., aucun CALL, aucune commande de bibliothèque : `directLines` dans CodeGenerator.cs). Les points sont alors écrits directement dans l'écran, sans SCR WRITE : octet = ((ancien XOR encre) AND masque inversé) XOR encre ; boucles en registres (DE adresse, C masque inversé, B encre, HL reste du calcul ; le masque inversé tourne par RRC / RLC). Les traits horizontaux s'écrivent aussi directement. Sinon, SCR WRITE comme en D204.
+- Erreur trouvée par les tests C# : le reste de départ écrasé par le petit écart. Mon simulateur Python ne la voyait pas : ses deux machines partageaient la même mémoire (comparaison toujours juste) ; corrigé (mémoire propre à chaque machine), il retrouve l'erreur sur l'ancienne version.
+- Tests : 2056 (le test de D204 passe aussi par LINEN et LINERN en écriture normale).
+- Essai (22 nov. 2026) : illtemps.bas dans WinAPE : 400 tours en 25,6 s (au lieu de 37,8 s avec D204, 58 à 63 s avant) ; « C'est comme ça que ce programme se savoure. C'est trop beau ».
+
 ---
 
 ## Notes de fin de session (modèle)

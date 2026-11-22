@@ -685,6 +685,7 @@ public class Gx4000SystemTests
         foreach (RuntimeModule m in Linker.Resolve([RuntimeLibrary.LineName]))
             m.Emit(emitter);
         int line = emitter.AddressOf(LineRuntime.LineLabel), relative = emitter.AddressOf(LineRuntime.RelativeLabel);
+        int direct = emitter.AddressOf(LineRuntime.DirectLabel), directRelative = emitter.AddressOf(LineRuntime.DirectRelativeLabel);
         MiniZ80 fast = Cpu(), slow = Cpu();
         var entries = new Dictionary<int, int>();
         int Entry(int firmware) => entries.TryGetValue(firmware, out int e) ? e : entries[firmware] = EntryOf(firmware, fast);
@@ -733,14 +734,15 @@ public class Gx4000SystemTests
                 Go(c, Entry(0xBC59), a: (byte)(round % 3 == 1 ? 1 : 0));
                 Go(c, Entry(0xBBC0), x1, y1);
             }
+            bool normal = round % 3 != 1;                     // écriture normale : aussi les boucles directes (D205)
             if (rel)
             {
-                Go(fast, relative, x2 - x1, y2 - y1);
+                Go(fast, normal && round % 4 == 0 ? directRelative : relative, x2 - x1, y2 - y1);
                 Go(slow, Entry(0xBBF9), x2 - x1, y2 - y1);
             }
             else
             {
-                Go(fast, line, x2, y2);
+                Go(fast, normal && round % 3 == 0 ? direct : line, x2, y2);
                 Go(slow, Entry(0xBBF6), x2, y2);
             }
 

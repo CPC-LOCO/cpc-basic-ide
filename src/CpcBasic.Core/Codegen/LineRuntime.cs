@@ -19,14 +19,24 @@ public static class LineRuntime
 {
     public const string LineLabel = "rt_ln_LINE";       // DE = x, HL = y (repère de l'utilisateur)
     public const string RelativeLabel = "rt_ln_LINER";  // DE, HL = écart
+    // D205 : pour un programme qui ne change jamais le mode d'écriture (pas de 4e valeur à DRAW, PLOT..., ni CALL, ni
+    // commande de bibliothèque) : les points sont écrits directement dans l'écran, sans SCR WRITE
+    public const string DirectLabel = "rt_ln_LINEN";
+    public const string DirectRelativeLabel = "rt_ln_LINERN";
 
     const string Source = """
                 ; ---------- DRAW et DRAWR rapides (D204) : nos traits à la place de GRA LINE de la ROM ----------
                 ; Mêmes réglages que le firmware (origine, curseur, stylo, fenêtre graphique, mode d'écriture par SCR WRITE).
                 ; La ROM garde les cas rares : un bout hors de la fenêtre graphique, écran déplacé (défilement du texte ou
                 ; autre adresse que &C000). Points : même calcul que la cartouche (D202, D203).
-                ; LINER : DE, HL = écart (repère de l'utilisateur) ; LINE : DE, HL = bout
-        LINER:  PUSH HL
+                ; LINER : DE, HL = écart (repère de l'utilisateur) ; LINE : DE, HL = bout. LINERN, LINEN : pareil, pour un
+                ; programme qui ne change jamais le mode d'écriture (le compilateur le sait) : points écrits directement
+                ; dans l'écran, sans passer par SCR WRITE (D205)
+        LINERN: LD A,1
+                JR LR0
+        LINER:  XOR A
+        LR0:    LD (DIRECT),A
+                PUSH HL
                 PUSH DE
                 CALL &BBC6              ; GRA ASK CURSOR
                 POP BC
@@ -35,7 +45,12 @@ public static class LineRuntime
                 EX DE,HL
                 POP BC
                 ADD HL,BC
-        LINE:   LD (ENDX),DE
+                JR LN00
+        LINEN:  LD A,1
+                JR LL0
+        LINE:   XOR A
+        LL0:    LD (DIRECT),A
+        LN00:   LD (ENDX),DE
                 LD (ENDY),HL
                 CALL &BC0B              ; SCR GET LOCATION : écran en &C000, sans décalage ?
                 CP &C0
@@ -136,6 +151,9 @@ public static class LineRuntime
                 LD A,H
                 OR L
                 JP Z,HORIZ
+                LD A,(DIRECT)           ; écriture normale : les boucles rapides (D205)
+                OR A
+                JP NZ,FAST
                 LD DE,(X1)
                 LD HL,(Y1)
                 CALL &BC1D              ; SCR DOT POSITION : HL = adresse, C = masque du point
@@ -154,11 +172,7 @@ public static class LineRuntime
                 SRL D
                 RR E
                 LD (ERRS),DE
-        DY1:    PUSH BC
-                PUSH HL
-                CALL &BDE8              ; SCR WRITE
-                POP HL
-                POP BC
+        DY1:    CALL WRITE
                 PUSH HL
                 LD HL,(CNT)
                 LD A,H
@@ -189,11 +203,7 @@ public static class LineRuntime
                 SRL D
                 RR E
                 LD (ERRS),DE
-        DX1:    PUSH BC
-                PUSH HL
-                CALL &BDE8
-                POP HL
-                POP BC
+        DX1:    CALL WRITE
                 PUSH HL
                 LD HL,(CNT)
                 LD A,H
@@ -261,11 +271,7 @@ public static class LineRuntime
                 SRL C
                 JR HZ1
         HZ2:    LD C,D                  ; octet fini
-                PUSH BC
-                PUSH HL
-                CALL &BDE8
-                POP HL
-                POP BC
+                CALL WRITE
                 INC HL
         HZ3:    LD A,(PPB1)             ; octets pleins
                 INC A
@@ -282,11 +288,7 @@ public static class LineRuntime
                 POP HL
                 PUSH AF
                 LD C,&FF
-                PUSH BC
-                PUSH HL
-                CALL &BDE8
-                POP HL
-                POP BC
+                CALL WRITE
                 POP AF
                 RET Z
                 INC HL
@@ -296,7 +298,198 @@ public static class LineRuntime
                 LD C,A
                 JR HZ1
         HZ5:    LD C,D
-                JP &BDE8
+                ; un octet écrit : directement (écriture normale) ou par SCR WRITE ; HL, BC gardés
+        WRITE:  LD A,(DIRECT)
+                OR A
+                JR Z,WRF
+                LD A,C
+                CPL
+                AND (HL)
+                LD (HL),A
+                LD A,B
+                AND C
+                OR (HL)
+                LD (HL),A
+                RET
+        WRF:    PUSH BC
+                PUSH HL
+                CALL &BDE8              ; SCR WRITE
+                POP HL
+                POP BC
+                RET
+                ; ---- boucles rapides en écriture normale (D205) : DE = adresse, C = masque inversé (points gardés),
+                ; B = encre codée, HL = reste du calcul ; l'octet écrit vaut ((ancien XOR encre) AND C) XOR encre ----
+        FAST:   LD DE,(X1)
+                LD HL,(Y1)
+                CALL &BC1D
+                LD A,C
+                CPL
+                LD C,A
+                EX DE,HL
+                LD A,(LMASK)
+                CPL
+                LD (ILM),A
+                LD A,(RMASK)
+                CPL
+                LD (IRM),A
+                LD A,(ENC)
+                LD B,A
+                PUSH DE
+                LD HL,(DLY)             ; surtout vertical si dy > dx
+                LD DE,(DLX)
+                OR A
+                SBC HL,DE
+                POP DE
+                JR C,FX0
+                JR Z,FX0
+                LD HL,(DLX)             ; petit écart : dx, grand : dy
+                LD (DMIN),HL
+                LD HL,(DLY)
+                CALL FPREP
+        FYL:    LD A,(DE)
+                XOR B
+                AND C
+                XOR B
+                LD (DE),A
+                LD A,(CNTL)
+                DEC A
+                LD (CNTL),A
+                JR NZ,FY1
+                LD A,(CNTH)
+                DEC A
+                LD (CNTH),A
+                RET Z
+        FY1:    CALL FSTY
+                LD A,(DMIN)
+                ADD A,L
+                LD L,A
+                LD A,(DMIN+1)
+                ADC A,H
+                LD H,A
+                LD A,(NMAJ)
+                ADD A,L
+                LD L,A
+                LD A,(NMAJ+1)
+                ADC A,H
+                LD H,A
+                JR NC,FY2
+                CALL FSTX
+                JR FYL
+        FY2:    LD A,(DMAJ)
+                ADD A,L
+                LD L,A
+                LD A,(DMAJ+1)
+                ADC A,H
+                LD H,A
+                JR FYL
+        FX0:    LD HL,(DLY)             ; petit écart : dy, grand : dx
+                LD (DMIN),HL
+                LD HL,(DLX)
+                CALL FPREP
+        FXL:    LD A,(DE)
+                XOR B
+                AND C
+                XOR B
+                LD (DE),A
+                LD A,(CNTL)
+                DEC A
+                LD (CNTL),A
+                JR NZ,FX1
+                LD A,(CNTH)
+                DEC A
+                LD (CNTH),A
+                RET Z
+        FX1:    CALL FSTX
+                LD A,(DMIN)
+                ADD A,L
+                LD L,A
+                LD A,(DMIN+1)
+                ADC A,H
+                LD H,A
+                LD A,(NMAJ)
+                ADD A,L
+                LD L,A
+                LD A,(NMAJ+1)
+                ADC A,H
+                LD H,A
+                JR NC,FX2
+                CALL FSTY
+                JR FXL
+        FX2:    LD A,(DMAJ)
+                ADD A,L
+                LD L,A
+                LD A,(DMAJ+1)
+                ADC A,H
+                LD H,A
+                JR FXL
+                ; HL = grand écart : nombre de points (CNTL, CNTH comptés pour DEC), -écart, reste de départ = écart / 2
+        FPREP:  LD (DMAJ),HL
+                PUSH HL
+                INC HL
+                LD A,L
+                LD (CNTL),A
+                OR A
+                LD A,H
+                JR Z,FP1
+                INC A
+        FP1:    LD (CNTH),A
+                POP HL
+                PUSH HL
+                CALL NEGHL
+                LD (NMAJ),HL
+                POP HL
+                SRL H
+                RR L
+                RET
+                ; un point à droite ou à gauche : DE, C (masque inversé)
+        FSTX:   LD A,(SGX)
+                DEC A
+                JR NZ,FSXL
+                LD A,(IRM)
+                CP C
+                JR Z,FSXR
+                RRC C
+                RET
+        FSXR:   LD A,(ILM)
+                LD C,A
+                INC DE
+                RET
+        FSXL:   LD A,(ILM)
+                CP C
+                JR Z,FSXL2
+                RLC C
+                RET
+        FSXL2:  LD A,(IRM)
+                LD C,A
+                DEC DE
+                RET
+                ; une ligne de l'écran plus haut ou plus bas : DE
+        FSTY:   LD A,(SGY)
+                DEC A
+                JR NZ,FSYD
+                LD A,D
+                SUB 8
+                LD D,A
+                CP &C0
+                RET NC
+                LD A,E
+                ADD A,&B0
+                LD E,A
+                LD A,D
+                ADC A,&3F
+                LD D,A
+                RET
+        FSYD:   LD A,D
+                ADD A,8
+                LD D,A
+                RET NC
+                LD A,E
+                ADD A,&50
+                LD E,A
+                LD A,D
+                ADC A,&C0
+                LD D,A
+                RET
                 ; un point à droite (SX = 1) ou à gauche
         STEPX:  LD A,(SGX)
                 DEC A
@@ -430,6 +623,14 @@ public static class LineRuntime
         ENC:    DEFS 1
         PPB1:   DEFS 1
         ROMS:   DEFS 1
+        DIRECT: DEFS 1
+        ILM:    DEFS 1
+        IRM:    DEFS 1
+        CNTL:   DEFS 1
+        CNTH:   DEFS 1
+        DMIN:   DEFS 2
+        DMAJ:   DEFS 2
+        NMAJ:   DEFS 2
         """;
 
     /// <summary>Écrit le module dans le programme.</summary>
