@@ -33,7 +33,8 @@ public static class Parser
         "DEG", "RAD", "SOUND", "ENV", "ENT", "RELEASE", "SQ", "WINDOW", "SWAP", "POS", "VPOS", "ZONE", "TAB", "SPC", "WRITE", "USING", "SYMBOL", "TAG", "TAGOFF", "AFTER", "EVERY", "REMAIN", "DI", "EI", "ERROR", "RESUME", "ERR", "ERL",
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
-        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT", "MASK"];
+        "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT", "MASK",
+        "DEFSPR", "SPRITE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -199,7 +200,9 @@ public static class Parser
         // D048 : coordonnées natives du MODE (origine en haut à gauche) ; ce qui sort de l'écran est ignoré
         ["BOX"] = new("BOX x1, y1, x2, y2 [, stylo [, remplissage]]", 4, [-32768, -32768, -32768, -32768, 0, 0], [32767, 32767, 32767, 32767, 15, 15]),
         // D130 : rond, rayon compté en lignes (0 à 1000), largeur corrigée selon le MODE
-        ["CIRCLE"] = new("CIRCLE x, y, rayon (0 à 1000) [, stylo [, remplissage]]", 3, [-32768, -32768, 0, 0, 0], [32767, 32767, 1000, 15, 15])
+        ["CIRCLE"] = new("CIRCLE x, y, rayon (0 à 1000) [, stylo [, remplissage]]", 3, [-32768, -32768, 0, 0, 0], [32767, 32767, 1000, 15, 15]),
+        // D198 : sprite montré (ou déplacé) en x, y (coordonnées du MODE, coin en haut à gauche, comme BOX) ; seul : caché
+        ["SPRITE"] = new("SPRITE numéro (1 à 16) [, x, y]", 1, [1, -32768, -32768], [16, 32767, 32767])
     };
 
     // Tracé (D047) : écriture à montrer dans les messages. Le stylo va de 0 à 15, le mode de 0 à 3.
@@ -239,6 +242,7 @@ public static class Parser
         CheckBlocks(statements, diagnostics);
         CheckLineTargets(statements, lines, diagnostics);
         CheckLibraries(diagnostics);
+        CheckSprites(statements, diagnostics);
         libraries = null;
         libraryUses = null;
         HashSet<Statement> starts = statementStarts!;
@@ -1048,7 +1052,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK":
+            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK" or "SPRITE":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":
@@ -1056,6 +1060,9 @@ public static class Parser
 
             case "ELLIPSE":                             // D139
                 return ParseEllipse(tokens, pos, statements, diagnostics);
+
+            case "DEFSPR":                              // D198
+                return ParseSpriteDef(tokens, pos, statements, diagnostics);
 
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
@@ -2371,6 +2378,84 @@ public static class Parser
         return pos;
     }
 
+    // DEFSPR numéro, "ligne", "ligne"... (D198) : l'image d'un sprite, une ligne de points par texte ; chaque point est un
+    // stylo (0 à 9, A à F) ou « . » (le décor reste visible)
+    static int ParseSpriteDef(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        Token name = tokens[pos];
+        pos++;
+        if (tokens[pos].Kind != TokenKind.Number || !int.TryParse(tokens[pos].Text, out int number))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.SpriteDefinition, name.Line, IsStatementEnd(tokens[pos]) ? "" : tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (number < 1 || number > SpriteMaxNumber)
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, name.Line, $"{number}|1 à {SpriteMaxNumber}"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+        var rows = new List<string>();
+        while (tokens[pos].Kind == TokenKind.Comma)
+        {
+            pos++;
+            if (tokens[pos].Kind != TokenKind.String)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.SpriteDefinition, name.Line, IsStatementEnd(tokens[pos]) ? "" : tokens[pos].Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            string row = tokens[pos].Text.ToUpperInvariant();
+            if (row.Length == 0 || row.Length > SpriteMaxSize || row.Any(c => c != '.' && !char.IsAsciiHexDigit(c)))
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.SpriteRow, name.Line, tokens[pos].Text));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            rows.Add(row);
+            pos++;
+        }
+        if (rows.Count == 0 || !(IsStatementEnd(tokens[pos]) || IsElse(tokens[pos])))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.SpriteDefinition, name.Line, IsStatementEnd(tokens[pos]) ? "" : tokens[pos].Text));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        statements.Add(new SpriteDefStatement(name.Line, number, rows));
+        return pos;
+    }
+
+    const int SpriteMaxNumber = 16, SpriteMaxSize = 16;
+
+    // Les DEFSPR du même numéro qui se suivent forment un seul dessin (D198) : la première reçoit toutes les lignes
+    static void CheckSprites(List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        void Replace(int index, Statement statement)
+        {
+            if (statementStarts!.Remove(statements[index]))
+                statementStarts.Add(statement);
+            statements[index] = statement;
+        }
+
+        for (int i = 0; i < statements.Count; i++)
+        {
+            if (statements[i] is not SpriteDefStatement first)
+                continue;
+            var rows = new List<string>(first.Rows);
+            int j = i + 1;
+            while (j < statements.Count && statements[j] is SpriteDefStatement next && next.Number == first.Number)
+            {
+                rows.AddRange(next.Rows);
+                j++;
+            }
+            if (rows.Any(r => r.Length != rows[0].Length))
+                diagnostics.Add(new Diagnostic(DiagnosticCode.SpriteSize, first.SourceLine, $"largeur|{first.Number}"));
+            else if (rows.Count > SpriteMaxSize)
+                diagnostics.Add(new Diagnostic(DiagnosticCode.SpriteSize, first.SourceLine, $"hauteur|{first.Number}"));
+            Replace(i, first with { Rows = rows });
+            for (int k = i + 1; k < j; k++)
+                Replace(k, ((SpriteDefStatement)statements[k]) with { Rows = [], Continuation = true });
+            i = j - 1;
+        }
+    }
+
     // MODE n | CLS | LOCATE colonne, ligne | PEN n | PAPER n | INK stylo, couleur [, couleur2] | BORDER couleur [, couleur2]
     static int ParseScreenCommand(IReadOnlyList<Token> tokens, int pos, List<Statement> statements,
                                   List<Diagnostic> diagnostics, ScreenCommandInfo info, int? restStart = null)
@@ -2397,7 +2482,8 @@ public static class Parser
         }
 
         if (arguments.Count < info.MinArguments || arguments.Count > info.Min.Length
-            || (name.Text == "ORIGIN" && arguments.Count is > 2 and < 6))   // ORIGIN : 2 ou 6 valeurs (D104)
+            || (name.Text == "ORIGIN" && arguments.Count is > 2 and < 6)    // ORIGIN : 2 ou 6 valeurs (D104)
+            || (name.Text == "SPRITE" && arguments.Count == 2))             // SPRITE : 1 ou 3 valeurs (D198)
         {
             diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, name.Line, info.Signature));
             return SkipToStatementEnd(tokens, pos);

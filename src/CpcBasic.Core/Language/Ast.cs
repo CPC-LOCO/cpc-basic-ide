@@ -171,6 +171,13 @@ public sealed record ScreenStatement(int SourceLine, string Command, IReadOnlyLi
     : Statement(SourceLine);
 
 /// <summary>
+/// DEFSPR numéro, "ligne", ... (D198) : l'image d'un sprite, une ligne de points par texte. Les DEFSPR du même numéro
+/// qui se suivent s'ajoutent : la première reçoit toutes les lignes, les suivantes deviennent Continuation (rien à faire).
+/// </summary>
+public sealed record SpriteDefStatement(int SourceLine, int Number, IReadOnlyList<string> Rows, bool Continuation = false)
+    : Statement(SourceLine);
+
+/// <summary>
 /// Choix de la fenêtre (flux #0 à #7) pour la commande qui suit (lot H1, D072). PRINT #1, "A" devient :
 /// StreamStatement(1), PRINT "A", StreamStatement(null). Stream null : retour à la fenêtre #0, comme le Locomotive
 /// après chaque commande.

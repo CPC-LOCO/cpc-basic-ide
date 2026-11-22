@@ -84,7 +84,10 @@ public enum DiagnosticCode
     DebugIndexTooBig,        // D138 : DEBUG T(26) avec DIM T(10)
     DecFormat,               // lot L2 (D103) : DEC$ avec un format qui n'est pas un seul emplacement de nombre
     LibraryArrayName,        // D148 : tableau qui porte le nom d'une fonction de bibliothèque
-    LibraryCode              // D148 : faute dans le code assembleur d'une commande de bibliothèque utilisée
+    LibraryCode,             // D148 : faute dans le code assembleur d'une commande de bibliothèque utilisée
+    SpriteDefinition,        // D198 : DEFSPR mal écrit (numéro, puis des textes)
+    SpriteRow,               // D198 : ligne de DEFSPR avec un caractère qui n'est ni un stylo ni « . », ou trop longue
+    SpriteSize               // D198 : lignes de longueurs différentes, ou plus de 16 lignes
 }
 
 /// <summary>
@@ -278,6 +281,15 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             ? $"le nom {n} est déjà une fonction de la bibliothèque {lib} : choisissez un autre nom pour le tableau."
             : Argument,
         DiagnosticCode.LibraryCode => $"code assembleur de {Argument}",
+        DiagnosticCode.SpriteDefinition =>
+            $"DEFSPR s'écrit DEFSPR numéro (1 à 16), puis les lignes du dessin entre guillemets, par exemple DEFSPR 1, \"..33..\", \".3333.\".{Why}",
+        DiagnosticCode.SpriteRow =>
+            $"DEFSPR : la ligne « {Argument} » ne convient pas. Chaque ligne a de 1 à 16 points : un chiffre de 0 à 9 ou une lettre de A à F pour le stylo, un point « . » pour laisser voir le décor.",
+        DiagnosticCode.SpriteSize => Argument.Split('|') is [string what, string n]
+            ? (what == "largeur"
+                ? $"DEFSPR {n} : toutes les lignes du dessin doivent avoir la même longueur (les lignes DEFSPR {n} qui se suivent forment un seul dessin)."
+                : $"DEFSPR {n} : le dessin a plus de 16 lignes (les lignes DEFSPR {n} qui se suivent s'ajoutent les unes aux autres).")
+            : Argument,
         _ => $"problème inconnu ({Code})."
     };
 

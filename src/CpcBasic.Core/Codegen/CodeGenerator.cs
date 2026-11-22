@@ -1952,6 +1952,23 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "SPRITE":                      // D198 : SPRITE n, x, y (montré ou déplacé) ; SPRITE n (caché)
+                    required.Add(RuntimeLibrary.SpriteName);
+                    EmitExpression(a[0]);
+                    emitter.LdAL();
+                    emitter.LdMemA(SpriteRuntime.NumberLabel);
+                    if (a.Count == 3)
+                    {
+                        EmitExpression(a[1]);
+                        emitter.LdMemHl(SpriteRuntime.XLabel);
+                        EmitExpression(a[2]);
+                        emitter.LdMemHl(SpriteRuntime.YLabel);
+                        emitter.CallLabel(SpriteRuntime.ShowLabel);
+                    }
+                    else
+                        emitter.CallLabel(SpriteRuntime.HideLabel);
+                    break;
+
                 case "CIRCLE":                      // D130 : x, y, rayon rangés dans le module, puis les stylos comme BOX
                 {
                     // D141 : priorité « place » et ELLIPSE dans le programme : le module Ellipse avec deux rayons égaux
@@ -3138,6 +3155,30 @@ public static class CodeGenerator
                 case ScreenStatement screen:
                     EmitScreen(screen);
                     break;
+
+                case SpriteDefStatement { Continuation: true }:     // D198 : déjà dans le DEFSPR d'avant
+                    break;
+
+                case SpriteDefStatement spriteDef:                  // D198 : l'image (les trois MODE) et la place du décor
+                {
+                    required.Add(RuntimeLibrary.SpriteName);
+                    string data = $"spr_{labelCount++}";
+                    string background = $"spr_{labelCount++}";
+                    string skip = $"spr_{labelCount++}";
+                    (byte[] blocks, int backgroundSize) = SpriteRuntime.Build(spriteDef.Rows);
+                    emitter.JpLabel(skip);
+                    emitter.Label(data);
+                    emitter.Bytes((byte)spriteDef.Rows[0].Length, (byte)spriteDef.Rows.Count);
+                    emitter.Word(background);
+                    emitter.Bytes(blocks);
+                    emitter.Label(background);
+                    emitter.Reserve(backgroundSize);
+                    emitter.Label(skip);
+                    emitter.LdHlLabel(data);
+                    emitter.LdAImm(spriteDef.Number);
+                    emitter.CallLabel(SpriteRuntime.DefLabel);
+                    break;
+                }
 
                 case StreamStatement stream:            // PRINT #1, ... : choix de la fenêtre, puis retour à #0 (D072)
                     if (stream.Stream is NumberExpression { Value: 8 })

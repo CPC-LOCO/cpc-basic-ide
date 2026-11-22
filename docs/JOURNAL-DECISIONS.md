@@ -1511,6 +1511,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Paquet construit (22 nov. 2026) :** `release\CpcBasic-0.7.0-win-x64.zip`, SHA256 bdeafc67d16851f3c1d7b3f6de40917fa9050a2616ecd9e2e7a955b694566fbf (calculée ici, la fenêtre de build-release.cmd s'étant fermée avant la copie) ; contenu vérifié : 336 fichiers, 100 exemples dont les 14 `gx*.bas`, bibliothèques GRAPHIQUE et TEXTE, pas de ROM, pas de .dsk, .cdt ni .cpr.
 - **Publiée (22 nov. 2026) :** pre-release GitHub v0.7.0, « CPC BASIC IDE 0.7.0 (version de test) », commit fed48dd.
 
+## D198 : sprites, étape 1 : DEFSPR et SPRITE (22 nov. 2026) (forme proposée puis choisie par l'utilisateur)
+- **Écriture (choix de l'utilisateur) :** `DEFSPR n, "ligne", "ligne", ...` (n de 1 à 16 ; un caractère par point : 0 à 9 et A à F = stylo, « . » = le décor reste visible ; au plus 16 x 16 points ; les DEFSPR du même numéro qui se suivent s'ajoutent, de haut en bas ; textes écrits en clair) ; `SPRITE n, x, y` montre ou déplace ; `SPRITE n` cache. Coordonnées du MODE, coin en haut à gauche, comme BOX (choix A de l'utilisateur). Mot nouveau : DEFSPR (proposé par l'utilisateur) ; SPRITE et COLLIDE étaient déjà réservés.
+- **Fait :** `Parser.cs` (DEFSPR, SPRITE, regroupement des DEFSPR qui se suivent, messages SpriteDefinition, SpriteRow, SpriteSize), `CodeGenerator.cs`, `RuntimeLibrary.cs`, nouveau `Codegen\SpriteRuntime.cs` : le compilateur prépare l'image des trois MODE (pour chaque octet : l'image et ce qui reste du décor) ; le module, écrit en assembleur, garde le décor sous le sprite et le remet quand il bouge ou se cache (écriture directe dans l'écran, comme BOX). Un sprite qui dépasse de l'écran n'est pas montré. Pour l'instant, la position en largeur avance par octet (2, 4 ou 8 points selon le MODE). Marche aussi sur la cartouche GX4000 (même module).
+- **Vérification avant envoi :** le module essayé dans le simulateur Python (trois MODE, décor rendu octet pour octet, sortie de l'écran).
+- **Tests :** 2042 réussis (13 nouveaux).
+- **Essai (22 nov. 2026) :** `examples\sprite.bas` dans WinAPE (F5) et dans AMSpiriT (Ctrl+F5) : l'envahisseur traverse le décor sans l'abîmer, puis disparaît (« C'est ok »).
+- **Suite prévue :** position au point près en largeur (étape 2), COLLIDE (étape 3), sprites qui se croisent (étape 4).
+
 ---
 
 ## Notes de fin de session (modèle)
