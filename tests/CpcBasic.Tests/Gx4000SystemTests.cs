@@ -525,6 +525,71 @@ public class Gx4000SystemTests
         Assert.Equal(1, cpu.A);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Les_traits_tout_droits_rapides_donnent_les_memes_points_que_PLOT(byte mode)
+    {
+        // D202 : DRAW horizontal (octet par octet) ou vertical (ligne après ligne) comparé à PLOT point par point,
+        // sur un décor au hasard, avec ou sans fenêtre graphique, en écriture normale ou XOR, bouts hors de l'écran
+        var random = new Random(40 + mode);
+        int unit = mode == 0 ? 4 : mode == 1 ? 2 : 1;           // unités du repère par point, en largeur
+        MiniZ80 fast = Cpu(), slow = Cpu();                   // la console fabriquée une seule fois (essai rapide)
+        Mode(fast, mode);
+        Mode(slow, mode);
+        var entries = new Dictionary<int, int>();             // adresses des routines cherchées une seule fois
+        void Go(MiniZ80 cpu, int firmware, int x = 0, int y = 0, byte a = 0)
+        {
+            if (!entries.TryGetValue(firmware, out int entry))
+                entries[firmware] = entry = EntryOf(firmware, cpu);
+            cpu.D = (byte)(x >> 8);
+            cpu.E = (byte)x;
+            cpu.H = (byte)(y >> 8);
+            cpu.L = (byte)y;
+            cpu.A = a;
+            cpu.Call(entry);
+        }
+        for (int round = 0; round < 60; round++)
+        {
+            byte pen = (byte)random.Next(1, 16);
+            byte access = (byte)(round % 2);
+            var decor = new byte[0x4000];
+            random.NextBytes(decor);
+            foreach (MiniZ80 c in new[] { fast, slow })
+            {
+                decor.CopyTo(c.Memory, 0xC000);
+                bool window = round % 3 == 0;
+                Go(c, 0xBBCF, window ? 100 : 0, window ? 500 : 639);   // fenêtre graphique, ou tout l'écran
+                Go(c, 0xBBD2, window ? 350 : 399, window ? 50 : 0);
+                Go(c, 0xBBDE, a: pen);
+                Go(c, 0xBC59, a: access);
+            }
+            int x1 = random.Next(-40, 700) / unit * unit, y1 = random.Next(-40, 440) / 2 * 2;
+            int x2 = random.Next(-40, 700) / unit * unit, y2 = random.Next(-40, 440) / 2 * 2;
+            bool horizontal = random.Next(2) == 0;
+            if (horizontal)
+                y2 = y1;
+            else
+                x2 = x1;
+
+            Go(fast, 0xBBC0, x1, y1);
+            Go(fast, 0xBBF6, x2, y2);
+            if (horizontal)
+                for (int x = Math.Min(x1, x2); x <= Math.Max(x1, x2); x += unit)
+                    Go(slow, 0xBBEA, x, y1);
+            else
+                for (int y = Math.Min(y1, y2); y <= Math.Max(y1, y2); y += 2)
+                    Go(slow, 0xBBEA, x1, y);
+
+            Assert.True(slow.Memory[0xC000..].SequenceEqual(fast.Memory[0xC000..]),
+                        $"MODE {mode}, essai {round} : de ({x1}, {y1}) à ({x2}, {y2})");
+            Go(fast, 0xBBC6);                                 // le curseur graphique est au bout
+            Assert.Equal(x2, (short)(fast.D << 8 | fast.E));
+            Assert.Equal(y2, (short)(fast.H << 8 | fast.L));
+        }
+    }
+
     [Fact]
     public void TEST_rend_l_encre_du_point()
     {

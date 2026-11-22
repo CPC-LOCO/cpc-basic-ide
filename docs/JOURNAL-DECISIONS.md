@@ -1542,6 +1542,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Essai (22 nov. 2026) : examples\croise.bas dans WinAPE : les deux sprites se croisent, les rayures restent intactes. Sur cartouche, c'est lent et saccadé (à regarder).
 - Les exemples recommencent au début après la dernière attente d'ESPACE (demande de l'utilisateur) : croise.bas et collide.bas.
 
+## D202 : cartouche GX4000, traits tout droits rapides (22 nov. 2026) (demande de l'utilisateur)
+
+- Constat : dans AMSpiriT, les rayures de croise.bas se traçaient très lentement : notre DRAW calculait chaque point un par un (fenêtre, adresse, écriture), environ 120 instructions par point.
+- Fait : `Gx4000System.cs`, GRA LINE (&BBF6, &BBF9) : trait horizontal (même y) écrit octet par octet par SCR WRITE (&BDE8), plusieurs points d'un coup, les octets pleins en une fois ; trait vertical (même x) ligne après ligne, sans recalculer l'adresse. Bouts ramenés dans la fenêtre graphique. Les traits en biais ne changent pas.
+- MASK (D110) détourne SCR WRITE et compte les points dans l'ordre : dans ce cas, les traits verticaux et les traits horizontaux tracés vers la gauche gardent l'ancien chemin (motif exactement comme avant) ; vers la droite, le détournement reçoit plusieurs points de gauche à droite, comme avec le firmware.
+- Tests : 2049 (1 nouveau, en 3 MODE : 180 traits au hasard, décor au hasard, avec ou sans fenêtre graphique, écriture normale ou XOR, bouts hors de l'écran ; l'écran doit être le même, octet pour octet, que par PLOT point par point). Le premier jet du test durait 3 min 37 (adresse des routines recherchée à chaque point) : ramené à 9 s pour tous les tests.
+- Essai (22 nov. 2026) : croise.bas en cartouche dans AMSpiriT : « c'est largement mieux ».
+- Reste (IDEES) : les traits en biais, et les ronds d'ELLIPSE, toujours point par point.
+
 ---
 
 ## Notes de fin de session (modèle)

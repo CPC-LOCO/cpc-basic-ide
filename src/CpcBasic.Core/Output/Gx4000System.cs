@@ -4045,6 +4045,14 @@ public static class Gx4000System
                 LD A,&FF
         GL2:    LD (&BE54),HL
                 LD (&BE57),A
+                LD A,H                  ; trait tout droit : chemin rapide (D202)
+                OR L
+                JP Z,GLH
+                LD HL,(&BE52)
+                LD A,H
+                OR L
+                JP Z,GLV
+        GLN:    LD HL,(&BE54)
                 LD DE,(&BE52)
                 OR A
                 SBC HL,DE
@@ -4125,6 +4133,203 @@ public static class Gx4000System
                 LD (HL),D
                 DEC HL
                 LD (HL),E
+                RET
+        ; ---- traits tout droits rapides (D202) : de (&BE4A, &BE4C) à (&BE4E, &BE50), points de base ----
+        ; horizontal : octet par octet (plusieurs points d'un coup) par SCR WRITE ; vertical : ligne après ligne.
+        ; MASK détourne SCR WRITE (D110) : l'ordre des points compte, les traits à l'envers prennent le chemin normal.
+        GLH:    LD A,(&BE56)
+                INC A                   ; &FF -> 0 : vers la gauche
+                JR NZ,GLH1
+                CALL DETOUR
+                JP NZ,GLN
+                LD HL,(&BE4A)           ; les deux bouts échangés
+                LD DE,(&BE4E)
+                LD (&BE4A),DE
+                LD (&BE4E),HL
+        GLH1:   LD HL,(&BE4C)           ; y dans la fenêtre graphique ?
+                BIT 7,H
+                RET NZ
+                EX DE,HL
+                LD HL,(&BE6C)
+                OR A
+                SBC HL,DE
+                JR Z,GLH2
+                RET NC
+        GLH2:   LD HL,(&BE6E)
+                OR A
+                SBC HL,DE
+                RET C
+                LD HL,(&BE4E)           ; bout droit : ramené dans la fenêtre
+                BIT 7,H
+                RET NZ
+                EX DE,HL
+                LD HL,(&BE6A)
+                OR A
+                SBC HL,DE
+                JR NC,GLH3
+                LD HL,(&BE6A)
+                LD (&BE4E),HL
+        GLH3:   LD HL,(&BE4A)           ; bout gauche : ramené dans la fenêtre
+                BIT 7,H
+                JR NZ,GLH4
+                EX DE,HL
+                LD HL,(&BE68)
+                OR A
+                SBC HL,DE
+                JR C,GLH5
+                JR Z,GLH5
+        GLH4:   LD HL,(&BE68)
+                LD (&BE4A),HL
+        GLH5:   LD HL,(&BE4E)           ; nombre de points
+                LD DE,(&BE4A)
+                OR A
+                SBC HL,DE
+                RET C
+                INC HL
+                LD (&BE5A),HL
+                LD HL,(&BE4C)
+                CALL DOTPOS             ; HL = adresse, C = masque du premier point, B = points par octet - 1
+                LD A,(&BE4A)
+                AND B
+                LD E,A
+                LD A,B
+                SUB E
+                INC A
+                LD E,A                  ; points de ce premier octet
+                LD A,(&BE5C)
+                LD B,A
+                LD D,0
+        GLH6:   LD A,D                  ; un point de plus dans l'octet
+                OR C
+                LD D,A
+                PUSH HL
+                LD HL,(&BE5A)
+                DEC HL
+                LD (&BE5A),HL
+                LD A,H
+                OR L
+                POP HL
+                JR Z,GLH8
+                DEC E
+                JR Z,GLH7
+                SRL C
+                JR GLH6
+        GLH7:   LD C,D                  ; octet fini : écrit
+                PUSH BC
+                PUSH HL
+                CALL &BDE8
+                POP HL
+                POP BC
+                INC HL
+        GLH9:   LD A,(&BE61)            ; octets pleins : tous les points d'un coup
+                INC A
+                LD E,A
+                LD D,0
+                PUSH HL
+                LD HL,(&BE5A)
+                OR A
+                SBC HL,DE
+                JR C,GLH10
+                LD (&BE5A),HL
+                LD A,H
+                OR L
+                POP HL
+                PUSH AF
+                LD C,&FF
+                PUSH BC
+                PUSH HL
+                CALL &BDE8
+                POP HL
+                POP BC
+                POP AF
+                RET Z
+                INC HL
+                JR GLH9
+        GLH10:  POP HL
+                LD A,(&BE62)
+                LD C,A
+                JR GLH6
+        GLH8:   LD C,D                  ; dernier octet
+                JP &BDE8
+        GLV:    CALL DETOUR             ; MASK : chemin normal (l'ordre des points compte)
+                JP NZ,GLN
+                LD DE,(&BE4A)           ; x dans la fenêtre graphique ?
+                BIT 7,D
+                RET NZ
+                LD HL,(&BE68)
+                OR A
+                SBC HL,DE
+                JR Z,GLV1
+                RET NC
+        GLV1:   LD HL,(&BE6A)
+                OR A
+                SBC HL,DE
+                RET C
+                LD HL,(&BE4C)           ; bas et haut du trait
+                LD DE,(&BE50)
+                LD A,(&BE57)
+                INC A
+                JR NZ,GLV2
+                EX DE,HL
+        GLV2:   LD (&BE58),HL           ; bas
+                BIT 7,D                 ; haut : sous l'écran, rien
+                RET NZ
+                LD HL,(&BE6E)
+                OR A
+                SBC HL,DE
+                JR NC,GLV3
+                LD DE,(&BE6E)           ; ramené au haut de la fenêtre
+        GLV3:   LD HL,(&BE58)
+                BIT 7,H
+                JR NZ,GLV4
+                PUSH DE
+                EX DE,HL
+                LD HL,(&BE6C)
+                OR A
+                SBC HL,DE
+                EX DE,HL
+                POP DE
+                JR C,GLV5
+        GLV4:   LD HL,(&BE6C)           ; ramené au bas de la fenêtre
+        GLV5:   EX DE,HL                ; HL = haut, DE = bas
+                PUSH HL
+                OR A
+                SBC HL,DE
+                POP HL
+                RET C
+                LD A,L
+                SUB E
+                INC A
+                PUSH AF                 ; nombre de lignes (200 au plus)
+                LD DE,(&BE4A)
+                CALL DOTPOS
+                LD A,(&BE5C)
+                LD B,A
+                POP AF
+                LD E,A
+        GLV6:   CALL SCRWR
+                DEC E
+                RET Z
+                LD A,H                  ; ligne de points suivante, vers le bas
+                ADD A,8
+                LD H,A
+                JR NC,GLV6
+                LD A,L
+                ADD A,&50
+                LD L,A
+                LD A,H
+                ADC A,&C0
+                LD H,A
+                JR GLV6
+        ; NZ si SCR WRITE (&BDE8) est détourné (MASK, D110)
+        DETOUR: PUSH HL
+                PUSH DE
+                LD HL,(&BDE9)
+                LD DE,SCRWR
+                OR A
+                SBC HL,DE
+                POP DE
+                POP HL
                 RET
         NEGHL:  XOR A
                 SUB L

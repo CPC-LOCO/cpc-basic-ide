@@ -66,7 +66,7 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 | Commande | Rôle | CPC | Cartouche |
 |---|---|---|---|
 | `PLOT`, `PLOTR` | un point | Oui | Oui |
-| `DRAW`, `DRAWR` | un trait | Oui | Oui (lent pour l'instant) |
+| `DRAW`, `DRAWR` | un trait | Oui | Oui (traits tout droits rapides ; en biais, plus lents) |
 | `MOVE`, `MOVER`, `ORIGIN` | curseur graphique, origine | Oui | Oui |
 | `XPOS`, `YPOS`, `TEST`, `TESTR` | position, couleur d'un point | Oui | Oui |
 | `CLG`, `GRAPHICS PEN`, `GRAPHICS PAPER` | effacer, stylos du dessin | Oui | Oui |
