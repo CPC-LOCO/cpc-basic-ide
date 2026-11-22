@@ -219,6 +219,28 @@ public class SpriteTests
     }
 
     [Fact]
+    public void Deux_sprites_qui_se_croisent_gardent_le_bon_decor()
+    {
+        var machine = new Machine(1, ["3333"]);               // sprite 1 : 4 points au stylo 3
+        machine.Define(2, ["11"], 0xA000);                    // sprite 2 : 2 points au stylo 1, devant (numéro plus grand)
+        byte[] before = machine.Screen();
+        int first = Address(25, 50), second = Address(26, 50);
+        byte decor1 = machine.Cpu.Memory[first], decor2 = machine.Cpu.Memory[second];
+
+        machine.Show(100, 50);
+        machine.Show(102, 50, 2);                             // points 2 et 3 de l'octet 25
+        Assert.Equal(0xFC, machine.Cpu.Memory[first]);
+        machine.Show(101, 50);                                // le sprite 1 bouge sous le sprite 2
+        Assert.Equal((decor1 & 0x88) | 0x44 | 0x30, machine.Cpu.Memory[first]);
+        Assert.Equal((decor2 & 0x77) | 0x88, machine.Cpu.Memory[second]);
+        machine.Hide(1);                                      // il reste le sprite 2 sur le vrai décor
+        Assert.Equal((decor1 & 0xCC) | 0x30, machine.Cpu.Memory[first]);
+        Assert.Equal(decor2, machine.Cpu.Memory[second]);
+        machine.Hide(2);
+        Assert.Equal(before, machine.Screen());
+    }
+
+    [Fact]
     public void Un_programme_avec_COLLIDE_se_compile()
     {
         CompileResult result = Compiler.CompileToDisk(

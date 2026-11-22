@@ -1533,6 +1533,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Exemple : examples\collide.bas (deux envahisseurs avancent l'un vers l'autre et s'arrêtent au contact). Essayé dans WinAPE : ils s'arrêtent bien en se touchant.
 - Tests : 2045.
 
+## D201 : sprites, étape 4 : des sprites qui se croisent (22 nov. 2026)
+
+- Le plus grand numéro passe devant (choix de Claude, « tu codes, alors tu décides »).
+- Avant de changer un sprite (SPRITE n, x, y ou SPRITE n), les sprites montrés de numéro plus grand qui touchent la zone changée sont enlevés (du plus grand au plus petit), puis remis après (du plus petit au plus grand) : chacun garde le bon décor. La zone est un rectangle qui grandit avec chaque sprite enlevé, avec une marge de 7 points de chaque côté (octets de l'écran partagés).
+- Chemin court : si aucun sprite n'est montré au-dessus, ou si aucun ne touche la zone, le sprite est changé comme avant. Une première version, trop lente (environ 3 fois le temps d'avant), faisait disparaître le sprite bleu dans WinAPE : son effacement tombait pile au passage du balayage de l'écran. Corrigé : environ 2 000 instructions pour les deux sprites de l'exemple, contre 1 460 avant cette étape.
+- Vérification : simulateur Python (400 changements au hasard, 6 sprites, 3 MODE, écran exact à chaque fois ; l'ancienne version se trompe dès les premiers croisements) ; 1 test C# nouveau (2046).
+- Essai (22 nov. 2026) : examples\croise.bas dans WinAPE : les deux sprites se croisent, les rayures restent intactes. Sur cartouche, c'est lent et saccadé (à regarder).
+- Les exemples recommencent au début après la dernière attente d'ESPACE (demande de l'utilisateur) : croise.bas et collide.bas.
+
 ---
 
 ## Notes de fin de session (modèle)

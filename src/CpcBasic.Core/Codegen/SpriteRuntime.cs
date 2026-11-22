@@ -13,6 +13,8 @@ namespace CpcBasic.Core.Codegen;
 /// dessous ; SPRITE n la cache et remet le décor. Coordonnées du MODE, coin en haut à gauche (comme BOX), au point près
 /// (D199 : image décalée préparée une fois par décalage, puis gardée). Le compilateur prépare l'image des trois MODE
 /// (Build) ; le module (Emit) est écrit en assembleur. COLLIDE(a, b) (D200) : les rectangles des deux dessins montrés.
+/// Sprites qui se croisent (D201) : le plus grand numéro passe devant ; les sprites au-dessus qui touchent la zone
+/// changée sont enlevés puis remis, pour que chacun garde le bon décor.
 /// </summary>
 public static class SpriteRuntime
 {
@@ -68,7 +70,8 @@ public static class SpriteRuntime
         SHOW:   CALL &B903
                 PUSH AF
                 PUSH IX
-                CALL SHOW1
+                LD A,1
+                CALL CHANGE
                 POP IX
                 POP AF
                 JP &B90C
@@ -76,12 +79,246 @@ public static class SpriteRuntime
         HIDE:   CALL &B903
                 PUSH AF
                 PUSH IX
-                LD A,(SN)
-                CALL ENTRYA
-                CALL NZ,RESTORE
+                XOR A
+                CALL CHANGE
                 POP IX
                 POP AF
                 JP &B90C
+                ; ---- sprites qui se croisent (D201) : le plus grand numéro passe devant. Avant de changer le sprite SN
+                ; (A = 1 montré, 0 caché), les sprites de numéro plus grand qui touchent la zone changée sont enlevés (du plus
+                ; grand au plus petit), puis remis après (du plus petit au plus grand) : chacun garde ainsi le bon décor.
+                ; La zone : un rectangle qui grandit avec chaque sprite enlevé (+7 octets de marge : octets partagés) ----
+        CHANGE: LD (SPACT),A
+                LD A,(SN)
+                LD (SVN),A
+                CALL ENTRYA
+                RET Z
+                LD L,(IX+0)
+                LD H,(IX+1)
+                LD A,H
+                OR L
+                RET Z                   ; pas défini
+                CALL ABOVE              ; aucun sprite montré au-dessus : le chemin court
+                JR NZ,CH0
+                LD A,(SPACT)
+                OR A
+                JP Z,RESTORE
+                JP SHOW1
+        CH0:    XOR A
+                LD (BOXE),A
+                LD (LIFTS),A
+                LD A,(SVN)              ; la zone : l'ancienne place...
+                CALL CINFO
+                CALL NZ,BOXADD
+                LD A,(SPACT)
+                OR A
+                JR Z,CH1
+                LD A,(SVN)              ; ... et la nouvelle
+                CALL ENTRYA
+                LD L,(IX+0)
+                LD H,(IX+1)
+                LD B,(HL)
+                INC HL
+                LD C,(HL)
+                LD HL,(SX)
+                LD DE,(SY)
+                CALL BOXADD
+        CH1:    LD A,(SVN)              ; quels sprites au-dessus enlever (du plus petit au plus grand)
+                CALL ENTRYA
+                CALL COUNT
+        CH2:    LD DE,16
+                ADD IX,DE
+                LD (IX+7),0
+                LD A,(IX+2)
+                OR A
+                JR Z,CH3
+                PUSH BC
+                LD L,(IX+0)
+                LD H,(IX+1)
+                LD B,(HL)
+                INC HL
+                LD C,(HL)
+                LD L,(IX+8)
+                LD H,(IX+9)
+                LD E,(IX+10)
+                LD D,(IX+11)
+                PUSH HL
+                PUSH DE
+                PUSH BC
+                CALL BOXHIT
+                POP BC
+                POP DE
+                POP HL
+                JR NC,CH2A
+                LD (IX+7),1
+                LD A,1
+                LD (LIFTS),A
+                CALL BOXADD
+        CH2A:   POP BC
+        CH3:    DJNZ CH2
+                LD A,(LIFTS)            ; aucun à enlever : le chemin court
+                OR A
+                JR NZ,CH4
+                LD A,(SVN)
+                CALL ENTRYA
+                LD A,(SPACT)
+                OR A
+                JP Z,RESTORE
+                JP SHOW1
+        CH4:    CALL COUNT              ; enlevés, du plus grand au plus petit (IX : le sprite 16)
+        CH5:    PUSH BC
+                LD A,(IX+7)
+                OR A
+                CALL NZ,RESTORE
+                LD DE,-16
+                ADD IX,DE
+                POP BC
+                DJNZ CH5
+                LD A,(SVN)              ; le sprite demandé
+                LD (SN),A
+                CALL ENTRYA
+                LD A,(SPACT)
+                OR A
+                JR NZ,CH8
+                CALL RESTORE
+                JR CH9
+        CH8:    CALL SHOW1
+        CH9:    LD A,(SVN)              ; puis les autres remis, du plus petit au plus grand
+        CH10:   INC A
+                CP 17
+                RET NC
+                LD (CK),A
+                CALL ENTRYA
+                LD A,(IX+7)
+                OR A
+                JR Z,CH11
+                LD (IX+7),0
+                LD A,(CK)
+                LD (SN),A
+                LD L,(IX+8)
+                LD H,(IX+9)
+                LD (SX),HL
+                LD L,(IX+10)
+                LD H,(IX+11)
+                LD (SY),HL
+                CALL SHOW1
+        CH11:   LD A,(CK)
+                JR CH10
+                ; B = nombre de sprites au-dessus de SVN (16 - SVN)
+        COUNT:  LD A,(SVN)
+                LD B,A
+                LD A,16
+                SUB B
+                LD B,A
+                RET
+                ; NZ si un sprite de numéro plus grand que SVN est montré (IX : la case de SVN, gardée)
+        ABOVE:  CALL COUNT
+                RET Z
+                PUSH IX
+                LD DE,16
+        AB1:    ADD IX,DE
+                LD A,(IX+2)
+                OR A
+                JR NZ,AB2
+                DJNZ AB1
+        AB2:    POP IX
+                RET
+                ; HL = x, DE = y, B = largeur, C = hauteur -> TX1, TY1, TX2, TY2 (décalés de &8000 : comparés sans signe)
+        BOXT:   LD A,H
+                XOR &80
+                LD H,A
+                LD A,D
+                XOR &80
+                LD D,A
+                LD (TY1),DE
+                PUSH BC
+                LD BC,7                 ; marge à gauche
+                OR A
+                SBC HL,BC
+                JR NC,BT1
+                LD HL,0
+        BT1:    LD (TX1),HL
+                POP BC
+                LD A,B
+                ADD A,14                ; largeur et les deux marges
+                LD E,A
+                LD D,0
+                ADD HL,DE
+                JR NC,BT2
+                LD HL,&FFFF
+        BT2:    LD (TX2),HL
+                LD HL,(TY1)
+                LD E,C
+                LD D,0
+                ADD HL,DE
+                JR NC,BT3
+                LD HL,&FFFF
+        BT3:    LD (TY2),HL
+                RET
+                ; la zone agrandie pour contenir ce rectangle
+        BOXADD: CALL BOXT
+                LD A,(BOXE)
+                OR A
+                JR NZ,BA1
+                INC A
+                LD (BOXE),A
+                LD HL,TX1
+                LD DE,BX1
+                LD BC,8
+                LDIR
+                RET
+        BA1:    LD HL,(TX1)
+                LD DE,(BX1)
+                OR A
+                SBC HL,DE
+                JR NC,BA2
+                LD HL,(TX1)
+                LD (BX1),HL
+        BA2:    LD HL,(TY1)
+                LD DE,(BY1)
+                OR A
+                SBC HL,DE
+                JR NC,BA3
+                LD HL,(TY1)
+                LD (BY1),HL
+        BA3:    LD HL,(BX2)
+                LD DE,(TX2)
+                OR A
+                SBC HL,DE
+                JR NC,BA4
+                LD (BX2),DE
+        BA4:    LD HL,(BY2)
+                LD DE,(TY2)
+                OR A
+                SBC HL,DE
+                RET NC
+                LD (BY2),DE
+                RET
+                ; retenue si ce rectangle touche la zone
+        BOXHIT: LD A,(BOXE)
+                OR A
+                RET Z
+                CALL BOXT
+                LD HL,(TX1)
+                LD DE,(BX2)
+                OR A
+                SBC HL,DE
+                RET NC
+                LD HL,(BX1)
+                LD DE,(TX2)
+                OR A
+                SBC HL,DE
+                RET NC
+                LD HL,(TY1)
+                LD DE,(BY2)
+                OR A
+                SBC HL,DE
+                RET NC
+                LD HL,(BY1)
+                LD DE,(TY2)
+                OR A
+                SBC HL,DE
+                RET
         SHOW1:  LD A,(SN)
                 CALL ENTRYA
                 RET Z
@@ -500,6 +737,19 @@ public static class SpriteRuntime
         CBY:    DEFS 2
         CBW:    DEFS 1
         CBH:    DEFS 1
+        SPACT:  DEFS 1
+        SVN:    DEFS 1
+        CK:     DEFS 1
+        BOXE:   DEFS 1
+        LIFTS:  DEFS 1
+        TX1:    DEFS 2
+        TY1:    DEFS 2
+        TX2:    DEFS 2
+        TY2:    DEFS 2
+        BX1:    DEFS 2
+        BY1:    DEFS 2
+        BX2:    DEFS 2
+        BY2:    DEFS 2
         TABLE:  DEFS 256
         """;
 
