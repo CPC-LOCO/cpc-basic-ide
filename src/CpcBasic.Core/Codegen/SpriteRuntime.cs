@@ -12,7 +12,7 @@ namespace CpcBasic.Core.Codegen;
 /// Sprites (D198) : DEFSPR n, "ligne", ... donne l'image ; SPRITE n, x, y la montre (ou la déplace) en gardant le décor
 /// dessous ; SPRITE n la cache et remet le décor. Coordonnées du MODE, coin en haut à gauche (comme BOX), au point près
 /// (D199 : image décalée préparée une fois par décalage, puis gardée). Le compilateur prépare l'image des trois MODE
-/// (Build) ; le module (Emit) est écrit en assembleur.
+/// (Build) ; le module (Emit) est écrit en assembleur. COLLIDE(a, b) (D200) : les rectangles des deux dessins montrés.
 /// </summary>
 public static class SpriteRuntime
 {
@@ -25,6 +25,7 @@ public static class SpriteRuntime
     public const string NumberLabel = "rt_spr_SN";
     public const string XLabel = "rt_spr_SX";
     public const string YLabel = "rt_spr_SY";
+    public const string CollideLabel = "rt_spr_COLL";   // D200 : L = a, E = b -> HL = -1 (se touchent) ou 0
 
     const string Source = """
                 ; ---------- sprites (D198) : DEFSPR, SPRITE n, x, y ; SPRITE n ----------
@@ -224,6 +225,81 @@ public static class SpriteRuntime
                 DEC C
                 JR NZ,SH4
                 RET
+                ; ---- COLLIDE(a, b) (D200) : L = a, E = b -> HL = -1 si les deux sprites sont montrés et que leurs
+                ; rectangles (largeur x hauteur du dessin) ont au moins un point commun, sinon 0 ----
+        COLL:   PUSH IX
+                LD A,E
+                LD (CB),A
+                LD A,L
+                CALL CINFO
+                JR Z,COLNO
+                LD (CAX),HL
+                LD (CAY),DE
+                LD A,B
+                LD (CAW),A
+                LD A,C
+                LD (CAH),A
+                LD A,(CB)
+                CALL CINFO
+                JR Z,COLNO
+                LD (CBX),HL
+                LD (CBY),DE
+                LD A,B
+                LD (CBW),A
+                LD A,C
+                LD (CBH),A
+                LD HL,(CAX)             ; xa < xb + largeur b
+                LD DE,(CBX)
+                LD A,(CBW)
+                CALL LT
+                JR NC,COLNO
+                LD HL,(CBX)             ; xb < xa + largeur a
+                LD DE,(CAX)
+                LD A,(CAW)
+                CALL LT
+                JR NC,COLNO
+                LD HL,(CAY)             ; ya < yb + hauteur b
+                LD DE,(CBY)
+                LD A,(CBH)
+                CALL LT
+                JR NC,COLNO
+                LD HL,(CBY)             ; yb < ya + hauteur a
+                LD DE,(CAY)
+                LD A,(CAH)
+                CALL LT
+                JR NC,COLNO
+                LD HL,&FFFF
+                POP IX
+                RET
+        COLNO:  LD HL,0
+                POP IX
+                RET
+                ; sprite A montré : HL = x, DE = y, B = largeur, C = hauteur (Z faux) ; sinon Z
+        CINFO:  CALL ENTRYA
+                RET Z
+                LD A,(IX+2)
+                OR A
+                RET Z
+                LD L,(IX+0)
+                LD H,(IX+1)
+                LD B,(HL)
+                INC HL
+                LD C,(HL)
+                LD L,(IX+8)
+                LD H,(IX+9)
+                LD E,(IX+10)
+                LD D,(IX+11)
+                RET
+                ; retenue si HL < DE + A
+        LT:     PUSH HL
+                LD L,A
+                LD H,0
+                ADD HL,DE
+                EX DE,HL
+                POP HL
+                OR A
+                SBC HL,DE
+                RET
                 ; ---- position au point près (D199) : x pas au début d'un octet -> l'image décalée de s points vers la droite,
                 ; un octet de plus par ligne ; préparée une fois par décalage et gardée (place réservée par le compilateur) ----
         SHPREP: LD A,(SPMODE)
@@ -415,6 +491,15 @@ public static class SpriteRuntime
         SPM:    DEFS 1
         SPPI:   DEFS 1
         SPPK:   DEFS 1
+        CB:     DEFS 1
+        CAX:    DEFS 2
+        CAY:    DEFS 2
+        CAW:    DEFS 1
+        CAH:    DEFS 1
+        CBX:    DEFS 2
+        CBY:    DEFS 2
+        CBW:    DEFS 1
+        CBH:    DEFS 1
         TABLE:  DEFS 256
         """;
 

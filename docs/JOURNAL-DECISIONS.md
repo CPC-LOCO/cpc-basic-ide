@@ -1525,6 +1525,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Tests :** 2043 réussis (1 nouveau, 1 complété).
 - **Essai (22 nov. 2026) :** `examples\sprite.bas` : mouvement fluide de 2 points par image ; une petite saccade vers les trois quarts du trajet (« ça passe bien ») : sans doute le rythme de l'émulateur, à regarder si elle revient ailleurs.
 
+## D200 : sprites, étape 3 : COLLIDE (22 nov. 2026)
+
+- `COLLIDE(a, b)` vaut -1 (vrai) si les sprites a et b sont tous les deux visibles et que leurs rectangles se touchent ou se chevauchent, sinon 0.
+- Comparaison des rectangles (position et taille de chaque sprite), dans les coordonnées du MODE en cours ; pas de comparaison point par point (rapide, suffisant pour la plupart des jeux).
+- Un sprite caché ou jamais montré ne touche rien. Numéros hors de 1 à 16 : erreur à la compilation si connus.
+- Exemple : examples\collide.bas (deux envahisseurs avancent l'un vers l'autre et s'arrêtent au contact). Essayé dans WinAPE : ils s'arrêtent bien en se touchant.
+- Tests : 2045.
+
 ---
 
 ## Notes de fin de session (modèle)

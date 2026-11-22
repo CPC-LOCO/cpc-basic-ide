@@ -77,6 +77,8 @@ public static class Parser
         // D142 : sinus et cosinus rapides en entiers, angle en degrés (table au degré près)
         ["ISIN"] = new("ISIN(angle en degrés, échelle)", 2, 2),
         ["ICOS"] = new("ICOS(angle en degrés, échelle)", 2, 2),
+        // D200 : -1 si les deux sprites sont montrés et se touchent (rectangles de leurs dessins), sinon 0
+        ["COLLIDE"] = new("COLLIDE(sprite, sprite)", 2, 2),
         ["INKEY"] = new("INKEY(numéro de touche)", 1, 1),
         ["JOY"] = new("JOY(0 ou 1)", 1, 1),
         // D056 : accès à la machine ; l'adresse ou le port peut s'écrire de 0 à 65535 (comme sur le CPC) ou de -32768 à 32767

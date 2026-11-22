@@ -92,17 +92,39 @@ public class SpriteTests
             Cpu.Memory[address + 1] = (byte)(value >> 8);
         }
 
-        public void Show(int x, int y)
+        // un autre sprite : sa description en « at », son décor en at + &800, ses images décalées en at + &900
+        public void Define(int number, IReadOnlyList<string> rows, int at)
         {
-            Cpu.Memory[Emitter.AddressOf(SpriteRuntime.NumberLabel)] = 1;
+            (byte[] blocks, _, _) = SpriteRuntime.Build(rows);
+            byte[] description = [(byte)rows[0].Length, (byte)rows.Count, 0x00, (byte)((at >> 8) + 8), 0x00, (byte)((at >> 8) + 9), 0xFF, 0, .. blocks];
+            description.CopyTo(Cpu.Memory, at);
+            Cpu.A = (byte)number;
+            Cpu.H = (byte)(at >> 8);
+            Cpu.L = (byte)at;
+            Cpu.Call(Emitter.AddressOf(SpriteRuntime.DefLabel));
+        }
+
+        public int Collide(int a, int b)
+        {
+            Cpu.H = 0;
+            Cpu.L = (byte)a;
+            Cpu.D = 0;
+            Cpu.E = (byte)b;
+            Cpu.Call(Emitter.AddressOf(SpriteRuntime.CollideLabel));
+            return Cpu.H << 8 | Cpu.L;
+        }
+
+        public void Show(int x, int y, int number = 1)
+        {
+            Cpu.Memory[Emitter.AddressOf(SpriteRuntime.NumberLabel)] = (byte)number;
             Word(SpriteRuntime.XLabel, x);
             Word(SpriteRuntime.YLabel, y);
             Cpu.Call(Emitter.AddressOf(SpriteRuntime.ShowLabel));
         }
 
-        public void Hide()
+        public void Hide(int number = 1)
         {
-            Cpu.Memory[Emitter.AddressOf(SpriteRuntime.NumberLabel)] = 1;
+            Cpu.Memory[Emitter.AddressOf(SpriteRuntime.NumberLabel)] = (byte)number;
             Cpu.Call(Emitter.AddressOf(SpriteRuntime.HideLabel));
         }
 
@@ -174,5 +196,34 @@ public class SpriteTests
         Assert.Equal((decor1 & 0xEE) | 0x11, machine.Cpu.Memory[first]);
         machine.Hide();
         Assert.Equal(before, machine.Screen());
+    }
+
+    [Fact]
+    public void COLLIDE_dit_si_deux_sprites_se_touchent()
+    {
+        var machine = new Machine(1, ["3333"]);               // sprite 1 : 4 points sur 1 ligne
+        machine.Define(2, ["33"], 0xA000);                    // sprite 2 : 2 points
+        machine.Show(100, 50);
+
+        machine.Show(104, 50, 2);                             // juste à côté : ne touche pas
+        Assert.Equal(0, machine.Collide(1, 2));
+        machine.Show(103, 50, 2);                             // un point en commun
+        Assert.Equal(0xFFFF, machine.Collide(1, 2));
+        Assert.Equal(0xFFFF, machine.Collide(2, 1));
+        machine.Show(103, 51, 2);                             // une ligne plus bas
+        Assert.Equal(0, machine.Collide(1, 2));
+        machine.Show(103, 50, 2);
+        machine.Hide(2);                                      // caché : plus de choc
+        Assert.Equal(0, machine.Collide(1, 2));
+        Assert.Equal(0, machine.Collide(1, 3));               // jamais défini
+    }
+
+    [Fact]
+    public void Un_programme_avec_COLLIDE_se_compile()
+    {
+        CompileResult result = Compiler.CompileToDisk(
+            "10 DEFSPR 1,\"33\":DEFSPR 2,\"44\"\n20 SPRITE 1,10,10:SPRITE 2,11,10\n30 IF COLLIDE(1,2) THEN PRINT \"BOUM\"", "SPRITE");
+
+        Assert.True(result.Success);
     }
 }

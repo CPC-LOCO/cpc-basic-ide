@@ -1212,6 +1212,12 @@ public static class CodeGenerator
                             emitter.CallLabel(call.Function == "ISIN" ? RuntimeLibrary.ISinLabel : RuntimeLibrary.ICosLabel);
                             break;
 
+                        case "COLLIDE":                     // D200 : HL = a, DE = b -> HL = -1 ou 0
+                            EmitPair(call.Arguments[0], call.Arguments[1]);
+                            required.Add(RuntimeLibrary.SpriteName);
+                            emitter.CallLabel(SpriteRuntime.CollideLabel);
+                            break;
+
                         case "CLAMP":                       // CLAMP(v, mini, maxi) = MIN(MAX(v, mini), maxi)
                             EmitMinMax(RuntimeLibrary.Min16Name, RuntimeLibrary.Min16Label,
                                        new CallExpression("MAX", [call.Arguments[0], call.Arguments[1]]),
