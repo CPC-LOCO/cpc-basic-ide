@@ -44,7 +44,8 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 
 ### Cartouche GX4000 (suites de D181 à D196)
 - Nombres à virgule sur la console (faits, D196) : encore plus rapides si besoin. Pistes : multiplication par une table de carrés (a x b = ((a + b)^2 - (a - b)^2) / 4), SIN et COS sans division (x 2 / pi), polynômes plus courts.
-- Place libre dans la cartouche (question de l'utilisateur, 22 nov. 2026) : 128 Ko au moins, 512 Ko au plus, mais le programme est limité à 30 720 octets (il est recopié dans les 64 Ko de la console). Le reste pourrait garder des écrans dessinés ou de la musique, lus dans la cartouche au moment voulu (rejoint « écrans et musique »).
+- Place libre dans la cartouche (question de l'utilisateur, 22 nov. 2026) : 128 Ko au moins, 512 Ko au plus, mais le programme est limité à 30 464 octets (il est recopié dans les 64 Ko de la console). Le reste pourrait garder des écrans dessinés ou de la musique, lus dans la cartouche au moment voulu (rejoint « écrans et musique »).
+- Traits plus rapides sur la console (essai de croise.bas, 22 nov. 2026 : dans AMSpiriT, les traits se tracent très lentement ; l'utilisateur : « on s'occupera des traits plus tard ») : DRAW calcule chaque point un par un avec toutes les vérifications. Piste : un chemin rapide pour les traits horizontaux (octet par octet, plusieurs points d'un coup) et verticaux.
 
 ## Faites (gardées pour mémoire)
 - **Fait (D038, D039)** — Fonctions de calcul : ABS, SGN, MIN, MAX (existent dans le Locomotive), HIBYTE, LOBYTE, CLAMP, RANDOM, RANDOMIZE.
