@@ -326,6 +326,12 @@ internal sealed partial class MiniZ80
     /// </summary>
     public bool UpperRomEnabled = true;
 
+    /// <summary>
+    /// D210 : octet haut de l'adresse de l'écran rendu par SCR GET LOCATION. Par défaut 0 (« écran ailleurs ») : les DRAW et
+    /// PLOT rapides des programmes passent alors par les routines GRA simulées ici (Points, Lines). &amp;C0 : leur propre calcul.
+    /// </summary>
+    public byte ScreenBaseHigh;
+
     /// <summary>D204 : les entrées du firmware où le test a posé un saut (JP) vont à ce saut, avant le firmware simulé.</summary>
     public bool UseInstalledFirmware;
 
@@ -1084,6 +1090,11 @@ internal sealed partial class MiniZ80
             else if (address == 0xBCBC || address == 0xBCBF)
             {
                 Envelopes.Add((address == 0xBCBF, A, Memory[HL..(HL + 16)]));   // ENV / ENT
+            }
+            else if (address == 0xBC0B)
+            {
+                A = ScreenBaseHigh;                                // SCR GET LOCATION (D210) : écran, décalage 0
+                HL = 0;
             }
             else if (address == FirmwareMaths.KlProbeRom)
             {

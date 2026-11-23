@@ -23,6 +23,14 @@ public static class LineRuntime
     // commande de bibliothèque) : les points sont écrits directement dans l'écran, sans SCR WRITE
     public const string DirectLabel = "rt_ln_LINEN";
     public const string DirectRelativeLabel = "rt_ln_LINERN";
+    // D210 : PLOT et PLOTR rapides (écriture normale) : réglages, curseur et stylo gardés d'un point à l'autre
+    public const string PlotLabel = "rt_ln_PLOTN";
+    public const string PlotRelativeLabel = "rt_ln_PLOTRN";
+    public const string PlotValidLabel = "rt_ln_POK";
+    public const string PlotPenValidLabel = "rt_ln_PNOK";
+    public const string PlotPenLabel = "rt_ln_PENSET";   // A = stylo de PLOT x,y,stylo
+    public const string PlotSyncLabel = "rt_ln_SYNC";    // avant une instruction qui pourrait changer les réglages
+    public const string PlotFlushLabel = "rt_ln_FLUSH";  // avant MOVE, DRAW, XPOS, TEST... : curseur et stylo donnés à la ROM
 
     const string Source = """
                 ; ---------- DRAW et DRAWR rapides (D204) : nos traits à la place de GRA LINE de la ROM ----------
@@ -597,6 +605,282 @@ public static class LineRuntime
                 SUB H
                 LD H,A
                 RET
+                ; ---------- PLOT et PLOTR rapides (D210) : DE = x, HL = y (ou l'écart) ; écriture normale ----------
+                ; Aucun appel à la ROM pour un point. Réglages lus une fois (POK = 1 ; 2 : écran déplacé, la ROM dessine) :
+                ; MODE, origine, fenêtre graphique. Le curseur (PX, PY) et le stylo (PVAL) sont gardés ici et donnés à la
+                ; ROM seulement quand une autre instruction en a besoin (FLUSH) ; le programme appelle SYNC avant toute
+                ; instruction qui pourrait changer les réglages (FLUSH, puis réglages à relire), FLUSH avant MOVE, DRAW,
+                ; XPOS, TEST... Stylo codé ici (ENCODE), comme SCR INK ENCODE.
+        PLOTRN: LD A,(DIRTY)            ; écart depuis le curseur : le nôtre, ou celui de la ROM
+                OR A
+                JR Z,PR1
+                LD BC,(PX)
+                EX DE,HL
+                ADD HL,BC
+                EX DE,HL
+                LD BC,(PY)
+                ADD HL,BC
+                JR PLOTN
+        PR1:    PUSH HL
+                PUSH DE
+                CALL &BBC6              ; GRA ASK CURSOR
+                POP BC
+                EX DE,HL
+                ADD HL,BC
+                EX DE,HL
+                POP BC
+                ADD HL,BC
+        PLOTN:  LD A,(POK)
+                DEC A
+                JP NZ,PLSLOW
+        PLGO:   LD (PX),DE              ; le curseur va au point (donné à la ROM plus tard)
+                LD (PY),HL
+                LD A,1
+                LD (DIRTY),A
+                LD A,(PNOK)
+                OR A
+                CALL Z,PPEN
+                LD BC,(OY)              ; ligne de base = (y + origine) / 2, de 0 (en bas) à 199
+                ADD HL,BC
+                SRA H
+                RR L
+                LD A,H
+                OR A
+                RET NZ                  ; négative ou trop haute : dehors
+                LD A,(WBB)
+                LD C,A
+                LD A,L
+                CP C
+                RET C                   ; sous la fenêtre
+                LD C,A
+                LD A,(WTB)
+                CP C
+                RET C                   ; au-dessus de la fenêtre
+                EX DE,HL                ; point de base = (x + origine) / taille d'un point
+                LD DE,(OX)
+                ADD HL,DE
+                BIT 7,H
+                RET NZ
+                LD A,(SHF)
+                OR A
+                JR Z,PX0
+                LD B,A
+        PXS:    SRL H
+                RR L
+                DJNZ PXS
+        PX0:    LD DE,(WL)
+                OR A
+                SBC HL,DE
+                RET C                   ; à gauche de la fenêtre
+                ADD HL,DE
+                EX DE,HL
+                LD HL,(WR)
+                OR A
+                SBC HL,DE
+                RET C                   ; à droite de la fenêtre
+                LD A,(PPM)              ; DE = point : rang dans son octet, masque
+                AND E
+                LD B,A
+                LD A,(LMASK)
+                JR Z,PM1
+        PM0:    SRL A
+                DJNZ PM0
+        PM1:    LD (PMSK),A
+                LD A,(PSH)              ; octet dans la ligne
+                LD B,A
+        PB1:    SRL D
+                RR E
+                DJNZ PB1
+                LD A,199                ; ligne de l'écran depuis le haut
+                SUB C
+                LD C,A
+                AND &F8                 ; (ligne AND &F8) x 10 = (ligne / 8) x 80
+                LD L,A
+                LD H,0
+                ADD HL,HL
+                LD B,H
+                LD A,L
+                ADD HL,HL
+                ADD HL,HL
+                ADD A,L
+                LD L,A
+                LD A,B
+                ADC A,H
+                LD H,A
+                ADD HL,DE
+                LD A,C                  ; + &C000 + (ligne AND 7) x &800
+                AND 7
+                ADD A,A
+                ADD A,A
+                ADD A,A
+                OR &C0
+                ADD A,H
+                LD H,A
+                CALL &B903              ; KL U ROM DISABLE (pour lire l'écran) : A = état d'avant
+                LD B,A
+                LD A,(PMSK)
+                LD C,A
+                LD A,(PENC)
+                XOR (HL)
+                AND C
+                XOR (HL)
+                LD (HL),A
+                LD A,B
+                JP &B90C                ; KL ROM RESTORE
+        PLSLOW: INC A                   ; POK = 0 : réglages à lire ; POK = 2 : la ROM
+                JR NZ,PLROM
+                PUSH HL
+                PUSH DE
+                CALL PREP
+                POP DE
+                POP HL
+                LD A,(POK)
+                DEC A
+                JP Z,PLGO
+        PLROM:  PUSH HL                 ; écran déplacé : la ROM s'en charge (curseur et stylo donnés d'abord)
+                PUSH DE
+                CALL FLUSH
+                POP DE
+                POP HL
+                CALL &BBEA              ; (appel puis retour : le simulateur des tests ne suit pas un saut vers GRA PLOT)
+                RET
+                ; PLOT x,y,stylo : A = stylo, gardé ici (donné à la ROM plus tard)
+        PENSET: LD (PVAL),A
+                LD A,1
+                LD (PENDIRTY),A
+                XOR A
+                LD (PNOK),A
+                RET
+                ; avant une instruction qui pourrait changer les réglages
+        SYNC:   CALL FLUSH
+                XOR A
+                LD (POK),A
+                LD (PNOK),A
+                RET
+                ; curseur et stylo gardés ici : donnés à la ROM
+        FLUSH:  LD A,(PENDIRTY)
+                OR A
+                JR Z,FL1
+                XOR A
+                LD (PENDIRTY),A
+                LD A,(PVAL)
+                CALL &BBDE              ; GRA SET PEN
+        FL1:    LD A,(DIRTY)
+                OR A
+                RET Z
+                XOR A
+                LD (DIRTY),A
+                LD DE,(PX)
+                LD HL,(PY)
+                CALL &BBC0              ; GRA MOVE ABSOLUTE
+                RET
+                ; le stylo codé pour le MODE (gardé ou lu dans la ROM) ; DE, HL gardés
+        PPEN:   PUSH HL
+                PUSH DE
+                LD A,(PENDIRTY)
+                OR A
+                LD A,(PVAL)
+                CALL Z,&BBE1            ; GRA GET PEN
+                LD C,A
+                LD A,(PMODE)
+                OR A
+                JR Z,EN0
+                DEC A
+                JR Z,EN1
+                LD A,C                  ; MODE 2 : bit 0 -> &FF
+                RRA
+                SBC A,A
+                JR ENF
+        EN1:    XOR A                   ; MODE 1 : bit 0 -> &F0, bit 1 -> &0F
+                BIT 0,C
+                JR Z,EN11
+                OR &F0
+        EN11:   BIT 1,C
+                JR Z,ENF
+                OR &0F
+                JR ENF
+        EN0:    XOR A                   ; MODE 0 : bits 0, 1, 2, 3 -> &C0, &0C, &30, &03
+                BIT 0,C
+                JR Z,EN01
+                OR &C0
+        EN01:   BIT 1,C
+                JR Z,EN02
+                OR &0C
+        EN02:   BIT 2,C
+                JR Z,EN03
+                OR &30
+        EN03:   BIT 3,C
+                JR Z,ENF
+                OR &03
+        ENF:    LD (PENC),A
+                LD A,1
+                LD (PNOK),A
+                POP DE
+                POP HL
+                RET
+                ; les réglages du firmware, gardés
+        PREP:   CALL &BC0B              ; SCR GET LOCATION : écran en &C000, sans décalage ?
+                CP &C0
+                JP NZ,PPROM
+                LD A,H
+                OR L
+                JP NZ,PPROM
+                CALL &BC11              ; SCR GET MODE
+                AND 3
+                CP 3
+                JR NZ,PP0
+                XOR A
+        PP0:    LD (PMODE),A
+                LD E,A
+                LD D,0
+                LD HL,MODES
+                ADD HL,DE
+                ADD HL,DE
+                ADD HL,DE
+                LD A,(HL)
+                LD (SHF),A
+                INC HL
+                LD A,(HL)
+                LD (LMASK),A
+                INC HL
+                LD A,(HL)
+                LD (RMASK),A
+                LD A,E                  ; points par octet : 2, 4, 8 (décalage 1, 2, 3 ; masque 1, 3, 7)
+                INC A
+                LD (PSH),A
+                LD B,A
+                XOR A
+        PP1:    SCF
+                RLA
+                DJNZ PP1
+                LD (PPM),A
+                CALL &BBCC              ; GRA GET ORIGIN
+                LD (OX),DE
+                LD (OY),HL
+                CALL &BBD5              ; GRA GET W WIDTH
+                CALL XBASE
+                LD (WR),HL
+                EX DE,HL
+                CALL XBASE
+                LD (WL),HL
+                CALL &BBD8              ; GRA GET W HEIGHT : en lignes de base (0 à 199)
+                SRA H
+                RR L
+                LD A,L
+                LD (WBB),A
+                EX DE,HL
+                SRA H
+                RR L
+                LD A,L
+                LD (WTB),A
+                XOR A
+                LD (PNOK),A             ; le stylo dépend du MODE : recodé aussi
+                INC A
+                LD (POK),A
+                RET
+        PPROM:  LD A,2
+                LD (POK),A
+                RET
                 ; par MODE : décalage x, masque du point de gauche, du point de droite
         MODES:  DEFB 2,&AA,&55,1,&88,&11,0,&80,&01
         ENDX:     DEFS 2
@@ -631,6 +915,20 @@ public static class LineRuntime
         DMIN:   DEFS 2
         DMAJ:   DEFS 2
         NMAJ:   DEFS 2
+        POK:    DEFS 1
+        PNOK:   DEFS 1
+        PENC:   DEFS 1
+        PSH:    DEFS 1
+        PPM:    DEFS 1
+        PMODE:  DEFS 1
+        PMSK:   DEFS 1
+        WBB:    DEFS 1
+        WTB:    DEFS 1
+        DIRTY:  DEFS 1
+        PENDIRTY: DEFS 1
+        PVAL:   DEFS 1
+        PX:     DEFS 2
+        PY:     DEFS 2
         """;
 
     /// <summary>Écrit le module dans le programme.</summary>

@@ -193,6 +193,8 @@ public static class CodeGenerator
         // DRAW écrit ses points directement dans l'écran
         bool directLines = !program.Statements.Any(st => st is DrawStatement { Mode: not null } or ExternalCallStatement
                                                              or LibraryCallStatement);
+        // D210 : PLOT et PLOTR rapides (réglages gardés d'un point à l'autre) ; décidé juste avant les instructions
+        bool fastPlot = false;
         bool usesHeap = arrays.Count > 0 || usesStrings
                         || program.Statements.Any(st => AstWalker.All(st).Any(x => x is CallExpression { Function: "HIMEM" or "FRE" }))
                         || program.Statements.Any(st => st is ScreenStatement { Command: "FILL" or "PAINT" });   // pile du remplissage (D107)
@@ -2060,13 +2062,26 @@ public static class CodeGenerator
             EmitExpression(draw.Y);
             emitter.PushHl();
 
-            if (draw.Pen is not null)
+            if (draw.Pen is not null && fastPlot && draw.Command is "PLOT" or "PLOTR")
+            {
+                EmitExpression(draw.Pen);                           // D210 : le stylo gardé par nos points rapides
+                emitter.LdAL();
+                required.Add(RuntimeLibrary.LineName);
+                emitter.CallLabel(LineRuntime.PlotPenLabel);
+            }
+            else if (draw.Pen is not null)
                 EmitCallWithA(draw.Pen, GraSetPen);
             if (draw.Mode is not null)
                 EmitCallWithA(draw.Mode, ScrAccess);
 
             emitter.PopHl();       // y
             emitter.PopDe();       // x
+            if (fastPlot && draw.Command is "PLOT" or "PLOTR")
+            {
+                required.Add(RuntimeLibrary.LineName);              // D210 : nos points rapides
+                emitter.CallLabel(draw.Command == "PLOT" ? LineRuntime.PlotLabel : LineRuntime.PlotRelativeLabel);
+                return;
+            }
             bool masked = usesMask && draw.Command is "DRAW" or "DRAWR";
             if (masked)
                 emitter.CallLabel(RuntimeLibrary.MaskBeginLabel);   // MASK et fond transparent pendant la ligne (D110)
@@ -2215,11 +2230,23 @@ public static class CodeGenerator
         bool fileGroup = false;     // entre PRINT #9 (ou INPUT #9...) et la fin de l'instruction (D084)
         bool fileOutput = false;    // ... et les caractères vont dans le fichier
         bool printerGroup = false;  // entre PRINT #8 et la fin de l'instruction (D100)
+        // D210 : PLOT rapides sur CPC : écriture normale toujours (comme D205), sans MASK, sans événements ni TRON (qui
+        // peuvent changer l'écran entre deux instructions). Les réglages (écran, MODE, origine, fenêtre, stylo) sont lus
+        // une fois puis gardés ; toute instruction qui pourrait les changer les fait relire (SafeForPlot).
+        fastPlot = !options.Cartridge && directLines && !usesMask && !usesTrace
+                   && program.Statements.Any(st => st is DrawStatement { Command: "PLOT" or "PLOTR" })
+                   && !program.Statements.Any(st => st is TimerStatement or OnSqStatement or OnBreakStatement);
         foreach (Statement statement in program.Statements)
         {
             if (linesAt.TryGetValue(statementIndex, out List<int>? numbersHere))
                 basicLine = numbersHere.Max();
             EmitLineLabels(statementIndex++);
+
+            if (fastPlot && !SafeForPlot(statement))
+                emitter.CallLabel(LineRuntime.PlotSyncLabel);        // D210 : curseur et stylo donnés à la ROM, réglages à relire
+            else if (fastPlot && (statement is DrawStatement { Command: not ("PLOT" or "PLOTR") }
+                                  || AstWalker.All(statement).Any(x => x is CallExpression { Function: "XPOS" or "YPOS" or "TEST" or "TESTR" })))
+                emitter.CallLabel(LineRuntime.PlotFlushLabel);       // D210 : curseur et stylo donnés à la ROM
 
             // TRON (D088) : au début de chaque ligne, son numéro entre crochets si TRON est en marche
             if (usesTrace && program.IsStart(statement))
@@ -3883,6 +3910,20 @@ public static class CodeGenerator
     const int GraClearWindow = 0xBBDB;  // GRA CLEAR WINDOW : efface la fenêtre graphique
     const int GraSetPen = 0xBBDE;       // GRA SET PEN : A = stylo
     const int GraSetPaper = 0xBBE4;     // GRA SET PAPER : A = fond
+    /// <summary>
+    /// D210 : instructions qui ne changent ni l'écran (place, défilement), ni le MODE, ni l'origine, ni la fenêtre graphique :
+    /// les réglages gardés par PLOT rapide restent bons (PLOT x,y,stylo garde son stylo lui-même). Toutes les autres les
+    /// font relire (SYNC) ; MOVE, DRAW..., XPOS, YPOS, TEST, TESTR reçoivent d'abord le curseur et le stylo gardés (FLUSH).
+    /// </summary>
+    static bool SafeForPlot(Statement statement) => statement is AssignStatement or ArrayAssignStatement or DeclareStatement
+        or ForStatement or NextStatement or WhileStatement or WendStatement or RepeatStatement or UntilStatement or DoStatement
+        or LoopStatement or ExitStatement or ContinueStatement or IfStatement or ElseStatement or EndIfStatement
+        or SelectStatement or CaseStatement or CaseElseStatement or EndSelectStatement or GotoStatement or GosubStatement
+        or ReturnStatement or OnStatement or DataStatement or ReadStatement or RestoreStatement or RandomizeStatement
+        or DefFnStatement or MidAssignStatement or EndStatement
+        or DrawStatement { Pen: null, Mode: null, Command: "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR" }
+        or DrawStatement { Mode: null, Command: "PLOT" or "PLOTR" };
+
     const int GraPlotAbsolute = 0xBBEA; // GRA PLOT ABSOLUTE : DE = x, HL = y
     const int GraPlotRelative = 0xBBED; // GRA PLOT RELATIVE : DE = écart x, HL = écart y
     const int GraLineAbsolute = 0xBBF6; // GRA LINE ABSOLUTE : DE = x, HL = y

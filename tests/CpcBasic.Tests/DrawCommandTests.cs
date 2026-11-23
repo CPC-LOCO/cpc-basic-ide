@@ -124,8 +124,6 @@ public class DrawCommandTests
 
     [Theory]
     [InlineData("MOVER", 0xC3, 0xBB)]
-    [InlineData("PLOT", 0xEA, 0xBB)]
-    [InlineData("PLOTR", 0xED, 0xBB)]
     public void Chaque_commande_appelle_sa_routine_du_firmware(string command, byte low, byte high)
     {
         AssertStartsWith(Code($"10 {command} 1, 2"),
@@ -147,6 +145,47 @@ public class DrawCommandTests
         Assert.True(target > 0x4000);
     }
 
+    [Theory]
+    [InlineData("PLOT", LineRuntime.PlotLabel)]
+    [InlineData("PLOTR", LineRuntime.PlotRelativeLabel)]
+    public void PLOT_et_PLOTR_appellent_nos_points_rapides(string command, string label)
+    {
+        // D210 : le module des traits (PLOTN, PLOTRN) à la place de GRA PLOT (&BBEA, &BBED) de la ROM
+        GeneratedProgram program = CodeGenerator.Generate(Parse($"10 {command} 1, 2"), 0x4000);
+        int target = program.Code[11] | program.Code[12] << 8;
+
+        AssertStartsWith(program.Code, 0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5, 0xE1, 0xD1, 0xCD);
+        Assert.Contains(RuntimeLibrary.LineName, program.Modules);
+        Assert.NotEqual(command == "PLOT" ? 0xBBEA : 0xBBED, target);
+        Assert.True(target > 0x4000, label);
+    }
+
+    [Theory]
+    [InlineData("10 MASK 170\n20 PLOT 1, 2")]                  // MASK : la ROM, comme DRAW
+    [InlineData("10 PLOT 1, 2, 3, 1")]                         // mode d'écriture changé
+    [InlineData("10 EVERY 50 GOSUB 30\n20 PLOT 1, 2\n30 RETURN")]   // événements
+    [InlineData("10 TRON\n20 PLOT 1, 2")]                      // TRON écrit à l'écran entre deux instructions
+    public void Ces_programmes_gardent_le_PLOT_de_la_ROM(string source)
+    {
+        GeneratedProgram program = CodeGenerator.Generate(Parse(source), 0x4000);
+
+        Assert.DoesNotContain(RuntimeLibrary.LineName, program.Modules);
+    }
+
+    [Fact]
+    public void Une_instruction_qui_peut_changer_les_reglages_les_fait_relire()
+    {
+        // D210 : 10 PLOT 1, 2 fait 13 octets ; MODE commence par CALL SYNC (module) ; une affectation, non
+        byte[] withMode = CodeGenerator.Generate(Parse("10 PLOT 1, 2\n20 MODE 1\n30 PLOT 3, 4"), 0x4000).Code;
+        byte[] withLet = CodeGenerator.Generate(Parse("10 PLOT 1, 2\n20 A=1\n30 PLOT 3, 4"), 0x4000).Code;
+        int plotn = withMode[11] | withMode[12] << 8;
+
+        Assert.Equal(0xCD, withMode[13]);
+        int sync = withMode[14] | withMode[15] << 8;
+        Assert.True(sync > 0x4000 && sync != plotn);
+        Assert.Equal(0x21, withLet[13]);                         // LD HL,1 : rien avant l'affectation
+    }
+
     [Fact]
     public void Avec_MASK_DRAW_garde_la_ROM()
     {
@@ -159,11 +198,14 @@ public class DrawCommandTests
     [Fact]
     public void Le_stylo_est_regle_avant_le_trace()
     {
-        // ... PUSH HL / LD HL,3 / LD A,L / CALL &BBDE (GRA SET PEN) / POP HL / POP DE / CALL &BBEA
-        AssertStartsWith(Code("10 PLOT 1, 2, 3"),
+        // ... PUSH HL / LD HL,3 / LD A,L / CALL PENSET (D210 : le stylo gardé par nos points ; avant : GRA SET PEN) /
+        // POP HL / POP DE / CALL PLOTN
+        byte[] code = Code("10 PLOT 1, 2, 3");
+        AssertStartsWith(code,
             0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5,
-            0x21, 0x03, 0x00, 0x7D, 0xCD, 0xDE, 0xBB,
-            0xE1, 0xD1, 0xCD, 0xEA, 0xBB);
+            0x21, 0x03, 0x00, 0x7D, 0xCD);
+        Assert.NotEqual(0xBBDE, code[13] | code[14] << 8);
+        AssertStartsWith(code[15..], 0xE1, 0xD1, 0xCD);
     }
 
     [Fact]

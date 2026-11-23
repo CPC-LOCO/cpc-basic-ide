@@ -130,7 +130,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `MOVE / MOVER` | déplace le curseur graphique | Faite | Stylo et mode facultatifs. |
-| `PLOT / PLOTR` | allume un point | Faite | Stylo et mode facultatifs. |
+| `PLOT / PLOTR` | allume un point | Faite | Stylo et mode facultatifs. Sur CPC, nos points rapides (sans mode d'écriture, MASK ni événements), mêmes points que la ROM (D210). |
 | `DRAW / DRAWR` | trace une ligne | Faite | Stylo et mode facultatifs. |
 | `ORIGIN` | origine des coordonnées graphiques | Faite | ORIGIN x, y [, gauche, droite, haut, bas] : fenêtre graphique (D104). |
 | `CLG` | efface l'écran graphique | Faite | Avec un stylo facultatif. |

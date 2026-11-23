@@ -1610,6 +1610,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Essai : `examples\charge.bas` dans WinAPE (F5, RUN"CHARGE") : l'image ronde apparaît après la lecture de la disquette.
 - Reste : ces fichiers sur la cassette (dans l'ordre de lecture) ; RUN"!NOM" (IDEES.md).
 
+## D210 : PLOT et PLOTR rapides sur CPC (23 nov. 2026) (demande de l'utilisateur : « PLOT rapide », IDEES.md)
+
+- Mesure d'abord (`examples\plottemp.bas`, chronomètre dans WinAPE, 32 000 points ; TIME 16 bits : passage par zéro corrigé dans le programme) : avant, `PLOT x,y` 20,42 s, `PLOT x,y,stylo` 60,12 s ; boucle seule 2,29 s ; MOVE 6,58 s. Constat : un appel à la ROM coûte cher (MOVE : environ 4,3 s pour 32 000) ; le PLOT de la ROM n'est pas beaucoup plus lent qu'un MOVE.
+- Première version (réglages gardés, mais GRA MOVE ABSOLUTE et lecture du stylo à chaque point) : 19,1 s et 80 s : trop peu, et plus lent avec un stylo. Récrite.
+- Fait (`LineRuntime.cs`, entrées PLOTN, PLOTRN) : aucun appel à la ROM pour un point. Réglages lus une fois (écran en &C000 sans décalage, sinon la ROM ; MODE, origine, fenêtre graphique) ; curseur (PX, PY) et stylo (PENSET : PLOT x,y,stylo) gardés dans le module, stylo codé par nous (comme SCR INK ENCODE) ; vérification de la fenêtre en octets pour la hauteur ; adresse calculée ((ligne AND &F8) x 10, + (ligne AND 7) x &800) ; ROM haute coupée juste pour lire et écrire l'octet. Le compilateur (`CodeGenerator.cs`) appelle SYNC avant toute instruction qui pourrait changer les réglages (MODE, ORIGIN, PRINT, CALL..., liste SafeForPlot : calculs, boucles, sauts, tracés : pas d'appel) : curseur et stylo donnés à la ROM, réglages à relire ; FLUSH avant MOVE, MOVER, DRAW, DRAWR et toute instruction avec XPOS, YPOS, TEST, TESTR.
+- Gardent le PLOT de la ROM : cartouche (notre système est déjà rapide), MASK, mode d'écriture (4e valeur), EVERY, AFTER, ON SQ, ON BREAK, TRON, écran déplacé.
+- Tests : 2099 (comparaison point par point avec GRA PLOT de notre système de cartouche, 3 MODE, 60 réglages au hasard de 40 points : origine, fenêtre, stylo gardé, PLOTR, curseur et stylo rendus à la ROM ; choix du compilateur). MiniZ80 : SCR GET LOCATION simulé (par défaut « écran ailleurs », pour que les anciens tests de programmes gardent les routines GRA simulées).
+- Résultat (WinAPE, 23 nov. 2026) : `PLOT x,y` 12,72 s (20,42 avant : sans la boucle, 1,7 fois plus rapide), `PLOT x,y,stylo` 45,75 s (60,12 avant ; le calcul de la couleur pèse lourd), MOVE 7,37 s (6,58 : FLUSH ajouté avant chaque MOVE dans un programme avec PLOT).
+
 ---
 
 ## Notes de fin de session (modèle)

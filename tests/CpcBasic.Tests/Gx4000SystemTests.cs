@@ -757,6 +757,106 @@ public class Gx4000SystemTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Les_PLOT_rapides_du_CPC_donnent_les_memes_points_que_GRA_PLOT(byte mode)
+    {
+        // D210 : PLOT et PLOTR rapides (module LineRuntime) comparés à GRA PLOT de notre système de la cartouche (mêmes
+        // entrées du firmware) : origine, fenêtre graphique, stylo, points hors de l'écran, PLOTR ; plusieurs points avec les
+        // mêmes réglages (gardés), stylo de PLOT x,y,stylo gardé, puis réglages changés après SYNC, comme le fait le programme.
+        var random = new Random(210 + mode);
+        var emitter = new Z80Emitter(0x4000);
+        foreach (RuntimeModule m in Linker.Resolve([RuntimeLibrary.LineName]))
+            m.Emit(emitter);
+        int plot = emitter.AddressOf(LineRuntime.PlotLabel), plotr = emitter.AddressOf(LineRuntime.PlotRelativeLabel);
+        int sync = emitter.AddressOf(LineRuntime.PlotSyncLabel), flush = emitter.AddressOf(LineRuntime.PlotFlushLabel);
+        int penSet = emitter.AddressOf(LineRuntime.PlotPenLabel);
+        MiniZ80 fast = Cpu(), slow = Cpu();
+        var entries = new Dictionary<int, int>();
+        int Entry(int firmware) => entries.TryGetValue(firmware, out int e) ? e : entries[firmware] = EntryOf(firmware, fast);
+        foreach (MiniZ80 c in new[] { fast, slow })
+        {
+            c.UseInstalledFirmware = true;
+            c.Load(emitter.ToBytes(), 0x4000);
+            foreach (int firmware in new[] { 0xBBC6, 0xBBCC, 0xBC0B, 0xBC11, 0xBBD5, 0xBBD8, 0xBBE1, 0xBC2C, 0xBBC0, 0xBBEA,
+                                             0xBBDE, 0xBBED })
+            {
+                c.Memory[firmware] = 0xC3;
+                c.Memory[firmware + 1] = (byte)Entry(firmware);
+                c.Memory[firmware + 2] = (byte)(Entry(firmware) >> 8);
+            }
+            Mode(c, mode);
+        }
+        void Go(MiniZ80 cpu, int address, int x = 0, int y = 0, byte a = 0)
+        {
+            cpu.D = (byte)(x >> 8);
+            cpu.E = (byte)x;
+            cpu.H = (byte)(y >> 8);
+            cpu.L = (byte)y;
+            cpu.A = a;
+            cpu.Call(address);
+        }
+        for (int round = 0; round < 60; round++)
+        {
+            var decor = new byte[0x4000];
+            random.NextBytes(decor);
+            bool window = round % 4 == 0;
+            int ox = round % 3 == 0 ? random.Next(-50, 300) : 0, oy = round % 3 == 0 ? random.Next(-50, 200) : 0;
+            byte pen = (byte)random.Next(0, 16);
+            Go(fast, sync);                                   // comme le programme avant ORIGIN... : réglages à relire
+            foreach (MiniZ80 c in new[] { fast, slow })
+            {
+                decor.CopyTo(c.Memory, 0xC000);
+                Go(c, Entry(0xBBC9), ox, oy);                 // ORIGIN
+                Go(c, Entry(0xBBCF), window ? 100 : 0, window ? 500 : 639);
+                Go(c, Entry(0xBBD2), window ? 350 : 399, window ? 50 : 0);
+                Go(c, Entry(0xBBDE), a: pen);
+            }
+            int cx = 0, cy = 0;                               // le curseur (de la ROM, puis des PLOT)
+            Go(fast, Entry(0xBBC6));
+            cx = (short)(fast.D << 8 | fast.E);
+            cy = (short)(fast.H << 8 | fast.L);
+            for (int point = 0; point < 40; point++)
+            {
+                if (point % 10 == 5)
+                {
+                    pen = (byte)random.Next(0, 16);           // PLOT x,y,stylo : le stylo gardé par nos points
+                    Go(fast, penSet, a: pen);
+                    Go(slow, Entry(0xBBDE), a: pen);
+                }
+                int x = random.Next(-60, 700), y = random.Next(-40, 440);
+                if (point % 3 == 2)
+                {
+                    Go(fast, plotr, x - cx, y - cy);          // PLOTR : écart depuis le curseur (gardé par nos points)
+                    Go(slow, Entry(0xBBED), x - cx, y - cy);
+                }
+                else
+                {
+                    Go(fast, plot, x, y);
+                    Go(slow, Entry(0xBBEA), x, y);
+                }
+                string gaps = string.Join(" ", Enumerable.Range(0xC000, 0x4000).Where(i => slow.Memory[i] != fast.Memory[i]).Take(8)
+                    .Select(i => $"{i:X4}:{decor[i - 0xC000]:X2}/{slow.Memory[i]:X2}/{fast.Memory[i]:X2}"));
+                Assert.True(gaps.Length == 0,
+                            $"MODE {mode}, essai {round}, point {point} : ({x}, {y}), origine ({ox}, {oy}), fenêtre {window}, " +
+                            $"stylo {pen} ; écarts (décor/système/rapide) : {gaps}");
+                cx = x;
+                cy = y;
+                if (point % 7 == 6)
+                {
+                    Go(fast, flush);                          // avant MOVE, DRAW, TEST... : curseur et stylo donnés à la ROM
+                    Go(fast, Entry(0xBBC6));
+                    Assert.Equal(x, (short)(fast.D << 8 | fast.E));
+                    Assert.Equal(y, (short)(fast.H << 8 | fast.L));
+                    Go(fast, Entry(0xBBE1));
+                    Assert.Equal(pen, fast.A);
+                }
+            }
+        }
+    }
+
     [Fact]
     public void TEST_rend_l_encre_du_point()
     {
