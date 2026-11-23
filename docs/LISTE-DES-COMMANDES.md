@@ -153,4 +153,6 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 `BOOM son [, durée]` : explosions et chocs : 1 voiture qui explose, 2 feu d'artifice, 3 pétard ou coup de fusil, 4 marteau qui frappe, 5 malus ; durée facultative en centièmes de seconde (D214 ; se sert des enveloppes ENV 9 et 10, ENT 8 à 10).
 
-Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `SHOT`, `FALL`, `WAVE`.
+`SHOT son` : tirs et bris : 1 tir de laser, 2 missile, 3 rafale, 4 vitre qui casse (D215 ; se sert des enveloppes ENV 4 à 8, ENT 6 et 7).
+
+Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `FALL`, `WAVE`.

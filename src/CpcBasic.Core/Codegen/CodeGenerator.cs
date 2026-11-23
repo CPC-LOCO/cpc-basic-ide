@@ -1632,10 +1632,12 @@ public static class CodeGenerator
                     break;
                 }
 
-                case "VROOM":                       // VROOM son (D213) : 1 monte, 2 ralenti, 3 descend
-                    required.Add(RuntimeLibrary.VroomName);
+                case "VROOM" or "SHOT":             // VROOM son (D213) : 1 monte, 2 ralenti, 3 descend ;
+                {                                   // SHOT son (D215) : 1 laser, 2 missile, 3 rafale, 4 vitre
+                    bool vroom = screen.Command == "VROOM";
+                    required.Add(vroom ? RuntimeLibrary.VroomName : RuntimeLibrary.ShotName);
                     EmitExpression(a[0]);
-                    if (a[0] is not NumberExpression)   // calculé hors de 1 à 3 : « Improper argument »
+                    if (a[0] is not NumberExpression)   // calculé hors limites : « Improper argument »
                     {
                         required.Add(RuntimeLibrary.ByteCheckName);
                         emitter.LdAH();
@@ -1643,7 +1645,7 @@ public static class CodeGenerator
                         emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
                         emitter.LdAL();
                         emitter.DecA();
-                        emitter.CpImm(3);
+                        emitter.CpImm(vroom ? 3 : 4);
                         emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
                     }
                     else
@@ -1651,8 +1653,9 @@ public static class CodeGenerator
                         emitter.LdAL();
                         emitter.DecA();
                     }
-                    emitter.CallLabel(VroomRuntime.EntryLabel);
+                    emitter.CallLabel(vroom ? VroomRuntime.EntryLabel : ShotRuntime.EntryLabel);
                     break;
+                }
 
                 case "BOOM":                        // BOOM son [, durée] (D214) : 1 voiture, 2 feu d'artifice, 3 pétard,
                 {                                   // 4 marteau, 5 malus ; durée en centièmes de seconde
@@ -2382,7 +2385,7 @@ public static class CodeGenerator
                 || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
-                || statement is ScreenStatement { Command: "VROOM", Arguments: [not NumberExpression] }   // D213
+                || statement is ScreenStatement { Command: "VROOM" or "SHOT", Arguments: [not NumberExpression] }   // D213, D215
                 || statement is ScreenStatement { Command: "BOOM" } boomCheck && boomCheck.Arguments.Any(x => x is not NumberExpression)   // D214
                 || statement is EllipseStatement { RadiusX: not NumberExpression } or EllipseStatement { RadiusY: not NumberExpression }   // D139
                 || statement is StreamStatement { Stream: not null and not NumberExpression }

@@ -1659,6 +1659,19 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2126 (`BoomTests.cs`, 15 tests : les cinq sons, durée donnée, valeurs calculées, erreurs, cartouche).
 - Exemple : `examples\boom.bas` (touches 1 à 5 ; 6 : BOOM 1,500 ; 7 : BOOM 5,300).
 
+## D215 : SHOT son (23 nov. 2026) (demande de l'utilisateur : forme et sons choisis par lui ; Validé le 23 nov. 2026 : 2136 tests réussis ; examples\shot.bas dans WinAPE : « c'est génial... super le 5 »)
+
+- Forme donnée par l'utilisateur : SHOT 1 (un tir laser), SHOT 2 (un missile), SHOT 3 (une rafale), SHOT 4 (une vitre qui casse) ; **pas de durée** (« Non pas de durée pour shot »). **Mot réservé nouveau : SHOT.**
+- Sons choisis à l'oreille d'abord en BASIC normal (`examples\shotref.bas`), acceptés au premier essai (« C'est extra ») :
+  - 1 : période 30 qui plonge (ENT 30,9,1), ENV 15,-1,2 (30 centièmes).
+  - 2 : souffle (bruit 3) et son qui descend (période 100, ENT 90,3,1) sur A et B, ENV 10,1,4,15,-1,4 (1 seconde).
+  - 3 : six tirs de bruit 5, volume 14, ENV 7,-2,1 (9 centièmes chacun).
+  - 4 : fracas (bruit 1, ENV 15,-1,4, 60 centièmes) sur A, six tintements sur B (périodes 40, 55, 35, 60, 45, 50, ENV 6,-2,1, 7 centièmes chacun).
+- Fait : `Codegen\ShotRuntime.cs` (enveloppes ENV 4 à 8, ENT 6 et 7, posées juste avant chaque son), `Parser.cs` (son de 1 à 4), `CodeGenerator.cs` (traité avec VROOM ; valeur calculée hors de 1 à 4 : « Improper argument »). Marche aussi sur la cartouche.
+- **À reparler avant FALL et WAVE :** avec VROOM (ENV 12 à 15, ENT 11 à 15), BOOM (ENV 9, 10, ENT 8 à 10) et SHOT (ENV 4 à 8, ENT 6, 7), il ne reste que ENV 1 à 3 et ENT 1 à 5 pour les programmes ; chaque effet a ses numéros pour que deux effets puissent jouer en même temps (moteur et tirs).
+- Tests : 2136 (`ShotTests.cs`, 10 tests).
+- Exemple : `examples\shot.bas` (touches 1 à 4 ; 5 : SHOT 2:BOOM 1, missile puis explosion).
+
 ---
 
 ## Notes de fin de session (modèle)
