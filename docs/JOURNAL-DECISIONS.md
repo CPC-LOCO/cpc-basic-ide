@@ -1672,6 +1672,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2136 (`ShotTests.cs`, 10 tests).
 - Exemple : `examples\shot.bas` (touches 1 à 4 ; 5 : SHOT 2:BOOM 1, missile puis explosion).
 
+## D216 : numéros d'enveloppes des effets sonores (23 nov. 2026) (point noté en D215 ; décision de Claude ; Validé le 23 nov. 2026 : 2142 tests réussis ; message vu dans l'éditeur)
+
+- Chaque effet garde ses numéros (deux effets peuvent jouer en même temps : moteur et tirs) : VROOM ENV 12 à 15, ENT 11 à 15 ; BOOM ENV 9, 10, ENT 8 à 10 ; SHOT ENV 4 à 8, ENT 6, 7 (liste `BasicAnalyzer.EffectEnvelopes`). Un programme ne perd que les numéros des effets qu'il utilise.
+- ENV ou ENT écrit en clair avec un numéro pris par un effet du même programme : erreur à la compilation (nouveau code EnvelopeTaken), avec les numéros libres : « ENV 13 : ce numéro est déjà pris par VROOM, qui se sert de ENV 12 à 15 dans ce programme. Choisissez un autre numéro : 1 à 11. » Un numéro calculé n'est pas vérifié.
+- Tests : 2142 (`EffectEnvelopeTests.cs`, 6 tests). Essai dans l'éditeur (23 nov. 2026) : le message apparaît ; avec ENV 5, la compilation réussit.
+- Pour FALL et WAVE : ajouter leurs numéros à la liste ; s'ils ne tiennent plus dans les numéros restants, partager avec l'effet le moins souvent joué en même temps.
+
 ---
 
 ## Notes de fin de session (modèle)

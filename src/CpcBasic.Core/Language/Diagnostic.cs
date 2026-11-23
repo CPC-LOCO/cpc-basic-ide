@@ -93,7 +93,8 @@ public enum DiagnosticCode
     CaseWithoutSelect,       // D206 : CASE ou CASE ELSE hors d'un SELECT
     CaseAfterCaseElse,       // D206 : un CASE après CASE ELSE
     EndSelectWithoutSelect,  // D206 : END SELECT sans SELECT
-    SelectWithoutEndSelect   // D206 : SELECT jamais refermé
+    SelectWithoutEndSelect,  // D206 : SELECT jamais refermé
+    EnvelopeTaken            // D216 : ENV ou ENT avec un numéro pris par VROOM, BOOM ou SHOT du même programme
 }
 
 /// <summary>
@@ -309,6 +310,10 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
             $"END SELECT sans SELECT correspondant.",
         DiagnosticCode.SelectWithoutEndSelect =>
             $"ce SELECT n'est jamais refermé. Ajoutez END SELECT.",
+        DiagnosticCode.EnvelopeTaken => Argument.Split('|') is [var kind, var number, var effect, var range, var free]
+            ? $"{kind} {number} : ce numéro est déjà pris par {effect}, qui se sert de {kind} {range} dans ce programme. " +
+              (free.Length > 0 ? $"Choisissez un autre numéro : {free}." : $"Il ne reste plus aucun numéro de {kind} libre.")
+            : Argument,
         _ => $"problème inconnu ({Code})."
     };
 

@@ -24,7 +24,56 @@ public static class BasicAnalyzer
         List<Token> tokens = Lexer.Tokenize(source, diagnostics);
         BasicProgram program = Parser.Parse(tokens, diagnostics, options.RealByDefault, options.Libraries);   // F8 (D068), bibliothèques (D148)
         CheckCharacters(tokens, diagnostics, options.Language);
+        CheckEffectEnvelopes(program, diagnostics);
         return new AnalysisResult(program, diagnostics);
+    }
+
+    /// <summary>
+    /// D216 : numéros d'enveloppes de chaque effet sonore (posées juste avant chaque son, chacun les siens pour que deux
+    /// effets puissent jouer en même temps). Un programme ne perd que ceux des effets qu'il utilise.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Effect, int[] Env, int[] Ent)> EffectEnvelopes =
+    [
+        ("VROOM", [12, 13, 14, 15], [11, 12, 13, 14, 15]),   // D213
+        ("BOOM", [9, 10], [8, 9, 10]),                       // D214
+        ("SHOT", [4, 5, 6, 7, 8], [6, 7])                    // D215
+    ];
+
+    // ENV ou ENT écrit en clair avec un numéro pris par un effet du même programme : message avec les numéros libres
+    static void CheckEffectEnvelopes(BasicProgram program, List<Diagnostic> diagnostics)
+    {
+        var used = EffectEnvelopes.Where(e => program.Statements.Any(st => st is ScreenStatement s && s.Command == e.Effect)).ToList();
+        if (used.Count == 0)
+            return;
+        foreach (EnvelopeStatement envelope in program.Statements.OfType<EnvelopeStatement>())
+        {
+            if (envelope.Number is not NumberExpression { Value: var value })
+                continue;
+            int number = Math.Abs(value);
+            string kind = envelope.Tone ? "ENT" : "ENV";
+            var taken = used.Where(e => (envelope.Tone ? e.Ent : e.Env).Contains(number)).ToList();
+            if (taken.Count == 0)
+                continue;
+            var allTaken = used.SelectMany(e => envelope.Tone ? e.Ent : e.Env).ToHashSet();
+            int[] own = envelope.Tone ? taken[0].Ent : taken[0].Env;
+            diagnostics.Add(new Diagnostic(DiagnosticCode.EnvelopeTaken, envelope.SourceLine,
+                $"{kind}|{number}|{taken[0].Effect}|{Ranges(own)}|{Ranges(Enumerable.Range(1, 15).Where(n => !allTaken.Contains(n)).ToArray())}"));
+        }
+    }
+
+    // 1, 2, 3, 5, 6 -> « 1 à 3, 5 et 6 »
+    static string Ranges(int[] numbers)
+    {
+        var parts = new List<string>();
+        for (int i = 0; i < numbers.Length;)
+        {
+            int j = i;
+            while (j + 1 < numbers.Length && numbers[j + 1] == numbers[j] + 1)
+                j++;
+            parts.Add(j == i ? $"{numbers[i]}" : j == i + 1 ? $"{numbers[i]}, {numbers[j]}" : $"{numbers[i]} à {numbers[j]}");
+            i = j + 1;
+        }
+        return parts.Count <= 1 ? string.Concat(parts) : string.Join(", ", parts.Take(parts.Count - 1)) + " et " + parts[^1];
     }
 
     // Textes entre guillemets et éléments de DATA : chaque caractère doit exister sur un CPC (D126)
