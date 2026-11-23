@@ -149,4 +149,6 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 ## Mots réservés pour plus tard ★
 
-Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `VROOM`, `BOOM`, `SHOT`, `FALL`, `WAVE`.
+`VROOM son` : bruit de moteur sur le canal A : 1 moteur qui monte, 2 ralenti, 3 moteur qui descend (D213 ; se sert des enveloppes ENV 12 à 15 et ENT 11 à 15).
+
+Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `BOOM`, `SHOT`, `FALL`, `WAVE`.

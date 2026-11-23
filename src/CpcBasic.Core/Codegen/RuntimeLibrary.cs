@@ -85,6 +85,7 @@ public static class RuntimeLibrary
     public const string PixelName = "Pixel";
     public const string BoxName = "Box";
     public const string SpriteName = "Sprite";          // DEFSPR, SPRITE (D198) : voir SpriteRuntime
+    public const string VroomName = "Vroom";            // VROOM (D213) : voir VroomRuntime
     public const string LineName = "Line";              // DRAW, DRAWR rapides (D204) : voir LineRuntime
     public const string BoxLabel = "rt_box";
     public const string BoxX1Label = "rt_box_x1";
@@ -966,6 +967,7 @@ public static class RuntimeLibrary
     {
         [SpriteName] = new RuntimeModule(SpriteName, [], SpriteRuntime.Emit),
         [LineName] = new RuntimeModule(LineName, [], LineRuntime.Emit),
+        [VroomName] = new RuntimeModule(VroomName, [], VroomRuntime.Emit),
         // Tableaux d'entiers (DIM, lot C, D058). Un tableau a un descripteur dans les variables :
         //   2 octets = adresse de ses cases (0 = pas encore créé), puis 2 octets par dimension = nombre de cases.
         // Les cases (2 octets chacune, à 0 au départ) sont prises dans la mémoire libre, après le programme,

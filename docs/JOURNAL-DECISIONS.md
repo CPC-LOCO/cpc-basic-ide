@@ -1634,6 +1634,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2102 (la comparaison point par point de D210 mélange MOVE et MOVER aux PLOT et PLOTR ; appel du module par MOVE et MOVER).
 - Résultat (`examples\plottemp.bas`, WinAPE) : 32 000 MOVE en 3,69 s (boucle comprise, 2,29 s) au lieu de 6,58 s avant D210 : sans la boucle, environ 3 fois plus rapide. Les autres temps ne changent pas (12,72 s ; 45,75 s).
 
+## D213 : VROOM son (23 nov. 2026) (demande de l'utilisateur : forme et sons choisis par lui ; Validé le 23 nov. 2026 : 2111 tests réussis ; examples\vroom.bas dans WinAPE : « Parfait »)
+
+- Forme donnée par l'utilisateur : VROOM 1 (moteur qui monte), VROOM 2 (ralenti), VROOM 3 (moteur qui descend). Il avait écrit « VROUM » ; il a laissé Claude choisir (« l'informatique c'est en anglais ») : VROOM, le mot déjà prévu et coloré, comme BOOM, SHOT, FALL, WAVE. **Mot réservé nouveau : VROOM.**
+- Sons choisis à l'oreille d'abord en BASIC normal (`examples\vroomref.bas`, SOUND, ENV, ENT) : premier essai « sirène » pour 1 et 3 (son pur qui glisse) ; refait sur le modèle du ralenti (volume qui pulse, bruit 25, montée qui reste dans le grave) ; 3 joué en 3 morceaux de plus en plus faibles (volume 12, 8, 4 ; une enveloppe de volume n'a que 5 parties et le volume repart en haut sous zéro), demande de l'utilisateur.
+  - 1 : SOUND 1,900,-13,12 avec ENV 2,-6,2,2,6,2 et ENT 100,-5,1, bruit 25.
+  - 2 : SOUND 1,900,-6,12 avec ENV 3,-4,4,3,4,4 et ENT (qui se répète) 5,8,1,5,-8,1, bruit 25.
+  - 3 : SOUND 1,400,-4,12 ; 1,565,-4,8 ; 1,730,-5,4 (pulsation de plus en plus douce, ENT 33 ou 34 pas de +5), bruit 25.
+- Fait : `Codegen\VroomRuntime.cs` (sons et enveloppes rangés dans le programme ; enveloppes posées juste avant chaque son : ENV 12 à 15, ENT 11 à 15 ; canal A, en arrière-plan, attente d'une place comme SOUND), `Parser.cs` (VROOM son de 1 à 3, vérifié à la compilation), `CodeGenerator.cs` (nombre calculé hors de 1 à 3 : « Improper argument »). Marche aussi sur la cartouche.
+- Tests : 2111 (`VroomTests.cs` : les trois sons et leurs enveloppes, valeur calculée, erreurs, cartouche).
+- Exemple : `examples\vroom.bas` (touches 1 à 3, et 4 : ralenti, montée, ralenti, descente).
+
 ---
 
 ## Notes de fin de session (modèle)

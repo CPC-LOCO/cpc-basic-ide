@@ -23,7 +23,7 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Accélérer le dessin des lignes d'ELLIPSE (D141 : un rond par ELLIPSE est 3 fois plus lent que par CIRCLE) ; profiterait à tous les ovales.
 
 ### Commandes nouvelles déjà annoncées
-- SCROLL, VROOM, BOOM, SHOT, FALL, WAVE : déjà colorées dans l'éditeur, à ne pas utiliser comme noms de variables (COMPATIBILITE-LOCOMOTIVE.md). STAR est faite (bibliothèque GRAPHIQUE, D151 ; reste le remplissage) ; POLYGON abandonnée (STAR dessine aussi les polygones, D150).
+- SCROLL, BOOM, SHOT, FALL, WAVE (VROOM : fait, D213) : déjà colorées dans l'éditeur, à ne pas utiliser comme noms de variables (COMPATIBILITE-LOCOMOTIVE.md). STAR est faite (bibliothèque GRAPHIQUE, D151 ; reste le remplissage) ; POLYGON abandonnée (STAR dessine aussi les polygones, D150).
 - `PAUSE [heure,][minute,] seconde` (PAUSE réservé à la gestion du temps) et `CLIC code_ascii` (idées de l'utilisateur, REPRISE.md).
 
 ### Outils et éditeur

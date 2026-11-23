@@ -34,7 +34,7 @@ public static class Parser
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
         "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT", "MASK",
-        "DEFSPR", "SPRITE", "SELECT", "CASE"];
+        "DEFSPR", "SPRITE", "SELECT", "CASE", "VROOM"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -150,6 +150,8 @@ public static class Parser
         ["CLS"] = new("CLS", 0, [], []),
         ["DEG"] = new("DEG", 0, [], []),                // angles en degrés (D069)
         ["RELEASE"] = new("RELEASE canaux (0 à 7)", 1, [0], [7]),   // libère les canaux sonores en attente (D071)
+        // D213 : bruit de moteur, sur le canal A (enveloppes ENV 12 à 15, ENT 11 à 15)
+        ["VROOM"] = new("VROOM son (1 moteur qui monte, 2 ralenti, 3 moteur qui descend)", 1, [1], [3]),
         ["RAD"] = new("RAD", 0, [], []),                // angles en radians (D069)
         ["LOCATE"] = new("LOCATE colonne, ligne", 2, [1, 1], [80, 25]),
         ["PEN"] = new("PEN stylo (0 à 15) [, mode : 0 opaque, 1 transparent]", 1, [0, 0], [15, 1]),   // mode : D104
@@ -1059,7 +1061,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK" or "SPRITE":
+            case "RELEASE" or "VROOM" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK" or "SPRITE":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":

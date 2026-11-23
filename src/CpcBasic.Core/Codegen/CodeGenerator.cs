@@ -1632,6 +1632,28 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "VROOM":                       // VROOM son (D213) : 1 monte, 2 ralenti, 3 descend
+                    required.Add(RuntimeLibrary.VroomName);
+                    EmitExpression(a[0]);
+                    if (a[0] is not NumberExpression)   // calculé hors de 1 à 3 : « Improper argument »
+                    {
+                        required.Add(RuntimeLibrary.ByteCheckName);
+                        emitter.LdAH();
+                        emitter.OrA();
+                        emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                        emitter.LdAL();
+                        emitter.DecA();
+                        emitter.CpImm(3);
+                        emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
+                    }
+                    else
+                    {
+                        emitter.LdAL();
+                        emitter.DecA();
+                    }
+                    emitter.CallLabel(VroomRuntime.EntryLabel);
+                    break;
+
                 case "RELEASE":                     // RELEASE canaux (D071)
                     EmitCallWithA(a[0], SoundRelease);
                     break;
@@ -2317,6 +2339,7 @@ public static class CodeGenerator
                 || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
+                || statement is ScreenStatement { Command: "VROOM", Arguments: [not NumberExpression] }   // D213
                 || statement is EllipseStatement { RadiusX: not NumberExpression } or EllipseStatement { RadiusY: not NumberExpression }   // D139
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }
