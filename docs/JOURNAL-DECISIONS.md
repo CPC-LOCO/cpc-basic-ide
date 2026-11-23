@@ -1574,6 +1574,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2056 (le test de D204 passe aussi par LINEN et LINERN en écriture normale).
 - Essai (22 nov. 2026) : illtemps.bas dans WinAPE : 400 tours en 25,6 s (au lieu de 37,8 s avec D204, 58 à 63 s avant) ; « C'est comme ça que ce programme se savoure. C'est trop beau ».
 
+## D206 : SELECT CASE (23 nov. 2026) (forme proposée par Claude, acceptée par l'utilisateur)
+
+- Écriture (sur le modèle du BASIC de Microsoft) : `SELECT valeur` (nombre ou texte ; `SELECT CASE valeur` accepté aussi), puis des `CASE` : une valeur, un intervalle `4 TO 6`, une comparaison `> 6` (<, <=, >=, =, <>), plusieurs séparés par des virgules (`CASE 1, 4 TO 6, > 10`) ; `CASE ELSE` facultatif, en dernier ; `END SELECT`. Le premier CASE qui convient est exécuté, puis on passe après END SELECT. Pas de mot `IS` (`CASE IS > 6` chez Microsoft) : un mot réservé de moins. Aucun mot nouveau : SELECT et CASE étaient déjà réservés, TO, ELSE et END existent.
+- Fait : `Ast.cs` (SelectStatement, CaseItem, CaseStatement, CaseElseStatement, EndSelectStatement), `Parser.cs` (lecture ; vérification des blocs avec les autres : CASE sans SELECT, CASE après CASE ELSE, autre chose qu'un CASE juste après SELECT, SELECT jamais refermé, END SELECT seul, texte et nombre mélangés, bloc ouvert dans un CASE et pas refermé avant le suivant), `Diagnostic.cs` (6 messages), `CodeGenerator.cs` : la valeur est calculée une fois et gardée dans une variable cachée (§1, §1!, §1$ selon le type et la profondeur) ; chaque CASE devient une condition (OR de ses éléments) qui saute au cas suivant, chaque fin de cas saute après END SELECT.
+- Tests : 2073 (`SelectCaseTests.cs` : nombres, textes, nombres à virgule, mélanges, SELECT dans un SELECT, CASE ELSE, 11 erreurs).
+- Essai (23 nov. 2026) : `examples\choix.bas` (chiffre : zéro / impair / pair ; lettre : voyelle / consonne avec `CASE "A" TO "Z"` ; autre touche) dans WinAPE : « c'est bon ».
+
 ---
 
 ## Notes de fin de session (modèle)

@@ -278,9 +278,10 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `PAINT` | colorie la zone de l'encre qui est sous le curseur graphique | Ajout du projet | PAINT encre (D107, D108) : seulement les points de cette encre qui se touchent par les côtés. Idée de l'utilisateur. |
 | `DEFSPR` | dessin d'un sprite | Ajout du projet | DEFSPR n, "ligne", "ligne"... (n de 1 à 16) : une lettre par point, « . » laisse voir le décor, 0 à 9 et A à F : le stylo. Plusieurs lignes DEFSPR qui se suivent avec le même numéro ajoutent des lignes au dessin ; 16 x 16 points au plus. Forme proposée par l'utilisateur (D198). |
 | `SPRITE` | montre, déplace ou cache un sprite | Ajout du projet | SPRITE n, x, y : montré (ou déplacé), coin en haut à gauche, points du MODE en cours (comme BOX), au point près ; le décor dessous est gardé et rendu. SPRITE n : caché. Le plus grand numéro passe devant ; des sprites qui se croisent gardent le bon décor (D198, D199, D201). Marche aussi sur la cartouche GX4000. |
+| `SELECT … CASE … END SELECT` | choisir entre plusieurs cas | Ajout du projet | SELECT valeur (nombre ou texte ; SELECT CASE valeur accepté aussi), puis CASE valeur, CASE valeur TO valeur, CASE > valeur (<, <=, >=, =, <>), plusieurs séparés par des virgules, CASE ELSE, END SELECT. Le premier CASE qui convient est exécuté. Pas de mot IS (D206). |
 | `COLLIDE` | deux sprites se touchent ? | Ajout du projet | COLLIDE(a, b) : -1 si les deux sprites sont montrés et que leurs rectangles se touchent, sinon 0 (D200). |
 
-**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : SCROLL, SELECT, CASE, VROOM, BOOM, SHOT, FALL, WAVE. (STAR est faite, dans la bibliothèque GRAPHIQUE ; POLYGON ne sera pas faite : STAR dessine aussi les polygones, D150.)
+**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : SCROLL, VROOM, BOOM, SHOT, FALL, WAVE. (STAR est faite, dans la bibliothèque GRAPHIQUE ; POLYGON ne sera pas faite : STAR dessine aussi les polygones, D150.)
 
 ## Règles pour les prochaines commandes
 

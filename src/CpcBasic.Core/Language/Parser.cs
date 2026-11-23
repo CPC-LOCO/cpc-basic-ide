@@ -34,7 +34,7 @@ public static class Parser
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
         "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT", "MASK",
-        "DEFSPR", "SPRITE"];
+        "DEFSPR", "SPRITE", "SELECT", "CASE"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -987,6 +987,11 @@ public static class Parser
                     statements.Add(new EndIfStatement(t.Line));   // END IF
                     return pos + 2;
                 }
+                if (IsWord(tokens[pos + 1], "SELECT"))
+                {
+                    statements.Add(new EndSelectStatement(t.Line));   // END SELECT (D206)
+                    return pos + 2;
+                }
                 statements.Add(new EndStatement(t.Line));
                 return pos + 1;
 
@@ -1065,6 +1070,24 @@ public static class Parser
 
             case "DEFSPR":                              // D198
                 return ParseSpriteDef(tokens, pos, statements, diagnostics);
+
+            case "SELECT":                              // D206 : SELECT valeur (SELECT CASE valeur accepté aussi)
+            {
+                pos++;
+                if (IsWord(tokens[pos], "CASE"))
+                    pos++;
+                Expression? value = IsStatementEnd(tokens[pos]) ? null : ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (value is null)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.SelectSyntax, t.Line, "SELECT"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+                statements.Add(new SelectStatement(t.Line, value));
+                return pos;
+            }
+
+            case "CASE":                                // D206
+                return ParseCase(tokens, pos, statements, diagnostics);
 
             case "BYTE":
                 return ParseDeclaration(tokens, pos, statements, diagnostics);
@@ -3564,12 +3587,52 @@ public static class Parser
             return open.Pop().Node;
         }
 
-        foreach (Statement statement in statements)
+        for (int index = 0; index < statements.Count; index++)
         {
+            Statement statement = statements[index];
             switch (statement)
             {
                 case ForStatement or IfStatement or WhileStatement or RepeatStatement or DoStatement:
                     open.Push(new OpenBlock(statement));
+                    break;
+
+                case SelectStatement:                   // D206 : le premier CASE doit suivre SELECT
+                    open.Push(new OpenBlock(statement));
+                    if (index + 1 < statements.Count && statements[index + 1] is not (CaseStatement or CaseElseStatement
+                                                                                       or EndSelectStatement))
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.CaseExpected, statements[index + 1].SourceLine));
+                    break;
+
+                case CaseStatement or CaseElseStatement:
+                {
+                    string word = statement is CaseElseStatement ? "CASE ELSE" : "CASE";
+                    if (open.Count == 0 || !open.Any(b => b.Node is SelectStatement))
+                    {
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.CaseWithoutSelect, statement.SourceLine, word));
+                        break;
+                    }
+                    OpenBlock current = open.Peek();
+                    if (current.Node is not SelectStatement)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.BlocksNotNested, statement.SourceLine, word));
+                    else if (current.ElseSeen)
+                        diagnostics.Add(new Diagnostic(DiagnosticCode.CaseAfterCaseElse, statement.SourceLine, word));
+                    else if (statement is CaseElseStatement)
+                        current.ElseSeen = true;
+                    if (statement is CaseStatement cs && current.Node is SelectStatement sel)
+                    {
+                        bool text = Types.IsString(sel.Value);
+                        foreach (CaseItem item in cs.Items)
+                            foreach (Expression e in new[] { item.Value, item.Upper }.OfType<Expression>())
+                                if (Types.IsString(e) != text)
+                                    diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, statement.SourceLine,
+                                                                   text ? "SELECT d'un texte, CASE d'un nombre" : "SELECT d'un nombre, CASE d'un texte",
+                                                                   "CASE"));
+                    }
+                    break;
+                }
+
+                case EndSelectStatement:
+                    Close(statement.SourceLine, "END SELECT", DiagnosticCode.EndSelectWithoutSelect, n => n is SelectStatement);
                     break;
 
                 case NextStatement next:
@@ -3639,11 +3702,62 @@ public static class Parser
                 case IfStatement:
                     diagnostics.Add(new Diagnostic(DiagnosticCode.IfWithoutEndIf, block.Node.SourceLine));
                     break;
+                case SelectStatement:
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.SelectWithoutEndSelect, block.Node.SourceLine));
+                    break;
                 default:
                     diagnostics.Add(new Diagnostic(DiagnosticCode.UnclosedLoop, block.Node.SourceLine, KeywordOf(block.Node)));
                     break;
             }
         }
+    }
+
+    // CASE (D206) : CASE ELSE, ou des éléments séparés par des virgules : valeur, valeur TO valeur, ou comparaison
+    // (> valeur, <= valeur, <> valeur...)
+    static int ParseCase(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+        if (IsElse(tokens[pos]))
+        {
+            statements.Add(new CaseElseStatement(line));
+            return pos + 1;
+        }
+        var items = new List<CaseItem>();
+        while (true)
+        {
+            CompareOperator? op = CompareOf(tokens[pos]);
+            if (op is not null)
+                pos++;
+            Expression? value = IsStatementEnd(tokens[pos]) ? null : ParseAnyExpression(tokens, ref pos, diagnostics);
+            if (value is null)
+            {
+                diagnostics.Add(new Diagnostic(DiagnosticCode.SelectSyntax, line, "CASE"));
+                return SkipToStatementEnd(tokens, pos);
+            }
+            Expression? upper = null;
+            if (op is null && IsWord(tokens[pos], "TO"))
+            {
+                pos++;
+                upper = IsStatementEnd(tokens[pos]) ? null : ParseAnyExpression(tokens, ref pos, diagnostics);
+                if (upper is null)
+                {
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.SelectSyntax, line, "CASE"));
+                    return SkipToStatementEnd(tokens, pos);
+                }
+            }
+            items.Add(new CaseItem(value, upper, op));
+            if (tokens[pos].Kind != TokenKind.Comma)
+                break;
+            pos++;
+        }
+        if (!IsStatementEnd(tokens[pos]))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.SelectSyntax, line, "CASE"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        statements.Add(new CaseStatement(line, items));
+        return pos;
     }
 
     // BYTE a, b, c : les noms s'écrivent sans suffixe

@@ -40,6 +40,15 @@ public static class CodeGenerator
                            string? LimitSlot = null, string? StepSlot = null, string? DirSlot = null);
 
     /// <summary>Un IF ouvert : ses étiquettes servent à ELSE et END IF.</summary>
+    // SELECT ouvert (D206) : la variable cachée qui garde la valeur, la fin, et le début du cas suivant (null : aucun)
+    sealed class SelectInfo(string variable, string endLabel)
+    {
+        public string Variable { get; } = variable;
+        public string EndLabel { get; } = endLabel;
+        public string? NextLabel { get; set; }
+        public int Cases { get; set; }
+    }
+
     sealed class IfInfo(string elseLabel, string endLabel)
     {
         public string ElseLabel { get; } = elseLabel;
@@ -76,6 +85,8 @@ public static class CodeGenerator
         int loopCount = 0;
         var ifs = new Stack<IfInfo>();         // IF ouverts, le plus récent en premier
         int ifCount = 0;
+        var selects = new Stack<SelectInfo>(); // SELECT ouverts (D206)
+        int selectCount = 0;
         int labelCount = 0;
         int memoryLimit = -1;
         int memoryLine = 0;
@@ -3078,6 +3089,74 @@ public static class CodeGenerator
                     emitter.JpLabel(info.EndLabel);                        // fin de la partie « alors »
                     emitter.Label(info.ElseLabel);
                     info.HasElse = true;
+                    break;
+                }
+
+                case SelectStatement selectStatement:   // D206 : la valeur gardée dans une variable cachée (§1, §1!, §1$...)
+                {
+                    int id = selectCount++;
+                    string name = $"§{selects.Count + 1}" + (Types.IsString(selectStatement.Value) ? "$" : Types.IsReal(selectStatement.Value) ? "!" : "");
+                    if (Types.IsString(selectStatement.Value))
+                    {
+                        EmitString(selectStatement.Value);
+                        emitter.LdDeLabel(Slot(name).Label);
+                        emitter.CallLabel(RuntimeLibrary.StrAssignLabel);
+                    }
+                    else if (Types.IsReal(selectStatement.Value))
+                    {
+                        EmitRealInto(selectStatement.Value, 0);
+                        EmitCopyReal(RealTemp(0), Slot(name).Label);
+                    }
+                    else
+                    {
+                        EmitExpression(selectStatement.Value);
+                        EmitStore(Slot(name));
+                    }
+                    selects.Push(new SelectInfo(name, $"sel_{id}_end"));
+                    break;
+                }
+
+                case CaseStatement caseStatement:  // D206 : cas d'avant fini -> après END SELECT ; sinon, cas suivant
+                {
+                    SelectInfo info = selects.Peek();
+                    if (info.NextLabel is not null)
+                    {
+                        emitter.JpLabel(info.EndLabel);
+                        emitter.Label(info.NextLabel);
+                    }
+                    var value = new VariableExpression(info.Variable);
+                    Condition? condition = null;
+                    foreach (CaseItem item in caseStatement.Items)
+                    {
+                        Condition one = item.Upper is not null
+                            ? new AndCondition(new ComparisonCondition(CompareOperator.GreaterOrEqual, value, item.Value),
+                                               new ComparisonCondition(CompareOperator.LessOrEqual, value, item.Upper))
+                            : new ComparisonCondition(item.Operator ?? CompareOperator.Equal, value, item.Value);
+                        condition = condition is null ? one : new OrCondition(condition, one);
+                    }
+                    info.NextLabel = $"{info.EndLabel[..^4]}_{info.Cases++}";
+                    Jump(condition!, false, info.NextLabel);           // ne convient pas : cas suivant
+                    break;
+                }
+
+                case CaseElseStatement:
+                {
+                    SelectInfo info = selects.Peek();
+                    if (info.NextLabel is not null)
+                    {
+                        emitter.JpLabel(info.EndLabel);
+                        emitter.Label(info.NextLabel);
+                    }
+                    info.NextLabel = null;
+                    break;
+                }
+
+                case EndSelectStatement:
+                {
+                    SelectInfo info = selects.Pop();
+                    if (info.NextLabel is not null)
+                        emitter.Label(info.NextLabel);
+                    emitter.Label(info.EndLabel);
                     break;
                 }
 

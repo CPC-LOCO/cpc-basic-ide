@@ -174,6 +174,24 @@ public sealed record ScreenStatement(int SourceLine, string Command, IReadOnlyLi
 /// DEFSPR numéro, "ligne", ... (D198) : l'image d'un sprite, une ligne de points par texte. Les DEFSPR du même numéro
 /// qui se suivent s'ajoutent : la première reçoit toutes les lignes, les suivantes deviennent Continuation (rien à faire).
 /// </summary>
+/// <summary>SELECT valeur (D206) : début d'un choix entre plusieurs cas, refermé par END SELECT.</summary>
+public sealed record SelectStatement(int SourceLine, Expression Value) : Statement(SourceLine);
+
+/// <summary>
+/// Un élément de CASE (D206) : une valeur (Operator et Upper vides : égale), un intervalle (Upper : de Value à Upper,
+/// les deux compris), ou une comparaison (Operator : CASE &gt; 6).
+/// </summary>
+public sealed record CaseItem(Expression Value, Expression? Upper = null, CompareOperator? Operator = null);
+
+/// <summary>CASE élément, élément... (D206) : le premier CASE qui convient est exécuté.</summary>
+public sealed record CaseStatement(int SourceLine, IReadOnlyList<CaseItem> Items) : Statement(SourceLine);
+
+/// <summary>CASE ELSE (D206) : quand aucun CASE ne convient.</summary>
+public sealed record CaseElseStatement(int SourceLine) : Statement(SourceLine);
+
+/// <summary>END SELECT (D206).</summary>
+public sealed record EndSelectStatement(int SourceLine) : Statement(SourceLine);
+
 public sealed record SpriteDefStatement(int SourceLine, int Number, IReadOnlyList<string> Rows, bool Continuation = false)
     : Statement(SourceLine);
 
@@ -654,6 +672,8 @@ public static class AstWalker
         LineInputStatement l => [l.Target],
         MidAssignStatement m => new[] { m.Target, m.Start, m.Length, m.Value }.OfType<Expression>(),
         LibraryCallStatement lc => lc.Arguments,
+        SelectStatement sel => [sel.Value],
+        CaseStatement cs => cs.Items.SelectMany(x => new[] { x.Value, x.Upper }.OfType<Expression>()),
         _ => []
     };
 

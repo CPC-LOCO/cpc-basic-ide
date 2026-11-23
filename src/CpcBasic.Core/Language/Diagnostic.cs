@@ -87,7 +87,13 @@ public enum DiagnosticCode
     LibraryCode,             // D148 : faute dans le code assembleur d'une commande de bibliothèque utilisée
     SpriteDefinition,        // D198 : DEFSPR mal écrit (numéro, puis des textes)
     SpriteRow,               // D198 : ligne de DEFSPR avec un caractère qui n'est ni un stylo ni « . », ou trop longue
-    SpriteSize               // D198 : lignes de longueurs différentes, ou plus de 16 lignes
+    SpriteSize,              // D198 : lignes de longueurs différentes, ou plus de 16 lignes
+    SelectSyntax,            // D206 : SELECT sans valeur, ou CASE mal écrit
+    CaseExpected,            // D206 : autre chose qu'un CASE juste après SELECT
+    CaseWithoutSelect,       // D206 : CASE ou CASE ELSE hors d'un SELECT
+    CaseAfterCaseElse,       // D206 : un CASE après CASE ELSE
+    EndSelectWithoutSelect,  // D206 : END SELECT sans SELECT
+    SelectWithoutEndSelect   // D206 : SELECT jamais refermé
 }
 
 /// <summary>
@@ -290,6 +296,19 @@ public sealed record Diagnostic(DiagnosticCode Code, int Line, string Argument =
                 ? $"DEFSPR {n} : toutes les lignes du dessin doivent avoir la même longueur (les lignes DEFSPR {n} qui se suivent forment un seul dessin)."
                 : $"DEFSPR {n} : le dessin a plus de 16 lignes (les lignes DEFSPR {n} qui se suivent s'ajoutent les unes aux autres).")
             : Argument,
+        DiagnosticCode.SelectSyntax => Argument == "SELECT"
+            ? $"SELECT s'écrit SELECT valeur (un nombre ou un texte), puis des lignes CASE, et END SELECT pour finir."
+            : $"CASE s'écrit CASE valeur, CASE valeur TO valeur, CASE > valeur (ou <, <=, >=, =, <>), plusieurs séparés par des virgules, ou CASE ELSE.",
+        DiagnosticCode.CaseExpected =>
+            $"juste après SELECT, le premier CASE est attendu.",
+        DiagnosticCode.CaseWithoutSelect =>
+            $"{Argument} sans SELECT correspondant.",
+        DiagnosticCode.CaseAfterCaseElse =>
+            $"{Argument} arrive après CASE ELSE : CASE ELSE doit être le dernier cas de ce SELECT.",
+        DiagnosticCode.EndSelectWithoutSelect =>
+            $"END SELECT sans SELECT correspondant.",
+        DiagnosticCode.SelectWithoutEndSelect =>
+            $"ce SELECT n'est jamais refermé. Ajoutez END SELECT.",
         _ => $"problème inconnu ({Code})."
     };
 

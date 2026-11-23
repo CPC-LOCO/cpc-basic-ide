@@ -16,6 +16,7 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 | `ON … GOTO`, `ON … GOSUB` | aller à une ligne selon une valeur | Oui | Oui |
 | `IF … THEN … ELSE` | condition | Oui | Oui |
 | `END IF` / `ENDIF` ★ | fin d'un IF sur plusieurs lignes | Oui | Oui |
+| `SELECT`, `CASE`, `CASE ELSE`, `END SELECT` ★ | choisir entre plusieurs cas | Oui | Oui |
 | `FOR … TO … STEP … NEXT` | boucle comptée | Oui | Oui |
 | `WHILE … WEND` | boucle tant que | Oui | Oui |
 | `REPEAT … UNTIL` ★ | boucle jusqu'à | Oui | Oui |
@@ -148,4 +149,4 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 ## Mots réservés pour plus tard ★
 
-Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `SELECT`, `CASE`, `VROOM`, `BOOM`, `SHOT`, `FALL`, `WAVE`.
+Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `VROOM`, `BOOM`, `SHOT`, `FALL`, `WAVE`.
