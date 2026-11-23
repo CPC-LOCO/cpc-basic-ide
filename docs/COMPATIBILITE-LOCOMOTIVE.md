@@ -281,7 +281,7 @@ Ces mots sont **réservés** : une variable portant ce nom ne compile plus. Un p
 | `SELECT … CASE … END SELECT` | choisir entre plusieurs cas | Ajout du projet | SELECT valeur (nombre ou texte ; SELECT CASE valeur accepté aussi), puis CASE valeur, CASE valeur TO valeur, CASE > valeur (<, <=, >=, =, <>), plusieurs séparés par des virgules, CASE ELSE, END SELECT. Le premier CASE qui convient est exécuté. Pas de mot IS (D206). |
 | `COLLIDE` | deux sprites se touchent ? | Ajout du projet | COLLIDE(a, b) : -1 si les deux sprites sont montrés et que leurs rectangles se touchent, sinon 0 (D200). |
 
-**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : SCROLL, BOOM, SHOT, FALL, WAVE. **VROOM son** est fait (D213 : 1 moteur qui monte, 2 ralenti, 3 moteur qui descend ; enveloppes ENV 12 à 15 et ENT 11 à 15). (STAR est faite, dans la bibliothèque GRAPHIQUE ; POLYGON ne sera pas faite : STAR dessine aussi les polygones, D150.)
+**Prévus, pas encore faits** (déjà colorés dans l'éditeur, à ne pas utiliser comme noms de variables) : SCROLL, SHOT, FALL, WAVE. **BOOM son [, durée]** est fait (D214 : 1 voiture qui explose, 2 feu d'artifice, 3 pétard, 4 marteau, 5 malus ; enveloppes ENV 9 et 10, ENT 8 à 10). **VROOM son** est fait (D213 : 1 moteur qui monte, 2 ralenti, 3 moteur qui descend ; enveloppes ENV 12 à 15 et ENT 11 à 15). (STAR est faite, dans la bibliothèque GRAPHIQUE ; POLYGON ne sera pas faite : STAR dessine aussi les polygones, D150.)
 
 ## Règles pour les prochaines commandes
 

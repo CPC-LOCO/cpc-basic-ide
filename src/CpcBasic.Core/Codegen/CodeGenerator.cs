@@ -1654,6 +1654,49 @@ public static class CodeGenerator
                     emitter.CallLabel(VroomRuntime.EntryLabel);
                     break;
 
+                case "BOOM":                        // BOOM son [, durée] (D214) : 1 voiture, 2 feu d'artifice, 3 pétard,
+                {                                   // 4 marteau, 5 malus ; durée en centièmes de seconde
+                    required.Add(RuntimeLibrary.BoomName);
+                    bool checks = a.Any(x => x is not NumberExpression);
+                    if (checks)
+                        required.Add(RuntimeLibrary.ByteCheckName);
+                    if (a.Count == 2)
+                    {
+                        EmitExpression(a[1]);
+                        if (a[1] is not NumberExpression)   // durée calculée hors de 1 à 32767 : « Improper argument »
+                        {
+                            emitter.LdAH();
+                            emitter.OrA();
+                            emitter.JpMLabel(RuntimeLibrary.ByteCheckLabel);
+                            emitter.OrL();
+                            emitter.JpZLabel(RuntimeLibrary.ByteCheckLabel);
+                        }
+                        emitter.PushHl();
+                    }
+                    EmitExpression(a[0]);
+                    if (a[0] is not NumberExpression)       // son calculé hors de 1 à 5 : « Improper argument »
+                    {
+                        emitter.LdAH();
+                        emitter.OrA();
+                        emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                        emitter.LdAL();
+                        emitter.DecA();
+                        emitter.CpImm(5);
+                        emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
+                    }
+                    else
+                    {
+                        emitter.LdAL();
+                        emitter.DecA();
+                    }
+                    if (a.Count == 2)
+                        emitter.PopHl();
+                    else
+                        emitter.LdHlImm(0);                 // la durée du son
+                    emitter.CallLabel(BoomRuntime.EntryLabel);
+                    break;
+                }
+
                 case "RELEASE":                     // RELEASE canaux (D071)
                     EmitCallWithA(a[0], SoundRelease);
                     break;
@@ -2340,6 +2383,7 @@ public static class CodeGenerator
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
                 || statement is ScreenStatement { Command: "VROOM", Arguments: [not NumberExpression] }   // D213
+                || statement is ScreenStatement { Command: "BOOM" } boomCheck && boomCheck.Arguments.Any(x => x is not NumberExpression)   // D214
                 || statement is EllipseStatement { RadiusX: not NumberExpression } or EllipseStatement { RadiusY: not NumberExpression }   // D139
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }

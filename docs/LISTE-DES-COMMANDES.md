@@ -151,4 +151,6 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 `VROOM son` : bruit de moteur sur le canal A : 1 moteur qui monte, 2 ralenti, 3 moteur qui descend (D213 ; se sert des enveloppes ENV 12 à 15 et ENT 11 à 15).
 
-Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `BOOM`, `SHOT`, `FALL`, `WAVE`.
+`BOOM son [, durée]` : explosions et chocs : 1 voiture qui explose, 2 feu d'artifice, 3 pétard ou coup de fusil, 4 marteau qui frappe, 5 malus ; durée facultative en centièmes de seconde (D214 ; se sert des enveloppes ENV 9 et 10, ENT 8 à 10).
+
+Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `SHOT`, `FALL`, `WAVE`.

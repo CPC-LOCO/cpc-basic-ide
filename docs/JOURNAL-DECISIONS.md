@@ -1645,6 +1645,20 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2111 (`VroomTests.cs` : les trois sons et leurs enveloppes, valeur calculée, erreurs, cartouche).
 - Exemple : `examples\vroom.bas` (touches 1 à 3, et 4 : ralenti, montée, ralenti, descente).
 
+## D214 : BOOM son [, durée] (23 nov. 2026) (demande de l'utilisateur : forme et sons choisis par lui ; Validé le 23 nov. 2026 : 2126 tests réussis ; examples\boom.bas dans WinAPE : « c'est trop top ! »)
+
+- Forme donnée par l'utilisateur : BOOM 1 (une voiture qui explose), BOOM 2 (le boom d'un feu d'artifice), BOOM 3 (un pétard, un coup de fusil), BOOM 4 (un marteau qui frappe), BOOM 5 (le boom d'un bonus, surtout malus), et BOOM x, y avec y la durée (facultative) ; durée en centièmes de seconde comme SOUND (proposé par Claude, accepté). **Mot réservé nouveau : BOOM.**
+- Sons choisis à l'oreille d'abord en BASIC normal (`examples\boomref.bas`), acceptés au premier essai (« c'est bien ») :
+  - 1 : claquement (bruit 6, 8 centièmes), puis bruit 31 sur A et grondement grave (période 3000) sur B, éteints en 15 marches (ENV 15,-1,13 ; 200 centièmes).
+  - 2 : sifflement qui monte (période 300, ENT 60,-3,1, volume 8, 60 centièmes), boom (bruit 15, ENV 15,-1,2), crépitement (bruit 4, ENV 5,-3,3,5,3,3,5,-3,3, 45 centièmes).
+  - 3 : bruit 6, ENV 15,-1,2 (30 centièmes).
+  - 4 : période 180 et bruit 10 sur A, période 90 sur B, ENV 15,-1,1 et ENT 20,8,1 (15 centièmes).
+  - 5 : périodes 200 et 203 sur A et B, ENV 15,-1,6 et ENT 60,6,1 (90 centièmes).
+- Durée donnée : les parties principales durent la durée ; le volume s'éteint en 15 marches de durée / 15 (de 1 à 255) ; la descente du malus fait 60 pas de durée / 60. Sans durée : la durée écoutée.
+- Fait : `Codegen\BoomRuntime.cs` (enveloppes ENV 9 et 10, ENT 8 à 10, posées juste avant chaque son ; VROOM garde les siennes), `Parser.cs` (son de 1 à 5, durée de 1 à 32767, vérifiés à la compilation), `CodeGenerator.cs` (valeurs calculées hors limites : « Improper argument » ; nouveau JP M dans Z80Emitter). Marche aussi sur la cartouche.
+- Tests : 2126 (`BoomTests.cs`, 15 tests : les cinq sons, durée donnée, valeurs calculées, erreurs, cartouche).
+- Exemple : `examples\boom.bas` (touches 1 à 5 ; 6 : BOOM 1,500 ; 7 : BOOM 5,300).
+
 ---
 
 ## Notes de fin de session (modèle)

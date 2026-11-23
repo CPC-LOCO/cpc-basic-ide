@@ -251,6 +251,7 @@ public sealed class Z80Emitter
     public void JpNcLabel(string label) { code.Add(0xD2); AddAbsolute(label); }    // JP NC,étiquette
     public void JpCLabel(string label) { code.Add(0xDA); AddAbsolute(label); }     // JP C,étiquette
     public void JpZLabel(string label) { code.Add(0xCA); AddAbsolute(label); }     // JP Z,étiquette
+    public void JpMLabel(string label) { code.Add(0xFA); AddAbsolute(label); }     // JP M,étiquette (D214)
     public void JpNzLabel(string label) { code.Add(0xC2); AddAbsolute(label); }    // JP NZ,étiquette
     public void JpHl() => code.Add(0xE9);                                          // JP (HL)
     public void InAC() { code.Add(0xED); code.Add(0x78); }                         // IN A,(C)
