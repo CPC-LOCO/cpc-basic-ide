@@ -155,4 +155,6 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 `SHOT son` : tirs et bris : 1 tir de laser, 2 missile, 3 rafale, 4 vitre qui casse (D215 ; se sert des enveloppes ENV 4 à 8, ENT 6 et 7).
 
-Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `FALL`, `WAVE`.
+`FALL son` : chutes : 1 chute dans le vide puis le sol, 2 vie perdue (D217 ; se sert des enveloppes ENV 2 et 3, ENT 4 et 5).
+
+Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `WAVE`.

@@ -36,7 +36,8 @@ public static class BasicAnalyzer
     [
         ("VROOM", [12, 13, 14, 15], [11, 12, 13, 14, 15]),   // D213
         ("BOOM", [9, 10], [8, 9, 10]),                       // D214
-        ("SHOT", [4, 5, 6, 7, 8], [6, 7])                    // D215
+        ("SHOT", [4, 5, 6, 7, 8], [6, 7]),                   // D215
+        ("FALL", [2, 3], [4, 5])                             // D217
     ];
 
     // ENV ou ENT écrit en clair avec un numéro pris par un effet du même programme : message avec les numéros libres

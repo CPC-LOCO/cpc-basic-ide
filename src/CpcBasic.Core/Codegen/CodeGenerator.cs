@@ -1632,10 +1632,15 @@ public static class CodeGenerator
                     break;
                 }
 
-                case "VROOM" or "SHOT":             // VROOM son (D213) : 1 monte, 2 ralenti, 3 descend ;
-                {                                   // SHOT son (D215) : 1 laser, 2 missile, 3 rafale, 4 vitre
-                    bool vroom = screen.Command == "VROOM";
-                    required.Add(vroom ? RuntimeLibrary.VroomName : RuntimeLibrary.ShotName);
+                case "VROOM" or "SHOT" or "FALL":   // VROOM son (D213) : 1 monte, 2 ralenti, 3 descend ; SHOT son (D215) :
+                {                                   // 1 laser, 2 missile, 3 rafale, 4 vitre ; FALL son (D217) : 1 chute, 2 vie perdue
+                    (string fxModule, int fxCount, string fxEntry) = screen.Command switch
+                    {
+                        "VROOM" => (RuntimeLibrary.VroomName, 3, VroomRuntime.EntryLabel),
+                        "SHOT" => (RuntimeLibrary.ShotName, 4, ShotRuntime.EntryLabel),
+                        _ => (RuntimeLibrary.FallName, 2, FallRuntime.EntryLabel)
+                    };
+                    required.Add(fxModule);
                     EmitExpression(a[0]);
                     if (a[0] is not NumberExpression)   // calculé hors limites : « Improper argument »
                     {
@@ -1645,7 +1650,7 @@ public static class CodeGenerator
                         emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
                         emitter.LdAL();
                         emitter.DecA();
-                        emitter.CpImm(vroom ? 3 : 4);
+                        emitter.CpImm(fxCount);
                         emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
                     }
                     else
@@ -1653,7 +1658,7 @@ public static class CodeGenerator
                         emitter.LdAL();
                         emitter.DecA();
                     }
-                    emitter.CallLabel(vroom ? VroomRuntime.EntryLabel : ShotRuntime.EntryLabel);
+                    emitter.CallLabel(fxEntry);
                     break;
                 }
 
@@ -2385,7 +2390,7 @@ public static class CodeGenerator
                 || statement is ScreenStatement { Command: "MEMORY", Arguments: [not NumberExpression] }   // D125
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
-                || statement is ScreenStatement { Command: "VROOM" or "SHOT", Arguments: [not NumberExpression] }   // D213, D215
+                || statement is ScreenStatement { Command: "VROOM" or "SHOT" or "FALL", Arguments: [not NumberExpression] }   // D213, D215, D217
                 || statement is ScreenStatement { Command: "BOOM" } boomCheck && boomCheck.Arguments.Any(x => x is not NumberExpression)   // D214
                 || statement is EllipseStatement { RadiusX: not NumberExpression } or EllipseStatement { RadiusY: not NumberExpression }   // D139
                 || statement is StreamStatement { Stream: not null and not NumberExpression }

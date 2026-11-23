@@ -1679,6 +1679,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2142 (`EffectEnvelopeTests.cs`, 6 tests). Essai dans l'éditeur (23 nov. 2026) : le message apparaît ; avec ENV 5, la compilation réussit.
 - Pour FALL et WAVE : ajouter leurs numéros à la liste ; s'ils ne tiennent plus dans les numéros restants, partager avec l'effet le moins souvent joué en même temps.
 
+## D217 : FALL son (23 nov. 2026) (sons proposés par Claude, choisis par l'utilisateur ; Validé le 23 nov. 2026 : 2151 tests réussis ; examples\fall.bas dans WinAPE : « c'est bon »)
+
+- L'utilisateur ne connaissait pas FALL (« tomber ») ; quatre sons proposés (bombe qui tombe, chute dans le vide puis le sol, objet qui dégringole un escalier, vie perdue), sans durée comme SHOT. Essai à l'oreille (`examples\fallref.bas`) : la bombe ressemblait à « un feu d'artifice inversé », refaite (aiguë, descente lente, de plus en plus forte) ; choix final de l'utilisateur : garder seulement la chute (devient FALL 1) et la vie perdue (devient FALL 2) ; « les autres ne vont pas dans FALL ». **Mot réservé nouveau : FALL.**
+  - 1 : période 100 qui plonge (ENT 100,6,1, volume 12, 1 seconde), puis le sol : période 2000, bruit 25, ENV 15,-1,1 (15 centièmes).
+  - 2 : notes de périodes 239, 253, 268 (25 centièmes chacune, volume 12), puis 284 pendant 60 centièmes, qui tremble (ENT qui se répète 2,2,1,2,-2,1) et s'éteint (ENV 12,-1,5).
+- Fait : `Codegen\FallRuntime.cs` (préfixe rt_fa_ : rt_fl_ est déjà pris par la lecture de fichiers ; enveloppes ENV 2 et 3, ENT 4 et 5), `Parser.cs` (son 1 ou 2), `CodeGenerator.cs` (avec VROOM et SHOT), `BasicAnalyzer.EffectEnvelopes` (D216). Marche aussi sur la cartouche.
+- Tests : 2151 (`FallTests.cs`, 9 tests).
+- Exemple : `examples\fall.bas` (touches 1 et 2 ; 3 : SHOT 1, BOOM 3, FALL 2).
+- Idée de l'utilisateur à retenir : « Nouveau » dans le menu Fichier (IDEES.md) attendra la prochaine retouche de l'éditeur (« l'éditeur sera retouché avec d'autres options »).
+
 ---
 
 ## Notes de fin de session (modèle)
