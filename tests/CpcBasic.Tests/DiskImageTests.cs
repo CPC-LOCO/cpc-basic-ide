@@ -129,13 +129,33 @@ public class DiskImageTests
         Assert.Equal(0, At(dsk, 3 * DiskImage.BlockSize + 0x12)); // type BASIC
     }
 
+    // D209 : plus de 16 Ko : deux entrées du répertoire (parties 0 et 1), comme AMSDOS (avant : refusé)
     [Fact]
-    public void File_larger_than_16_KB_is_refused()
+    public void Un_fichier_de_plus_de_16_Ko_prend_deux_entrees_du_repertoire()
     {
         var disk = new DiskImage();
+        byte[] content = Enumerable.Range(0, 20000).Select(i => (byte)(i % 251)).ToArray();
+        disk.AddFile("BIG", "BIN", AmsdosFileType.Binary, 0x4000, 0x4000, content);
+        disk.AddFile("NEXT", "BIN", AmsdosFileType.Binary, 0x4000, 0x4000, [1]);
+        byte[] dsk = disk.ToDskBytes();
 
-        Assert.Throws<InvalidOperationException>(
-            () => disk.AddFile("BIG", "BIN", AmsdosFileType.Binary, 0x4000, 0x4000, new byte[20000]));
+        // 128 + 20000 = 20128 octets : 20 blocs ; partie 0 : 16 blocs (2 à 17), 128 enregistrements ;
+        // partie 1 : 4 blocs (18 à 21), 3744 octets = 30 enregistrements
+        Assert.Equal("BIG     BIN", TextAt(dsk, 1, 11));
+        Assert.Equal(0, At(dsk, 12));
+        Assert.Equal(128, At(dsk, 15));
+        Assert.Equal(2, At(dsk, 16));
+        Assert.Equal(17, At(dsk, 31));
+        Assert.Equal("BIG     BIN", TextAt(dsk, 32 + 1, 11));
+        Assert.Equal(1, At(dsk, 32 + 12));
+        Assert.Equal(30, At(dsk, 32 + 15));
+        Assert.Equal(18, At(dsk, 32 + 16));
+        Assert.Equal(21, At(dsk, 32 + 19));
+        Assert.Equal(0, At(dsk, 32 + 20));
+        Assert.Equal("NEXT    BIN", TextAt(dsk, 64 + 1, 11));   // le fichier suivant commence au bloc 22
+        Assert.Equal(22, At(dsk, 64 + 16));
+        for (int i = 0; i < content.Length; i += 997)                // les données suivent l'en-tête, à la suite
+            Assert.Equal(content[i], At(dsk, FirstFileOffset + 128 + i));
     }
 
     [Fact]

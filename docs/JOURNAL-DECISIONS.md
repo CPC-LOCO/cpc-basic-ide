@@ -1601,6 +1601,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Exemple : `examples\charge.bas` et `examples\IMAGE.BIN` (écran MODE 1 de 16 Ko avec en-tête AMSDOS, chargé en &C000 : cadre et anneaux de couleur ; ovales au premier essai, refait ronds pour le vrai moniteur, facteur de D140).
 - Reste (étape suivante) : sur disquette (F5), mettre aussi ces fichiers sur la disquette (idée D087), pour que le même programme marche partout.
 
+## D209 : les fichiers de LOAD "nom" sur la disquette, et fichiers de plus de 16 Ko (23 nov. 2026) (idée de l'utilisateur notée en D087 ; Validé le 23 nov. 2026 : 2091 tests réussis ; charge.dsk dans WinAPE : l'image est lue sur la disquette)
+
+- F5 : pour chaque LOAD "nom" écrit en clair (dans tous les programmes compilés en chaîne), le fichier du dossier est cherché comme pour la cartouche (D208 : « NOM » puis « NOM.BIN », ou le nom exact) et mis sur la disquette avec son en-tête AMSDOS (adresses gardées ; sans en-tête : fichier binaire, adresse 0, et le même message d'aide si LOAD n'a pas d'adresse). Fichier absent : signalé, la disquette est faite. Pas encore sur la cassette (le message le dit). Le même programme marche donc sur disquette et sur cartouche.
+- Disquette (`DiskImage.cs`) : un fichier de plus de 16 Ko prend plusieurs entrées du répertoire, comme AMSDOS (octet 12 : numéro de la partie, octet 15 : enregistrements de 128 octets de la partie) ; avant, il était refusé (un écran de 16 Ko avec son en-tête ne passait pas). Les programmes de plus de 16 Ko en profitent aussi.
+- Fait : `Compiler.cs` (CompileWithLinked reçoit findData ; CompileResult.Data, MissingData, DataNotes), éditeur (messages de F5).
+- Tests : 2091 (`DiskDataTests.cs`, 3 tests ; le test « fichier de plus de 16 Ko refusé » remplacé par la vérification des deux entrées du répertoire).
+- Essai : `examples\charge.bas` dans WinAPE (F5, RUN"CHARGE") : l'image ronde apparaît après la lecture de la disquette.
+- Reste : ces fichiers sur la cassette (dans l'ordre de lecture) ; RUN"!NOM" (IDEES.md).
+
 ---
 
 ## Notes de fin de session (modèle)

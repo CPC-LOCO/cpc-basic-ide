@@ -1017,9 +1017,16 @@ public partial class MainWindow : Window
                                                              settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries,
                                                              settings.WithLoader));
             }
+            // LOAD "nom" écrit en clair : le fichier du même dossier va aussi sur la disquette (D209)
+            DataFile? FindData(string file)
+            {
+                string? found = Directory.EnumerateFiles(folder)
+                    .FirstOrDefault(f => Path.GetFileName(f).Equals(file, StringComparison.OrdinalIgnoreCase));
+                return found is null ? null : new DataFile(Path.GetFileName(found).ToUpperInvariant(), File.ReadAllBytes(found));
+            }
             result = Compiler.CompileWithLinked(Editor.Text, name,
                                                 new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries,
-                                                                    settings.WithLoader), Find);
+                                                                    settings.WithLoader), Find, FindData);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -1105,6 +1112,12 @@ public partial class MainWindow : Window
             done.Add(new MessageItem($"Aussi compilé et mis sur la disquette (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.", 0));
         foreach (string absent in result.Missing)
             done.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier ; ce programme n'est pas sur la disquette.", 0));
+        foreach (LinkedProgram data in result.Data)       // D209
+            done.Add(new MessageItem($"Fichier mis sur la disquette (LOAD) : {data.Name}, {data.BinarySize} octets (pas sur la cassette).", 0));
+        foreach (string absent in result.MissingData)
+            done.Add(new MessageItem($"LOAD \"{absent}\" : ce fichier n'est pas dans le dossier du programme ; il n'est pas sur la disquette.", 0));
+        foreach (string note in result.DataNotes)
+            done.Add(new MessageItem(note, 0));
         int debugs = CountDebug();
         if (debugs > 0)
             done.Add(new MessageItem(settings.DebugMode

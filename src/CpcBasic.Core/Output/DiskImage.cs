@@ -34,7 +34,7 @@ public sealed class DiskImage
     public const int DskFileSize = 256 + Tracks * DskTrackSize;
 
     const int FirstFileBlock = 2;      // les blocs 0 et 1 sont réservés au répertoire
-    const int MaxBlocksPerFile = 16;   // une seule entrée de répertoire par fichier : 16 Ko maximum
+    const int MaxBlocksPerFile = 16;   // blocs par entrée du répertoire (16 Ko) ; un fichier plus grand en prend plusieurs (D209)
 
     readonly byte[] data = new byte[Tracks * SectorsPerTrack * SectorSize];
     int nextBlock = FirstFileBlock;
@@ -76,28 +76,36 @@ public sealed class DiskImage
         AddRaw(cleanName, cleanExt, [.. bytes, 0x1A]);
     }
 
+    // D209 : un fichier de plus de 16 Ko prend plusieurs entrées du répertoire, comme AMSDOS (format DATA : blocs de
+    // 1 Ko, 16 blocs par entrée) : l'octet 12 donne le numéro de la partie (0, 1, 2...), l'octet 15 le nombre
+    // d'enregistrements de 128 octets de cette partie (128 pour une partie pleine).
     void AddRaw(string cleanName, string cleanExt, byte[] file)
     {
-        int blocks = (file.Length + BlockSize - 1) / BlockSize;
-        if (blocks > MaxBlocksPerFile)
-            throw new InvalidOperationException("Un fichier ne peut pas dépasser 16 Ko pour l'instant.");
-        if (nextEntry >= MaxDirectoryEntries || (nextBlock + blocks) * BlockSize > data.Length)
+        int blocks = Math.Max(1, (file.Length + BlockSize - 1) / BlockSize);
+        int entries = (blocks + MaxBlocksPerFile - 1) / MaxBlocksPerFile;
+        if (nextEntry + entries > MaxDirectoryEntries || (nextBlock + blocks) * BlockSize > data.Length)
             throw new InvalidOperationException("Disquette pleine.");
 
         // Données du fichier
         file.CopyTo(data, nextBlock * BlockSize);
 
-        // Entrée du répertoire (32 octets)
-        int e = nextEntry * 32;
-        Array.Clear(data, e, 32);
-        Encoding.ASCII.GetBytes(cleanName.PadRight(8)).CopyTo(data, e + 1);
-        Encoding.ASCII.GetBytes(cleanExt.PadRight(3)).CopyTo(data, e + 9);
-        data[e + 15] = (byte)((file.Length + 127) / 128);   // enregistrements de 128 octets
-        for (int b = 0; b < blocks; b++)
-            data[e + 16 + b] = (byte)(nextBlock + b);       // blocs occupés
-
+        const int ExtentSize = MaxBlocksPerFile * BlockSize;   // 16 Ko par entrée
+        for (int x = 0; x < entries; x++)
+        {
+            // Entrée du répertoire (32 octets)
+            int e = nextEntry * 32;
+            Array.Clear(data, e, 32);
+            Encoding.ASCII.GetBytes(cleanName.PadRight(8)).CopyTo(data, e + 1);
+            Encoding.ASCII.GetBytes(cleanExt.PadRight(3)).CopyTo(data, e + 9);
+            data[e + 12] = (byte)x;                                          // numéro de la partie
+            int part = Math.Min(ExtentSize, file.Length - x * ExtentSize);
+            data[e + 15] = (byte)((part + 127) / 128);                       // enregistrements de 128 octets
+            int partBlocks = Math.Max(1, (part + BlockSize - 1) / BlockSize);
+            for (int b = 0; b < partBlocks; b++)
+                data[e + 16 + b] = (byte)(nextBlock + x * MaxBlocksPerFile + b);   // blocs occupés
+            nextEntry++;
+        }
         nextBlock += blocks;
-        nextEntry++;
     }
 
     /// <summary>Produit le contenu complet du fichier .dsk.</summary>
