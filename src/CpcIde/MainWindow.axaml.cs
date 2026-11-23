@@ -1113,7 +1113,10 @@ public partial class MainWindow : Window
         foreach (string absent in result.Missing)
             done.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier ; ce programme n'est pas sur la disquette.", 0));
         foreach (LinkedProgram data in result.Data)       // D209
-            done.Add(new MessageItem($"Fichier mis sur la disquette (LOAD) : {data.Name}, {data.BinarySize} octets (pas sur la cassette).", 0));
+            done.Add(new MessageItem($"Fichier mis sur la disquette et sur la cassette (LOAD) : {data.Name}, {data.BinarySize} octets.", 0));
+        if (result.Data.Count > 0)                        // D211
+            done.Add(new MessageItem("Sur la cassette, chaque fichier suit son programme, dans l'ordre des LOAD : pour relire un fichier " +
+                                     "déjà passé, il faut rembobiner la cassette, comme sur un vrai CPC.", 0));
         foreach (string absent in result.MissingData)
             done.Add(new MessageItem($"LOAD \"{absent}\" : ce fichier n'est pas dans le dossier du programme ; il n'est pas sur la disquette.", 0));
         foreach (string note in result.DataNotes)

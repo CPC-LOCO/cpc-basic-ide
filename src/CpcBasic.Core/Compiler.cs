@@ -86,7 +86,7 @@ public static class Compiler
     /// est seulement signalé (CompileResult.Missing).
     /// </summary>
     /// <param name="findData">D209 : cherche un fichier de LOAD "nom" écrit en clair (comme pour la cartouche, D208) ; il est
-    /// mis aussi sur la disquette (pas sur la cassette). Null : aucun fichier cherché.</param>
+    /// mis aussi sur la disquette, et sur la cassette juste après son programme (D211). Null : aucun fichier cherché.</param>
     public static CompileResult CompileWithLinked(string source, string programName, CompilerOptions? options,
                                                   Func<string, ProgramSource?> findProgram, Func<string, DataFile?>? findData = null)
     {
@@ -134,8 +134,42 @@ public static class Compiler
         if (diagnostics.Count > 0)
             return new CompileResult(diagnostics, null, mainSize, mainModules) { Missing = missing };
 
+        // D209 : les fichiers de LOAD "nom" écrits en clair, cherchés pour chaque programme (dans l'ordre de ses LOAD)
+        var data = new List<LinkedProgram>();
+        var missingData = new List<string>();
+        var dataNotes = new List<string>();
+        var dataOf = new Dictionary<string, List<(string TapeName, DataFile Found, int Type, int Load, int Exec, byte[] Content, string Place, int Line)>>();
+        foreach ((string name, BasicProgram program, bool main) in programs)
+        {
+            var list = new List<(string, DataFile, int, int, int, byte[], string, int)>();
+            dataOf[name] = list;
+            if (findData is null)
+                continue;
+            string place = main ? "Ligne" : $"{name}.BAS, ligne";
+            foreach (LoadStatement load in program.Statements.OfType<LoadStatement>())
+            {
+                if (load.Name is not StringLiteralExpression literal)
+                    continue;
+                string wanted = literal.Text.Trim().ToUpperInvariant();
+                DataFile? found = wanted.Contains('.') ? findData(wanted) : findData(wanted) ?? findData(wanted + ".BIN");
+                if (found is null)
+                {
+                    if (!missingData.Contains(wanted))
+                        missingData.Add(wanted);
+                    continue;
+                }
+                (int type, int loadAt, int exec, byte[] content, bool header) = ReadAmsdos(found.Content);
+                if (!header && load.Address is null)
+                    dataNotes.Add($"{place} {load.SourceLine} : LOAD \"{literal.Text}\" : {found.Name} n'a pas d'en-tête AMSDOS, " +
+                                  $"son adresse n'est donc pas connue. Écrivez-la après le nom, par exemple LOAD \"{literal.Text}\",&C000.");
+                list.Add((wanted, found, type, loadAt, exec, content, place, load.SourceLine));
+            }
+        }
+
         var disk = new DiskImage();
         var tape = new TapeImage();
+        var onDisk = new HashSet<string>(StringComparer.Ordinal);
+        var onTape = new HashSet<string>(StringComparer.Ordinal);
         bool first = true;   // le programme de l'éditeur
         foreach ((string name, byte[] code, bool withLoader) in compiled)
         {
@@ -145,6 +179,8 @@ public static class Compiler
                 disk.AddFile(name, "BAS", AmsdosFileType.Basic, 0x0170, 0x0000, loader);
             }
             disk.AddFile(name, "BIN", AmsdosFileType.Binary, LoadAddress, LoadAddress, code);
+            onDisk.Add(Gx4000System.NormalName($"{name}.BIN"));
+            onDisk.Add(Gx4000System.NormalName($"{name}.BAS"));
 
             byte[] tapeCode = withLoader ? code : TapeCopy(code);   // D179 : pas de disquette rebranchée
             if (!first)       // D180 : lancé par RUN "nom", qui cherche NOM.BIN : seul, sans chargeur
@@ -158,37 +194,15 @@ public static class Compiler
             else
                 tape.AddFile(name, AmsdosFileType.Binary, LoadAddress, LoadAddress, tapeCode);
             first = false;
-        }
 
-        // D209 : les fichiers de LOAD "nom" écrits en clair vont aussi sur la disquette, avec leur en-tête AMSDOS
-        var data = new List<LinkedProgram>();
-        var missingData = new List<string>();
-        var dataNotes = new List<string>();
-        if (findData is not null)
-        {
-            var onDisk = new HashSet<string>(disk.FileNames.Select(Gx4000System.NormalName), StringComparer.Ordinal);
-            foreach ((string name, BasicProgram program, bool main) in programs)
+            // D209 : ses fichiers de données sur la disquette ; D211 : et sur la cassette, juste après lui, dans l'ordre de
+            // ses LOAD (la cassette se lit d'un bout à l'autre), sous le nom écrit dans LOAD
+            foreach ((string tapeName, DataFile found, int type, int loadAt, int exec, byte[] content, string place, int line)
+                     in dataOf.GetValueOrDefault(name) ?? [])
             {
-                string place = main ? "Ligne" : $"{name}.BAS, ligne";
-                foreach (LoadStatement load in program.Statements.OfType<LoadStatement>())
+                string normal = Gx4000System.NormalName(found.Name);
+                if (onDisk.Add(normal))
                 {
-                    if (load.Name is not StringLiteralExpression literal)
-                        continue;
-                    string wanted = literal.Text.Trim().ToUpperInvariant();
-                    DataFile? found = wanted.Contains('.') ? findData(wanted) : findData(wanted) ?? findData(wanted + ".BIN");
-                    if (found is null)
-                    {
-                        if (!missingData.Contains(wanted))
-                            missingData.Add(wanted);
-                        continue;
-                    }
-                    string normal = Gx4000System.NormalName(found.Name);
-                    if (!onDisk.Add(normal))
-                        continue;                                        // déjà sur la disquette
-                    (int type, int loadAt, int exec, byte[] content, bool header) = ReadAmsdos(found.Content);
-                    if (!header && load.Address is null)
-                        dataNotes.Add($"{place} {load.SourceLine} : LOAD \"{literal.Text}\" : {found.Name} n'a pas d'en-tête AMSDOS, " +
-                                      $"son adresse n'est donc pas connue. Écrivez-la après le nom, par exemple LOAD \"{literal.Text}\",&C000.");
                     try
                     {
                         disk.AddFile(normal[..8].TrimEnd(), normal[8..].TrimEnd(), (AmsdosFileType)(type & 0xFF), loadAt, exec, content);
@@ -196,7 +210,18 @@ public static class Compiler
                     }
                     catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
                     {
-                        dataNotes.Add($"{place} {load.SourceLine} : {found.Name} n'a pas pu être mis sur la disquette : {ex.Message}");
+                        dataNotes.Add($"{place} {line} : {found.Name} n'a pas pu être mis sur la disquette : {ex.Message}");
+                    }
+                }
+                if (onTape.Add(tapeName))
+                {
+                    try
+                    {
+                        tape.AddFile(tapeName, (AmsdosFileType)(type & 0xFF), loadAt, exec, content);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        dataNotes.Add($"{place} {line} : {found.Name} n'a pas pu être mis sur la cassette : {ex.Message}");
                     }
                 }
             }

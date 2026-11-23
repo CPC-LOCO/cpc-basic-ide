@@ -1619,6 +1619,14 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2099 (comparaison point par point avec GRA PLOT de notre système de cartouche, 3 MODE, 60 réglages au hasard de 40 points : origine, fenêtre, stylo gardé, PLOTR, curseur et stylo rendus à la ROM ; choix du compilateur). MiniZ80 : SCR GET LOCATION simulé (par défaut « écran ailleurs », pour que les anciens tests de programmes gardent les routines GRA simulées).
 - Résultat (WinAPE, 23 nov. 2026) : `PLOT x,y` 12,72 s (20,42 avant : sans la boucle, 1,7 fois plus rapide), `PLOT x,y,stylo` 45,75 s (60,12 avant ; le calcul de la couleur pèse lourd), MOVE 7,37 s (6,58 : FLUSH ajouté avant chaque MOVE dans un programme avec PLOT).
 
+## D211 : les fichiers de LOAD "nom" sur la cassette (23 nov. 2026) (suite de D209 ; Validé le 23 nov. 2026 : 2100 tests réussis ; charge.cdt dans Caprice (464) : « C'est comme tu le dis »)
+
+- F5 : chaque fichier de LOAD "nom" écrit en clair (trouvé comme en D209) va aussi sur la cassette, juste après son programme, dans l'ordre de ses LOAD, sous le nom écrit dans LOAD (« IMAGE ») ; un fichier lu plusieurs fois n'y est mis qu'une fois. Message de F5 : pour relire un fichier déjà passé, il faut rembobiner, comme sur un vrai CPC.
+- Fait : `Compiler.cs` (fichiers cherchés pour chaque programme avant d'écrire la disquette et la cassette ; la disquette les reçoit aussi juste après leur programme), éditeur (messages).
+- Tests : 2100 (`DiskDataTests.cs` : ordre exact sur la cassette avec deux programmes enchaînés et trois fichiers).
+- Essai : `examples\charge.cdt` dans Caprice (464) : « Press PLAY then any key », « Loading IMAGE block... » puis l'image ; au tour suivant, la cassette attend d'être rembobinée (normal).
+- Le même programme `charge.bas` marche maintenant sur disquette, cassette et cartouche.
+
 ---
 
 ## Notes de fin de session (modèle)

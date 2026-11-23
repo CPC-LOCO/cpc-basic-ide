@@ -9,7 +9,7 @@ using Xunit;
 
 namespace CpcBasic.Tests;
 
-/// <summary>D209 : les fichiers de LOAD "nom" écrits en clair vont aussi sur la disquette (F5). examples\charge.bas.</summary>
+/// <summary>D209 : les fichiers de LOAD "nom" écrits en clair vont aussi sur la disquette (F5), et sur la cassette (D211). examples\charge.bas.</summary>
 public class DiskDataTests
 {
     static byte[] Pattern(int length) => Enumerable.Range(0, length).Select(i => (byte)(i % 251)).ToArray();
@@ -54,6 +54,21 @@ public class DiskDataTests
         Assert.Equal("ABSENT", Assert.Single(result.MissingData));
         Assert.Contains("BRUT.BIN", result.Disk!.FileNames);
         Assert.Contains("LOAD \"BRUT\",&C000", Assert.Single(result.DataNotes));
+    }
+
+    // D211 : sur la cassette, les fichiers suivent leur programme, dans l'ordre des LOAD, sous le nom écrit dans LOAD
+    [Fact]
+    public void Les_fichiers_de_LOAD_suivent_leur_programme_sur_la_cassette()
+    {
+        var programs = new Dictionary<string, string> { ["SUITE"] = "10 LOAD \"FOND\",&C000" };
+        CompileResult result = Compiler.CompileWithLinked(
+            "10 LOAD \"image\",&C000:LOAD \"DECOR.BIN\",&8000:LOAD \"IMAGE\",&C000:RUN \"SUITE\"", "CHARGE", null,
+            n => programs.TryGetValue(n, out string? text) ? new ProgramSource(text, CompilerOptions.Default) : null,
+            Folder(("IMAGE.BIN", WithHeader(Pattern(1000), 0xC000)), ("DECOR.BIN", Pattern(200)), ("FOND.BIN", Pattern(300))));
+
+        Assert.True(result.Success);
+        Assert.Equal(new[] { "CHARGE", "CHARGE.BIN", "IMAGE", "DECOR.BIN", "SUITE.BIN", "FOND" }, result.Tape!.FileNames);
+        Assert.Equal(3, result.Data.Count);
     }
 
     [Fact]
