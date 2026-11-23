@@ -170,7 +170,7 @@ Ces commandes utilisent le repère du Locomotive : 640 × 400, origine en bas à
 | Mot | Rôle | État | Remarque |
 |---|---|---|---|
 | `CAT` | catalogue | Faite | D085. |
-| `LOAD` | charge un fichier | Faite | Fichiers binaires (écrans…), D085. Un programme BASIC : « File type error ». |
+| `LOAD` | charge un fichier | Faite | Fichiers binaires (écrans…), D085. Un programme BASIC : « File type error ». Sur la cartouche GX4000 : le fichier du dossier est rangé dans la cartouche et lu de là (D208). |
 | `SAVE` | enregistre un fichier | Faite | `SAVE "nom",B,début,longueur`, D085. Sans `,B` : refusé (le programme BASIC n'existe plus). |
 | `MERGE` | fusionne un programme | Écart voulu | Refusé : ajoute des lignes BASIC (D086). |
 | `OPENIN / CLOSEIN` | ouvre / ferme un fichier en lecture | Faite | D084. |

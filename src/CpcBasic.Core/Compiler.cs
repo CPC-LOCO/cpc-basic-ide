@@ -42,10 +42,19 @@ public sealed record CartridgeResult(IReadOnlyList<Diagnostic> Diagnostics, Cart
 
     /// <summary>Les programmes lancés par RUN "nom" qui n'ont pas été trouvés (D207).</summary>
     public IReadOnlyList<string> Missing { get; init; } = [];
+
+    /// <summary>Les fichiers de données rangés dans la cartouche pour LOAD "nom" (D208) : nom et taille.</summary>
+    public IReadOnlyList<LinkedProgram> Data { get; init; } = [];
+
+    /// <summary>Les fichiers de LOAD "nom" qui ne sont pas dans le dossier (D208).</summary>
+    public IReadOnlyList<string> MissingData { get; init; } = [];
 }
 
 /// <summary>Un programme trouvé pour RUN "nom" : son texte et ses réglages (D087).</summary>
 public sealed record ProgramSource(string Source, CompilerOptions Options);
+
+/// <summary>Un fichier de données trouvé pour LOAD "nom" (D208) : son nom dans le dossier (« ECRAN.BIN ») et son contenu.</summary>
+public sealed record DataFile(string Name, byte[] Content);
 
 /// <summary>Un programme compilé en même temps que celui de l'éditeur (RUN "nom", D087).</summary>
 public sealed record LinkedProgram(string Name, int BinarySize);
@@ -153,10 +162,15 @@ public static class Compiler
     /// RUN "nom" (D207) : comme F5 (D087), chaque programme lancé par RUN "nom" écrit en clair est compilé aussi (findProgram
     /// le cherche) et rangé dans la cartouche, après le premier ; RUN "nom" l'y retrouve, le recopie en mémoire et le lance.
     /// Les touches placées sur la manette et la saisie à la manette valent pour tous les programmes de la cartouche.
+    /// LOAD "nom" (D208) : chaque fichier de LOAD écrit en clair est cherché dans le dossier (findData : « NOM », puis
+    /// « NOM.BIN », comme AMSDOS) et rangé dans la cartouche ; avec un en-tête AMSDOS, son adresse y est lue, sinon LOAD
+    /// doit donner l'adresse.
     /// </summary>
     /// <param name="programName">Nom du programme de l'éditeur (pour un RUN "nom" qui revient à lui).</param>
+    /// <param name="findData">Cherche un fichier de données par son nom (avec ou sans extension) ; null : absent.</param>
     public static CartridgeResult CompileToCartridge(string source, CompilerOptions? options = null, string? programName = null,
-                                                     Func<string, ProgramSource?>? findProgram = null)
+                                                     Func<string, ProgramSource?>? findProgram = null,
+                                                     Func<string, DataFile?>? findData = null)
     {
         static CompilerOptions ForCartridge(CompilerOptions settings)
         {
@@ -252,26 +266,85 @@ public static class Compiler
                 }
             }
         }
-        if (problems.Count > 0)
-            return new CartridgeResult([], null, mainSize, notes, problems) { Missing = missing };
-
         // D207 : les programmes lancés par RUN "nom" sont rangés dans la cartouche (le premier aussi, si l'un d'eux y revient)
         var files = compiled.Where(c => !c.Main || (c.Name.Length > 0 && launched.Contains(c.Name)))
                             .Select(c => new Gx4000System.CartFile($"{c.Name}.BIN", 2, LoadAddress, LoadAddress, c.Code))
                             .ToList();
+
+        // D208 : les fichiers de LOAD "nom" écrits en clair, cherchés dans le dossier
+        var stored = new HashSet<string>(files.Select(f => Gx4000System.NormalName(f.Name)), StringComparer.Ordinal);
+        var dataFiles = new List<Gx4000System.CartFile>();
+        var missingData = new List<string>();
+        foreach ((string name, _, BasicProgram program, bool main) in compiled)
+        {
+            string place = main ? "Ligne" : $"{name}.BAS, ligne";
+            foreach (LoadStatement load in program.Statements.OfType<LoadStatement>())
+            {
+                if (load.Name is not StringLiteralExpression literal)
+                {
+                    notes.Add($"{place} {load.SourceLine} : LOAD avec un nom calculé : le fichier n'est pas cherché ; " +
+                              "seuls les fichiers déjà dans la cartouche pourront être lus.");
+                    continue;
+                }
+                string wanted = literal.Text.Trim().ToUpperInvariant();
+                DataFile? found = null;
+                if (findData is not null)
+                    found = wanted.Contains('.') ? findData(wanted) : findData(wanted) ?? findData(wanted + ".BIN");
+                if (found is null)
+                {
+                    if (!missingData.Contains(wanted))
+                        missingData.Add(wanted);
+                    continue;
+                }
+                (int type, int loadAt, int exec, byte[] content, bool header) = ReadAmsdos(found.Content);
+                if (!header && load.Address is null)
+                    problems.Add($"{place} {load.SourceLine} : LOAD \"{literal.Text}\" : {found.Name} n'a pas d'en-tête AMSDOS, " +
+                                 $"son adresse n'est donc pas connue. Écrivez-la après le nom, par exemple LOAD \"{literal.Text}\",&C000.");
+                if (content.Length > 0xFFFF)
+                    problems.Add($"{place} {load.SourceLine} : {found.Name} fait {content.Length} octets : 65 535 au plus.");
+                if (stored.Add(Gx4000System.NormalName(found.Name)))
+                    dataFiles.Add(new Gx4000System.CartFile(found.Name, type, loadAt, exec, content));
+            }
+        }
+        files.AddRange(dataFiles);
+        if (problems.Count > 0)
+            return new CartridgeResult([], null, mainSize, notes, problems) { Missing = missing, MissingData = missingData };
         try
         {
             CartridgeImage cartridge = Gx4000System.Build(compiled[0].Code, links, withInput, files);
             return new CartridgeResult([], cartridge, mainSize, notes, problems)
             {
                 Linked = compiled.Where(c => !c.Main).Select(c => new LinkedProgram(c.Name, c.Code.Length)).ToList(),
-                Missing = missing
+                Missing = missing,
+                Data = dataFiles.Select(f => new LinkedProgram(f.Name, f.Data.Length)).ToList(),
+                MissingData = missingData
             };
         }
         catch (InvalidOperationException ex)
         {
-            return new CartridgeResult([], null, mainSize, notes, [ex.Message]) { Missing = missing };
+            return new CartridgeResult([], null, mainSize, notes, [ex.Message]) { Missing = missing, MissingData = missingData };
         }
+    }
+
+    /// <summary>
+    /// D208 : un fichier avec ou sans en-tête AMSDOS (128 octets ; somme des octets 0 à 66 rangée en 67 et 68). Avec : type,
+    /// adresses de chargement et de lancement, et longueur lus dans l'en-tête. Sans : fichier binaire, adresses à 0.
+    /// </summary>
+    public static (int Type, int Load, int Exec, byte[] Content, bool Header) ReadAmsdos(byte[] file)
+    {
+        if (file.Length >= 128)
+        {
+            int sum = 0;
+            for (int i = 0; i <= 66; i++)
+                sum += file[i];
+            if (sum != 0 && (sum & 0xFFFF) == (file[67] | file[68] << 8))
+            {
+                int length = file[64] | file[65] << 8 | file[66] << 16;
+                length = Math.Min(length, file.Length - 128);
+                return (file[18], file[21] | file[22] << 8, file[26] | file[27] << 8, file[128..(128 + length)], true);
+            }
+        }
+        return (2, 0, 0, file, false);
     }
 
     /// <summary>

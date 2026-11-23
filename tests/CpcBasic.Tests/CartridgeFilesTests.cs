@@ -217,4 +217,110 @@ public class CartridgeFilesTests
         var error = Assert.Throws<InvalidOperationException>(() => Gx4000System.Build([0xC9], null, false, files));
         Assert.Contains("512", error.Message);
     }
+
+    // ---------- LOAD "nom" sur la cartouche (D208) ----------
+
+    // un fichier avec un en-tête AMSDOS : binaire, chargé en load, lancé en exec
+    static byte[] WithHeader(byte[] content, int load, int exec = 0)
+    {
+        byte[] header = new byte[128];
+        Encoding.ASCII.GetBytes("IMAGE   BIN").CopyTo(header, 1);
+        header[18] = 2;
+        header[21] = (byte)load; header[22] = (byte)(load >> 8);
+        header[24] = (byte)content.Length; header[25] = (byte)(content.Length >> 8);
+        header[26] = (byte)exec; header[27] = (byte)(exec >> 8);
+        header[64] = (byte)content.Length; header[65] = (byte)(content.Length >> 8);
+        int sum = header[..67].Sum(b => b);
+        header[67] = (byte)sum; header[68] = (byte)(sum >> 8);
+        return [.. header, .. content];
+    }
+
+    static Func<string, DataFile?> Folder(params (string Name, byte[] Content)[] files) =>
+        wanted => files.Where(f => f.Name.Equals(wanted, StringComparison.OrdinalIgnoreCase))
+                       .Select(f => new DataFile(f.Name, f.Content)).FirstOrDefault();
+
+    [Fact]
+    public void L_en_tete_AMSDOS_donne_les_adresses_et_la_longueur()
+    {
+        byte[] content = Pattern(300);
+
+        (int type, int load, int exec, byte[] data, bool header) = Compiler.ReadAmsdos(WithHeader(content, 0xC000, 0x1234));
+        Assert.True(header);
+        Assert.Equal((2, 0xC000, 0x1234), (type, load, exec));
+        Assert.Equal(content, data);
+
+        (_, _, _, byte[] raw, bool none) = Compiler.ReadAmsdos(content);
+        Assert.False(none);
+        Assert.Equal(content, raw);
+    }
+
+    [Fact]
+    public void Le_fichier_de_LOAD_est_range_dans_la_cartouche_sans_son_en_tete()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 LOAD \"image\",&C000", null, "CHARGE", _ => null,
+                                                             Folder(("IMAGE.BIN", WithHeader(Pattern(16384), 0xC000))));
+
+        Assert.Empty(result.Problems);
+        Assert.Empty(result.MissingData);
+        LinkedProgram data = Assert.Single(result.Data);
+        Assert.Equal(("IMAGE.BIN", 16384), (data.Name, data.BinarySize));
+        Assert.Equal(2, result.Cartridge!.PageCount);
+        Assert.True(Contains(result.Cartridge.ToCprBytes(), "IMAGE   BIN"));
+    }
+
+    [Fact]
+    public void Un_fichier_sans_en_tete_demande_l_adresse()
+    {
+        Func<string, DataFile?> folder = Folder(("BRUT.BIN", Pattern(100)));
+
+        CartridgeResult without = Compiler.CompileToCartridge("10 LOAD \"BRUT\"", null, "CHARGE", _ => null, folder);
+        Assert.Null(without.Cartridge);
+        Assert.Contains("LOAD \"BRUT\",&C000", Assert.Single(without.Problems));
+
+        CartridgeResult with = Compiler.CompileToCartridge("10 LOAD \"BRUT\",&9000", null, "CHARGE", _ => null, folder);
+        Assert.NotNull(with.Cartridge);
+        Assert.Equal("BRUT.BIN", Assert.Single(with.Data).Name);
+    }
+
+    [Fact]
+    public void Un_fichier_de_LOAD_absent_est_signale()
+    {
+        CartridgeResult result = Compiler.CompileToCartridge("10 LOAD \"ABSENT\",&C000", null, "CHARGE", _ => null, Folder());
+
+        Assert.Equal("ABSENT", Assert.Single(result.MissingData));
+        Assert.NotNull(result.Cartridge);
+    }
+
+    [Fact]
+    public void Un_programme_compile_charge_l_ecran_depuis_la_cartouche()
+    {
+        byte[] image = Pattern(16384, 5);
+        var options = CompilerOptions.Default with { Cartridge = true };
+        AnalysisResult analysis = BasicAnalyzer.Analyze("10 LOAD \"IMAGE\",&C000", options);
+        Assert.False(analysis.HasErrors);
+        byte[] program = CodeGenerator.Generate(analysis.Program, 0x4000, options).Code;
+        MiniZ80 cpu = Load(new Gx4000System.CartFile("IMAGE.BIN", 2, 0xC000, 0xC000, image));
+
+        // les entrées de la ROM branchées sur nos routines, comme au démarrage de la cartouche
+        byte[] code = Gx4000System.SystemCode(0);
+        int start = Enumerable.Range(0, code.Length - 4).First(i =>
+            code[i] == 0x5A && code[i + 1] == 0xBB && code[i + 2] == code[0x41] && code[i + 3] == code[0x42]);
+        for (int i = start; code[i] != 0 || code[i + 1] != 0; i += 4)
+        {
+            int firmware = code[i] | code[i + 1] << 8;
+            if (firmware is 0xBC77 or 0xBC7A or 0xBC7D or 0xBC83)
+            {
+                cpu.Memory[firmware] = 0xC3;
+                cpu.Memory[firmware + 1] = code[i + 2];
+                cpu.Memory[firmware + 2] = code[i + 3];
+            }
+        }
+        cpu.UseInstalledFirmware = true;
+        cpu.Memory[0xBB18] = 0xC9;                                // fin du programme : KM WAIT KEY répond tout de suite
+        cpu.Load(program, 0x4000);
+        cpu.Call(0x4000);
+
+        Assert.Equal(image, cpu.Memory[0xC000..0x10000]);
+        Assert.False(cpu.UpperRomEnabled);
+    }
 }

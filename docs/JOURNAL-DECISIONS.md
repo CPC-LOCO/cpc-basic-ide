@@ -1592,6 +1592,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Exemples : `examples\cartmenu.bas` (MODE 1) lance `examples\cartjeu.bas` (MODE 0, 15 bandes de couleur), qui revient au premier.
 - Suite : LOAD "nom"[,adresse] sur la cartouche (fichiers de données du dossier rangés dans la cartouche).
 
+## D208 : LOAD "nom"[,adresse] sur la cartouche GX4000 (23 nov. 2026) (question de l'utilisateur pendant D207 ; Validé le 23 nov. 2026 : 2088 tests réussis ; charge.cpr dans AMSpiriT : l'image apparaît d'un coup)
+
+- Aucun mot nouveau : LOAD du Locomotive (D085), même routine rt_fb_load ; sur la console, CAS IN OPEN / DIRECT / CLOSE de notre système (D207) lisent le fichier dans la cartouche.
+- Ctrl+F5 : pour chaque LOAD "nom" écrit en clair (dans tous les programmes de la cartouche), le fichier est cherché dans le dossier du programme : « NOM » puis « NOM.BIN » (comme AMSDOS, sans .BAS pour ne pas prendre un programme), ou le nom exact s'il a une extension. Il est rangé dans la cartouche après les programmes. Avec un en-tête AMSDOS (128 octets, somme des octets 0 à 66 en 67 et 68) : type, adresses et longueur lus dans l'en-tête, l'en-tête n'est pas rangé. Sans en-tête : fichier binaire, LOAD doit donner l'adresse (sinon message : « Écrivez-la après le nom, par exemple LOAD "X",&C000 »). Fichier absent : signalé, la cartouche est faite. LOAD avec un nom calculé : un avertissement. Un même fichier n'est rangé qu'une fois.
+- Fait : `Compiler.cs` (DataFile, ReadAmsdos, CartridgeResult.Data et MissingData), éditeur (`MainWindow.axaml.cs`) et ligne de commande (fichiers du même dossier).
+- Tests : 2088 (5 nouveaux dans `CartridgeFilesTests.cs`, dont un programme compilé qui charge l'écran depuis la cartouche dans le simulateur).
+- Exemple : `examples\charge.bas` et `examples\IMAGE.BIN` (écran MODE 1 de 16 Ko avec en-tête AMSDOS, chargé en &C000 : cadre et anneaux de couleur ; ovales au premier essai, refait ronds pour le vrai moniteur, facteur de D140).
+- Reste (étape suivante) : sur disquette (F5), mettre aussi ces fichiers sur la disquette (idée D087), pour que le même programme marche partout.
+
 ---
 
 ## Notes de fin de session (modèle)

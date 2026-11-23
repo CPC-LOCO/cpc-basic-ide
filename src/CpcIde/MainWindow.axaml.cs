@@ -1147,7 +1147,14 @@ public partial class MainWindow : Window
             result = Compiler.CompileToCartridge(Editor.Text,
                 new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode,
                                     settings.PreferSize, libraries),
-                Path.GetFileNameWithoutExtension(path), Find);
+                Path.GetFileNameWithoutExtension(path), Find, FindData);
+            // LOAD "nom" écrit en clair : le fichier du même dossier est rangé dans la cartouche (D208)
+            DataFile? FindData(string file)
+            {
+                string? found = Directory.EnumerateFiles(folder)
+                    .FirstOrDefault(f => Path.GetFileName(f).Equals(file, StringComparison.OrdinalIgnoreCase));
+                return found is null ? null : new DataFile(Path.GetFileName(found).ToUpperInvariant(), File.ReadAllBytes(found));
+            }
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -1193,6 +1200,10 @@ public partial class MainWindow : Window
             items.Add(new MessageItem($"Aussi compilé et rangé dans la cartouche (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.", 0));
         foreach (string absent in result.Missing)
             items.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier ; ce programme n'est pas dans la cartouche.", 0));
+        foreach (LinkedProgram data in result.Data)       // D208
+            items.Add(new MessageItem($"Fichier rangé dans la cartouche (LOAD) : {data.Name}, {data.BinarySize} octets.", 0));
+        foreach (string absent in result.MissingData)
+            items.Add(new MessageItem($"LOAD \"{absent}\" : ce fichier n'est pas dans le dossier du programme ; il n'est pas dans la cartouche.", 0));
         items.Add(new MessageItem("Dans AMSpiriT ou SugarBox (machine GX4000 ou CPC Plus), choisissez ce fichier comme cartouche, puis réinitialisez.", 0));
         items.AddRange(LibraryProblems());
         ShowMessages(items);

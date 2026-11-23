@@ -44,7 +44,13 @@ if (args[0] == "--gx4000")
             return file is null ? null : new ProgramSource(File.ReadAllText(file), CompilerOptions.Default);
         }
         CartridgeResult cartResult = Compiler.CompileToCartridge(File.ReadAllText(args[1]), null,
-                                                                 Path.GetFileNameWithoutExtension(args[1]), FindCart);
+                                                                 Path.GetFileNameWithoutExtension(args[1]), FindCart, FindData);
+        DataFile? FindData(string file)
+        {
+            string? found = Directory.EnumerateFiles(cartFolder)
+                .FirstOrDefault(f => Path.GetFileName(f).Equals(file, StringComparison.OrdinalIgnoreCase));
+            return found is null ? null : new DataFile(Path.GetFileName(found).ToUpperInvariant(), File.ReadAllBytes(found));
+        }
         foreach (var diagnostic in cartResult.Diagnostics)
             Console.Error.WriteLine(diagnostic.Message);
         foreach (string problem in cartResult.Problems)
@@ -60,6 +66,10 @@ if (args[0] == "--gx4000")
             Console.WriteLine($"Aussi rangé dans la cartouche (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.");
         foreach (string absent in cartResult.Missing)
             Console.WriteLine($"RUN \"{absent}\" : {absent}.BAS introuvable ; ce programme n'est pas dans la cartouche.");
+        foreach (LinkedProgram data in cartResult.Data)
+            Console.WriteLine($"Fichier rangé dans la cartouche (LOAD) : {data.Name}, {data.BinarySize} octets.");
+        foreach (string absent in cartResult.MissingData)
+            Console.WriteLine($"LOAD \"{absent}\" : fichier introuvable ; il n'est pas dans la cartouche.");
         cartResult.Cartridge.Save(cprOut);
         Console.WriteLine($"{Path.GetFullPath(cprOut)} créé : cartouche GX4000, programme de {cartResult.BinarySize} octets.");
         return 0;
