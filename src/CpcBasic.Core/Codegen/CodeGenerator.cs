@@ -1662,6 +1662,52 @@ public static class CodeGenerator
                     break;
                 }
 
+                case "WAVE":                        // WAVE son [, envers] (D219) : 1 à 3 vagues, 4 plouf ; envers 1 : à l'envers
+                {
+                    required.Add(RuntimeLibrary.WaveName);
+                    if (a.Any(x => x is not NumberExpression))
+                        required.Add(RuntimeLibrary.ByteCheckName);
+                    if (a.Count == 2)
+                    {
+                        EmitExpression(a[1]);
+                        if (a[1] is not NumberExpression)   // calculé hors de 0 et 1 : « Improper argument »
+                        {
+                            emitter.LdAH();
+                            emitter.OrA();
+                            emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                            emitter.LdAL();
+                            emitter.CpImm(2);
+                            emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
+                        }
+                        emitter.AddHlHl();                  // à l'envers : + 4
+                        emitter.AddHlHl();
+                        emitter.PushHl();
+                    }
+                    EmitExpression(a[0]);
+                    if (a[0] is not NumberExpression)       // son calculé hors de 1 à 4 : « Improper argument »
+                    {
+                        emitter.LdAH();
+                        emitter.OrA();
+                        emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                        emitter.LdAL();
+                        emitter.DecA();
+                        emitter.CpImm(4);
+                        emitter.JpNcLabel(RuntimeLibrary.ByteCheckLabel);
+                    }
+                    else
+                    {
+                        emitter.LdAL();
+                        emitter.DecA();
+                    }
+                    if (a.Count == 2)
+                    {
+                        emitter.PopDe();
+                        emitter.AddAE();
+                    }
+                    emitter.CallLabel(WaveRuntime.EntryLabel);
+                    break;
+                }
+
                 case "BOOM":                        // BOOM son [, durée] (D214) : 1 voiture, 2 feu d'artifice, 3 pétard,
                 {                                   // 4 marteau, 5 malus ; durée en centièmes de seconde
                     required.Add(RuntimeLibrary.BoomName);
@@ -2269,6 +2315,29 @@ public static class CodeGenerator
             emitter.LdMemHl(RuntimeLibrary.ArrayHeapLabel);
         }
 
+        // Effets sonores (D218) : la réserve des numéros d'enveloppes (ceux que le programme n'écrit pas lui-même) est
+        // rangée au départ ; chaque effet y prend ses numéros, chacun son tour
+        if (program.Statements.Any(BasicAnalyzer.IsSoundEffect))
+        {
+            required.Add(RuntimeLibrary.EffectsName);
+            var pools = new byte[EffectsRuntime.PoolsSize];
+            for (int part = 0; part < 2; part++)
+            {
+                int[] free = BasicAnalyzer.FreeEnvelopes(program, tone: part == 1);
+                pools[16 * part] = (byte)free.Length;
+                for (int i = 0; i < free.Length; i++)
+                    pools[16 * part + 1 + i] = (byte)free[i];
+            }
+            emitter.JrLabel("fx_pools_end");
+            emitter.Label("fx_pools");
+            emitter.Data(pools);
+            emitter.Label("fx_pools_end");
+            emitter.LdHlLabel("fx_pools");
+            emitter.LdDeLabel(EffectsRuntime.PoolsLabel);
+            emitter.LdBcImm(EffectsRuntime.PoolsSize);
+            emitter.Ldir();
+        }
+
         // Minuteries (lot I1, D079) : le compteur du firmware est branché au départ
         // Touche ESC (D083) : réglage F9 de l'éditeur, ou ON BREAK dans le programme
         bool usesBreak = options.BreakKey || program.Statements.Any(st => st is OnBreakStatement);
@@ -2391,7 +2460,7 @@ public static class CodeGenerator
                 || statement is ScreenStatement { Command: "POKE" or "OUT", Arguments: [_, not NumberExpression] }   // D128
                 || statement is ScreenStatement { Command: "CIRCLE", Arguments: [_, _, not NumberExpression, ..] }   // D130
                 || statement is ScreenStatement { Command: "VROOM" or "SHOT" or "FALL", Arguments: [not NumberExpression] }   // D213, D215, D217
-                || statement is ScreenStatement { Command: "BOOM" } boomCheck && boomCheck.Arguments.Any(x => x is not NumberExpression)   // D214
+                || statement is ScreenStatement { Command: "BOOM" or "WAVE" } boomCheck && boomCheck.Arguments.Any(x => x is not NumberExpression)   // D214, D219
                 || statement is EllipseStatement { RadiusX: not NumberExpression } or EllipseStatement { RadiusY: not NumberExpression }   // D139
                 || statement is StreamStatement { Stream: not null and not NumberExpression }
                 || statement is ScreenStatement { Command: "ZONE" or "SYMBOL" or "SYMBOL AFTER" }

@@ -41,10 +41,10 @@ public class FallTests
     {
         MiniZ80 cpu = Run("10 FALL 1");
 
-        Assert.Equal(Sound(0, 5, 100, 0, 12, 100), cpu.Sounds[0]);      // SOUND 1,100,100,12,0,5 (ENT 100,6,1)
-        Assert.Equal(Sound(2, 0, 2000, 25, 15, 15), cpu.Sounds[1]);     // SOUND 1,2000,15,15,2,0,25 (ENV 15,-1,1)
-        Assert.Equal(new byte[] { 1, 100, 6, 1 }, Envelope(cpu, true, 5)[..4]);
-        Assert.Equal(new byte[] { 1, 15, 0xFF, 1 }, Envelope(cpu, false, 2)[..4]);
+        Assert.Equal(Sound(0, 15, 100, 0, 12, 100), cpu.Sounds[0]);     // SOUND 1,100,100,12,0,15 (ENT 100,6,1)
+        Assert.Equal(Sound(15, 0, 2000, 25, 15, 15), cpu.Sounds[1]);    // SOUND 1,2000,15,15,15,0,25 (ENV 15,-1,1)
+        Assert.Equal(new byte[] { 1, 100, 6, 1 }, Envelope(cpu, true, 15)[..4]);
+        Assert.Equal(new byte[] { 1, 15, 0xFF, 1 }, Envelope(cpu, false, 15)[..4]);
     }
 
     [Fact]
@@ -56,9 +56,9 @@ public class FallTests
         Assert.Equal(Sound(0, 0, 239, 0, 12, 25), cpu.Sounds[0]);
         Assert.Equal(Sound(0, 0, 253, 0, 12, 25), cpu.Sounds[1]);
         Assert.Equal(Sound(0, 0, 268, 0, 12, 25), cpu.Sounds[2]);
-        Assert.Equal(Sound(3, 4, 284, 0, 12, 60), cpu.Sounds[3]);
-        Assert.Equal(new byte[] { 1, 12, 0xFF, 5 }, Envelope(cpu, false, 3)[..4]);
-        Assert.Equal(new byte[] { 0x82, 2, 2, 1, 2, 0xFE, 1 }, Envelope(cpu, true, 4)[..7]);
+        Assert.Equal(Sound(15, 15, 284, 0, 12, 60), cpu.Sounds[3]);
+        Assert.Equal(new byte[] { 1, 12, 0xFF, 5 }, Envelope(cpu, false, 15)[..4]);
+        Assert.Equal(new byte[] { 0x82, 2, 2, 1, 2, 0xFE, 1 }, Envelope(cpu, true, 15)[..7]);
     }
 
     [Theory]
@@ -66,7 +66,6 @@ public class FallTests
     [InlineData("10 FALL 3")]
     [InlineData("10 FALL")]
     [InlineData("10 FALL 1, 100")]
-    [InlineData("10 FALL 1:ENV 3,1,1,1")]                         // ENV 3 est pris par FALL (D216)
     public void Un_mauvais_FALL_est_refuse(string source)
     {
         Assert.NotEmpty(Errors(source));

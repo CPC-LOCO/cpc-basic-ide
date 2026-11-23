@@ -29,52 +29,51 @@ public static class BasicAnalyzer
     }
 
     /// <summary>
-    /// D216 : numéros d'enveloppes de chaque effet sonore (posées juste avant chaque son, chacun les siens pour que deux
-    /// effets puissent jouer en même temps). Un programme ne perd que ceux des effets qu'il utilise.
+    /// D218 (remplace D216) : les effets sonores prennent leurs numéros d'enveloppes dans une réserve commune : tous ceux que
+    /// le programme n'écrit pas lui-même dans ses ENV et ENT (EffectsRuntime). Ici : combien chaque effet en demande au plus
+    /// en même temps (ENV, ENT), pour vérifier qu'il en reste assez.
     /// </summary>
-    public static readonly IReadOnlyList<(string Effect, int[] Env, int[] Ent)> EffectEnvelopes =
+    public static readonly IReadOnlyList<(string Effect, int Env, int Ent)> EffectNeeds =
     [
-        ("VROOM", [12, 13, 14, 15], [11, 12, 13, 14, 15]),   // D213
-        ("BOOM", [9, 10], [8, 9, 10]),                       // D214
-        ("SHOT", [4, 5, 6, 7, 8], [6, 7]),                   // D215
-        ("FALL", [2, 3], [4, 5])                             // D217
+        ("VROOM", 3, 3),   // D213 : la descente en 3 morceaux
+        ("BOOM", 2, 1),    // D214
+        ("SHOT", 2, 1),    // D215
+        ("FALL", 1, 1),    // D217
+        ("WAVE", 2, 1)     // D219
     ];
 
-    // ENV ou ENT écrit en clair avec un numéro pris par un effet du même programme : message avec les numéros libres
-    static void CheckEffectEnvelopes(BasicProgram program, List<Diagnostic> diagnostics)
+    /// <summary>Vrai pour une instruction d'effet sonore (VROOM, BOOM, SHOT, FALL, WAVE).</summary>
+    public static bool IsSoundEffect(Statement statement) =>
+        statement is ScreenStatement s && EffectNeeds.Any(e => e.Effect == s.Command);
+
+    /// <summary>
+    /// D218 : les numéros d'enveloppes (ENV, ou ENT si tone) que le programme n'écrit pas lui-même en clair, du plus grand
+    /// au plus petit : la réserve des effets sonores. Un numéro calculé (ENV N, ...) ne peut pas être connu.
+    /// </summary>
+    public static int[] FreeEnvelopes(BasicProgram program, bool tone)
     {
-        var used = EffectEnvelopes.Where(e => program.Statements.Any(st => st is ScreenStatement s && s.Command == e.Effect)).ToList();
-        if (used.Count == 0)
-            return;
-        foreach (EnvelopeStatement envelope in program.Statements.OfType<EnvelopeStatement>())
-        {
-            if (envelope.Number is not NumberExpression { Value: var value })
-                continue;
-            int number = Math.Abs(value);
-            string kind = envelope.Tone ? "ENT" : "ENV";
-            var taken = used.Where(e => (envelope.Tone ? e.Ent : e.Env).Contains(number)).ToList();
-            if (taken.Count == 0)
-                continue;
-            var allTaken = used.SelectMany(e => envelope.Tone ? e.Ent : e.Env).ToHashSet();
-            int[] own = envelope.Tone ? taken[0].Ent : taken[0].Env;
-            diagnostics.Add(new Diagnostic(DiagnosticCode.EnvelopeTaken, envelope.SourceLine,
-                $"{kind}|{number}|{taken[0].Effect}|{Ranges(own)}|{Ranges(Enumerable.Range(1, 15).Where(n => !allTaken.Contains(n)).ToArray())}"));
-        }
+        var own = program.Statements.OfType<EnvelopeStatement>()
+            .Where(e => e.Tone == tone && e.Number is NumberExpression)
+            .Select(e => Math.Abs(((NumberExpression)e.Number).Value)).ToHashSet();
+        return Enumerable.Range(1, 15).Reverse().Where(n => !own.Contains(n)).ToArray();
     }
 
-    // 1, 2, 3, 5, 6 -> « 1 à 3, 5 et 6 »
-    static string Ranges(int[] numbers)
+    // D218 : le programme écrit lui-même tant de numéros d'enveloppes qu'il n'en reste plus assez pour ses effets
+    static void CheckEffectEnvelopes(BasicProgram program, List<Diagnostic> diagnostics)
     {
-        var parts = new List<string>();
-        for (int i = 0; i < numbers.Length;)
+        var used = EffectNeeds.Where(e => program.Statements.Any(st => st is ScreenStatement s && s.Command == e.Effect)).ToList();
+        if (used.Count == 0)
+            return;
+        foreach (bool tone in new[] { false, true })
         {
-            int j = i;
-            while (j + 1 < numbers.Length && numbers[j + 1] == numbers[j] + 1)
-                j++;
-            parts.Add(j == i ? $"{numbers[i]}" : j == i + 1 ? $"{numbers[i]}, {numbers[j]}" : $"{numbers[i]} à {numbers[j]}");
-            i = j + 1;
+            int free = FreeEnvelopes(program, tone).Length;
+            var (effect, need) = used.Select(e => (e.Effect, tone ? e.Ent : e.Env)).MaxBy(e => e.Item2);
+            if (free >= need)
+                continue;
+            int line = program.Statements.OfType<EnvelopeStatement>().Where(e => e.Tone == tone).Select(e => e.SourceLine).DefaultIfEmpty(0).Max();
+            diagnostics.Add(new Diagnostic(DiagnosticCode.EnvelopeTaken, line,
+                $"{(tone ? "ENT" : "ENV")}|{15 - free}|{free}|{effect}|{need}"));
         }
-        return parts.Count <= 1 ? string.Concat(parts) : string.Join(", ", parts.Take(parts.Count - 1)) + " et " + parts[^1];
     }
 
     // Textes entre guillemets et éléments de DATA : chaque caractère doit exister sur un CPC (D126)

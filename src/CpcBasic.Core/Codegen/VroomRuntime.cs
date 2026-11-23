@@ -11,7 +11,8 @@ namespace CpcBasic.Core.Codegen;
 /// <summary>
 /// VROOM son (D213) : bruits de moteur, choisis à l'oreille par l'utilisateur (examples\vroomref.bas, 23 nov. 2026) :
 /// 1 moteur qui monte, 2 ralenti, 3 moteur qui descend (en 3 morceaux de plus en plus faibles). Sur le canal A, en
-/// arrière-plan comme SOUND. Les enveloppes sont posées juste avant chaque son : ENV 12 à 15 et ENT 11 à 15.
+/// arrière-plan comme SOUND. Les enveloppes sont posées juste avant chaque son, avec des numéros pris dans la réserve
+/// commune des effets (D218 ; avant : ENV 12 à 15 et ENT 11 à 15).
 /// </summary>
 public static class VroomRuntime
 {
@@ -20,25 +21,31 @@ public static class VroomRuntime
     const string Source = """
                 ; ---------- VROOM (D213) : A = 0 monte, 1 ralenti, 2 descend ----------
         VROOM:  OR A
-                JR Z,V1
+                JP Z,V1
                 DEC A
-                JR Z,V2
-                LD A,15                 ; 3 : moteur qui descend, en 3 morceaux (volume 12, 8, 4)
+                JP Z,V2
+                CALL NEWENV             ; 3 : moteur qui descend, en 3 morceaux (volume 12, 8, 4)
+                LD (SD1+1),A
                 LD HL,EV12
                 CALL &BCBC              ; SOUND AMPL ENVELOPE
-                LD A,13
+                CALL NEWENV
+                LD (SD2+1),A
                 LD HL,EV8
                 CALL &BCBC
-                LD A,12
+                CALL NEWENV
+                LD (SD3+1),A
                 LD HL,EV4
                 CALL &BCBC
-                LD A,13
+                CALL NEWENT
+                LD (SD1+2),A
                 LD HL,ET33
                 CALL &BCBF              ; SOUND TONE ENVELOPE
-                LD A,12
+                CALL NEWENT
+                LD (SD2+2),A
                 LD HL,ET33
                 CALL &BCBF
-                LD A,11
+                CALL NEWENT
+                LD (SD3+2),A
                 LD HL,ET34
                 CALL &BCBF
                 LD HL,SD1
@@ -46,19 +53,23 @@ public static class VroomRuntime
                 LD HL,SD2
                 CALL QUEUE
                 LD HL,SD3
-                JR QUEUE
-        V1:     LD A,15                 ; 1 : moteur qui monte
+                JP QUEUE
+        V1:     CALL NEWENV             ; 1 : moteur qui monte
+                LD (SUP+1),A
                 LD HL,EV12
                 CALL &BCBC
-                LD A,15
+                CALL NEWENT
+                LD (SUP+2),A
                 LD HL,ETUP
                 CALL &BCBF
                 LD HL,SUP
-                JR QUEUE
-        V2:     LD A,14                 ; 2 : ralenti
+                JP QUEUE
+        V2:     CALL NEWENV             ; 2 : ralenti
+                LD (SRAL+1),A
                 LD HL,EVRAL
                 CALL &BCBC
-                LD A,14
+                CALL NEWENT
+                LD (SRAL+2),A
                 LD HL,ETRAL
                 CALL &BCBF
                 LD HL,SRAL
@@ -111,7 +122,7 @@ public static class VroomRuntime
     /// <summary>Écrit le module dans le programme.</summary>
     public static void Emit(Z80Emitter emitter)
     {
-        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_vr_", _ => null);
+        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_vr_", EffectsRuntime.Resolve);
         if (errors.Count > 0)
             throw new InvalidOperationException("Module VROOM : " + string.Join(" / ", errors.Select(e => e.ToString())));
     }

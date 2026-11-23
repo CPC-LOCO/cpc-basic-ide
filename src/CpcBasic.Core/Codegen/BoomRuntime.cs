@@ -12,8 +12,8 @@ namespace CpcBasic.Core.Codegen;
 /// BOOM son [, durée] (D214) : explosions et chocs, choisis à l'oreille par l'utilisateur (examples\boomref.bas,
 /// 23 nov. 2026) : 1 voiture qui explose, 2 feu d'artifice, 3 pétard ou coup de fusil, 4 marteau qui frappe, 5 malus.
 /// Durée en centièmes de seconde (0 : celle du son) : le volume s'éteint en 15 marches de durée / 15 ; pour le malus, la
-/// descente du son dure aussi la durée (60 pas de durée / 60). Enveloppes posées juste avant chaque son : ENV 9 et 10,
-/// ENT 8 à 10 (VROOM a les siennes, D213).
+/// descente du son dure aussi la durée (60 pas de durée / 60). Enveloppes posées juste avant chaque son, numéros pris
+/// dans la réserve commune des effets (D218 ; avant : ENV 9 et 10, ENT 8 à 10).
 /// </summary>
 public static class BoomRuntime
 {
@@ -52,35 +52,47 @@ public static class BoomRuntime
                 LD (S4B+7),HL
                 LD (S5A+7),HL
                 LD (S5B+7),HL
-                LD A,9
+                CALL NEWENV             ; l'enveloppe qui éteint le son, pour toutes les parties principales
+                LD (S1B+1),A
+                LD (S1C+1),A
+                LD (S2B+1),A
+                LD (S3+1),A
+                LD (S4A+1),A
+                LD (S4B+1),A
+                LD (S5A+1),A
+                LD (S5B+1),A
                 LD HL,EVDEC
                 CALL &BCBC              ; SOUND AMPL ENVELOPE
                 LD A,(NUM)
                 OR A
-                JR Z,B1
+                JP Z,B1
                 DEC A
-                JR Z,B2
+                JP Z,B2
                 DEC A
-                JR Z,B3
+                JP Z,B3
                 DEC A
-                JR Z,B4
-                LD A,10                 ; 5 : malus
+                JP Z,B4
+                CALL NEWENT             ; 5 : malus
+                LD (S5A+2),A
+                LD (S5B+2),A
                 LD HL,ETMAL
                 CALL &BCBF              ; SOUND TONE ENVELOPE
                 LD HL,S5A
                 CALL QUEUE
                 LD HL,S5B
-                JR QUEUE
+                JP QUEUE
         B1:     LD HL,S1A               ; 1 : voiture qui explose
                 CALL QUEUE
                 LD HL,S1B
                 CALL QUEUE
                 LD HL,S1C
-                JR QUEUE
-        B2:     LD A,8                  ; 2 : feu d'artifice (sifflement, boom, crépitement)
+                JP QUEUE
+        B2:     CALL NEWENT             ; 2 : feu d'artifice (sifflement, boom, crépitement)
+                LD (S2A+2),A
                 LD HL,ETSIF
                 CALL &BCBF
-                LD A,10
+                CALL NEWENV
+                LD (S2C+1),A
                 LD HL,EVCRP
                 CALL &BCBC
                 LD HL,S2A
@@ -88,10 +100,12 @@ public static class BoomRuntime
                 LD HL,S2B
                 CALL QUEUE
                 LD HL,S2C
-                JR QUEUE
+                JP QUEUE
         B3:     LD HL,S3                ; 3 : pétard, coup de fusil
-                JR QUEUE
-        B4:     LD A,9                  ; 4 : marteau qui frappe
+                JP QUEUE
+        B4:     CALL NEWENT             ; 4 : marteau qui frappe
+                LD (S4A+2),A
+                LD (S4B+2),A
                 LD HL,ETMAR
                 CALL &BCBF
                 LD HL,S4A
@@ -181,7 +195,7 @@ public static class BoomRuntime
     /// <summary>Écrit le module dans le programme.</summary>
     public static void Emit(Z80Emitter emitter)
     {
-        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_bm_", _ => null);
+        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_bm_", EffectsRuntime.Resolve);
         if (errors.Count > 0)
             throw new InvalidOperationException("Module BOOM : " + string.Join(" / ", errors.Select(e => e.ToString())));
     }

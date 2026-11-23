@@ -10,8 +10,8 @@ namespace CpcBasic.Core.Codegen;
 
 /// <summary>
 /// FALL son (D217) : chutes, choisies à l'oreille par l'utilisateur (examples\fallref.bas, 23 nov. 2026, sons 2 et 4) :
-/// 1 chute dans le vide puis le sol, 2 vie perdue. Pas de durée. Enveloppes posées juste avant chaque son : ENV 2 et 3,
-/// ENT 4 et 5 (les autres effets ont les leurs, D216).
+/// 1 chute dans le vide puis le sol, 2 vie perdue. Pas de durée. Enveloppes posées juste avant chaque son, numéros pris
+/// dans la réserve commune des effets (D218 ; avant : ENV 2 et 3, ENT 4 et 5).
 /// </summary>
 public static class FallRuntime
 {
@@ -21,10 +21,12 @@ public static class FallRuntime
                 ; ---------- FALL (D217) : A = son - 1 ----------
         FALL:   OR A
                 JR Z,F1
-                LD A,3                  ; 2 : vie perdue (quatre notes qui descendent, la dernière tremble et s'éteint)
+                CALL NEWENV             ; 2 : vie perdue (quatre notes qui descendent, la dernière tremble et s'éteint)
+                LD (S2D+1),A
                 LD HL,EVFIN
                 CALL &BCBC              ; SOUND AMPL ENVELOPE
-                LD A,4
+                CALL NEWENT
+                LD (S2D+2),A
                 LD HL,ETVIB
                 CALL &BCBF              ; SOUND TONE ENVELOPE
                 LD HL,S2A
@@ -34,11 +36,13 @@ public static class FallRuntime
                 LD HL,S2C
                 CALL QUEUE
                 LD HL,S2D
-                JR QUEUE
-        F1:     LD A,2                  ; 1 : chute dans le vide, puis le sol
+                JP QUEUE
+        F1:     CALL NEWENV             ; 1 : chute dans le vide, puis le sol
+                LD (S1B+1),A
                 LD HL,EVSOL
                 CALL &BCBC
-                LD A,5
+                CALL NEWENT
+                LD (S1A+2),A
                 LD HL,ETCHU
                 CALL &BCBF
                 LD HL,S1A
@@ -89,7 +93,7 @@ public static class FallRuntime
     /// <summary>Écrit le module dans le programme.</summary>
     public static void Emit(Z80Emitter emitter)
     {
-        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_fa_", _ => null);
+        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_fa_", EffectsRuntime.Resolve);
         if (errors.Count > 0)
             throw new InvalidOperationException("Module FALL : " + string.Join(" / ", errors.Select(e => e.ToString())));
     }

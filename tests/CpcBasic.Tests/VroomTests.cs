@@ -50,10 +50,11 @@ public class VroomTests
     {
         MiniZ80 cpu = Run("10 VROOM 2");
 
-        // comme SOUND 1,900,-6,12,14,14,25 avec ENV 14,3,-4,4,3,4,4 et ENT -14,5,8,1,5,-8,1 (qui se répète)
-        Assert.Equal(Sound(14, 14, 900, 12, -6), cpu.Sounds.Single());
-        Assert.Contains(cpu.Envelopes, e => !e.Tone && e.Number == 14 && e.Block[..7].SequenceEqual(new byte[] { 2, 3, 0xFC, 4, 3, 4, 4 }));
-        Assert.Contains(cpu.Envelopes, e => e.Tone && e.Number == 14 && e.Block[..7].SequenceEqual(new byte[] { 0x82, 5, 8, 1, 5, 0xF8, 1 }));
+        // comme SOUND 1,900,-6,12,15,15,25 avec ENV 15,3,-4,4,3,4,4 et ENT -15,5,8,1,5,-8,1 (qui se répète) ; numéros
+        // pris dans la réserve des effets (D218) : 15 d'abord
+        Assert.Equal(Sound(15, 15, 900, 12, -6), cpu.Sounds.Single());
+        Assert.Contains(cpu.Envelopes, e => !e.Tone && e.Number == 15 && e.Block[..7].SequenceEqual(new byte[] { 2, 3, 0xFC, 4, 3, 4, 4 }));
+        Assert.Contains(cpu.Envelopes, e => e.Tone && e.Number == 15 && e.Block[..7].SequenceEqual(new byte[] { 0x82, 5, 8, 1, 5, 0xF8, 1 }));
     }
 
     [Fact]
@@ -62,9 +63,9 @@ public class VroomTests
         MiniZ80 cpu = Run("10 N=3:VROOM N");
 
         Assert.Equal(3, cpu.Sounds.Count);
-        Assert.Equal(Sound(15, 13, 400, 12, -4), cpu.Sounds[0]);
-        Assert.Equal(Sound(13, 12, 565, 8, -4), cpu.Sounds[1]);
-        Assert.Equal(Sound(12, 11, 730, 4, -5), cpu.Sounds[2]);
+        Assert.Equal(Sound(15, 15, 400, 12, -4), cpu.Sounds[0]);   // réserve des effets (D218) : 15, 14, 13
+        Assert.Equal(Sound(14, 14, 565, 8, -4), cpu.Sounds[1]);
+        Assert.Equal(Sound(13, 13, 730, 4, -5), cpu.Sounds[2]);
     }
 
     [Theory]

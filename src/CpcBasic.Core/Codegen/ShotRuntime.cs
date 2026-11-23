@@ -11,7 +11,7 @@ namespace CpcBasic.Core.Codegen;
 /// <summary>
 /// SHOT son (D215) : tirs et bris, choisis à l'oreille par l'utilisateur (examples\shotref.bas, 23 nov. 2026) :
 /// 1 tir de laser, 2 missile, 3 rafale, 4 vitre qui casse. Pas de durée (choix de l'utilisateur). Enveloppes posées juste
-/// avant chaque son : ENV 4 à 8, ENT 6 et 7 (VROOM et BOOM ont les leurs, D213, D214).
+/// avant chaque son, numéros pris dans la réserve commune des effets (D218 ; avant : ENV 4 à 8, ENT 6 et 7).
 /// </summary>
 public static class ShotRuntime
 {
@@ -20,15 +20,17 @@ public static class ShotRuntime
     const string Source = """
                 ; ---------- SHOT (D215) : A = son - 1 ----------
         SHOT:   OR A
-                JR Z,T1
+                JP Z,T1
                 DEC A
-                JR Z,T2
+                JP Z,T2
                 DEC A
-                JR Z,T3
-                LD A,5                  ; 4 : vitre qui casse (fracas, puis tintements sur le canal B)
+                JP Z,T3
+                CALL NEWENV             ; 4 : vitre qui casse (fracas, puis tintements sur le canal B)
+                LD (S4+1),A
                 LD HL,EVFRA
                 CALL &BCBC              ; SOUND AMPL ENVELOPE
-                LD A,4
+                CALL NEWENV
+                LD (S4T+1),A
                 LD HL,EVTIN
                 CALL &BCBC
                 LD HL,S4
@@ -49,25 +51,31 @@ public static class ShotRuntime
                 POP BC
                 DJNZ T4
                 RET
-        T1:     LD A,8                  ; 1 : tir de laser
+        T1:     CALL NEWENV             ; 1 : tir de laser
+                LD (S1+1),A
                 LD HL,EVLAS
                 CALL &BCBC
-                LD A,7
+                CALL NEWENT
+                LD (S1+2),A
                 LD HL,ETLAS
                 CALL &BCBF              ; SOUND TONE ENVELOPE
                 LD HL,S1
-                JR QUEUE
-        T2:     LD A,7                  ; 2 : missile (souffle qui enfle, son qui descend)
+                JP QUEUE
+        T2:     CALL NEWENV             ; 2 : missile (souffle qui enfle, son qui descend)
+                LD (S2A+1),A
+                LD (S2B+1),A
                 LD HL,EVMIS
                 CALL &BCBC
-                LD A,6
+                CALL NEWENT
+                LD (S2B+2),A
                 LD HL,ETMIS
                 CALL &BCBF
                 LD HL,S2A
                 CALL QUEUE
                 LD HL,S2B
-                JR QUEUE
-        T3:     LD A,6                  ; 3 : rafale (six tirs secs)
+                JP QUEUE
+        T3:     CALL NEWENV             ; 3 : rafale (six tirs secs)
+                LD (S3+1),A
                 LD HL,EVRAF
                 CALL &BCBC
                 LD B,6
@@ -129,7 +137,7 @@ public static class ShotRuntime
     /// <summary>Écrit le module dans le programme.</summary>
     public static void Emit(Z80Emitter emitter)
     {
-        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_sh_", _ => null);
+        IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(Source, emitter, "rt_sh_", EffectsRuntime.Resolve);
         if (errors.Count > 0)
             throw new InvalidOperationException("Module SHOT : " + string.Join(" / ", errors.Select(e => e.ToString())));
     }

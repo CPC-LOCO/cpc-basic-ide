@@ -41,9 +41,9 @@ public class ShotTests
     {
         MiniZ80 cpu = Run("10 SHOT 1");
 
-        Assert.Equal(Sound(1, 8, 7, 30, 0, 15, 30), cpu.Sounds.Single());   // SOUND 1,30,30,15,8,7
-        Assert.Equal(new byte[] { 1, 15, 0xFF, 2 }, Envelope(cpu, false, 8)[..4]);
-        Assert.Equal(new byte[] { 1, 30, 9, 1 }, Envelope(cpu, true, 7)[..4]);
+        Assert.Equal(Sound(1, 15, 15, 30, 0, 15, 30), cpu.Sounds.Single());   // réserve des effets (D218) : 15
+        Assert.Equal(new byte[] { 1, 15, 0xFF, 2 }, Envelope(cpu, false, 15)[..4]);
+        Assert.Equal(new byte[] { 1, 30, 9, 1 }, Envelope(cpu, true, 15)[..4]);
     }
 
     [Fact]
@@ -51,10 +51,10 @@ public class ShotTests
     {
         MiniZ80 cpu = Run("10 SHOT 2");
 
-        Assert.Equal(Sound(1, 7, 0, 0, 3, 5, 100), cpu.Sounds[0]);
-        Assert.Equal(Sound(2, 7, 6, 100, 0, 5, 100), cpu.Sounds[1]);
-        Assert.Equal(new byte[] { 2, 10, 1, 4, 15, 0xFF, 4 }, Envelope(cpu, false, 7)[..7]);
-        Assert.Equal(new byte[] { 1, 90, 3, 1 }, Envelope(cpu, true, 6)[..4]);
+        Assert.Equal(Sound(1, 15, 0, 0, 3, 5, 100), cpu.Sounds[0]);
+        Assert.Equal(Sound(2, 15, 15, 100, 0, 5, 100), cpu.Sounds[1]);
+        Assert.Equal(new byte[] { 2, 10, 1, 4, 15, 0xFF, 4 }, Envelope(cpu, false, 15)[..7]);
+        Assert.Equal(new byte[] { 1, 90, 3, 1 }, Envelope(cpu, true, 15)[..4]);
     }
 
     [Fact]
@@ -63,8 +63,8 @@ public class ShotTests
         MiniZ80 cpu = Run("10 N=3:SHOT N");
 
         Assert.Equal(6, cpu.Sounds.Count);
-        Assert.All(cpu.Sounds, s => Assert.Equal(Sound(1, 6, 0, 0, 5, 14, 9), s));
-        Assert.Equal(new byte[] { 1, 7, 0xFE, 1 }, Envelope(cpu, false, 6)[..4]);
+        Assert.All(cpu.Sounds, s => Assert.Equal(Sound(1, 15, 0, 0, 5, 14, 9), s));
+        Assert.Equal(new byte[] { 1, 7, 0xFE, 1 }, Envelope(cpu, false, 15)[..4]);
     }
 
     [Fact]
@@ -73,12 +73,12 @@ public class ShotTests
         MiniZ80 cpu = Run("10 SHOT 4");
 
         Assert.Equal(7, cpu.Sounds.Count);
-        Assert.Equal(Sound(1, 5, 0, 0, 1, 15, 60), cpu.Sounds[0]);
+        Assert.Equal(Sound(1, 15, 0, 0, 1, 15, 60), cpu.Sounds[0]);
         int[] tints = [40, 55, 35, 60, 45, 50];
         for (int i = 0; i < 6; i++)
-            Assert.Equal(Sound(2, 4, 0, tints[i], 0, 12, 7), cpu.Sounds[1 + i]);
-        Assert.Equal(new byte[] { 1, 15, 0xFF, 4 }, Envelope(cpu, false, 5)[..4]);
-        Assert.Equal(new byte[] { 1, 6, 0xFE, 1 }, Envelope(cpu, false, 4)[..4]);
+            Assert.Equal(Sound(2, 14, 0, tints[i], 0, 12, 7), cpu.Sounds[1 + i]);
+        Assert.Equal(new byte[] { 1, 15, 0xFF, 4 }, Envelope(cpu, false, 15)[..4]);
+        Assert.Equal(new byte[] { 1, 6, 0xFE, 1 }, Envelope(cpu, false, 14)[..4]);
     }
 
     [Theory]

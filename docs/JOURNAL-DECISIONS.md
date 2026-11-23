@@ -1689,6 +1689,28 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Exemple : `examples\fall.bas` (touches 1 et 2 ; 3 : SHOT 1, BOOM 3, FALL 2).
 - Idée de l'utilisateur à retenir : « Nouveau » dans le menu Fichier (IDEES.md) attendra la prochaine retouche de l'éditeur (« l'éditeur sera retouché avec d'autres options »).
 
+## D218 : réserve commune des numéros d'enveloppes des effets sonores (23 nov. 2026) (remplace D216 ; décision de Claude, pour WAVE ; Validé le 23 nov. 2026 : 2163 tests réussis)
+
+- Constat : WAVE demande 12 enveloppes de volume (4 sons à l'endroit et à l'envers, la grosse vague et le plouf en 2 morceaux) ; les autres effets en avaient déjà 13 des 15 du CPC (D216 : numéros fixes par effet).
+- Nouvelle règle : le compilateur range au départ du programme (module `Codegen\EffectsRuntime.cs`, préfixe rt_fx_) la liste des numéros d'ENV et d'ENT que le programme n'écrit pas lui-même en clair, du plus grand au plus petit ; chaque enveloppe d'un effet prend le numéro suivant (NEWENV, NEWENT), chacun son tour, et on recommence au bout. Les numéros du programme ne sont jamais touchés ; un programme sans ENV laisse ses 15 numéros aux effets ; un son en attente ou joué garde son enveloppe tant que la réserve n'a pas fait le tour. Un numéro calculé (ENV N, ...) ne peut pas être connu.
+- VROOM, BOOM, SHOT et FALL passent par la réserve : **mêmes sons**, numéros choisis au moment de jouer. Les modules appellent NEWENV et NEWENT par le résolveur de l'assembleur (EffectsRuntime.Resolve).
+- Seul refus restant (code EnvelopeTaken, nouveau message) : le programme écrit tant de numéros qu'il n'en reste pas assez pour un effet (au plus à la fois : VROOM 3 ENV et 3 ENT, BOOM, SHOT et WAVE 2 ENV et 1 ENT, FALL 1 et 1 ; `BasicAnalyzer.EffectNeeds`).
+- Tests : `EffectEnvelopeTests.cs` refait (numéros du programme jamais pris, tour de la réserve, refus) ; tests des quatre effets mis aux nouveaux numéros.
+
+## D219 : WAVE son [, envers] (23 nov. 2026) (demande de l'utilisateur : forme et sons choisis par lui ; Validé le 23 nov. 2026 : 2163 tests réussis ; examples\wave.bas dans WinAPE : « c'est bon ça marche bien »)
+
+- Forme donnée par l'utilisateur : 3 ou 4 sortes de vagues pour une intro (FOR a=1 TO 100:WAVE 1+RND*3:NEXT, une île), WAVE 4 gros plouf (personne ou objet qui tombe dans l'eau), et « tous les WAVE devront être joués à l'envers » : WAVE n, 1 (de la fin vers le début). Retenu : WAVE son [, envers], son de 1 à 4, envers 0 ou 1. **Mot réservé nouveau : WAVE.**
+- Remarque faite à l'utilisateur : comme sur le CPC, WAVE 1+RND*3 arrondit et donne parfois 4 (le plouf) ; pour les vagues seules : WAVE 1+INT(RND*3).
+- Sons choisis à l'oreille (`examples\waveref.bas`) : 1, 2, 4 validés au premier essai ; la fin du 3 (souffle très aigu, bruit 6, 1,5 seconde) faisait « un bruit étrange » : refaite (bruit 16, 1 seconde) ; « c'est adopté ».
+  - 1 : bruit 12, volume 4, ENV 8,1,4,12,-1,6 (104 centièmes) ; à l'envers : volume 0, ENV 12,1,6,8,-1,4.
+  - 2 : bruit 18, volume 5, ENV 10,1,5,15,-1,8 (170) ; à l'envers : volume 0, ENV 15,1,8,10,-1,5.
+  - 3 : bruit 28, volume 3, ENV 12,1,4 (48), puis bruit 16, volume 15, ENV 15,-1,7 (105) ; à l'envers : bruit 16 qui monte (ENV 15,1,7), puis bruit 28 qui s'éteint (ENV 12,-1,4).
+  - 4 : période 60 qui plonge (ENT 15,16,1), volume 14, ENV 7,-2,2 (15) sur A ; gerbe (bruit 4, ENV 15,-1,3, 45) sur B ; à l'envers : la gerbe monte sur B, 30 centièmes de silence sur A, puis la période 300 qui remonte (ENT 15,-16,1, ENV 7,2,2).
+- Fait : `Codegen\WaveRuntime.cs` (préfixe rt_wv_ ; une table de 8 entrées : 4 sons, 4 à l'envers), `Parser.cs`, `CodeGenerator.cs` (valeurs calculées hors limites : « Improper argument »). Marche aussi sur la cartouche.
+- Tests : 2163 (`WaveTests.cs`).
+- Exemple : `examples\wave.bas` (1 à 4 ; 5 à 8 : à l'envers ; 9 : une île, 20 vagues au hasard).
+- **Les cinq effets sonores sont faits** (VROOM, BOOM, SHOT, FALL, WAVE). Reste dans la liste du début : SCROLL.
+
 ---
 
 ## Notes de fin de session (modèle)

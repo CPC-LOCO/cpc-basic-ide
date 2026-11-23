@@ -157,4 +157,8 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 `FALL son` : chutes : 1 chute dans le vide puis le sol, 2 vie perdue (D217 ; se sert des enveloppes ENV 2 et 3, ENT 4 et 5).
 
-Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`, `WAVE`.
+`WAVE son [, envers]` : vagues : 1 petite vague, 2 vague moyenne, 3 grosse vague qui se brise, 4 gros plouf ; `WAVE n, 1` : le même son joué à l'envers (D219). Pour une île : `FOR A=1 TO 100:WAVE 1+INT(RND*3):NEXT`.
+
+**Enveloppes des effets (D218) :** VROOM, BOOM, SHOT, FALL et WAVE prennent leurs numéros d'ENV et d'ENT parmi ceux que le programme n'écrit pas lui-même ; les numéros indiqués plus haut pour chaque effet sont ceux d'avant D218.
+
+Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`.
