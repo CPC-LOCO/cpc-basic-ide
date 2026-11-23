@@ -175,4 +175,4 @@ Reste à faire (voir `docs\COMPATIBILITE-LOCOMOTIVE.md`, lignes « À faire » e
 
 ## 7. Message de démarrage suggéré
 
-> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md (surtout les chapitres 2 et 3), et seulement les fichiers utiles ensuite. La version 0.7.0 est publiée (D197 : cassette et cartouche GX4000 complète) ; 2073 tests passent. Pas de nouvelles commandes de bibliothèque pour l'instant. Propose-moi la suite (IDEES.md : sprites, écrans et musique...), une étape à la fois, une seule action par message.
+> Je reprends le projet CPC BASIC IDE (dossier E:\projets amstrad ide\cpc-basic-ide). Lis d'abord docs\REPRISE.md (surtout les chapitres 2 et 3), et seulement les fichiers utiles ensuite. La version 0.7.0 est publiée (D197) ; depuis : sprites (D198 à D201), traits rapides sur cartouche et sur CPC (D202 à D205), SELECT CASE (D206) ; 2073 tests passent. Propose-moi la suite (IDEES.md : effets sonores VROOM, BOOM..., RUN "nom" sur cartouche, SCROLL, PLOT rapide...), une étape à la fois, une seule action par message.
