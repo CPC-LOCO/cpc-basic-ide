@@ -1627,6 +1627,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Essai : `examples\charge.cdt` dans Caprice (464) : « Press PLAY then any key », « Loading IMAGE block... » puis l'image ; au tour suivant, la cassette attend d'être rembobinée (normal).
 - Le même programme `charge.bas` marche maintenant sur disquette, cassette et cartouche.
 
+## D212 : MOVE et MOVER sans appel à la ROM dans un programme avec PLOT rapide (23 nov. 2026) (suite de D210 ; Validé le 23 nov. 2026 : 2102 tests réussis)
+
+- Constat (D210) : dans un programme avec PLOT rapide, MOVE passait par FLUSH puis par la ROM : 7,37 s pour 32 000 MOVE (6,58 s avant D210).
+- Fait : `LineRuntime.cs`, entrées MOVEN et MOVERN : MOVE et MOVER sans stylo changent seulement le curseur gardé par nos points (PX, PY), donné à la ROM plus tard (FLUSH, avant DRAW, DRAWR, XPOS, YPOS, TEST, TESTR, ou SYNC). Le compilateur n'appelle plus FLUSH avant MOVE et MOVER. MOVE avec un stylo garde la ROM (après SYNC). Les programmes sans PLOT ne changent pas.
+- Tests : 2102 (la comparaison point par point de D210 mélange MOVE et MOVER aux PLOT et PLOTR ; appel du module par MOVE et MOVER).
+- Résultat (`examples\plottemp.bas`, WinAPE) : 32 000 MOVE en 3,69 s (boucle comprise, 2,29 s) au lieu de 6,58 s avant D210 : sans la boucle, environ 3 fois plus rapide. Les autres temps ne changent pas (12,72 s ; 45,75 s).
+
 ---
 
 ## Notes de fin de session (modèle)

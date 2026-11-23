@@ -30,7 +30,10 @@ public static class LineRuntime
     public const string PlotPenValidLabel = "rt_ln_PNOK";
     public const string PlotPenLabel = "rt_ln_PENSET";   // A = stylo de PLOT x,y,stylo
     public const string PlotSyncLabel = "rt_ln_SYNC";    // avant une instruction qui pourrait changer les réglages
-    public const string PlotFlushLabel = "rt_ln_FLUSH";  // avant MOVE, DRAW, XPOS, TEST... : curseur et stylo donnés à la ROM
+    public const string PlotFlushLabel = "rt_ln_FLUSH";  // avant DRAW, XPOS, TEST... : curseur et stylo donnés à la ROM
+    // D212 : MOVE et MOVER (sans stylo) d'un programme avec PLOT rapide : seulement notre curseur gardé, aucun appel à la ROM
+    public const string MoveLabel = "rt_ln_MOVEN";
+    public const string MoveRelativeLabel = "rt_ln_MOVERN";
 
     const string Source = """
                 ; ---------- DRAW et DRAWR rapides (D204) : nos traits à la place de GRA LINE de la ROM ----------
@@ -611,6 +614,34 @@ public static class LineRuntime
                 ; ROM seulement quand une autre instruction en a besoin (FLUSH) ; le programme appelle SYNC avant toute
                 ; instruction qui pourrait changer les réglages (FLUSH, puis réglages à relire), FLUSH avant MOVE, DRAW,
                 ; XPOS, TEST... Stylo codé ici (ENCODE), comme SCR INK ENCODE.
+                ; MOVE et MOVER (D212) : le curseur gardé ici, donné à la ROM plus tard (FLUSH)
+        MOVERN: CALL CURREL
+        MOVEN:  LD (PX),DE
+                LD (PY),HL
+                LD A,1
+                LD (DIRTY),A
+                RET
+                ; DE, HL = écart -> point, depuis le curseur : le nôtre, ou celui de la ROM
+        CURREL: LD A,(DIRTY)
+                OR A
+                JR Z,CR1
+                LD BC,(PX)
+                EX DE,HL
+                ADD HL,BC
+                EX DE,HL
+                LD BC,(PY)
+                ADD HL,BC
+                RET
+        CR1:    PUSH HL
+                PUSH DE
+                CALL &BBC6              ; GRA ASK CURSOR
+                POP BC
+                EX DE,HL
+                ADD HL,BC
+                EX DE,HL
+                POP BC
+                ADD HL,BC
+                RET
         PLOTRN: LD A,(DIRTY)            ; écart depuis le curseur : le nôtre, ou celui de la ROM
                 OR A
                 JR Z,PR1

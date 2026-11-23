@@ -172,6 +172,20 @@ public class DrawCommandTests
         Assert.DoesNotContain(RuntimeLibrary.LineName, program.Modules);
     }
 
+    [Theory]
+    [InlineData("MOVE", 0xC0)]
+    [InlineData("MOVER", 0xC3)]
+    public void Avec_PLOT_MOVE_et_MOVER_ne_changent_que_notre_curseur(string command, byte low)
+    {
+        // D212 : dans un programme avec PLOT rapide, MOVE et MOVER sans stylo appellent le module (pas &BBC0, &BBC3)
+        byte[] code = CodeGenerator.Generate(Parse($"10 {command} 1, 2\n20 PLOT 3, 4"), 0x4000).Code;
+        int target = code[11] | code[12] << 8;
+
+        AssertStartsWith(code, 0x21, 0x01, 0x00, 0xE5, 0x21, 0x02, 0x00, 0xE5, 0xE1, 0xD1, 0xCD);
+        Assert.NotEqual(0xBB00 | low, target);
+        Assert.True(target > 0x4000);
+    }
+
     [Fact]
     public void Une_instruction_qui_peut_changer_les_reglages_les_fait_relire()
     {

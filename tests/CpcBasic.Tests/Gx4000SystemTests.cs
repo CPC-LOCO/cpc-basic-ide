@@ -773,6 +773,7 @@ public class Gx4000SystemTests
         int plot = emitter.AddressOf(LineRuntime.PlotLabel), plotr = emitter.AddressOf(LineRuntime.PlotRelativeLabel);
         int sync = emitter.AddressOf(LineRuntime.PlotSyncLabel), flush = emitter.AddressOf(LineRuntime.PlotFlushLabel);
         int penSet = emitter.AddressOf(LineRuntime.PlotPenLabel);
+        int move = emitter.AddressOf(LineRuntime.MoveLabel), mover = emitter.AddressOf(LineRuntime.MoveRelativeLabel);
         MiniZ80 fast = Cpu(), slow = Cpu();
         var entries = new Dictionary<int, int>();
         int Entry(int firmware) => entries.TryGetValue(firmware, out int e) ? e : entries[firmware] = EntryOf(firmware, fast);
@@ -781,7 +782,7 @@ public class Gx4000SystemTests
             c.UseInstalledFirmware = true;
             c.Load(emitter.ToBytes(), 0x4000);
             foreach (int firmware in new[] { 0xBBC6, 0xBBCC, 0xBC0B, 0xBC11, 0xBBD5, 0xBBD8, 0xBBE1, 0xBC2C, 0xBBC0, 0xBBEA,
-                                             0xBBDE, 0xBBED })
+                                             0xBBDE, 0xBBED, 0xBBC3 })
             {
                 c.Memory[firmware] = 0xC3;
                 c.Memory[firmware + 1] = (byte)Entry(firmware);
@@ -825,6 +826,22 @@ public class Gx4000SystemTests
                     pen = (byte)random.Next(0, 16);           // PLOT x,y,stylo : le stylo gardé par nos points
                     Go(fast, penSet, a: pen);
                     Go(slow, Entry(0xBBDE), a: pen);
+                }
+                if (point % 4 == 3)
+                {
+                    int mx = random.Next(-60, 700), my = random.Next(-40, 440);   // D212 : MOVE, MOVER (notre curseur)
+                    if (point % 8 == 3)
+                    {
+                        Go(fast, move, mx, my);
+                        Go(slow, Entry(0xBBC0), mx, my);
+                    }
+                    else
+                    {
+                        Go(fast, mover, mx - cx, my - cy);
+                        Go(slow, Entry(0xBBC3), mx - cx, my - cy);
+                    }
+                    cx = mx;
+                    cy = my;
                 }
                 int x = random.Next(-60, 700), y = random.Next(-40, 440);
                 if (point % 3 == 2)

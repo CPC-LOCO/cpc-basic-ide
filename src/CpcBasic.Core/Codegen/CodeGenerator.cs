@@ -2076,6 +2076,12 @@ public static class CodeGenerator
 
             emitter.PopHl();       // y
             emitter.PopDe();       // x
+            if (fastPlot && draw.Pen is null && draw.Command is "MOVE" or "MOVER")
+            {
+                required.Add(RuntimeLibrary.LineName);              // D212 : seulement notre curseur gardé
+                emitter.CallLabel(draw.Command == "MOVE" ? LineRuntime.MoveLabel : LineRuntime.MoveRelativeLabel);
+                return;
+            }
             if (fastPlot && draw.Command is "PLOT" or "PLOTR")
             {
                 required.Add(RuntimeLibrary.LineName);              // D210 : nos points rapides
@@ -2244,7 +2250,7 @@ public static class CodeGenerator
 
             if (fastPlot && !SafeForPlot(statement))
                 emitter.CallLabel(LineRuntime.PlotSyncLabel);        // D210 : curseur et stylo donnés à la ROM, réglages à relire
-            else if (fastPlot && (statement is DrawStatement { Command: not ("PLOT" or "PLOTR") }
+            else if (fastPlot && (statement is DrawStatement { Command: "DRAW" or "DRAWR" }
                                   || AstWalker.All(statement).Any(x => x is CallExpression { Function: "XPOS" or "YPOS" or "TEST" or "TESTR" })))
                 emitter.CallLabel(LineRuntime.PlotFlushLabel);       // D210 : curseur et stylo donnés à la ROM
 
@@ -3913,7 +3919,8 @@ public static class CodeGenerator
     /// <summary>
     /// D210 : instructions qui ne changent ni l'écran (place, défilement), ni le MODE, ni l'origine, ni la fenêtre graphique :
     /// les réglages gardés par PLOT rapide restent bons (PLOT x,y,stylo garde son stylo lui-même). Toutes les autres les
-    /// font relire (SYNC) ; MOVE, DRAW..., XPOS, YPOS, TEST, TESTR reçoivent d'abord le curseur et le stylo gardés (FLUSH).
+    /// font relire (SYNC) ; DRAW, DRAWR, XPOS, YPOS, TEST, TESTR reçoivent d'abord le curseur et le stylo gardés (FLUSH) ;
+    /// MOVE et MOVER sans stylo ne changent que notre curseur gardé (D212).
     /// </summary>
     static bool SafeForPlot(Statement statement) => statement is AssignStatement or ArrayAssignStatement or DeclareStatement
         or ForStatement or NextStatement or WhileStatement or WendStatement or RepeatStatement or UntilStatement or DoStatement
