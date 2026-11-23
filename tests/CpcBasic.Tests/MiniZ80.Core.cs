@@ -585,6 +585,7 @@ internal sealed partial class MiniZ80
                 }
                 case 1:                                                                 // OUT (C),r
                     PortWrites.Add((BC, y == 6 ? (byte)0 : GetR(y)));
+                    CartridgeOut(BC, y == 6 ? (byte)0 : GetR(y));                      // D207
                     break;
                 case 2:
                     if (q == 0)

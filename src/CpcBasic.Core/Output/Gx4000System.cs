@@ -41,6 +41,49 @@ public static class Gx4000System
     public const int WheelStepEntry = 0x004C;
 
     /// <summary>
+    /// RUN "nom" sur la cartouche (D207) : le programme saute ici après CAS IN OPEN ; le fichier ouvert est recopié à son
+    /// adresse depuis la cartouche, puis lancé.
+    /// </summary>
+    public const int RunFileEntry = 0x004F;
+
+    /// <summary>
+    /// Un fichier rangé dans la cartouche (D207) : un autre programme lancé par RUN "nom", ou des données lues par LOAD.
+    /// Name : « NOM.BIN » ; Type : 2 pour un fichier binaire ; Load, Exec : adresses de chargement et de lancement.
+    /// </summary>
+    public sealed record CartFile(string Name, int Type, int Load, int Exec, byte[] Data);
+
+    /// <summary>Taille d'une ligne de la table des fichiers dans notre système (D207).</summary>
+    const int FileEntrySize = 21;
+
+    /// <summary>Le nom rangé comme AMSDOS : 8 lettres puis 3 pour l'extension, en majuscules, complétées par des espaces.</summary>
+    public static string NormalName(string name)
+    {
+        string upper = name.Trim().ToUpperInvariant().Replace(" ", "");
+        int dot = upper.IndexOf('.');
+        string main = dot >= 0 ? upper[..dot] : upper;
+        string ext = dot >= 0 ? upper[(dot + 1)..] : "";
+        main = main.Length > 8 ? main[..8] : main;
+        ext = ext.Length > 3 ? ext[..3] : ext;
+        return main.PadRight(8) + ext.PadRight(3);
+    }
+
+    /// <summary>La table des fichiers en assembleur (D207) : une ligne par fichier, puis 0.</summary>
+    static string FileTableText(IEnumerable<(string Name11, int Type, int Load, int Exec, int Length, int Page, int Offset)> rows)
+    {
+        var text = new StringBuilder();
+        foreach (var row in rows)
+        {
+            text.Append("DEFB ").Append(string.Join(",", row.Name11.Select(c => (int)c))).Append(',').Append(row.Type & 0xFF)
+                .Append("\n                DEFW ").Append(row.Load & 0xFFFF).Append(',').Append(row.Exec & 0xFFFF).Append(',')
+                .Append(row.Length & 0xFFFF)
+                .Append("\n                DEFB &").Append((0x80 + row.Page).ToString("X2"))
+                .Append("\n                DEFW ").Append(row.Offset)
+                .Append("\n                ");
+        }
+        return text.Append("DEFB 0").ToString();
+    }
+
+    /// <summary>
     /// Variables de la saisie à la manette : lettre proposée (2 octets), début de son groupe (2 octets), lettre montrée
     /// (sinon carré vide).
     /// </summary>
@@ -74,6 +117,7 @@ public static class Gx4000System
                 JP SETCUR
                 JP GETCUR
                 JP MOLUN
+                JP LANCER               ; &004F : RUN "nom" sur la cartouche (D207)
         DEPART: IM 1
                 LD SP,&BFF0
                 LD BC,&7F89             ; Gate Array : MODE 1, cartouche gardée en &0000, ROM haute coupée
@@ -4506,6 +4550,247 @@ public static class Gx4000System
 
         CRTC:   DEFB 63,40,46,&8E,38,0,25,30,0,7,0,0,&30,0
         ENCRES: DEFB 1,24,20,6,26,0,2,8,10,12,14,16,18,22,1,16,1   ; couleurs du CPC au démarrage ; bordure : 1
+        ; ---------- Fichiers rangés dans la cartouche (D207) ----------
+        ; Table FICHIERS : par fichier, 21 octets : nom sur 11 (8 + 3, complétés par des espaces), type, adresse de
+        ; chargement, adresse de lancement, longueur, page (&80 + numéro), place dans la page ; un 0 à la fin.
+        ; &BEE0 : fiche du fichier ouvert (0 : aucun) ; &BEE2 : nom donné ; &BEE4 à &BEEE : nom rangé sur 11 lettres ;
+        ; &BEEF : longueur du nom donné ; &BEF0 : point écrit dans le nom ; &BEF1 : page lue ; &BEF4 : octets restants.
+        ; ---------- CAS IN OPEN (&BC77) : HL = nom, B = longueur ; trouvé : retenue, A = type, BC = longueur,
+        ; DE = adresse de chargement, HL = fiche ; absent : message « ... not found », A = 146, pas de retenue ----------
+        CASOUV: LD (&BEE2),HL
+                LD A,B
+                LD (&BEEF),A
+                PUSH HL
+                LD HL,&BEE4             ; nom rangé : 11 espaces
+                LD B,11
+        CNE0:   LD (HL),32
+                INC HL
+                DJNZ CNE0
+                POP HL
+                XOR A
+                LD (&BEF0),A
+                LD A,(&BEEF)
+                LD B,A
+                LD DE,&BEE4
+                LD C,8                  ; place restante dans le nom
+                OR A
+                JR Z,CNFIN
+        CNLET:  LD A,(HL)
+                INC HL
+                CP 46                   ; « . » : l'extension suit
+                JR NZ,CNL1
+                LD DE,&BEEC
+                LD C,3
+                LD A,1
+                LD (&BEF0),A
+                JR CNSUIV
+        CNL1:   CP 33
+                JR C,CNSUIV             ; espaces ignorés
+                CP 97
+                JR C,CNL2
+                CP 123
+                JR NC,CNL2
+                SUB 32                  ; en majuscules
+        CNL2:   INC C
+                DEC C
+                JR Z,CNSUIV             ; plus de place
+                LD (DE),A
+                INC DE
+                DEC C
+        CNSUIV: DJNZ CNLET
+        CNFIN:  CALL FCHER
+                JR C,CNOK
+                LD A,(&BEF0)
+                OR A
+                JR NZ,CNABS             ; extension écrite : rien d'autre à essayer
+                LD HL,FEXTB             ; comme AMSDOS : sans extension, puis .BAS, puis .BIN
+                CALL FEXT
+                CALL FCHER
+                JR C,CNOK
+                LD HL,FEXTN
+                CALL FEXT
+                CALL FCHER
+                JR C,CNOK
+        CNABS:  LD HL,(&BEE2)           ; absent : le nom donné, puis « not found »
+                LD A,(&BEEF)
+                LD B,A
+                OR A
+                JR Z,CNAB2
+        CNAB1:  LD A,(HL)
+                INC HL
+                CALL TXTOUT
+                DJNZ CNAB1
+        CNAB2:  LD HL,FNOTF
+        CNAB3:  LD A,(HL)
+                INC HL
+                OR A
+                JR Z,CNAB4
+                CALL TXTOUT
+                JR CNAB3
+        CNAB4:  LD A,146
+                OR A                    ; pas de retenue
+                RET
+        CNOK:   LD (&BEE0),HL
+                LD DE,11
+                ADD HL,DE
+                LD A,(HL)               ; type
+                INC HL
+                LD E,(HL)
+                INC HL
+                LD D,(HL)               ; DE = adresse de chargement
+                INC HL
+                INC HL
+                INC HL
+                LD C,(HL)
+                INC HL
+                LD B,(HL)               ; BC = longueur
+                LD HL,(&BEE0)
+                CP 255                  ; retenue, et pas zéro
+                RET
+        FEXT:   LD DE,&BEEC
+                LD BC,3
+                LDIR
+                RET
+        ; le nom rangé (&BEE4) dans la table : trouvé : retenue, HL = fiche
+        FCHER:  LD HL,FICHIERS
+        FCH1:   LD A,(HL)
+                OR A
+                RET Z                   ; fin de la table : pas de retenue
+                PUSH HL
+                LD DE,&BEE4
+                LD B,11
+        FCH2:   LD A,(DE)
+                CP (HL)
+                JR NZ,FCH3
+                INC HL
+                INC DE
+                DJNZ FCH2
+                POP HL
+                SCF
+                RET
+        FCH3:   POP HL
+                LD DE,21
+                ADD HL,DE
+                JR FCH1
+        FEXTB:  DEFB "BAS"
+        FEXTN:  DEFB "BIN"
+        FNOTF:  DEFB " not found",13,10,0
+        ; ---------- CAS IN DIRECT (&BC83) : HL = où recopier le fichier ouvert ; HL = adresse de lancement ----------
+        ; Chaque page est branchée en &C000 (ROM haute) et lue ; l'écriture va toujours dans la mémoire vive, même en
+        ; &C000 (LOAD "ECRAN",&C000 marche). Interruptions coupées pendant la copie.
+        CASDIR: DI
+                EX DE,HL                ; DE = destination
+                LD HL,(&BEE0)
+                LD A,H
+                OR L
+                JR Z,CDRIEN             ; aucun fichier ouvert
+                LD BC,16
+                ADD HL,BC
+                LD C,(HL)
+                INC HL
+                LD B,(HL)
+                INC HL
+                LD (&BEF4),BC           ; octets à recopier
+                LD A,(HL)
+                LD (&BEF1),A            ; page
+                INC HL
+                LD A,(HL)
+                INC HL
+                LD H,(HL)
+                LD L,A
+                LD BC,&C000
+                ADD HL,BC               ; HL = d'où lire
+                LD A,(&BE06)
+                OR &80                  ; ROM haute branchée, mode gardé
+                LD B,&7F
+                OUT (C),A
+        CDPAGE: LD A,(&BEF1)
+                LD B,&DF
+                OUT (C),A
+                PUSH HL
+                XOR A                   ; BC = place jusqu'à la fin de la page
+                SUB L
+                LD C,A
+                LD A,0
+                SBC A,H
+                LD B,A
+                LD HL,(&BEF4)
+                OR A
+                SBC HL,BC
+                JR NC,CDPLEIN           ; plus que la page : toute la fin de la page
+                ADD HL,BC
+                LD B,H
+                LD C,L
+                LD HL,0
+        CDPLEIN: LD (&BEF4),HL
+                POP HL
+                LD A,B
+                OR C
+                JR Z,CDSUIT
+                LDIR
+        CDSUIT: LD HL,(&BEF4)
+                LD A,H
+                OR L
+                JR Z,CDFIN
+                LD HL,&BEF1
+                INC (HL)                ; page suivante
+                LD HL,&C000
+                JR CDPAGE
+        CDFIN:  LD A,(&BE06)
+                OR &88                  ; ROM haute coupée
+                LD B,&7F
+                OUT (C),A
+                LD HL,(&BEE0)
+                LD DE,14
+                ADD HL,DE
+                LD A,(HL)
+                INC HL
+                LD H,(HL)
+                LD L,A                  ; HL = adresse de lancement
+                CALL CDEI
+                LD A,1
+                OR A
+                SCF
+                RET
+        CDRIEN: CALL CDEI
+                XOR A
+                RET
+        CDEI:   LD A,(&BE31)            ; dans l'interruption (événement) : on n'y touche pas
+                OR A
+                RET NZ
+                EI
+                RET
+        ; ---------- CAS IN CLOSE (&BC7A), CAS IN ABANDON (&BC7D) ----------
+        CASFER: LD HL,0
+                LD (&BEE0),HL
+                LD A,1
+                OR A
+                SCF
+                RET
+        ; ---------- RUN "nom" (&004F, D207) : le fichier vient d'être ouvert par CAS IN OPEN ; il est recopié à son
+        ; adresse (il remplace le programme en cours : cette routine tourne depuis la cartouche), puis lancé ----------
+        LANCER: DI
+                LD SP,&BFF0
+                LD HL,&BED2             ; événements (ON SQ, minuteries) de l'ancien programme oubliés
+                LD B,14
+        LANCZ:  LD (HL),0
+                INC HL
+                DJNZ LANCZ
+                LD HL,(&BEE0)
+                LD DE,12
+                ADD HL,DE
+                LD A,(HL)
+                INC HL
+                LD H,(HL)
+                LD L,A                  ; adresse de chargement
+                CALL CASDIR             ; HL = adresse de lancement
+                LD DE,0
+                LD (&BEE0),DE           ; fichier fermé
+                LD DE,FIN
+                PUSH DE                 ; programme fini : la console reste sur son écran
+                PUSH HL
+                EI
+                RET
         BRANCHE: DEFW &BB5A,TXTOUT
                 DEFW &BB6C,CLS
                 DEFW &BB75,SETCUR
@@ -4595,11 +4880,16 @@ public static class Gx4000System
                 DEFW &BBCF,GWINW
                 DEFW &BBD2,GWINH
                 DEFW &BD19,FLYB
+                DEFW &BC77,CASOUV       ; fichiers rangés dans la cartouche (D207)
+                DEFW &BC83,CASDIR
+                DEFW &BC7A,CASFER
+                DEFW &BC7D,CASFER
                 DEFW 0
         TOUCHES: {2}
         {5}
         POLICE: {1}
         PAGES:  {7}
+        FICHIERS: {6}
         PROG:
         """;
 
@@ -4818,8 +5108,9 @@ public static class Gx4000System
     /// <param name="withInput">Vrai si le programme utilise INPUT ou LINE INPUT : la saisie à la manette est ajoutée (D184).</param>
     /// <param name="otherPages">D189 : longueurs du programme dans les pages 1, 2... (programLength : sa longueur dans la
     /// page 0, juste après le système).</param>
+    /// <param name="fileTable">D207 : la table des fichiers rangés dans la cartouche, en assembleur (null : aucun).</param>
     public static byte[] SystemCode(int programLength, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false,
-                                    IReadOnlyList<int>? otherPages = null)
+                                    IReadOnlyList<int>? otherPages = null, string? fileTable = null)
     {
         IReadOnlyList<int> others = otherPages ?? [];
         string pages = "DEFB " + others.Count + string.Concat(others.Select((length, i) => $"\n                DEFB &{0x81 + i:X2}\n                DEFW {length}"));
@@ -4839,7 +5130,8 @@ public static class Gx4000System
                                 .Replace("{5}", withInput
                                     ? "GROUPES: DEFB " + string.Join(",0,", WheelGroups.Select(g => string.Join(",", g.Select(c => (int)c)))) + ",0,&FF"
                                     : "")
-                                .Replace("{7}", pages);
+                                .Replace("{7}", pages)
+                                .Replace("{6}", fileTable ?? "DEFB 0");
         var emitter = new Z80Emitter(0);
         IReadOnlyList<AsmError> errors = Z80Assembler.Assemble(source, emitter, "gx_", _ => null);
         if (errors.Count > 0)
@@ -4859,14 +5151,16 @@ public static class Gx4000System
     /// les pages 1, 2... (16 Ko chacune au plus). La taille du système dépend du nombre de pages : on recalcule jusqu'à ce
     /// qu'elle ne change plus.
     /// </summary>
+    /// <param name="files">D207 : nombre de fichiers dans la table (chacun y prend la même place).</param>
     public static (int FirstPart, IReadOnlyList<int> OtherPages) SplitProgram(int length, IEnumerable<KeyLink>? extraKeys = null,
-                                                                               bool withInput = false)
+                                                                               bool withInput = false, int files = 0)
     {
         List<KeyLink> keys = extraKeys?.ToList() ?? [];
+        string table = FileTableText(Enumerable.Repeat((new string(' ', 11), 0, 0, 0, 0, 0, 0), files));
         int pages = 0;
         for (int round = 0; round < 8; round++)
         {
-            int system = SystemCode(0, keys, withInput, Enumerable.Repeat(0, pages).ToList()).Length;
+            int system = SystemCode(0, keys, withInput, Enumerable.Repeat(0, pages).ToList(), table).Length;
             int first = Math.Min(length, CartridgeImage.PageSize - system);
             int rest = length - first;
             int needed = (rest + CartridgeImage.PageSize - 1) / CartridgeImage.PageSize;
@@ -4886,14 +5180,36 @@ public static class Gx4000System
     /// La cartouche : notre système, le jeu de caractères, puis le programme compilé (chargé en &amp;4000) ; ce qui ne tient
     /// pas dans la page 0 va dans les pages suivantes (D189).
     /// </summary>
-    public static CartridgeImage Build(byte[] program, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false)
+    /// <param name="files">D207 : les fichiers rangés après le programme (RUN "nom", LOAD), chacun à la suite du
+    /// précédent, à partir d'une nouvelle page ; un fichier peut passer d'une page à la suivante.</param>
+    public static CartridgeImage Build(byte[] program, IEnumerable<KeyLink>? extraKeys = null, bool withInput = false,
+                                       IReadOnlyList<CartFile>? files = null)
     {
         if (program.Length > MaxProgram)
             throw new InvalidOperationException(
                 $"Le programme fait {program.Length} octets : sur la cartouche, la mémoire en accepte {MaxProgram} au plus.");
         List<KeyLink> keys = extraKeys?.ToList() ?? [];
-        (int first, IReadOnlyList<int> others) = SplitProgram(program.Length, keys, withInput);
-        byte[] system = SystemCode(first, keys, withInput, others);
+        IReadOnlyList<CartFile> stored = files ?? [];
+        (int first, IReadOnlyList<int> others) = SplitProgram(program.Length, keys, withInput, stored.Count);
+
+        var rows = new List<(string, int, int, int, int, int, int)>();
+        int page = 1 + others.Count, offset = 0, total = 0;
+        foreach (CartFile file in stored)
+        {
+            if (file.Data.Length > 0xFFFF)
+                throw new InvalidOperationException($"Le fichier {file.Name} fait {file.Data.Length} octets : 65 535 au plus.");
+            rows.Add((NormalName(file.Name), file.Type, file.Load, file.Exec, file.Data.Length, page, offset));
+            offset += file.Data.Length;
+            page += offset / CartridgeImage.PageSize;
+            offset %= CartridgeImage.PageSize;
+            total += file.Data.Length;
+        }
+        int pagesNeeded = 1 + others.Count + (total + CartridgeImage.PageSize - 1) / CartridgeImage.PageSize;
+        if (pagesNeeded > CartridgeImage.MaxPages)
+            throw new InvalidOperationException(
+                $"La cartouche est trop petite : il faudrait {pagesNeeded * 16} Ko (programmes et fichiers), elle en a 512 au plus.");
+
+        byte[] system = SystemCode(first, keys, withInput, others, FileTableText(rows));
         var cartridge = new CartridgeImage();
         cartridge.AddPage([.. system, .. program[..first]]);
         int start = first;
@@ -4902,6 +5218,9 @@ public static class Gx4000System
             cartridge.AddPage(program[start..(start + length)]);
             start += length;
         }
+        byte[] data = stored.SelectMany(f => f.Data).ToArray();     // à partir d'une nouvelle page, à la suite
+        for (int at = 0; at < data.Length; at += CartridgeImage.PageSize)
+            cartridge.AddPage(data[at..Math.Min(data.Length, at + CartridgeImage.PageSize)]);
         return cartridge;
     }
 }

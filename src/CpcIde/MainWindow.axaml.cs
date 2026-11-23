@@ -1132,11 +1132,24 @@ public partial class MainWindow : Window
         CartridgeResult result;
         try
         {
+            // RUN "nom" écrit en clair : nom.BAS du même dossier est compilé aussi et rangé dans la cartouche (D207)
+            string folder = Path.GetDirectoryName(path) ?? ".";
+            ProgramSource? Find(string program)
+            {
+                string? file = Directory.EnumerateFiles(folder, "*.bas")
+                    .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(program, StringComparison.OrdinalIgnoreCase));
+                if (file is null)
+                    return null;
+                return new ProgramSource(File.ReadAllText(file),
+                                         new CompilerOptions(TargetMachine.AllCpc, settings.IsRealByDefault(file), !settings.IsBreakIgnored(file),
+                                                             settings.CpcVersion, settings.DebugMode, settings.PreferSize, libraries));
+            }
             result = Compiler.CompileToCartridge(Editor.Text,
                 new CompilerOptions(TargetMachine.AllCpc, realByDefault, breakKey, settings.CpcVersion, settings.DebugMode,
-                                    settings.PreferSize, libraries));
+                                    settings.PreferSize, libraries),
+                Path.GetFileNameWithoutExtension(path), Find);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             ShowMessages(new[]
             {
@@ -1176,6 +1189,10 @@ public partial class MainWindow : Window
         items.Add(new MessageItem($"Cartouche GX4000 réussie : {cprPath}", 0, MessageKind.Success));
         items.Add(new MessageItem($"Programme Z80 : {result.BinarySize} octets, avec notre petit système (aucune ROM d'Amstrad).", 0));
         items.AddRange(result.Notes.Select(n => new MessageItem(n, 0)));
+        foreach (LinkedProgram linked in result.Linked)   // D207
+            items.Add(new MessageItem($"Aussi compilé et rangé dans la cartouche (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.", 0));
+        foreach (string absent in result.Missing)
+            items.Add(new MessageItem($"RUN \"{absent}\" : {absent}.BAS n'est pas dans le dossier ; ce programme n'est pas dans la cartouche.", 0));
         items.Add(new MessageItem("Dans AMSpiriT ou SugarBox (machine GX4000 ou CPC Plus), choisissez ce fichier comme cartouche, puis réinitialisez.", 0));
         items.AddRange(LibraryProblems());
         ShowMessages(items);

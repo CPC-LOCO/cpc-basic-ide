@@ -187,6 +187,7 @@ public static class RuntimeLibrary
     public const string FileOutName = "FileOut";
     public const string FileInName = "FileIn";
     public const string FileBinaryName = "FileBinary";          // CAT, SAVE, LOAD, SPEED WRITE (D085)
+    public const string FileRunCartridgeName = "FileRunCartridge";   // RUN "nom" sur la cartouche GX4000 (D207)
     public const string FileOutOnLabel = "rt_fo_on";            // début de PRINT #9 : les caractères vont dans le fichier
     public const string FileOutOffLabel = "rt_fo_off";          // fin de PRINT #9 : retour à l'écran
     public const int FileInBuffer = 0x3000;                     // zones de 2 Ko demandées par le firmware, sous le programme
@@ -1742,6 +1743,66 @@ public static class RuntimeLibrary
             }
             e.Label("rt_fb_has");
             e.Reserve(1);
+        }),
+
+        // RUN "nom" sur la cartouche GX4000 (D207) : comme rt_fb_run (fichiers fermés, « .BIN » ajouté sans point, fichier
+        // binaire seulement), mais le nom est gardé dans le programme (en dessous de &4000, c'est la cartouche qu'on lirait)
+        // et, le fichier ouvert, on saute dans notre système (Output.Gx4000System.RunFileEntry), qui le recopie et le lance.
+        [FileRunCartridgeName] = new RuntimeModule(FileRunCartridgeName, [FileCommonName], e =>
+        {
+            e.Label("rt_fbc_run");                   // HL = fiche du nom
+            e.PushHl();
+            e.XorA();
+            e.LdMemA("rt_fo_isopen");
+            e.LdMemA("rt_fl_isopen");
+            e.PopHl();
+            e.CallLabel("rt_file_name");             // HL = lettres, B = longueur
+            e.LdAB();
+            e.CpImm(13);
+            e.JrCLabel("rt_fbc_len");
+            e.LdBImm(12);                            // 12 lettres au plus (NOMNOMNO.BIN)
+            e.Label("rt_fbc_len");
+            e.LdAB();
+            e.OrA();
+            e.JrZLabel("rt_fbc_open");
+            e.PushBc();
+            e.LdCB();
+            e.LdBImm(0);
+            e.LdDeLabel("rt_fbc_name");
+            e.Ldir();
+            e.PopBc();
+            e.LdHlLabel("rt_fbc_name");              // un point dans le nom ?
+            e.LdCB();
+            e.Label("rt_fbc_dot");
+            e.LdAHl();
+            e.CpImm('.');
+            e.JrZLabel("rt_fbc_open");
+            e.IncHl();
+            e.DecC();
+            e.JrNzLabel("rt_fbc_dot");
+            e.ExDeHl();                              // DE = fin du nom : « .BIN »
+            e.LdHlLabel("rt_fbc_bin");
+            e.LdCImm(4);
+            e.PushBc();
+            e.LdBImm(0);
+            e.Ldir();
+            e.PopBc();
+            e.LdAB();
+            e.AddAImm(4);
+            e.LdBA();
+            e.Label("rt_fbc_open");
+            e.LdHlLabel("rt_fbc_name");
+            e.LdDeImm(FileInBuffer);
+            e.CallAddress(0xBC77);                   // CAS IN OPEN (notre système le cherche dans la cartouche)
+            e.JpNcLabel("rt_file_fail");
+            e.AndImm(0x0E);
+            e.CpImm(0x02);
+            e.JpNzLabel("rt_file_typeerr");          // seulement un fichier binaire
+            e.JpAddress(CpcBasic.Core.Output.Gx4000System.RunFileEntry);
+            e.Label("rt_fbc_bin");
+            e.Data(System.Text.Encoding.ASCII.GetBytes(".BIN"));
+            e.Label("rt_fbc_name");
+            e.Reserve(16);
         }),
 
         // KEY et KEY DEF (lot K5, D092)

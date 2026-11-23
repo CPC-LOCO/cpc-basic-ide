@@ -1581,6 +1581,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2073 (`SelectCaseTests.cs` : nombres, textes, nombres à virgule, mélanges, SELECT dans un SELECT, CASE ELSE, 11 erreurs).
 - Essai (23 nov. 2026) : `examples\choix.bas` (chiffre : zéro / impair / pair ; lettre : voyelle / consonne avec `CASE "A" TO "Z"` ; autre touche) dans WinAPE : « c'est bon ».
 
+## D207 : RUN "nom" sur la cartouche GX4000 (23 nov. 2026) (demande de l'utilisateur du 22 nov. 2026 ; Validé le 23 nov. 2026 : 2083 tests réussis ; cartmenu.cpr dans AMSpiriT : les deux programmes se lancent l'un l'autre)
+
+- Idée : « à quoi sert d'avoir 512 Ko si on ne peut en utiliser que 64 ? » (IDEES.md). Aucun mot nouveau : le même programme marche sur disquette (F5) et sur cartouche (Ctrl+F5). Question de l'utilisateur : LOAD "nom",adresse pour des données ; réponse : même mécanisme, commande du Locomotive déjà faite sur disquette (D085), étape suivante.
+- Ctrl+F5 compile aussi en chaîne (comme D087) : chaque RUN "nom" écrit en clair fait compiler nom.BAS du même dossier, puis ceux qu'il lance ; tous sont rangés dans la cartouche, à la suite du premier programme, à partir d'une nouvelle page (un fichier peut passer d'une page à la suivante). Le premier programme y est rangé aussi si l'un des autres y revient. Les touches placées sur la manette (D183) et la saisie à la manette (D184) valent pour tous. Programme introuvable : signalé, la cartouche est faite quand même. Cartouche de plus de 512 Ko : refusée avec un message.
+- Notre système (`Gx4000System.cs`) : table FICHIERS (21 octets par fichier : nom rangé comme AMSDOS sur 8 + 3 lettres, type, adresses de chargement et de lancement, longueur, page, place dans la page) ; CAS IN OPEN (&BC77 : majuscules, sans extension : essaie sans, puis .BAS, puis .BIN, comme AMSDOS ; absent : « NOM not found », code 146 pour DERR), CAS IN DIRECT (&BC83 : chaque page branchée en &C000 et lue, l'écriture va toujours dans la mémoire vive, même dans l'écran ; interruptions coupées pendant la copie), CAS IN CLOSE et CAS IN ABANDON (&BC7A, &BC7D). Entrée fixe &004F (LANCER) : recopie le fichier ouvert à son adresse (il remplace le programme en cours : la routine tourne depuis la cartouche), oublie les minuteries et ON SQ de l'ancien programme, puis le lance. Variables en &BEE0 à &BEF5.
+- Compilateur : réglage interne `Cartridge` (CompilerOptions) ; sur la cartouche, RUN "nom" passe par le module `FileRunCartridge` (rt_fbc_run : nom gardé dans le programme, « .BIN » ajouté, CAS IN OPEN, puis saut en &004F) au lieu du petit chargeur en &3800 (la cartouche occupe &0000 à &3FFF : il n'y serait pas lu). L'ancien module n'est plus ajouté sur la cartouche (trouvé par un test).
+- Simulateur des tests : `MiniZ80` connaît les pages d'une cartouche (port &DF, ROM haute branchée ou coupée par le Gate Array).
+- Tests : 2083 (`CartridgeFilesTests.cs` : fichier sur deux pages, fichier recopié dans l'écran, fichier absent, RUN qui recopie et lance, code de RUN sur cartouche, compilation en chaîne, programme introuvable, erreur dans un programme lancé, cartouche trop pleine).
+- Exemples : `examples\cartmenu.bas` (MODE 1) lance `examples\cartjeu.bas` (MODE 0, 15 bandes de couleur), qui revient au premier.
+- Suite : LOAD "nom"[,adresse] sur la cartouche (fichiers de données du dossier rangés dans la cartouche).
+
 ---
 
 ## Notes de fin de session (modèle)

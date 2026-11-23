@@ -35,7 +35,16 @@ if (args[0] == "--gx4000")
     string cprOut = args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".cpr");
     try
     {
-        CartridgeResult cartResult = Compiler.CompileToCartridge(File.ReadAllText(args[1]));
+        // RUN "nom" écrit en clair : nom.BAS du même dossier est rangé aussi dans la cartouche (D207)
+        string cartFolder = Path.GetDirectoryName(Path.GetFullPath(args[1])) ?? ".";
+        ProgramSource? FindCart(string program)
+        {
+            string? file = Directory.EnumerateFiles(cartFolder, "*.bas")
+                .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(program, StringComparison.OrdinalIgnoreCase));
+            return file is null ? null : new ProgramSource(File.ReadAllText(file), CompilerOptions.Default);
+        }
+        CartridgeResult cartResult = Compiler.CompileToCartridge(File.ReadAllText(args[1]), null,
+                                                                 Path.GetFileNameWithoutExtension(args[1]), FindCart);
         foreach (var diagnostic in cartResult.Diagnostics)
             Console.Error.WriteLine(diagnostic.Message);
         foreach (string problem in cartResult.Problems)
@@ -47,6 +56,10 @@ if (args[0] == "--gx4000")
             Console.Error.WriteLine($"{cartResult.Diagnostics.Count + cartResult.Problems.Count} erreur(s). Aucun fichier n'a été créé.");
             return 1;
         }
+        foreach (LinkedProgram linked in cartResult.Linked)
+            Console.WriteLine($"Aussi rangé dans la cartouche (RUN \"{linked.Name}\") : {linked.Name}.BAS, {linked.BinarySize} octets.");
+        foreach (string absent in cartResult.Missing)
+            Console.WriteLine($"RUN \"{absent}\" : {absent}.BAS introuvable ; ce programme n'est pas dans la cartouche.");
         cartResult.Cartridge.Save(cprOut);
         Console.WriteLine($"{Path.GetFullPath(cprOut)} créé : cartouche GX4000, programme de {cartResult.BinarySize} octets.");
         return 0;

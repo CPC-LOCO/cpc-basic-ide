@@ -3500,13 +3500,21 @@ public static class CodeGenerator
                     break;
 
                 case RunFileStatement runFile:          // RUN "nom" : autre programme compilé (D086)
-                    required.Add(RuntimeLibrary.FileBinaryName);
                     if (usesMask)
                         emitter.CallLabel(RuntimeLibrary.MaskRemoveLabel);   // SCR WRITE ne doit plus venir ici (D110)
                     if (usesEvents)
                         emitter.CallLabel(RuntimeLibrary.EventsStopLabel);   // le compteur du firmware ne doit plus venir ici
                     EmitString(runFile.Name);
-                    emitter.CallLabel("rt_fb_run");
+                    if (options.Cartridge)              // D207 : le programme suivant est lu dans la cartouche
+                    {
+                        required.Add(RuntimeLibrary.FileRunCartridgeName);
+                        emitter.CallLabel("rt_fbc_run");
+                    }
+                    else
+                    {
+                        required.Add(RuntimeLibrary.FileBinaryName);
+                        emitter.CallLabel("rt_fb_run");
+                    }
                     break;
 
                 case SpeedWriteStatement speedWrite:    // SPEED WRITE 0 ou 1 (D085)

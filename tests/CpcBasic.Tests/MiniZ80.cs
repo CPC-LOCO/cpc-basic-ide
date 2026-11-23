@@ -329,9 +329,31 @@ internal sealed partial class MiniZ80
     /// <summary>D204 : les entrées du firmware où le test a posé un saut (JP) vont à ce saut, avant le firmware simulé.</summary>
     public bool UseInstalledFirmware;
 
-    /// <summary>Lecture d'un octet de la mémoire, avec le masque de la ROM haute.</summary>
+    /// <summary>
+    /// D207 : les pages d'une cartouche GX4000. Quand elles sont données, la ROM haute montre en &amp;C000 la page choisie
+    /// par le port &amp;DF (&amp;80 + numéro), et le Gate Array (port &amp;7F, valeurs &amp;80 à &amp;BF) branche ou coupe la ROM
+    /// haute (bit 3 à 0 : branchée).
+    /// </summary>
+    public byte[][]? CartridgePages;
+    int cartridgePage;
+
+    /// <summary>D207 : écriture sur un port (OUT (C),r) qui change la ROM haute de la cartouche.</summary>
+    void CartridgeOut(ushort port, byte value)
+    {
+        if (CartridgePages is null)
+            return;
+        if (port >> 8 == 0xDF)
+            cartridgePage = value & 0x7F;
+        else if (port >> 8 == 0x7F && (value & 0xC0) == 0x80)
+            UpperRomEnabled = (value & 0x08) == 0;
+    }
+
+    /// <summary>Lecture d'un octet de la mémoire, avec le masque de la ROM haute (ou la page de la cartouche, D207).</summary>
     byte ReadMemory(int address) =>
-        UpperRomEnabled && address >= 0xC000 ? (byte)(0xA5 ^ address) : Memory[address & 0xFFFF];
+        UpperRomEnabled && address >= 0xC000
+            ? CartridgePages is null ? (byte)(0xA5 ^ address)
+              : cartridgePage < CartridgePages.Length ? CartridgePages[cartridgePage][address - 0xC000] : (byte)0xFF
+            : Memory[address & 0xFFFF];
 
     int pc;
     int sp;

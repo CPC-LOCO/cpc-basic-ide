@@ -35,7 +35,14 @@ public sealed record CompileResult(
 /// (Diagnostics : fautes du programme ; Problems : ce qui empêche la cartouche). Notes : messages à montrer.
 /// </summary>
 public sealed record CartridgeResult(IReadOnlyList<Diagnostic> Diagnostics, CartridgeImage? Cartridge, int BinarySize,
-                                     IReadOnlyList<string> Notes, IReadOnlyList<string> Problems);
+                                     IReadOnlyList<string> Notes, IReadOnlyList<string> Problems)
+{
+    /// <summary>Les autres programmes compilés et rangés dans la cartouche (RUN "nom", D207).</summary>
+    public IReadOnlyList<LinkedProgram> Linked { get; init; } = [];
+
+    /// <summary>Les programmes lancés par RUN "nom" qui n'ont pas été trouvés (D207).</summary>
+    public IReadOnlyList<string> Missing { get; init; } = [];
+}
 
 /// <summary>Un programme trouvé pour RUN "nom" : son texte et ses réglages (D087).</summary>
 public sealed record ProgramSource(string Source, CompilerOptions Options);
@@ -143,57 +150,128 @@ public static class Compiler
     /// de notre petit système (Gx4000System). Manettes (D183) : chaque touche d'INKEY(n) écrite en clair qui n'est pas
     /// dans la correspondance de base reçoit un bouton libre (Notes le dit) ; plus de bouton libre : Problems, pas de
     /// cartouche. INKEY avec un numéro calculé : un avertissement dans Notes. INPUT, LINE INPUT : saisie à la manette (D184).
+    /// RUN "nom" (D207) : comme F5 (D087), chaque programme lancé par RUN "nom" écrit en clair est compilé aussi (findProgram
+    /// le cherche) et rangé dans la cartouche, après le premier ; RUN "nom" l'y retrouve, le recopie en mémoire et le lance.
+    /// Les touches placées sur la manette et la saisie à la manette valent pour tous les programmes de la cartouche.
     /// </summary>
-    public static CartridgeResult CompileToCartridge(string source, CompilerOptions? options = null)
+    /// <param name="programName">Nom du programme de l'éditeur (pour un RUN "nom" qui revient à lui).</param>
+    public static CartridgeResult CompileToCartridge(string source, CompilerOptions? options = null, string? programName = null,
+                                                     Func<string, ProgramSource?>? findProgram = null)
     {
-        CompilerOptions settings = (options ?? CompilerOptions.Default) with { WithLoader = true };
-        if (settings.Target == TargetMachine.Cpc464)                // D196 : nos calculs à virgule sont aux adresses du 664 / 6128
-            settings = settings with { Target = TargetMachine.AllCpc };
-        (IReadOnlyList<Diagnostic> errors, byte[]? code, _, BasicProgram? program) = CompileOne(source, settings);
-        if (errors.Count > 0)
-            return new CartridgeResult(errors, null, code?.Length ?? 0, [], []);
+        static CompilerOptions ForCartridge(CompilerOptions settings)
+        {
+            settings = settings with { WithLoader = true, Cartridge = true };
+            if (settings.Target == TargetMachine.Cpc464)            // D196 : nos calculs à virgule sont aux adresses du 664 / 6128
+                settings = settings with { Target = TargetMachine.AllCpc };
+            return settings;
+        }
+
+        string mainName = (programName ?? "").Trim().ToUpperInvariant();
+        var waiting = new Queue<(string Name, string Source, CompilerOptions Options, bool Main)>();
+        waiting.Enqueue((mainName, source, ForCartridge(options ?? CompilerOptions.Default), true));
+        var seen = new HashSet<string>(StringComparer.Ordinal) { mainName };
+        var diagnostics = new List<Diagnostic>();
+        var compiled = new List<(string Name, byte[] Code, BasicProgram Program, bool Main)>();
+        var missing = new List<string>();
+        var launched = new HashSet<string>(StringComparer.Ordinal);
+        int mainSize = 0;
+
+        while (waiting.Count > 0)
+        {
+            (string name, string text, CompilerOptions settings, bool main) = waiting.Dequeue();
+            (IReadOnlyList<Diagnostic> errors, byte[]? code, _, BasicProgram? program) = CompileOne(text, ForCartridge(settings));
+            if (main)
+                mainSize = code?.Length ?? 0;
+            if (errors.Count > 0)
+            {
+                diagnostics.AddRange(main ? errors : errors.Select(d => d with { File = $"{name}.BAS" }));
+                continue;
+            }
+            compiled.Add((name, code!, program!, main));
+            foreach (string next in LaunchedPrograms(program!))
+            {
+                launched.Add(next);
+                if (!seen.Add(next) || findProgram is null)
+                {
+                    if (findProgram is null && next != mainName && !missing.Contains(next))
+                        missing.Add(next);
+                    continue;
+                }
+                ProgramSource? found = findProgram(next);
+                if (found is null)
+                    missing.Add(next);
+                else
+                    waiting.Enqueue((next, found.Source, found.Options, false));
+            }
+        }
+        if (diagnostics.Count > 0)
+            return new CartridgeResult(diagnostics, null, mainSize, [], []) { Missing = missing };
 
         var notes = new List<string>();
         var problems = new List<string>();
         var links = new List<Gx4000System.KeyLink>();
         var placed = new HashSet<int>(Gx4000System.BaseKeys.Select(k => k.Key));
         bool withInput = false;
-        foreach (Statement statement in program!.Statements)
+        foreach ((string name, byte[] code, BasicProgram program, bool main) in compiled)
         {
-            if (statement is InputStatement or LineInputStatement && !withInput)
+            string place = main ? "Ligne" : $"{name}.BAS, ligne";
+            if (code.Length > Gx4000System.MaxProgram)
+                problems.Add($"{(main ? "Le programme" : $"{name}.BAS")} fait {code.Length} octets : sur la cartouche, la mémoire en " +
+                             $"accepte {Gx4000System.MaxProgram} au plus.");
+            foreach (Statement statement in program.Statements)
             {
-                withInput = true;                       // D184 : une seule fois, la saisie à la manette est ajoutée
-                notes.Add($"Ligne {statement.SourceLine} : {(statement is InputStatement ? "INPUT" : "LINE INPUT")} : sur la console, " +
-                          "saisie à la manette : haut et bas changent de lettre, le tir 2 change de groupe (majuscules, minuscules, " +
-                          "chiffres, signes), droite écrit la lettre, gauche efface, le tir 1 valide.");
-            }
-            foreach (Expression expression in AstWalker.All(statement))
-            {
-                if (expression is not CallExpression { Function: "INKEY" } inkey || inkey.Arguments.Count == 0)
-                    continue;
-                if (inkey.Arguments[0] is not NumberExpression { Value: int key })
+                if (statement is InputStatement or LineInputStatement && !withInput)
                 {
-                    notes.Add($"Ligne {statement.SourceLine} : INKEY avec un numéro de touche calculé : seules les touches de la " +
-                              "manette répondent (tir 1 = espace 47, tir 2 = ENTRÉE 18, flèches 0, 1, 2, 8, manettes 72 à 77 et 48 à 53).");
-                    continue;
+                    withInput = true;                       // D184 : une seule fois, la saisie à la manette est ajoutée
+                    notes.Add($"{place} {statement.SourceLine} : {(statement is InputStatement ? "INPUT" : "LINE INPUT")} : sur la console, " +
+                              "saisie à la manette : haut et bas changent de lettre, le tir 2 change de groupe (majuscules, minuscules, " +
+                              "chiffres, signes), droite écrit la lettre, gauche efface, le tir 1 valide.");
                 }
-                if (!placed.Add(key))
-                    continue;
-                if (links.Count >= Gx4000System.FreeButtons.Count)
+                foreach (Expression expression in AstWalker.All(statement))
                 {
-                    problems.Add($"Ligne {statement.SourceLine} : INKEY({key}) : plus aucun bouton libre sur les manettes pour cette touche " +
-                                 $"({Gx4000System.FreeButtons.Count} touches en plus au plus). Utilisez JOY(0) ou les touches de la manette.");
-                    continue;
+                    if (expression is not CallExpression { Function: "INKEY" } inkey || inkey.Arguments.Count == 0)
+                        continue;
+                    if (inkey.Arguments[0] is not NumberExpression { Value: int key })
+                    {
+                        notes.Add($"{place} {statement.SourceLine} : INKEY avec un numéro de touche calculé : seules les touches de la " +
+                                  "manette répondent (tir 1 = espace 47, tir 2 = ENTRÉE 18, flèches 0, 1, 2, 8, manettes 72 à 77 et 48 à 53).");
+                        continue;
+                    }
+                    if (!placed.Add(key))
+                        continue;
+                    if (links.Count >= Gx4000System.FreeButtons.Count)
+                    {
+                        problems.Add($"{place} {statement.SourceLine} : INKEY({key}) : plus aucun bouton libre sur les manettes pour cette touche " +
+                                     $"({Gx4000System.FreeButtons.Count} touches en plus au plus). Utilisez JOY(0) ou les touches de la manette.");
+                        continue;
+                    }
+                    (int joystick, int buttons, string buttonName) = Gx4000System.FreeButtons[links.Count];
+                    links.Add(new Gx4000System.KeyLink(key, joystick, buttons));
+                    notes.Add($"{place} {statement.SourceLine} : INKEY({key}) : sur la console, la touche {key} correspondra {buttonName}." +
+                              (joystick == 0 && buttons == 0x20 ? " Le tir 2 sert aussi de touche ENTRÉE : il « appuie » sur les deux." : ""));
                 }
-                (int joystick, int buttons, string name) = Gx4000System.FreeButtons[links.Count];
-                links.Add(new Gx4000System.KeyLink(key, joystick, buttons));
-                notes.Add($"Ligne {statement.SourceLine} : INKEY({key}) : sur la console, la touche {key} correspondra {name}." +
-                          (joystick == 0 && buttons == 0x20 ? " Le tir 2 sert aussi de touche ENTRÉE : il « appuie » sur les deux." : ""));
             }
         }
         if (problems.Count > 0)
-            return new CartridgeResult([], null, code!.Length, notes, problems);
-        return new CartridgeResult([], Gx4000System.Build(code!, links, withInput), code!.Length, notes, problems);
+            return new CartridgeResult([], null, mainSize, notes, problems) { Missing = missing };
+
+        // D207 : les programmes lancés par RUN "nom" sont rangés dans la cartouche (le premier aussi, si l'un d'eux y revient)
+        var files = compiled.Where(c => !c.Main || (c.Name.Length > 0 && launched.Contains(c.Name)))
+                            .Select(c => new Gx4000System.CartFile($"{c.Name}.BIN", 2, LoadAddress, LoadAddress, c.Code))
+                            .ToList();
+        try
+        {
+            CartridgeImage cartridge = Gx4000System.Build(compiled[0].Code, links, withInput, files);
+            return new CartridgeResult([], cartridge, mainSize, notes, problems)
+            {
+                Linked = compiled.Where(c => !c.Main).Select(c => new LinkedProgram(c.Name, c.Code.Length)).ToList(),
+                Missing = missing
+            };
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new CartridgeResult([], null, mainSize, notes, [ex.Message]) { Missing = missing };
+        }
     }
 
     /// <summary>

@@ -31,11 +31,13 @@ public enum TargetMachine
 /// Libraries : catalogue des bibliothèques (D148) ; null : aucune bibliothèque.
 /// WithLoader : vrai (par défaut) : NOM.BAS charge NOM.BIN. Faux (D168) : NOM.BIN seul, lancé directement par RUN"NOM" ;
 /// le firmware a été remis à zéro, le programme rebranche donc lui-même la disquette (AMSDOS) au départ.
+/// Cartridge : compilé pour la cartouche GX4000 (D207) ; RUN "nom" passe par notre système (Gx4000System.RunFileEntry)
+/// au lieu du petit chargeur recopié en &amp;3800 (la cartouche est branchée de &amp;0000 à &amp;3FFF). Mis par le compilateur.
 /// </summary>
 public sealed record CompilerOptions(TargetMachine Target = TargetMachine.AllCpc, bool RealByDefault = false,
                                      bool BreakKey = false, CpcLanguage Language = CpcLanguage.French, bool Debug = false,
                                      bool PreferSize = false, LibraryCatalog? Libraries = null,
-                                     bool WithLoader = true)
+                                     bool WithLoader = true, bool Cartridge = false)
 {
     /// <summary>Les réglages par défaut : tous les CPC, variables sans signe entières.</summary>
     public static CompilerOptions Default { get; } = new();
