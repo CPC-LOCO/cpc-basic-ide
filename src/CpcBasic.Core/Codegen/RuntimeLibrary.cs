@@ -41,6 +41,7 @@ public static class RuntimeLibrary
     // Saisie de nombres (INPUT, D055)
     public const string InputName = "Input";
     public const string InputLineLabel = "rt_input_line";
+    public const string AcceptLineLabel = "rt_accept_line";   // ACCEPT (D223) : rt_in_allow et rt_in_max déjà posés
     public const string InputMoreLabel = "rt_input_more";
     public const string InputNumLabel = "rt_input_num";
     public const string InputEndLabel = "rt_input_end";
@@ -8392,6 +8393,11 @@ public static class RuntimeLibrary
             // qui est sous lui (TXT RD CHAR) et l'avance. 255 caractères au plus. Les positions à l'écran sont calculées
             // depuis celle du premier caractère (rt_in_sc, rt_in_sr), recalée après chaque affichage (défilement).
             e.Label(InputLineLabel);
+            e.LdHlImm(0);                            // INPUT : toutes les touches, 255 caractères (ACCEPT, D223)
+            e.LdMemHl("rt_in_allow");
+            e.LdAImm(255);
+            e.LdMemA("rt_in_max");
+            e.Label(AcceptLineLabel);
             e.XorA();
             e.LdMemA("rt_inp_len");
             e.LdMemA("rt_in_pos");
@@ -8436,9 +8442,33 @@ public static class RuntimeLibrary
             // Insertion du caractère A à la position du curseur
             e.Label("rt_in_insert");
             e.LdMemA("rt_in_ch");
+            e.LdAMem("rt_in_max");
+            e.LdBA();
             e.LdAMem("rt_inp_len");
-            e.CpImm(255);
-            e.JpZLabel("rt_in_key");             // ligne pleine
+            e.CpB();
+            e.JpNcLabel("rt_in_key");            // ligne pleine (255, ou la longueur d'ACCEPT, D223)
+            e.LdHlMem("rt_in_allow");            // ACCEPT (D223) : la touche doit être dans le texte des caractères permis
+            e.LdAH();
+            e.OrL();
+            e.JrZLabel("rt_in_allowed");
+            e.LoadBFromHl();                     // fiche : longueur, puis adresse des lettres
+            e.IncHl();
+            e.LoadEFromHl();
+            e.IncHl();
+            e.LoadDFromHl();
+            e.LdAB();
+            e.OrA();
+            e.JpZLabel("rt_in_key");             // texte vide : aucune touche permise
+            e.LdAMem("rt_in_ch");
+            e.LdCA();
+            e.Label("rt_in_find");
+            e.LdADe();
+            e.CpC();
+            e.JrZLabel("rt_in_allowed");
+            e.IncDe();
+            e.DjnzLabel("rt_in_find");
+            e.JpLabel("rt_in_key");              // touche pas permise : ignorée
+            e.Label("rt_in_allowed");
             e.LdAMem("rt_in_pos");
             e.LdBA();
             e.LdAMem("rt_inp_len");
@@ -8920,6 +8950,10 @@ public static class RuntimeLibrary
                 e.Label(name);
                 e.Reserve(1);
             }
+            e.Label("rt_in_allow");                  // ACCEPT (D223) : fiche des caractères permis (0 : toutes)
+            e.Reserve(2);
+            e.Label("rt_in_max");
+            e.Reserve(1);
             e.Label("rt_inp_buf");
             e.Reserve(257);                          // 255 caractères et l'octet 0 de fin (D076)
         }),

@@ -163,6 +163,8 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 `CLIC code` ★ : attend la touche de ce code ASCII, de 31 à 255 (`CLIC 32` : ESPACE ; `CLIC 97` : a minuscule) ; les touches tapées avant ne comptent pas (D222).
 
+`ACCEPT permis [, longueur] , ["question" ; ou ,] variable` ★ : comme INPUT, mais seules les touches du texte permis s'écrivent ; longueur facultative (1 à 255) ; ENTRÉE et DEL marchent toujours (D223). Exemple : `ACCEPT "0123456789", 3, "AGE : ", A`.
+
 **Enveloppes des effets (D218) :** VROOM, BOOM, SHOT, FALL et WAVE prennent leurs numéros d'ENV et d'ENT parmi ceux que le programme n'écrit pas lui-même ; les numéros indiqués plus haut pour chaque effet sont ceux d'avant D218.
 
 Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`.

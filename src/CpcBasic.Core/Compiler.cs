@@ -321,7 +321,7 @@ public static class Compiler
                 if (statement is InputStatement or LineInputStatement && !withInput)
                 {
                     withInput = true;                       // D184 : une seule fois, la saisie à la manette est ajoutée
-                    notes.Add($"{place} {statement.SourceLine} : {(statement is InputStatement ? "INPUT" : "LINE INPUT")} : sur la console, " +
+                    notes.Add($"{place} {statement.SourceLine} : {(statement is InputStatement { Allowed: not null } ? "ACCEPT" : statement is InputStatement ? "INPUT" : "LINE INPUT")} : sur la console, " +
                               "saisie à la manette : haut et bas changent de lettre, le tir 2 change de groupe (majuscules, minuscules, " +
                               "chiffres, signes), droite écrit la lettre, gauche efface, le tir 1 valide.");
                 }

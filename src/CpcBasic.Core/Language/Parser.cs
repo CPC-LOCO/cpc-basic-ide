@@ -34,7 +34,7 @@ public static class Parser
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
         "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT", "MASK",
-        "DEFSPR", "SPRITE", "SELECT", "CASE", "VROOM", "BOOM", "SHOT", "FALL", "WAVE", "PAUSE", "CLIC"];
+        "DEFSPR", "SPRITE", "SELECT", "CASE", "VROOM", "BOOM", "SHOT", "FALL", "WAVE", "PAUSE", "CLIC", "ACCEPT"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -1138,6 +1138,9 @@ public static class Parser
             case "ON":
                 return ParseOn(tokens, pos, statements, diagnostics);
 
+            case "ACCEPT":                              // D223 : saisie limitée à certains caractères
+                return ParseAccept(tokens, pos, statements, diagnostics);
+
             case "INPUT":
                 return ParseStreamCommand(tokens, pos, 1, statements, diagnostics, "INPUT", true,
                                           rest => ParseInput(tokens, pos, statements, diagnostics, rest));
@@ -1414,6 +1417,61 @@ public static class Parser
                 return true;
         }
         return false;
+    }
+
+    const string AcceptSignature = "ACCEPT caractères permis, [longueur,] [\"question\" ; ou ,] variable";
+
+    // ACCEPT permis [, longueur] , ["question" ; ou ,] variable (D223, nom et forme choisis par l'utilisateur) :
+    // comme INPUT, mais seules les touches du texte « permis » s'écrivent (ENTRÉE et DEL marchent toujours) ;
+    // la longueur (1 à 255) est facultative. Une seule variable, texte ou nombre.
+    static int ParseAccept(IReadOnlyList<Token> tokens, int pos, List<Statement> statements, List<Diagnostic> diagnostics)
+    {
+        int line = tokens[pos].Line;
+        pos++;
+        Expression? allowed = ParseAnyExpression(tokens, ref pos, diagnostics);
+        if (allowed is null)
+            return SkipToStatementEnd(tokens, pos);
+        if (!Types.IsString(allowed))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.TypeMismatch, line, "ACCEPT attend d'abord un texte : les caractères permis"));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        if (tokens[pos].Kind is not (TokenKind.Comma or TokenKind.Semicolon))
+        {
+            diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, line, AcceptSignature));
+            return SkipToStatementEnd(tokens, pos);
+        }
+        pos++;
+
+        // Longueur : une valeur suivie d'une virgule (sinon, c'est la question ou la variable)
+        Expression? length = null;
+        if (tokens[pos].Kind != TokenKind.String && !IsStatementEnd(tokens[pos]))
+        {
+            int start = pos;
+            var tried = new List<Diagnostic>();
+            Expression? value = ParseExpression(tokens, ref pos, tried);
+            if (value is not null && tried.Count == 0 && tokens[pos].Kind == TokenKind.Comma)
+            {
+                length = value;
+                pos++;
+                if (length is NumberExpression number && (number.Value < 1 || number.Value > 255))
+                    diagnostics.Add(new Diagnostic(DiagnosticCode.ValueOutOfRange, line, $"{number.Value}|1 à 255"));
+            }
+            else
+            {
+                pos = start;
+            }
+        }
+
+        int count = statements.Count;
+        int end = ParseInput(tokens, pos, statements, diagnostics, pos);
+        if (statements.Count == count + 1 && statements[count] is InputStatement input)
+        {
+            if (input.Variables.Count != 1)
+                diagnostics.Add(new Diagnostic(DiagnosticCode.WrongArgumentCount, line, AcceptSignature));
+            statements[count] = input with { Allowed = allowed, MaxLength = length };
+        }
+        return end;
     }
 
     // INPUT [;] ["texte" ; ou ,] variable [, variable ...]

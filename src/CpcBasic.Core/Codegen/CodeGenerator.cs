@@ -2793,12 +2793,38 @@ public static class CodeGenerator
                     string done = $"in_{labelCount++}";
                     required.Add(RuntimeLibrary.InputName);
 
+                    // ACCEPT (D223) : caractères permis et longueur, posés une fois avant la saisie (et ses « Redo »)
+                    if (input.Allowed is not null)
+                    {
+                        if (input.MaxLength is null)
+                        {
+                            emitter.LdAImm(255);
+                        }
+                        else
+                        {
+                            EmitExpression(input.MaxLength);
+                            if (input.MaxLength is not NumberExpression)    // calculée hors de 1 à 255 : « Improper argument »
+                            {
+                                required.Add(RuntimeLibrary.ByteCheckName);
+                                emitter.LdAH();
+                                emitter.OrA();
+                                emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                                emitter.OrL();
+                                emitter.JpZLabel(RuntimeLibrary.ByteCheckLabel);
+                            }
+                            emitter.LdAL();
+                        }
+                        emitter.LdMemA("rt_in_max");
+                        EmitString(input.Allowed);
+                        emitter.LdMemHl("rt_in_allow");
+                    }
+
                     emitter.Label(retry);
                     if (input.Prompt is not null)
                         EmitText(input.Prompt);
                     if (input.Question)
                         EmitText("? ");
-                    emitter.CallLabel(RuntimeLibrary.InputLineLabel);
+                    emitter.CallLabel(input.Allowed is null ? RuntimeLibrary.InputLineLabel : RuntimeLibrary.AcceptLineLabel);
                     if (!input.NoNewline)
                         EmitText("\r\n");
 

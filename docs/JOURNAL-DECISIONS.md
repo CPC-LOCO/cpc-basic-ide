@@ -1739,6 +1739,16 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Exemple : `examples\pause.bas`.
 - Idées notées le même jour (IDEES.md, outils et éditeur) : planches des caractères et des couleurs dans l'Aide ; éditeur de caractères et de sprites qui ajoute une ligne de données au programme.
 
+## D223 : ACCEPT, saisie limitée (24 nov. 2026) (idée de l'utilisateur du 21 nov. 2026, IDEES.md ; nom et forme choisis par lui : « une commande à part », « ACCEPT, c'est parfait », longueur « judicieuse mais pas obligatoire » ; Validé le 24 nov. 2026 : 2207 tests réussis ; examples\accept.bas dans WinAPE : « C'est parfait, super extra »)
+
+- **Mot réservé nouveau : ACCEPT.** INPUT reste celui du Locomotive, sans changement (l'idée de départ ajoutait un premier texte à INPUT : abandonnée pour une commande à part). Noms proposés : ACCEPT, KEYIN, INPUTONLY, INPUTCODE (INPUTKEY déconseillé : confusion avec INKEY).
+- Forme : `ACCEPT permis [, longueur] , ["question" ; ou ,] variable` (le séparateur après le texte permis peut aussi être « ; »). Texte permis : une expression (calculée possible). Longueur facultative de 1 à 255 (en clair : vérifiée à la compilation ; calculée hors limites : « Improper argument »). Question et « ? » comme INPUT. Une seule variable, texte ou nombre (« Redo from start » comme INPUT, mêmes caractères permis).
+- Réponses aux questions ouvertes de l'idée : ENTRÉE et DEL marchent toujours (pas besoin de CHR$(13) dans la liste) ; les flèches et COPY aussi (un caractère recopié doit être permis) ; LINE INPUT n'a pas de forme limitée.
+- Fait : l'éditeur de saisie (module Input, D076) a deux réglages, `rt_in_allow` (fiche du texte permis, 0 : tout) et `rt_in_max` ; INPUT les remet à « tout, 255 » (rt_input_line), ACCEPT les pose puis entre par `rt_accept_line`. `Parser.cs` (ParseAccept, puis ParseInput), `Ast.cs` (InputStatement : Allowed, MaxLength), `CodeGenerator.cs`, `RuntimeLibrary.cs`, `VariableList.cs` (F4), `Compiler.cs` (message de la cartouche), couleurs de l'éditeur.
+- Cartouche : marche (la saisie à la manette, D184) ; la molette propose encore toutes les lettres, une lettre non permise est refusée à l'écriture. Reste possible : ne faire défiler que les caractères permis.
+- Tests : 2207 (`AcceptTests.cs`, 17 tests).
+- Exemple : `examples\accept.bas` (âge, nom, oui ou non).
+
 ---
 
 ## Notes de fin de session (modèle)

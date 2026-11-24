@@ -102,6 +102,8 @@ public static class VariableList
                 case InputStatement input:
                     foreach (Expression target in input.Targets)
                         SetTarget(target, line);
+                    foreach (Expression e in new[] { input.Allowed, input.MaxLength }.OfType<Expression>())
+                        UseIn(e, line);                         // ACCEPT (D223)
                     break;
                 case LineInputStatement lineInput:
                     SetTarget(lineInput.Target, line);

@@ -522,9 +522,12 @@ public sealed record ClearInputStatement(int SourceLine) : Statement(SourceLine)
 /// INPUT [;] ["texte" ; ou ,] variable [, variable ...] : saisie de nombres entiers au clavier (lot B, D055).
 /// Question : afficher « ? » après le texte (point-virgule, ou pas de texte). NoNewline : le « ; » juste après INPUT.
 /// </summary>
+/// <param name="Allowed">ACCEPT (D223) : texte des caractères permis ; null pour INPUT.</param>
+/// <param name="MaxLength">ACCEPT (D223) : nombre de caractères au plus (1 à 255) ; null : pas de limite.</param>
 public sealed record InputStatement(int SourceLine, string? Prompt, bool Question, bool NoNewline,
                                     IReadOnlyList<string> Variables,
-                                    IReadOnlyList<IReadOnlyList<Expression>?>? Indexes = null) : Statement(SourceLine)
+                                    IReadOnlyList<IReadOnlyList<Expression>?>? Indexes = null,
+                                    Expression? Allowed = null, Expression? MaxLength = null) : Statement(SourceLine)
 {
     /// <summary>
     /// Ce que reçoit chaque nombre tapé : une variable, ou une case de tableau (INPUT T(I), D059).
@@ -668,7 +671,7 @@ public static class AstWalker
         EllipseStatement el => new[] { el.X, el.Y, el.RadiusX, el.RadiusY, el.Pen, el.Fill, el.Angle }.OfType<Expression>(),
         OnStatement o => [o.Selector],
         ReadStatement r => r.Targets,
-        InputStatement i => i.Targets,
+        InputStatement i => i.Targets.Concat(new[] { i.Allowed, i.MaxLength }.OfType<Expression>()),   // ACCEPT (D223)
         LineInputStatement l => [l.Target],
         MidAssignStatement m => new[] { m.Target, m.Start, m.Length, m.Value }.OfType<Expression>(),
         LibraryCallStatement lc => lc.Arguments,
