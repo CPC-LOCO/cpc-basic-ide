@@ -1997,19 +1997,11 @@ public static class Parser
 
     static void CheckArrays(IReadOnlyList<Statement> statements, List<Diagnostic> diagnostics)
     {
-        var bytes = statements.OfType<DeclareStatement>().SelectMany(d => d.Names).ToHashSet();
+        // D221 : un nom déclaré BYTE peut être un tableau : ses cases font un octet (avant : ByteArrayNotYet)
         var dimensions = new Dictionary<string, int>();
-        var reported = new HashSet<string>();
 
         void Use(string name, int count, int line)
         {
-            if (bytes.Contains(name))
-            {
-                if (reported.Add(name))
-                    diagnostics.Add(new Diagnostic(DiagnosticCode.ByteArrayNotYet, line, name));
-                return;
-            }
-
             if (!dimensions.TryGetValue(name, out int known))
                 dimensions[name] = count;
             else if (known != count)
@@ -3829,6 +3821,7 @@ public static class Parser
                         Uses(argument);
                     break;
                 case ArrayElementExpression element:
+                    used.Add(element.Name);                 // D221 : BYTE T doit venir avant le tableau T()
                     foreach (Expression index in element.Indexes)
                         Uses(index);
                     break;
@@ -3898,6 +3891,16 @@ public static class Parser
                 case DimStatement or ArrayAssignStatement or MidAssignStatement:
                     foreach (Expression expression in AstWalker.TopLevel(statement))
                         Uses(expression);
+                    if (statement is DimStatement dimUse)   // D221 : tableau d'octets : BYTE T avant DIM T(...)
+                        foreach (ArrayDeclaration array in dimUse.Arrays)
+                            used.Add(array.Name);
+                    if (statement is ArrayAssignStatement cellAssign)
+                    {
+                        used.Add(cellAssign.Name);
+                        if (bytes.Contains(cellAssign.Name) && cellAssign.Value is NumberExpression cellValue
+                            && (cellValue.Value < 0 || cellValue.Value > 255))
+                            diagnostics.Add(new Diagnostic(DiagnosticCode.ByteOutOfRange, cellAssign.SourceLine, cellValue.Value.ToString()));
+                    }
                     break;
 
                 case IfStatement ifStatement:

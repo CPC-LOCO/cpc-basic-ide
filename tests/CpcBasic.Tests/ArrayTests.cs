@@ -97,10 +97,48 @@ public class ArrayTests
         Assert.Contains(Errors(source), e => e.Code == DiagnosticCode.ArrayDimensionMismatch);
     }
 
+    // ---------- Tableaux d'octets (D221) : BYTE T avant DIM T(...) ----------
+
     [Fact]
-    public void Un_nom_declare_BYTE_ne_peut_pas_encore_etre_un_tableau()
+    public void Un_tableau_d_octets_range_et_relit_ses_cases()
     {
-        Assert.Contains(Errors("10 BYTE T\n20 T(1) = 2"), e => e.Code == DiagnosticCode.ByteArrayNotYet);
+        Assert.Equal(" 200  7  0  253 \r\n",                    // 3 x 255 = 765 = &2FD : octet &FD
+                     Run("10 BYTE T\n20 DIM T(10)\n30 T(1) = 200:T(2) = 7:FOR I = 3 TO 10:T(I) = I * 255:NEXT\n" +
+                         "40 PRINT T(1); T(2); T(0); T(3)"));
+    }
+
+    [Fact]
+    public void Une_valeur_trop_grande_garde_l_octet_de_poids_faible_comme_une_variable_BYTE()
+    {
+        Assert.Equal(" 44  44 \r\n", Run("10 BYTE T, B\n20 DIM T(3)\n30 V = 300:T(1) = V:B = V\n40 PRINT T(1); B"));
+    }
+
+    [Fact]
+    public void Les_cases_d_un_tableau_d_octets_se_suivent_d_un_octet()
+    {
+        Assert.Equal(" 1 \r\n", Run("10 BYTE T\n20 DIM T(5)\n30 PRINT @T(3) - @T(2)"));
+    }
+
+    [Fact]
+    public void Un_tableau_d_octets_a_deux_dimensions_avec_des_tableaux_d_entiers_et_de_textes()
+    {
+        Assert.Equal(" 9  1000 HELLO 0 \r\n",
+                     Run("10 BYTE G\n20 DIM G(3, 4), N(5), A$(2)\n30 G(2, 3) = 9:N(4) = 1000:A$(1) = \"HELLO\"\n" +
+                         "40 PRINT G(2, 3); N(4); A$(1); G(3, 4)"));
+    }
+
+    [Fact]
+    public void READ_va_dans_un_tableau_d_octets()
+    {
+        Assert.Equal(" 12  34 \r\n", Run("10 BYTE T\n20 DIM T(2)\n30 READ T(1), T(2)\n40 PRINT T(1); T(2)\n50 DATA 12, 34"));
+    }
+
+    [Theory]
+    [InlineData("10 BYTE T\n20 DIM T(3)\n30 T(1) = 256", DiagnosticCode.ByteOutOfRange)]
+    [InlineData("10 DIM T(3)\n20 BYTE T", DiagnosticCode.DeclaredAfterUse)]
+    public void BYTE_apres_le_tableau_ou_valeur_ecrite_trop_grande_sont_refuses(string source, DiagnosticCode code)
+    {
+        Assert.Contains(Errors(source), e => e.Code == code);
     }
 
     [Theory]

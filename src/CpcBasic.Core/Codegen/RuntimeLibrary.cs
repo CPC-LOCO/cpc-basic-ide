@@ -316,7 +316,7 @@ public static class RuntimeLibrary
     public const string ArrayMulLabel = "rt_arr_mul";
     public const string ArrayDimLabel = "rt_arr_dim";
     public const string ArrayElem1Label = "rt_arr_elem1";
-    public const string ArrayElementSizeLabel = "rt_arr_esize";  // taille d'une case : 2 (entier) ou 3 (texte, D065)
+    public const string ArrayElementSizeLabel = "rt_arr_esize";  // taille d'une case : 2 (entier), 3 (texte, D065), 5, 1 (BYTE, D221)
     public const string ArrayElemLabel = "rt_arr_elem";
     public const string ArrayMemoryLabel = "rt_arr_memory";
     // PRINT USING avec un format lu à l'exécution (lot K10, D098)
@@ -5302,7 +5302,10 @@ public static class RuntimeLibrary
             // Réserve HL cases pour le descripteur DE, et les met à 0
             e.Label(ArrayAllocLabel);
             e.LdBH();                                // taille d'une case : 2 octets (entier), 3 (fiche de texte, D065)
-            e.LdCL();                                // ou 5 (nombre à virgule, D070)
+            e.LdCL();                                // ou 5 (nombre à virgule, D070), ou 1 (tableau BYTE, D221)
+            e.LdAMem(ArrayElementSizeLabel);
+            e.CpImm(1);
+            e.JrZLabel("rt_arr_alloc_two");          // 1 : autant d'octets que de cases
             e.AddHlHl();
             e.JpCLabel(ErrMemory);
             e.LdAMem(ArrayElementSizeLabel);
@@ -5396,8 +5399,10 @@ public static class RuntimeLibrary
             e.JpNcLabel(ErrSubscript);
             e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
             e.LdCL();
+            e.LdAMem(ArrayElementSizeLabel);         // écart en octets : 1 (BYTE, D221), 2, 3 ou 5 fois le numéro (D070)
+            e.CpImm(1);
+            e.JrZLabel("rt_arr_e1_two");
             e.AddHlHl();
-            e.LdAMem(ArrayElementSizeLabel);         // écart en octets : 2, 3 ou 5 fois le numéro (D070)
             e.CpImm(2);
             e.JrZLabel("rt_arr_e1_two");
             e.CpImm(3);
@@ -5466,8 +5471,10 @@ public static class RuntimeLibrary
             e.LdHlMem("rt_arr_off");
             e.LdBH();                                // taille d'une case : 2 octets (entier) ou 3 (fiche de texte, D065)
             e.LdCL();
+            e.LdAMem(ArrayElementSizeLabel);         // écart en octets : 1 (BYTE, D221), 2, 3 ou 5 fois le numéro (D070)
+            e.CpImm(1);
+            e.JrZLabel("rt_arr_e_two");
             e.AddHlHl();
-            e.LdAMem(ArrayElementSizeLabel);         // écart en octets : 2, 3 ou 5 fois le numéro (D070)
             e.CpImm(2);
             e.JrZLabel("rt_arr_e_two");
             e.CpImm(3);

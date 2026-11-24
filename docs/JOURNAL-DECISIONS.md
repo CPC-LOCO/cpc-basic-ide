@@ -1716,7 +1716,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - **Contenu :** sprites (D198 à D201), traits rapides (D202 à D205), SELECT CASE (D206), RUN "nom" et LOAD sur cartouche (D207, D208), fichiers de LOAD sur disquette et cassette, fichiers de plus de 16 Ko (D209, D211), PLOT, PLOTR, MOVE, MOVER rapides (D210, D212), effets sonores VROOM, BOOM, SHOT, FALL, WAVE et réserve des enveloppes (D213 à D219) ; notes dans `docs\RELEASE-NOTES-0.8.0.md`.
 - **Fichiers :** version 0.8.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (fichiers de données au point 4 ; SELECT CASE, sprites, effets sonores et vitesse au point 5 ; RUN "nom" et LOAD au point 8) ; README (français et anglais) et TESTEURS.md ; IDEES.md (lignes faites marquées).
 - **Oubli corrigé :** le paquet ne contenait que les exemples `.bas` ; `build-release.cmd` copie aussi les `.bin` des exemples (IMAGE.BIN, pour charge.bas).
-- **Paquet construit (24 nov. 2026) :** `release\CpcBasic-0.8.0-win-x64.zip`, SHA256 105204520c2b525042ad0ec0370ea8ab684694a28730a585a6d6ef505ffee319 ; contenu vérifié : 357 fichiers, 120 exemples et IMAGE.BIN, bibliothèques GRAPHIQUE et TEXTE, pas de ROM, pas de .dsk, .cdt ni .cpr.
+- **Paquet construit (24 nov. 2026) :** `release\CpcBasic-0.8.0-win-x64.zip`, SHA256 105204520c2b525042ad0ec0370ea8ab684694a28730a585a6d6ef505ffee319 ; contenu vérifié : 357 fichiers, 120 exemples et IMAGE.BIN, bibliothèques GRAPHIQUE et TEXTE, pas de ROM, pas de .dsk, .cdt ni .cpr. Essayé par l'utilisateur depuis le dossier du paquet (charge.bas : IMAGE.BIN mis sur la disquette et la cassette).
+- **Publiée (24 nov. 2026) :** pre-release GitHub v0.8.0, « CPC BASIC IDE 0.8.0 (version de test) », commit 60ce1d1.
+
+## D221 : tableaux d'octets (24 nov. 2026) (demande de l'utilisateur, D058 ; choix : « le tableau » ; Validé le 24 nov. 2026 : 2169 tests réussis ; examples\octets.bas dans WinAPE : écran attendu)
+
+- Forme décidée en D058, **aucun mot nouveau** : `BYTE T` écrit avant `DIM T(100)` fait de T un tableau d'octets ; chaque case va de 0 à 255 et prend 1 octet au lieu de 2. Le refus « pas encore » (code ByteArrayNotYet) est retiré.
+- Mêmes règles qu'une variable BYTE : une valeur calculée trop grande ne garde que son octet de poids faible (300 donne 44) ; une valeur écrite en clair hors de 0 à 255 est refusée à la compilation (ByteOutOfRange) ; `BYTE T` après l'usage du tableau : « déclarée après usage » (DeclaredAfterUse). INPUT dans un tableau d'octets redemande la valeur si elle dépasse 255.
+- Marchent aussi : plusieurs dimensions, READ, INPUT, `@T(3)`, ERASE, DEBUG, liste des variables (F4), cartouche.
+- Fait : `Parser.cs` (vérifications), `CodeGenerator.cs` (taille de case 1 : lecture `LD L,(HL)` puis `LD H,0`, écriture du seul octet faible), `RuntimeLibrary.cs` (les trois calculs d'adresse ne doublent pas quand la case fait 1 octet).
+- Tests : 2169 (`ArrayTests.cs` : l'ancien test du refus remplacé par 7 tests).
+- Exemple : `examples\octets.bas` (5001 entiers : 10002 octets ; 5001 octets : 5001 octets).
 
 ---
 

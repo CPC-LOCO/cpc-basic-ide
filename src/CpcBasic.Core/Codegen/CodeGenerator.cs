@@ -144,15 +144,31 @@ public static class CodeGenerator
 
         string SizeLabel(string array, int dimension) => $"{array}_s{dimension}";
 
+        // Tableaux d'octets (D221) : BYTE T avant DIM T(100) : cases d'un octet (0 à 255), comme une variable BYTE
+        var byteArrays = program.Statements.OfType<DeclareStatement>().SelectMany(d => d.Names)
+                                .Where(arrays.ContainsKey).ToHashSet();
+        int CellBytes(string name) => byteArrays.Contains(name) ? 1 : ElementBytes(name);
+
+        // HL = adresse d'une case de nombre entier, DE = valeur : la case la reçoit (un octet seulement pour un tableau BYTE)
+        void EmitStoreCell(string name)
+        {
+            emitter.StoreHlE();
+            if (byteArrays.Contains(name))
+                return;
+            emitter.IncHl();
+            emitter.StoreHlD();
+        }
+
         // Tableaux de textes (D065) : leurs cases sont des fiches de 3 octets. S'il y en a, chaque accès à un tableau
         // indique d'abord la taille de ses cases (2 ou 3) ; sinon rien n'est ajouté.
         // Tableaux de nombres à virgule (D070) : cases de 5 octets.
-        bool hasStringArrays = arrays.Keys.Any(name => VariableNames.IsString(name) || VariableNames.IsReal(name));
+        // Tableaux d'octets (D221) : cases d'un octet.
+        bool hasStringArrays = arrays.Keys.Any(name => VariableNames.IsString(name) || VariableNames.IsReal(name)) || byteArrays.Count > 0;
         void EmitElementSize(string name)
         {
             if (!hasStringArrays)
                 return;
-            emitter.LdAImm(VariableNames.IsString(name) ? 3 : VariableNames.IsReal(name) ? 5 : 2);
+            emitter.LdAImm(CellBytes(name));
             emitter.LdMemA(RuntimeLibrary.ArrayElementSizeLabel);
         }
 
@@ -1248,6 +1264,12 @@ public static class CodeGenerator
 
                 case ArrayElementExpression element:
                     EmitElementAddress(element.Name, element.Indexes);
+                    if (byteArrays.Contains(element.Name))          // tableau d'octets (D221)
+                    {
+                        emitter.LoadLFromHl();
+                        emitter.LdHZero();
+                        break;
+                    }
                     emitter.LdAHl();                                // HL = contenu de la case
                     emitter.IncHl();
                     emitter.LoadHFromHl();
@@ -2661,9 +2683,7 @@ public static class CodeGenerator
                             emitter.PushHl();
                             EmitElementAddress(fiName, fiCells);
                             emitter.PopDe();
-                            emitter.StoreHlE();
-                            emitter.IncHl();
-                            emitter.StoreHlD();
+                            EmitStoreCell(fiName);
                         }
                         else
                         {
@@ -2749,12 +2769,16 @@ public static class CodeGenerator
                         emitter.JpCLabel(redo);
                         if (input.Indexes?[i] is { } cellIndexes)
                         {
+                            if (byteArrays.Contains(input.Variables[i]))
+                            {
+                                emitter.LdAH();             // tableau d'octets (D221) : la valeur doit tenir sur un octet
+                                emitter.OrA();
+                                emitter.JpNzLabel(redo);
+                            }
                             emitter.PushHl();               // INPUT T(I) : le nombre va dans une case de tableau (D059)
                             EmitElementAddress(input.Variables[i], cellIndexes);
                             emitter.PopDe();
-                            emitter.StoreHlE();
-                            emitter.IncHl();
-                            emitter.StoreHlD();
+                            EmitStoreCell(input.Variables[i]);
                             continue;
                         }
                         VariableSlot slot = Slot(input.Variables[i]);
@@ -2968,8 +2992,11 @@ public static class CodeGenerator
                     {
                         EmitElementAddress(arrayAssign.Name, arrayAssign.Indexes);
                         emitter.StoreHlImm(constant.Value & 0xFF);
-                        emitter.IncHl();
-                        emitter.StoreHlImm((constant.Value >> 8) & 0xFF);
+                        if (!byteArrays.Contains(arrayAssign.Name))     // tableau d'octets : un octet (D221)
+                        {
+                            emitter.IncHl();
+                            emitter.StoreHlImm((constant.Value >> 8) & 0xFF);
+                        }
                     }
                     else
                     {
@@ -2977,9 +3004,7 @@ public static class CodeGenerator
                         emitter.PushHl();
                         EmitElementAddress(arrayAssign.Name, arrayAssign.Indexes);
                         emitter.PopDe();
-                        emitter.StoreHlE();
-                        emitter.IncHl();
-                        emitter.StoreHlD();
+                        EmitStoreCell(arrayAssign.Name);
                     }
                     break;
 
@@ -3028,9 +3053,7 @@ public static class CodeGenerator
                             emitter.PushHl();
                             EmitElementAddress(cell.Name, cell.Indexes);
                             emitter.PopDe();
-                            emitter.StoreHlE();
-                            emitter.IncHl();
-                            emitter.StoreHlD();
+                            EmitStoreCell(cell.Name);
                         }
                         else
                         {
@@ -3816,7 +3839,7 @@ public static class CodeGenerator
                         (string eraseLabel, int eraseDims) = arrays[name];
                         emitter.LdHlLabel(eraseLabel);
                         emitter.LdBImm(eraseDims);
-                        emitter.LdCImm(ElementBytes(name));
+                        emitter.LdCImm(CellBytes(name));
                         emitter.CallLabel(RuntimeLibrary.ArrayEraseLabel);
                     }
                     break;
@@ -3985,7 +4008,7 @@ public static class CodeGenerator
             foreach ((string name, (string label, int dimensions)) in arrays)
             {
                 emitter.Word(label);
-                emitter.Data([(byte)dimensions, (byte)ElementBytes(name)]);
+                emitter.Data([(byte)dimensions, (byte)CellBytes(name)]);
             }
             emitter.Word(0);
         }

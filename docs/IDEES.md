@@ -19,7 +19,7 @@ Une idée par ligne, avec la date. Quand une idée est décidée, elle passe dan
 - Calcul en 3D en fil de fer : multiplication en virgule fixe, racine carrée entière, projection. (SIN et COS par table : faits, ISIN et ICOS, D142.)
 - OPTION EXPLICIT : déclaration obligatoire de toutes les variables.
 - Multiplication et division par une puissance de 2 : décalages plus rapides.
-- Tableaux d'octets (demande de l'utilisateur, D058) : `BYTE T` avant `DIM T(100)` déclarera un tableau dont les cases vont de 0 à 255 (moitié moins de mémoire). Aucune commande nouvelle (pas de DIMBYTE) : la façon d'écrire existe déjà, la compilation la refuse pour l'instant avec un message clair.
+- **Fait (D221)** — Tableaux d'octets (demande de l'utilisateur, D058) : `BYTE T` avant `DIM T(100)` déclarera un tableau dont les cases vont de 0 à 255 (moitié moins de mémoire). Aucune commande nouvelle (pas de DIMBYTE) : la façon d'écrire existe déjà, la compilation la refuse pour l'instant avec un message clair.
 - Accélérer le dessin des lignes d'ELLIPSE (D141 : un rond par ELLIPSE est 3 fois plus lent que par CIRCLE) ; profiterait à tous les ovales.
 
 ### Commandes nouvelles déjà annoncées

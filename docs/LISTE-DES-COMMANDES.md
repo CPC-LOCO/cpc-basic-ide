@@ -36,7 +36,7 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 | Commande | Rôle | CPC | Cartouche |
 |---|---|---|---|
 | `LET`, `DIM`, `ERASE` | variables et tableaux | Oui | Oui |
-| `BYTE` ★ | variable sur un octet | Oui | Oui |
+| `BYTE` ★ | variable ou tableau sur un octet (`BYTE T` avant `DIM T(100)`, D221) | Oui | Oui |
 | `DEFINT`, `DEFREAL`, `DEFSTR` | genre des variables selon la lettre | Oui | Oui |
 | `DEF FN`, `FN` | fonction écrite par vous | Oui | Oui |
 | `DATA`, `READ`, `RESTORE` | données dans le programme | Oui | Oui |
