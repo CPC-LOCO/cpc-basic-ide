@@ -1229,6 +1229,20 @@ public static class RuntimeLibrary
             e.IncHl();
             e.LoadDFromHl();
             e.ExDeHl();
+            // D224 : « ! » devant le nom (RUN"!NOM", LOAD"!IMAGE") : pas de messages de la cassette (« Press PLAY then any
+            // key », « Loading... ») ; le « ! » est enlevé du nom. Sans « ! », les messages reviennent. CAS NOISY garde HL et B.
+            e.LdAB();
+            e.OrA();
+            e.JrZLabel("rt_file_noisy");             // A = 0 : messages
+            e.LdAHl();
+            e.CpImm('!');
+            e.LdAImm(0);
+            e.JrNzLabel("rt_file_noisy");
+            e.IncHl();
+            e.DecB();
+            e.IncA();                                // A = 1 : pas de messages
+            e.Label("rt_file_noisy");
+            e.CallAddress(0xBC6B);                   // CAS NOISY
             e.Ret();
         }),
 

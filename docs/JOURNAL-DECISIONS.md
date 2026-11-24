@@ -1749,6 +1749,15 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2207 (`AcceptTests.cs`, 17 tests).
 - Exemple : `examples\accept.bas` (âge, nom, oui ou non).
 
+## D224 : « ! » devant les noms de fichiers (24 nov. 2026) (idée de l'utilisateur du 21 nov. 2026, IDEES.md ; choix : « 3 » ; Validé le 24 nov. 2026 : 2214 tests réussis ; examples\silence.bas sur cassette dans Caprice : image chargée sans messages)
+
+- Comme le vrai CPC : `RUN "!NOM"`, `LOAD "!IMAGE",&C000`, `SAVE "!F",B,...`, `OPENIN "!T"`, `OPENOUT "!T"` : sur cassette, pas de « Press PLAY then any key » ni de « Loading... ». Le « ! » ne fait pas partie du nom. Sans « ! », les messages reviennent. Aucun mot nouveau.
+- Fait : la lecture du nom commune à tous les fichiers (`rt_file_name`, RuntimeLibrary.cs) enlève le « ! » et appelle CAS NOISY (&BC6B : 1 sans messages, 0 avec). Sur disquette (AMSDOS) et sur cartouche (entrée &BC6B = simple retour), le nom arrive sans « ! » : le même programme marche partout.
+- Compilateur (`Compiler.cs`) : `RUN "!SUITE"` compile SUITE.BAS (LaunchedPrograms) ; `LOAD "!IMAGE"` trouve IMAGE.BIN et le range sans « ! » sur la disquette, la cassette et la cartouche.
+- Pas fait : le chargeur BASIC de la cassette (RUN"") garde ses messages ; un réglage possible plus tard.
+- Tests : 2214 (`TapeQuietTests.cs`, 7 tests ; CAS NOISY dans le mini-Z80).
+- Exemple : `examples\silence.bas` (comme charge.bas, avec LOAD "!IMAGE").
+
 ---
 
 ## Notes de fin de session (modèle)

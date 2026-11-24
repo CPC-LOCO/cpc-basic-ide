@@ -150,7 +150,7 @@ public static class Compiler
             {
                 if (load.Name is not StringLiteralExpression literal)
                     continue;
-                string wanted = literal.Text.Trim().ToUpperInvariant();
+                string wanted = literal.Text.Trim().ToUpperInvariant().TrimStart('!');   // D224 : « ! » = sans messages
                 DataFile? found = wanted.Contains('.') ? findData(wanted) : findData(wanted) ?? findData(wanted + ".BIN");
                 if (found is null)
                 {
@@ -370,7 +370,7 @@ public static class Compiler
                               "seuls les fichiers déjà dans la cartouche pourront être lus.");
                     continue;
                 }
-                string wanted = literal.Text.Trim().ToUpperInvariant();
+                string wanted = literal.Text.Trim().ToUpperInvariant().TrimStart('!');   // D224 : « ! » = sans messages
                 DataFile? found = null;
                 if (findData is not null)
                     found = wanted.Contains('.') ? findData(wanted) : findData(wanted) ?? findData(wanted + ".BIN");
@@ -453,7 +453,7 @@ public static class Compiler
         {
             if (statement is not RunFileStatement { Name: StringLiteralExpression literal })
                 continue;
-            string name = literal.Text.Trim().ToUpperInvariant();
+            string name = literal.Text.Trim().ToUpperInvariant().TrimStart('!');   // D224 : RUN"!NOM" lance NOM
             int dot = name.IndexOf('.');
             if (dot >= 0)
             {

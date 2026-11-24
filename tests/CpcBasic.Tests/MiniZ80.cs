@@ -211,6 +211,9 @@ internal sealed partial class MiniZ80
     public readonly Dictionary<string, (byte Type, int Address)> FileHeaders = new();   // fichiers binaires (D085)
     public int Catalogs, SoundResets;
     public readonly List<(int HalfBit, byte Precompensation)> TapeSpeeds = new();
+
+    /// <summary>Valeurs données à CAS NOISY (&amp;BC6B) : 0 = messages de la cassette, sinon pas de messages (D224).</summary>
+    public readonly List<byte> Noisy = new();
     string outFileName = "";
     string inFileName = "";
     List<byte>? fileOut;
@@ -776,7 +779,7 @@ internal sealed partial class MiniZ80
                 pc = address;
                 break;
             }
-            if (address is >= 0xBC77 and <= 0xBC9B or 0xBC68)
+            if (address is >= 0xBC77 and <= 0xBC9B or 0xBC68 or 0xBC6B)
             {
                 switch (address)                                   // CAS ... (fichiers, D084) : retenue = réussi
                 {
@@ -798,6 +801,7 @@ internal sealed partial class MiniZ80
                     case 0xBC7D: fileIn = null; CarryFlag = true; break;                            // CAS IN ABANDON
                     case 0xBC9B: Catalogs++; CarryFlag = true; break;                               // CAS CATALOG
                     case 0xBC68: TapeSpeeds.Add((HL, A)); break;                                    // CAS SET SPEED
+                    case 0xBC6B: Noisy.Add(A); break;                                               // CAS NOISY (D224)
                     case 0xBC95: fileOut!.Add(A); CarryFlag = true; break;                          // CAS OUT CHAR
                     case 0xBC8F: fileOut = null; CarryFlag = true; break;                           // CAS OUT CLOSE
                     case 0xBC77:                                                                    // CAS IN OPEN
