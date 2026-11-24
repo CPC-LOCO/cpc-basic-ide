@@ -34,7 +34,7 @@ public static class Parser
         "OPENOUT", "OPENIN", "CLOSEOUT", "CLOSEIN", "EOF", "CAT", "LOAD", "SAVE", "SPEED",
         "RUN", "CHAIN", "MERGE", "TRON", "TROFF",
         "XPOS", "YPOS", "TEST", "TESTR", "KEY", "HIMEM", "FRE", "UNT", "WAIT", "DEF", "FN", "ERASE", "DERR", "WIDTH", "FRAME", "CURSOR", "COPYCHR$", "DEC$", "GRAPHICS", "FILL", "PAINT", "MASK",
-        "DEFSPR", "SPRITE", "SELECT", "CASE", "VROOM", "BOOM", "SHOT", "FALL", "WAVE"];
+        "DEFSPR", "SPRITE", "SELECT", "CASE", "VROOM", "BOOM", "SHOT", "FALL", "WAVE", "PAUSE", "CLIC"];
 
     // Tous les mots du Locomotive BASIC (D058) : un mot pas encore disponible ici ne peut pas devenir un nom de tableau
     // (sinon SIN(3) serait pris pour la case 3 d'un tableau SIN, sans aucun message).
@@ -159,6 +159,9 @@ public static class Parser
         ["FALL"] = new("FALL son (1 chute dans le vide puis le sol, 2 vie perdue)", 1, [1], [2]),
         // D219 : vagues et plouf ; 1 en deuxième valeur : joué à l'envers
         ["WAVE"] = new("WAVE son (1 petite vague, 2 vague moyenne, 3 grosse vague, 4 gros plouf) [, 1 pour l'envers]", 1, [1, 0], [4, 1]),
+        // D222 : attente (idées de l'utilisateur, D049) ; une seule valeur : les secondes ; deux : minutes, secondes
+        ["PAUSE"] = new("PAUSE [heure,][minute,] seconde", 1, [0, 0, 0], [32767, 32767, 32767]),
+        ["CLIC"] = new("CLIC code ASCII de la touche attendue (31 à 255)", 1, [31], [255]),
         ["BOOM"] = new("BOOM son (1 voiture, 2 feu d'artifice, 3 pétard, 4 marteau, 5 malus) [, durée en centièmes de seconde]", 1, [1, 1], [5, 32767]),
         ["RAD"] = new("RAD", 0, [], []),                // angles en radians (D069)
         ["LOCATE"] = new("LOCATE colonne, ligne", 2, [1, 1], [80, 25]),
@@ -1069,7 +1072,7 @@ public static class Parser
                 return pos;
             }
 
-            case "RELEASE" or "VROOM" or "BOOM" or "SHOT" or "FALL" or "WAVE" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK" or "SPRITE":
+            case "RELEASE" or "VROOM" or "BOOM" or "SHOT" or "FALL" or "WAVE" or "PAUSE" or "CLIC" or "DEG" or "RAD" or "MODE" or "ZONE" or "SYMBOL" or "DI" or "EI" or "INK" or "BORDER" or "CLG" or "ORIGIN" or "BOX" or "CIRCLE" or "POKE" or "OUT" or "CALL" or "MEMORY" or "WAIT" or "WIDTH" or "FRAME" or "CURSOR" or "FILL" or "PAINT" or "MASK" or "SPRITE":
                 return ParseScreenCommand(tokens, pos, statements, diagnostics, ScreenCommands[t.Text]);
 
             case "MOVE" or "MOVER" or "PLOT" or "PLOTR" or "DRAW" or "DRAWR":

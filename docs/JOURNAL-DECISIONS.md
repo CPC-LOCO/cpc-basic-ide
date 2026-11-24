@@ -1728,6 +1728,17 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Tests : 2169 (`ArrayTests.cs` : l'ancien test du refus remplacé par 7 tests).
 - Exemple : `examples\octets.bas` (5001 entiers : 10002 octets ; 5001 octets : 5001 octets).
 
+## D222 : PAUSE et CLIC (24 nov. 2026) (idées de l'utilisateur notées en D049 ; choix : « les 2 en même temps » ; Validé le 24 nov. 2026 : 2190 tests réussis ; examples\pause.bas dans WinAPE : 303 centièmes pour PAUSE 3, compteur à 25, BRAVO après la touche A)
+
+- Suite de D049 (PAUSE et CLIC réservés pour plus tard). **Mots réservés nouveaux : PAUSE, CLIC** (forme donnée par l'utilisateur).
+- `PAUSE [heure,][minute,] seconde` : une valeur = secondes, deux = minutes, secondes, trois = heures, minutes, secondes ; chaque valeur de 0 à 32767 (en clair : vérifiée à la compilation ; calculée et négative : « Improper argument »). Temps de KL TIME PLEASE (1/300 s) ; chaque seconde est comptée depuis le départ (pas de dérive) ; total sur 32 bits.
+- `CLIC code` : attend la touche de ce code ASCII, de 31 à 255 (calculé hors limites : « Improper argument ») ; les touches tapées avant sont oubliées ; majuscule et minuscule sont deux codes différents (CLIC 65 : A, CLIC 97 : a). Sur la cartouche : les codes de la manette (tir 1 = 32, flèches = 240 à 243).
+- Pendant l'attente : EVERY, AFTER, ON SQ et la touche ESC sont traités comme entre deux lignes (si le programme s'en sert) ; les sons continuent. Marche aussi sur la cartouche.
+- Fait : `Codegen\PauseRuntime.cs` (préfixe rt_pz_), `Parser.cs`, `CodeGenerator.cs` (boucle d'attente écrite dans le programme, avec le regard sur les minuteries), `RuntimeLibrary.cs`, couleurs de l'éditeur (`BasicColorizer.cs`).
+- Tests : 2190 (`PauseTests.cs` ; le mini-Z80 a une horloge qui avance, `ClockStep`).
+- Exemple : `examples\pause.bas`.
+- Idées notées le même jour (IDEES.md, outils et éditeur) : planches des caractères et des couleurs dans l'Aide ; éditeur de caractères et de sprites qui ajoute une ligne de données au programme.
+
 ---
 
 ## Notes de fin de session (modèle)

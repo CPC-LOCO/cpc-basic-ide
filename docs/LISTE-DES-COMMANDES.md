@@ -159,6 +159,10 @@ Les mots marqués ★ sont des ajouts du projet (ils n'existent pas dans le Loco
 
 `WAVE son [, envers]` : vagues : 1 petite vague, 2 vague moyenne, 3 grosse vague qui se brise, 4 gros plouf ; `WAVE n, 1` : le même son joué à l'envers (D219). Pour une île : `FOR A=1 TO 100:WAVE 1+INT(RND*3):NEXT`.
 
+`PAUSE [heure,][minute,] seconde` ★ : attend le temps donné (`PAUSE 5`, `PAUSE 1,30`, `PAUSE 1,0,0`) ; EVERY, AFTER et ESC continuent (D222).
+
+`CLIC code` ★ : attend la touche de ce code ASCII, de 31 à 255 (`CLIC 32` : ESPACE ; `CLIC 97` : a minuscule) ; les touches tapées avant ne comptent pas (D222).
+
 **Enveloppes des effets (D218) :** VROOM, BOOM, SHOT, FALL et WAVE prennent leurs numéros d'ENV et d'ENT parmi ceux que le programme n'écrit pas lui-même ; les numéros indiqués plus haut pour chaque effet sont ceux d'avant D218.
 
 Déjà colorés dans l'éditeur, à ne pas prendre comme noms de variables : `SCROLL`.

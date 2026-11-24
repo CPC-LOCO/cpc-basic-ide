@@ -219,6 +219,8 @@ public static class CodeGenerator
         int realFree = 0;
         int realTemps = 0;
         bool usesSound = false;                 // SOUND (D071)
+        // PAUSE et CLIC (D222) : pendant l'attente, les minuteries et la touche ESC sont regardées comme entre deux lignes
+        bool waitEvents = options.BreakKey || program.Statements.Any(st => st is OnBreakStatement or TimerStatement or OnSqStatement);
         int envelopeBlocks = 0;                 // ENV et ENT (D071)
         var realLiterals = new Dictionary<double, string>();
 
@@ -1614,6 +1616,16 @@ public static class CodeGenerator
             emitter.Label(done);
         }
 
+        // Pendant PAUSE et CLIC (D222) : une minuterie arrivée au bout ou la touche ESC sont traitées (comme D079)
+        void EmitWaitEvents()
+        {
+            if (!waitEvents)
+                return;
+            emitter.LdAMem(RuntimeLibrary.EventsPendingLabel);
+            emitter.OrA();
+            emitter.CallNzLabel(RuntimeLibrary.EventsRunLabel);
+        }
+
         void EmitScreen(ScreenStatement screen)
         {
             IReadOnlyList<Expression> a = screen.Arguments;
@@ -1851,6 +1863,69 @@ public static class CodeGenerator
                 case "GRAPHICS PAPER":              // fond des tracés, pour CLG (D106) : GRA SET PAPER
                     EmitCallWithA(a[0], GraSetPaper);
                     break;
+
+                case "PAUSE":                       // PAUSE [heure,][minute,] seconde (D222)
+                {
+                    required.Add(RuntimeLibrary.PauseName);
+                    if (a.Any(x => x is not NumberExpression))
+                        required.Add(RuntimeLibrary.ByteCheckName);
+                    string[] slots = a.Count switch
+                    {
+                        1 => new[] { PauseRuntime.SecondsLabel },
+                        2 => new[] { PauseRuntime.MinutesLabel, PauseRuntime.SecondsLabel },
+                        _ => new[] { PauseRuntime.HoursLabel, PauseRuntime.MinutesLabel, PauseRuntime.SecondsLabel }
+                    };
+                    if (a.Count < 3)
+                    {
+                        emitter.LdHlImm(0);
+                        emitter.LdMemHl(PauseRuntime.HoursLabel);
+                        if (a.Count < 2)
+                            emitter.LdMemHl(PauseRuntime.MinutesLabel);
+                    }
+                    for (int i = 0; i < a.Count; i++)
+                    {
+                        EmitExpression(a[i]);
+                        if (a[i] is not NumberExpression)   // valeur calculée négative : « Improper argument »
+                        {
+                            emitter.LdAH();
+                            emitter.AndImm(0x80);
+                            emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                        }
+                        emitter.LdMemHl(slots[i]);
+                    }
+                    emitter.CallLabel(PauseRuntime.StartLabel);
+                    string wait = $"pz_{labelCount++}";
+                    emitter.Label(wait);
+                    EmitWaitEvents();
+                    emitter.CallLabel(PauseRuntime.StepLabel);
+                    emitter.JrNcLabel(wait);
+                    break;
+                }
+
+                case "CLIC":                        // CLIC code : attend la touche de ce code ASCII (D222)
+                {
+                    required.Add(RuntimeLibrary.PauseName);
+                    EmitExpression(a[0]);
+                    if (a[0] is not NumberExpression)       // code calculé hors de 31 à 255 : « Improper argument »
+                    {
+                        required.Add(RuntimeLibrary.ByteCheckName);
+                        emitter.LdAH();
+                        emitter.OrA();
+                        emitter.JpNzLabel(RuntimeLibrary.ByteCheckLabel);
+                        emitter.LdAL();
+                        emitter.CpImm(31);
+                        emitter.JpCLabel(RuntimeLibrary.ByteCheckLabel);
+                    }
+                    emitter.LdAL();
+                    emitter.LdMemA(PauseRuntime.CodeLabel);
+                    emitter.CallLabel(PauseRuntime.KeyStartLabel);
+                    string wait = $"pz_{labelCount++}";
+                    emitter.Label(wait);
+                    EmitWaitEvents();
+                    emitter.CallLabel(PauseRuntime.KeyLabel);
+                    emitter.JrNcLabel(wait);
+                    break;
+                }
 
                 case "FRAME":                       // attend le début du balayage de l'écran (D102)
                     emitter.CallAddress(0xBD19);    // MC WAIT FLYBACK

@@ -23,6 +23,9 @@ internal sealed partial class MiniZ80
     /// <summary>Temps rendu par KL TIME PLEASE (&BD0D) dans DEHL.</summary>
     public uint Clock;
 
+    /// <summary>Temps ajouté à Clock après chaque KL TIME PLEASE (PAUSE, D222) ; 0 : le temps ne bouge pas.</summary>
+    public uint ClockStep;
+
     /// <summary>Appels du firmware sans résultat à simuler, dans l'ordre (CURSOR, FRAME, D102).</summary>
     public readonly List<int> FirmwareCalls = new();
 
@@ -1115,6 +1118,7 @@ internal sealed partial class MiniZ80
             {
                 DE = (ushort)(Clock >> 16);                        // KL TIME PLEASE : temps dans DEHL
                 HL = (ushort)(Clock & 0xFFFF);
+                Clock += ClockStep;
             }
             else
             {

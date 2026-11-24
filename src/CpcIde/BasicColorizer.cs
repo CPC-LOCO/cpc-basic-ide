@@ -67,7 +67,7 @@ public class BasicColorizer : DocumentColorizingTransformer
         "CIRCLE", "ELLIPSE", "PAINT", "BOX", "DEBUG",
         "SPRITE", "COLLIDE", "SCROLL", "DEFSPR",
         "SELECT", "CASE", "BYTE", "EXIT", "CONTINUE", "ENDIF", "HIBYTE", "LOBYTE", "CLAMP", "RANDOM", "ISIN", "ICOS", "DO", "LOOP", "REPEAT", "UNTIL",
-        "VROOM", "BOOM", "SHOT", "FALL", "WAVE"
+        "VROOM", "BOOM", "SHOT", "FALL", "WAVE", "PAUSE", "CLIC"
     };
 
     /// <summary>

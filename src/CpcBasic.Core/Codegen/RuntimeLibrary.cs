@@ -90,6 +90,7 @@ public static class RuntimeLibrary
     public const string ShotName = "Shot";              // SHOT (D215) : voir ShotRuntime
     public const string FallName = "Fall";              // FALL (D217) : voir FallRuntime
     public const string WaveName = "Wave";              // WAVE (D219) : voir WaveRuntime
+    public const string PauseName = "Pause";            // PAUSE, CLIC (D222) : voir PauseRuntime
     public const string EffectsName = "Effects";        // réserve des numéros d'enveloppes des effets (D218)
     public const string LineName = "Line";              // DRAW, DRAWR rapides (D204) : voir LineRuntime
     public const string BoxLabel = "rt_box";
@@ -978,6 +979,7 @@ public static class RuntimeLibrary
         [ShotName] = new RuntimeModule(ShotName, [EffectsName], ShotRuntime.Emit),
         [FallName] = new RuntimeModule(FallName, [EffectsName], FallRuntime.Emit),
         [WaveName] = new RuntimeModule(WaveName, [EffectsName], WaveRuntime.Emit),
+        [PauseName] = new RuntimeModule(PauseName, [], PauseRuntime.Emit),
         // Tableaux d'entiers (DIM, lot C, D058). Un tableau a un descripteur dans les variables :
         //   2 octets = adresse de ses cases (0 = pas encore créé), puis 2 octets par dimension = nombre de cases.
         // Les cases (2 octets chacune, à 0 au départ) sont prises dans la mémoire libre, après le programme,
