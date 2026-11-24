@@ -1711,6 +1711,13 @@ Erreurs : double déclaration, déclaration après usage, suffixe dans la décla
 - Exemple : `examples\wave.bas` (1 à 4 ; 5 à 8 : à l'envers ; 9 : une île, 20 vagues au hasard).
 - **Les cinq effets sonores sont faits** (VROOM, BOOM, SHOT, FALL, WAVE). Reste dans la liste du début : SCROLL.
 
+## D220 : préparation de la version 0.8.0 (24 nov. 2026) (choix de l'utilisateur : « on lance la v0.8.0 »)
+
+- **Contenu :** sprites (D198 à D201), traits rapides (D202 à D205), SELECT CASE (D206), RUN "nom" et LOAD sur cartouche (D207, D208), fichiers de LOAD sur disquette et cassette, fichiers de plus de 16 Ko (D209, D211), PLOT, PLOTR, MOVE, MOVER rapides (D210, D212), effets sonores VROOM, BOOM, SHOT, FALL, WAVE et réserve des enveloppes (D213 à D219) ; notes dans `docs\RELEASE-NOTES-0.8.0.md`.
+- **Fichiers :** version 0.8.0 dans `Directory.Build.props` et `packaging\build-release.cmd` ; `packaging\LISEZMOI.txt` (fichiers de données au point 4 ; SELECT CASE, sprites, effets sonores et vitesse au point 5 ; RUN "nom" et LOAD au point 8) ; README (français et anglais) et TESTEURS.md ; IDEES.md (lignes faites marquées).
+- **Oubli corrigé :** le paquet ne contenait que les exemples `.bas` ; `build-release.cmd` copie aussi les `.bin` des exemples (IMAGE.BIN, pour charge.bas).
+- **Paquet construit (24 nov. 2026) :** `release\CpcBasic-0.8.0-win-x64.zip`, SHA256 105204520c2b525042ad0ec0370ea8ab684694a28730a585a6d6ef505ffee319 ; contenu vérifié : 357 fichiers, 120 exemples et IMAGE.BIN, bibliothèques GRAPHIQUE et TEXTE, pas de ROM, pas de .dsk, .cdt ni .cpr.
+
 ---
 
 ## Notes de fin de session (modèle)

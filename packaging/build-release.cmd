@@ -4,7 +4,7 @@ rem Double-clic possible : le script se place lui-meme a la racine du depot (D14
 setlocal
 cd /d "%~dp0.."
 
-set VERSION=0.7.0
+set VERSION=0.8.0
 set NAME=CpcBasic-%VERSION%-win-x64
 set OUT=release\%NAME%
 
@@ -22,6 +22,9 @@ echo.
 echo === Ajout des fichiers d'accompagnement ===
 mkdir "%OUT%\examples"
 copy "examples\*.bas" "%OUT%\examples\" >nul
+if errorlevel 1 goto erreur
+rem 0.8.0 : les fichiers de donnees des exemples (IMAGE.BIN pour charge.bas, LOAD, D208)
+copy "examples\*.bin" "%OUT%\examples\" >nul
 if errorlevel 1 goto erreur
 copy docs\COMPATIBILITE-LOCOMOTIVE.md "%OUT%\COMPATIBILITE.md" >nul
 if errorlevel 1 goto erreur
